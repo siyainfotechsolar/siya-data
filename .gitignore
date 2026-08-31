@@ -1,0 +1,47 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Visual Studio Code
+.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+**/build/
+
+# Environment / Secret configs
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+service-account*.json
+
+# Symbol processing related
+**/app.*.symbols
+**/app.*.map.json
+
+# Web related
+lib/generated_plugin_registrant.dart
