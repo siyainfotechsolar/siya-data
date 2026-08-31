@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
+import '../services/record_service.dart';
 import 'login_screen.dart';
+import 'records_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -11,6 +13,8 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _selectedIndex = 0;
+  bool _isLoadingMetrics = false;
+  DashboardMetrics? _metrics;
 
   final List<_NavDestination> _destinations = [
     _NavDestination('Dashboard', Icons.dashboard_outlined, Icons.dashboard),
@@ -21,6 +25,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavDestination('Reports', Icons.bar_chart_outlined, Icons.bar_chart),
     _NavDestination('Settings', Icons.settings_outlined, Icons.settings),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMetrics();
+  }
+
+  Future<void> _loadMetrics() async {
+    setState(() => _isLoadingMetrics = true);
+    final m = await RecordService.fetchDashboardMetrics();
+    if (mounted) {
+      setState(() {
+        _metrics = m;
+        _isLoadingMetrics = false;
+      });
+    }
+  }
 
   Future<void> _handleSignOut() async {
     await SupabaseService.signOut();
@@ -34,7 +55,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDesktop = MediaQuery.of(context).size.width >= 800;
+    final isDesktop = MediaQuery.of(context).size.width >= 900;
 
     return Scaffold(
       appBar: AppBar(
@@ -83,6 +104,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               setState(() {
                 _selectedIndex = index;
               });
+              if (index == 0) {
+                _loadMetrics();
+              }
             },
             destinations: _destinations
                 .map(
@@ -108,7 +132,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 0:
         return _buildDashboardView();
       case 1:
-        return _buildPlaceholderView('Records Management', 'Phase 3 Feature');
+        return const RecordsScreen();
       case 2:
         return _buildPlaceholderView('Excel / CSV Import', 'Phase 4 & 5 Feature');
       case 3:
@@ -132,32 +156,68 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'System Overview',
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Phase 1: Project Foundation Ready',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'System Overview',
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Live metrics and synchronized records',
+                    style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+              IconButton.outlined(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh Dashboard',
+                onPressed: _loadMetrics,
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           Wrap(
             spacing: 16,
             runSpacing: 16,
             children: [
-              _buildStatCard('Total Records', '0', Icons.description_outlined, Colors.blue),
-              _buildStatCard('Active Users', '1', Icons.person_outline, Colors.green),
-              _buildStatCard('Recently Updated', '0', Icons.update, Colors.orange),
-              _buildStatCard('Import Batches', '0', Icons.cloud_upload_outlined, Colors.purple),
+              _buildStatCard(
+                'Total Records',
+                _isLoadingMetrics ? '...' : '${_metrics?.totalRecords ?? 0}',
+                Icons.description_outlined,
+                Colors.blue,
+              ),
+              _buildStatCard(
+                'Active Users',
+                _isLoadingMetrics ? '...' : '${_metrics?.activeUsers ?? 1}',
+                Icons.person_outline,
+                Colors.green,
+              ),
+              _buildStatCard(
+                'Recently Updated',
+                _isLoadingMetrics ? '...' : '${_metrics?.recentlyUpdated ?? 0}',
+                Icons.update,
+                Colors.orange,
+              ),
+              _buildStatCard(
+                'Import Batches',
+                '0',
+                Icons.cloud_upload_outlined,
+                Colors.purple,
+              ),
             ],
           ),
           const SizedBox(height: 32),
+
+          // Recent Records Table Card
           Card(
+            elevation: 2,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
               padding: const EdgeInsets.all(20.0),
@@ -165,23 +225,64 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Icon(Icons.info_outline, color: Colors.blue),
-                      const SizedBox(width: 8),
                       Text(
-                        'Phase 1 Status',
+                        'Recently Updated Records',
                         style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() => _selectedIndex = 1),
+                        child: const Text('View All Records →'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    '✓ Monorepo configured (admin_panel, mobile_app, supabase, docs)\n'
-                    '✓ Supabase Email + Password Auth foundation wired\n'
-                    '✓ Responsive Navigation structure\n'
-                    '✓ Ready for Phase 2: Database architecture & RLS',
-                    style: TextStyle(height: 1.6),
-                  ),
+                  if (_isLoadingMetrics)
+                    const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+                  else if (_metrics == null || _metrics!.recentRecords.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24.0),
+                      child: Center(
+                        child: Text(
+                          'No records added yet. Head to "Records" tab to add your first solar consumer.',
+                          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                    )
+                  else
+                    Table(
+                      columnWidths: const {
+                        0: FlexColumnWidth(1.2),
+                        1: FlexColumnWidth(2),
+                        2: FlexColumnWidth(1.2),
+                        3: FlexColumnWidth(1.2),
+                      },
+                      children: [
+                        const TableRow(
+                          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5))),
+                          children: [
+                            Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
+                            Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                            Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                            Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Last Updated', style: TextStyle(fontWeight: FontWeight.bold))),
+                          ],
+                        ),
+                        ..._metrics!.recentRecords.map((r) {
+                          return TableRow(
+                            children: [
+                              Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(r.consumerNo, style: const TextStyle(fontWeight: FontWeight.w500))),
+                              Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(r.name)),
+                              Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(r.status)),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                child: Text(r.updatedAt != null ? r.updatedAt!.toLocal().toString().split(' ')[0] : '—'),
+                              ),
+                            ],
+                          );
+                        }),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -215,7 +316,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                   CircleAvatar(
                     radius: 18,
-                    backgroundColor: color.withOpacity(0.1),
+                    backgroundColor: color.withValues(alpha: 0.1),
                     child: Icon(icon, color: color, size: 20),
                   ),
                 ],
