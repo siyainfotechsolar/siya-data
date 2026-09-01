@@ -86,7 +86,9 @@ class RecordService {
         page: page,
         pageSize: pageSize,
       );
-    } catch (e) {
+    } catch (e, stack) {
+      // ignore: avoid_print
+      print('Error in RecordService.fetchRecords: $e\n$stack');
       return PaginatedResult<ConsumerRecord>(
         items: [],
         totalCount: 0,
