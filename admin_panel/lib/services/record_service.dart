@@ -136,6 +136,60 @@ class RecordService {
     await _client.from('consumer_records').delete().eq('id', id);
   }
 
+  /// Bulk import records in batches of 50 with real-time progress callbacks
+  static Future<Map<String, int>> bulkImportRecords({
+    required List<ConsumerRecord> records,
+    Function(int current, int total)? onProgress,
+  }) async {
+    final user = SupabaseService.currentUser;
+    int successCount = 0;
+    int errorCount = 0;
+    const batchSize = 50;
+
+    for (int i = 0; i < records.length; i += batchSize) {
+      final end = (i + batchSize < records.length) ? i + batchSize : records.length;
+      final batch = records.sublist(i, end);
+
+      final payloads = batch.map((r) {
+        final map = r.toJson();
+        if (user != null) {
+          map['created_by'] = user.id;
+          map['updated_by'] = user.id;
+        }
+        return map;
+      }).toList();
+
+      try {
+        await _client
+            .from('consumer_records')
+            .upsert(payloads, onConflict: 'consumer_no');
+        successCount += batch.length;
+      } catch (e) {
+        // Fallback: try individual inserts in this batch to maximize successful imports
+        for (final payload in payloads) {
+          try {
+            await _client
+                .from('consumer_records')
+                .upsert(payload, onConflict: 'consumer_no');
+            successCount++;
+          } catch (_) {
+            errorCount++;
+          }
+        }
+      }
+
+      if (onProgress != null) {
+        onProgress(end, records.length);
+      }
+    }
+
+    return {
+      'total': records.length,
+      'success': successCount,
+      'errors': errorCount,
+    };
+  }
+
   /// Fetch dashboard metrics
   static Future<DashboardMetrics> fetchDashboardMetrics() async {
     try {

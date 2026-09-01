@@ -56,9 +56,9 @@ flutter run -d android --dart-define=SUPABASE_URL="YOUR_SUPABASE_URL" --dart-def
 ## 🗺️ Roadmap & Phases
 
 - [x] **Phase 1: Project Foundation** (Monorepo, Flutter setup, Supabase Auth foundation)
-- [ ] **Phase 2: Database & Security** (Supabase schema, Unique consumer_no constraint, RLS policies)
-- [ ] **Phase 3: Admin Panel** (CRUD table, navigation, pagination, search & filters)
-- [ ] **Phase 4: Excel/CSV Import** (File upload, column detection & mapping, validation preview)
+- [x] **Phase 2: Database & Security** (Supabase schema, Unique consumer_no constraint, RLS policies)
+- [x] **Phase 3: Admin Panel** (CRUD table, navigation, pagination, search & filters)
+- [x] **Phase 4: Excel/CSV Import** (File upload, column detection & mapping, validation preview)
 - [ ] **Phase 5: Duplicate & Update Engine** (Production upsert & diff engine, change logging)
 - [ ] **Phase 6: History & Audit Log** (Import run logs, field-level change history)
 - [ ] **Phase 7: Mobile App** (Field staff views, search & details)

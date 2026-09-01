@@ -4,6 +4,7 @@ import '../models/consumer_record.dart';
 import '../services/record_service.dart';
 import '../widgets/record_form_dialog.dart';
 import '../widgets/record_details_dialog.dart';
+import '../widgets/import_dialog.dart';
 
 class RecordsScreen extends StatefulWidget {
   const RecordsScreen({super.key});
@@ -152,6 +153,18 @@ class _RecordsScreenState extends State<RecordsScreen> {
     );
   }
 
+  void _openImportDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ImportDialog(
+        onImportSuccess: () {
+          _loadRecords();
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -180,10 +193,27 @@ class _RecordsScreenState extends State<RecordsScreen> {
                   ),
                 ],
               ),
-              FilledButton.icon(
-                onPressed: _openAddRecordDialog,
-                icon: const Icon(Icons.add),
-                label: const Text('Add Record'),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _openImportDialog,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      side: BorderSide(color: theme.colorScheme.primary),
+                    ),
+                    icon: const Icon(Icons.upload_file_rounded),
+                    label: const Text('Import Excel / CSV'),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: _openAddRecordDialog,
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    ),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Record'),
+                  ),
+                ],
               ),
             ],
           ),

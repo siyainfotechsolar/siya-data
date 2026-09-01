@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import '../services/record_service.dart';
+import '../widgets/import_dialog.dart';
 import 'login_screen.dart';
 import 'records_screen.dart';
 
@@ -127,6 +128,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void _openImportDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ImportDialog(
+        onImportSuccess: () {
+          _loadMetrics();
+        },
+      ),
+    );
+  }
+
   Widget _buildBodyContent() {
     switch (_selectedIndex) {
       case 0:
@@ -134,7 +147,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 1:
         return const RecordsScreen();
       case 2:
-        return _buildPlaceholderView('Excel / CSV Import', 'Phase 4 & 5 Feature');
+        return _buildImportLandingView();
       case 3:
         return _buildPlaceholderView('Import History & Audit Log', 'Phase 6 Feature');
       case 4:
@@ -146,6 +159,51 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       default:
         return _buildDashboardView();
     }
+  }
+
+  Widget _buildImportLandingView() {
+    final theme = Theme.of(context);
+
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 720),
+        padding: const EdgeInsets.all(40.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.cloud_upload_outlined, size: 64, color: theme.colorScheme.primary),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Excel & CSV Import Center',
+              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Easily batch-import hundreds or thousands of solar consumer records from .xlsx, .xls, or .csv files with automatic header mapping and data verification.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 32),
+            FilledButton.icon(
+              onPressed: _openImportDialog,
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: const Icon(Icons.upload_file_rounded),
+              label: const Text('Launch Import Wizard', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildDashboardView() {
