@@ -1,14 +1,17 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../models/record_diff.dart';
 import '../services/import_parser_service.dart';
 import '../services/record_service.dart';
+import '../services/duplicate_detection_service.dart';
+import 'diff_review_view.dart';
 
 enum ImportStep {
   upload,
   mapping,
   preview,
+  diffReview,
   importing,
   completed,
 }
@@ -35,6 +38,10 @@ class _ImportDialogState extends State<ImportDialog> {
   ImportColumnMapping _mapping = ImportColumnMapping();
   ImportValidationReport? _validationReport;
   bool _showOnlyInvalid = false;
+
+  // Duplicate & Diff Analysis (Phase 5)
+  DuplicateAnalysisResult? _duplicateAnalysis;
+  ConflictStrategy _selectedStrategy = ConflictStrategy.updateNonEmptyOnly;
 
   // Progress
   int _currentProgress = 0;
@@ -97,23 +104,52 @@ class _ImportDialogState extends State<ImportDialog> {
     }
   }
 
-  Future<void> _executeImport() async {
+  Future<void> _runDuplicateAnalysis() async {
     if (_validationReport == null || _validationReport!.validRowsCount == 0) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final validRecords = _validationReport!.rows
+          .where((r) => r.isValid)
+          .map((r) => r.toConsumerRecord())
+          .toList();
+
+      final analysis = await DuplicateDetectionService.analyzeDuplicates(validRecords);
+
+      setState(() {
+        _duplicateAnalysis = analysis;
+        _currentStep = ImportStep.diffReview;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Duplicate analysis failed: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _executeImport() async {
+    if (_duplicateAnalysis == null) return;
+
+    final newRecords = _duplicateAnalysis!.newRecords;
+    final conflictRecords = _duplicateAnalysis!.conflictRecords;
 
     setState(() {
       _currentStep = ImportStep.importing;
       _currentProgress = 0;
-      _totalToImport = _validationReport!.validRowsCount;
+      _totalToImport = newRecords.length + conflictRecords.length;
     });
 
-    final validRecords = _validationReport!.rows
-        .where((r) => r.isValid)
-        .map((r) => r.toConsumerRecord())
-        .toList();
-
     try {
-      final summary = await RecordService.bulkImportRecords(
-        records: validRecords,
+      final summary = await RecordService.executeSmartImport(
+        newRecords: newRecords,
+        conflictRecords: conflictRecords,
+        strategy: _selectedStrategy,
         onProgress: (current, total) {
           if (mounted) {
             setState(() {
@@ -135,7 +171,7 @@ class _ImportDialogState extends State<ImportDialog> {
       if (mounted) {
         setState(() {
           _errorMessage = 'Import failed: $e';
-          _currentStep = ImportStep.preview;
+          _currentStep = ImportStep.diffReview;
         });
       }
     }
@@ -148,8 +184,8 @@ class _ImportDialogState extends State<ImportDialog> {
       backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Container(
-        width: 960,
-        height: 680,
+        width: 1000,
+        height: 720,
         padding: const EdgeInsets.all(28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -179,7 +215,7 @@ class _ImportDialogState extends State<ImportDialog> {
                         ),
                       ),
                       Text(
-                        'Upload Excel (.xlsx, .xls) or CSV files with auto column detection & validation',
+                        'Upload Excel (.xlsx, .xls) or CSV files with smart duplicate & field diff detection',
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           color: const Color(0xFF64748B),
@@ -243,10 +279,11 @@ class _ImportDialogState extends State<ImportDialog> {
 
   Widget _buildStepIndicator() {
     final steps = [
-      {'step': ImportStep.upload, 'title': '1. Upload File'},
-      {'step': ImportStep.mapping, 'title': '2. Map Columns'},
-      {'step': ImportStep.preview, 'title': '3. Validation & Preview'},
-      {'step': ImportStep.completed, 'title': '4. Complete'},
+      {'step': ImportStep.upload, 'title': '1. Upload'},
+      {'step': ImportStep.mapping, 'title': '2. Column Mapping'},
+      {'step': ImportStep.preview, 'title': '3. Validation'},
+      {'step': ImportStep.diffReview, 'title': '4. Diff & Duplicates'},
+      {'step': ImportStep.completed, 'title': '5. Complete'},
     ];
 
     return Container(
@@ -263,7 +300,7 @@ class _ImportDialogState extends State<ImportDialog> {
           final title = s['title'] as String;
           final isPassed = _isStepPassed(stepEnum);
           final isCurrent = _currentStep == stepEnum ||
-              (_currentStep == ImportStep.importing && stepEnum == ImportStep.preview);
+              (_currentStep == ImportStep.importing && stepEnum == ImportStep.diffReview);
 
           Color textColor = const Color(0xFF94A3B8);
           FontWeight fontWeight = FontWeight.normal;
@@ -299,7 +336,10 @@ class _ImportDialogState extends State<ImportDialog> {
 
   bool _isStepPassed(ImportStep step) {
     if (_currentStep == ImportStep.completed) return true;
-    if (_currentStep == ImportStep.importing) return step == ImportStep.upload || step == ImportStep.mapping;
+    if (_currentStep == ImportStep.importing) return step != ImportStep.completed;
+    if (_currentStep == ImportStep.diffReview) {
+      return step == ImportStep.upload || step == ImportStep.mapping || step == ImportStep.preview;
+    }
     if (_currentStep == ImportStep.preview) return step == ImportStep.upload || step == ImportStep.mapping;
     if (_currentStep == ImportStep.mapping) return step == ImportStep.upload;
     return false;
@@ -314,7 +354,9 @@ class _ImportDialogState extends State<ImportDialog> {
             const CircularProgressIndicator(color: Color(0xFFD97706)),
             const SizedBox(height: 16),
             Text(
-              'Parsing file contents & detecting column headers...',
+              _currentStep == ImportStep.preview
+                  ? 'Comparing records against database & computing field diffs...'
+                  : 'Parsing file contents & detecting column headers...',
               style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
             ),
           ],
@@ -329,6 +371,15 @@ class _ImportDialogState extends State<ImportDialog> {
         return _buildMappingView();
       case ImportStep.preview:
         return _buildPreviewView();
+      case ImportStep.diffReview:
+        return _duplicateAnalysis != null
+            ? DiffReviewView(
+                analysis: _duplicateAnalysis!,
+                selectedStrategy: _selectedStrategy,
+                onStrategyChanged: (strategy) => setState(() => _selectedStrategy = strategy),
+                onDataChanged: () => setState(() {}),
+              )
+            : const SizedBox.shrink();
       case ImportStep.importing:
         return _buildImportingView();
       case ImportStep.completed:
@@ -543,7 +594,7 @@ class _ImportDialogState extends State<ImportDialog> {
           Expanded(
             flex: 3,
             child: DropdownButtonFormField<int?>(
-              value: (currentIndex != null && currentIndex >= 0 && currentIndex < headers.length)
+              initialValue: (currentIndex != null && currentIndex >= 0 && currentIndex < headers.length)
                   ? currentIndex
                   : null,
               decoration: InputDecoration(
@@ -594,7 +645,7 @@ class _ImportDialogState extends State<ImportDialog> {
           children: [
             _buildStatBadge('Total Rows', report.totalRows.toString(), const Color(0xFF64748B), Colors.grey.shade100),
             const SizedBox(width: 10),
-            _buildStatBadge('Ready to Import', report.validRowsCount.toString(), const Color(0xFF0F766E), const Color(0xFFCCFBF1)),
+            _buildStatBadge('Valid Rows', report.validRowsCount.toString(), const Color(0xFF0F766E), const Color(0xFFCCFBF1)),
             const SizedBox(width: 10),
             _buildStatBadge('Invalid Rows', report.invalidRowsCount.toString(), Colors.red.shade700, Colors.red.shade50),
             const SizedBox(width: 10),
@@ -731,7 +782,7 @@ class _ImportDialogState extends State<ImportDialog> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Writing verified consumer records in high-speed batches to database',
+              'Writing verified consumer records and updating existing entries in database',
               style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
               textAlign: TextAlign.center,
             ),
@@ -759,12 +810,14 @@ class _ImportDialogState extends State<ImportDialog> {
   // --- Step 5: Completed View ---
   Widget _buildCompletedView() {
     final total = _importSummary?['total'] ?? 0;
-    final success = _importSummary?['success'] ?? 0;
+    final inserted = _importSummary?['inserted'] ?? 0;
+    final updated = _importSummary?['updated'] ?? 0;
+    final skipped = _importSummary?['skipped'] ?? 0;
     final errors = _importSummary?['errors'] ?? 0;
 
     return Center(
       child: Container(
-        width: 500,
+        width: 540,
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
           color: const Color(0xFFF8FAFC),
@@ -789,21 +842,21 @@ class _ImportDialogState extends State<ImportDialog> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Your consumer records have been saved into the database and are now live.',
+              'Your dataset has been synchronized with the database and field changes were logged.',
               style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              alignment: WrapAlignment.center,
               children: [
-                _buildSummaryBox('Processed', total.toString(), const Color(0xFF1E293B)),
-                const SizedBox(width: 14),
-                _buildSummaryBox('Imported', success.toString(), const Color(0xFF059669)),
-                if (errors > 0) ...[
-                  const SizedBox(width: 14),
-                  _buildSummaryBox('Skipped/Failed', errors.toString(), Colors.red.shade700),
-                ],
+                _buildSummaryBox('Total Processed', total.toString(), const Color(0xFF1E293B)),
+                _buildSummaryBox('New Inserted', inserted.toString(), const Color(0xFF059669)),
+                if (updated > 0) _buildSummaryBox('Updated', updated.toString(), const Color(0xFFD97706)),
+                if (skipped > 0) _buildSummaryBox('Skipped', skipped.toString(), const Color(0xFF64748B)),
+                if (errors > 0) _buildSummaryBox('Failed', errors.toString(), Colors.red.shade700),
               ],
             ),
           ],
@@ -814,7 +867,7 @@ class _ImportDialogState extends State<ImportDialog> {
 
   Widget _buildSummaryBox(String label, String value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -822,8 +875,8 @@ class _ImportDialogState extends State<ImportDialog> {
       ),
       child: Column(
         children: [
-          Text(value, style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-          Text(label, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B))),
+          Text(value, style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+          Text(label, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B))),
         ],
       ),
     );
@@ -834,7 +887,7 @@ class _ImportDialogState extends State<ImportDialog> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Back / Cancel
+        // Back Buttons
         if (_currentStep == ImportStep.mapping)
           TextButton.icon(
             onPressed: () => setState(() => _currentStep = ImportStep.upload),
@@ -847,10 +900,16 @@ class _ImportDialogState extends State<ImportDialog> {
             icon: const Icon(Icons.arrow_back, size: 16),
             label: const Text('Back to Mapping'),
           )
+        else if (_currentStep == ImportStep.diffReview)
+          TextButton.icon(
+            onPressed: () => setState(() => _currentStep = ImportStep.preview),
+            icon: const Icon(Icons.arrow_back, size: 16),
+            label: const Text('Back to Preview'),
+          )
         else
           const SizedBox.shrink(),
 
-        // Next / Action Button
+        // Forward / Action Buttons
         if (_currentStep == ImportStep.upload)
           const SizedBox.shrink()
         else if (_currentStep == ImportStep.mapping)
@@ -868,12 +927,12 @@ class _ImportDialogState extends State<ImportDialog> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             icon: const Icon(Icons.arrow_forward, size: 18),
-            label: Text('Proceed to Preview (${_rawData?.totalRows ?? 0} rows)', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            label: Text('Proceed to Validation (${_rawData?.totalRows ?? 0} rows)', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
           )
         else if (_currentStep == ImportStep.preview)
           ElevatedButton.icon(
             onPressed: (_validationReport != null && _validationReport!.validRowsCount > 0)
-                ? _executeImport
+                ? _runDuplicateAnalysis
                 : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF0F766E),
@@ -881,8 +940,26 @@ class _ImportDialogState extends State<ImportDialog> {
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            icon: const Icon(Icons.cloud_upload, size: 18),
-            label: Text('Import ${_validationReport?.validRowsCount ?? 0} Valid Records', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            icon: const Icon(Icons.compare_arrows_rounded, size: 18),
+            label: Text(
+              'Check Duplicates & Diffs (${_validationReport?.validRowsCount ?? 0} Valid)',
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+          )
+        else if (_currentStep == ImportStep.diffReview)
+          ElevatedButton.icon(
+            onPressed: _executeImport,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F766E),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            icon: const Icon(Icons.cloud_upload_rounded, size: 18),
+            label: Text(
+              'Execute Smart Import (${_duplicateAnalysis?.totalIncoming ?? 0} Records)',
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
           )
         else if (_currentStep == ImportStep.completed)
           ElevatedButton(
@@ -893,7 +970,7 @@ class _ImportDialogState extends State<ImportDialog> {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: Text('Close & Refresh', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            child: Text('Close & Refresh Records', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
           ),
       ],
     );

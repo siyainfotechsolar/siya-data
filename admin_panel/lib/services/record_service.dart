@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
+import '../models/record_diff.dart';
 import 'supabase_service.dart';
 
 class PaginatedResult<T> {
@@ -186,6 +187,111 @@ class RecordService {
     return {
       'total': records.length,
       'success': successCount,
+      'errors': errorCount,
+    };
+  }
+
+  /// Execute smart import with duplicate resolution strategy and audit trail logging
+  static Future<Map<String, int>> executeSmartImport({
+    required List<ConsumerRecord> newRecords,
+    required List<RecordDiff> conflictRecords,
+    required ConflictStrategy strategy,
+    Function(int current, int total)? onProgress,
+  }) async {
+    final user = SupabaseService.currentUser;
+    int insertedCount = 0;
+    int updatedCount = 0;
+    int skippedCount = 0;
+    int errorCount = 0;
+
+    final totalItems = newRecords.length + conflictRecords.length;
+    int processedItems = 0;
+
+    // 1. Insert brand new records
+    if (newRecords.isNotEmpty) {
+      final insertResult = await bulkImportRecords(
+        records: newRecords,
+        onProgress: (current, total) {
+          processedItems = current;
+          if (onProgress != null) {
+            onProgress(processedItems, totalItems);
+          }
+        },
+      );
+      insertedCount = insertResult['success'] ?? 0;
+      errorCount += insertResult['errors'] ?? 0;
+    }
+
+    // 2. Process modified records
+    final auditLogs = <Map<String, dynamic>>[];
+
+    for (final diff in conflictRecords) {
+      if (strategy == ConflictStrategy.skipExisting || !diff.shouldUpdate) {
+        skippedCount++;
+        processedItems++;
+        if (onProgress != null) onProgress(processedItems, totalItems);
+        continue;
+      }
+
+      final mergedRecord = diff.createMergedRecord(strategy);
+      final payload = mergedRecord.toJson();
+      if (user != null) {
+        payload['updated_by'] = user.id;
+      }
+
+      try {
+        await _client
+            .from('consumer_records')
+            .update(payload)
+            .eq('consumer_no', mergedRecord.consumerNo);
+        updatedCount++;
+
+        // Prepare audit log entries for each changed field
+        for (final field in diff.changedFields) {
+          // If updateNonEmptyOnly and new field was empty, it wasn't overwritten
+          if (strategy == ConflictStrategy.updateNonEmptyOnly && field.isNewEmpty) {
+            continue;
+          }
+
+          auditLogs.add({
+            'record_id': diff.existingRecord.id,
+            'consumer_no': diff.existingRecord.consumerNo,
+            'action': 'UPDATE',
+            'field_name': field.fieldLabel,
+            'old_value': field.oldValue,
+            'new_value': field.newValue,
+            'changed_by': user?.id,
+            'source': 'Excel / CSV Import',
+            'created_at': DateTime.now().toUtc().toIso8601String(),
+          });
+        }
+      } catch (e) {
+        errorCount++;
+      }
+
+      processedItems++;
+      if (onProgress != null) onProgress(processedItems, totalItems);
+    }
+
+    // 3. Batch insert audit logs
+    if (auditLogs.isNotEmpty) {
+      try {
+        const auditBatchSize = 100;
+        for (int i = 0; i < auditLogs.length; i += auditBatchSize) {
+          final end = (i + auditBatchSize < auditLogs.length) ? i + auditBatchSize : auditLogs.length;
+          final batch = auditLogs.sublist(i, end);
+          await _client.from('audit_logs').insert(batch);
+        }
+      } catch (_) {
+        // Audit log insert failure doesn't block the main flow
+      }
+    }
+
+    return {
+      'total': totalItems,
+      'inserted': insertedCount,
+      'updated': updatedCount,
+      'skipped': skippedCount,
       'errors': errorCount,
     };
   }
