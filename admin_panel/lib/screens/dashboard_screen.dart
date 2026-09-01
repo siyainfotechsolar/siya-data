@@ -4,6 +4,7 @@ import '../services/record_service.dart';
 import '../widgets/import_dialog.dart';
 import 'login_screen.dart';
 import 'records_screen.dart';
+import 'history_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -149,7 +150,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 2:
         return _buildImportLandingView();
       case 3:
-        return _buildPlaceholderView('Import History & Audit Log', 'Phase 6 Feature');
+        return const HistoryScreen();
       case 4:
         return _buildPlaceholderView('User & Staff Management', 'Phase 9 Feature');
       case 5:
@@ -265,7 +266,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
               _buildStatCard(
                 'Import Batches',
-                '0',
+                _isLoadingMetrics ? '...' : '${_metrics?.totalImportBatches ?? 0}',
                 Icons.cloud_upload_outlined,
                 Colors.purple,
               ),

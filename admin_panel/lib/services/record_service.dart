@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
 import '../models/record_diff.dart';
+import '../models/import_log.dart';
+import 'audit_service.dart';
 import 'supabase_service.dart';
 
 class PaginatedResult<T> {
@@ -25,6 +27,7 @@ class DashboardMetrics {
   final int totalRecords;
   final int activeUsers;
   final int recentlyUpdated;
+  final int totalImportBatches;
   final Map<String, int> statusCounts;
   final List<ConsumerRecord> recentRecords;
 
@@ -32,6 +35,7 @@ class DashboardMetrics {
     required this.totalRecords,
     required this.activeUsers,
     required this.recentlyUpdated,
+    this.totalImportBatches = 0,
     required this.statusCounts,
     required this.recentRecords,
   });
@@ -196,6 +200,8 @@ class RecordService {
     required List<ConsumerRecord> newRecords,
     required List<RecordDiff> conflictRecords,
     required ConflictStrategy strategy,
+    String? fileName,
+    int? fileSizeBytes,
     Function(int current, int total)? onProgress,
   }) async {
     final user = SupabaseService.currentUser;
@@ -287,6 +293,23 @@ class RecordService {
       }
     }
 
+    // 4. Log overall import batch run in import_logs
+    if (fileName != null) {
+      await AuditService.logImportRun(
+        ImportLog(
+          fileName: fileName,
+          fileSizeBytes: fileSizeBytes ?? 0,
+          totalRows: totalItems,
+          insertedCount: insertedCount,
+          updatedCount: updatedCount,
+          skippedCount: skippedCount,
+          failedCount: errorCount,
+          strategy: strategy.name,
+          createdAt: DateTime.now(),
+        ),
+      );
+    }
+
     return {
       'total': totalItems,
       'inserted': insertedCount,
@@ -304,6 +327,15 @@ class RecordService {
           .select('id')
           .count(CountOption.exact);
       final totalRecords = recordsCountResponse.count;
+
+      int totalImportBatches = 0;
+      try {
+        final importLogsCountResponse = await _client
+            .from('import_logs')
+            .select('id')
+            .count(CountOption.exact);
+        totalImportBatches = importLogsCountResponse.count;
+      } catch (_) {}
 
       final recentResponse = await _client
           .from('consumer_records')
@@ -328,6 +360,7 @@ class RecordService {
         totalRecords: totalRecords,
         activeUsers: 1,
         recentlyUpdated: recentRecords.length,
+        totalImportBatches: totalImportBatches,
         statusCounts: statusCounts,
         recentRecords: recentRecords,
       );
@@ -336,6 +369,7 @@ class RecordService {
         totalRecords: 0,
         activeUsers: 1,
         recentlyUpdated: 0,
+        totalImportBatches: 0,
         statusCounts: {},
         recentRecords: [],
       );

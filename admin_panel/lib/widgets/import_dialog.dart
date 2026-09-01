@@ -150,6 +150,8 @@ class _ImportDialogState extends State<ImportDialog> {
         newRecords: newRecords,
         conflictRecords: conflictRecords,
         strategy: _selectedStrategy,
+        fileName: _fileName,
+        fileSizeBytes: _rawData?.fileSizeBytes,
         onProgress: (current, total) {
           if (mounted) {
             setState(() {
