@@ -33,6 +33,7 @@ RETURNS TABLE (
     COUNT(*) AS total_active
   FROM public.consumer_records
   WHERE deleted = false
+    AND is_merged = false
     AND LOWER(COALESCE(status, '')) NOT IN ('completed', 'cancelled')
     AND LOWER(COALESCE(application_status, '')) NOT IN ('completed', 'cancelled');
 $$;

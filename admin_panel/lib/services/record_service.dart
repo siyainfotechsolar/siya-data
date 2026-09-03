@@ -618,6 +618,7 @@ class RecordService {
           .from('consumer_records')
           .select('id')
           .eq('deleted', false)
+          .eq('is_merged', false)
           .count(CountOption.exact);
       final totalRecords = recordsCountResponse.count;
 
@@ -634,6 +635,7 @@ class RecordService {
           .from('consumer_records')
           .select('*')
           .eq('deleted', false)
+          .eq('is_merged', false)
           .order('updated_at', ascending: false)
           .limit(5);
 
@@ -650,27 +652,27 @@ class RecordService {
       int subsidyPending = 0;
 
       try {
-        final agRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('agreement_status', 'Pending').count(CountOption.exact);
+        final agRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('is_merged', false).eq('agreement_status', 'Pending').count(CountOption.exact);
         agreementPending = agRes.count;
       } catch (_) {}
 
       try {
-        final lnRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('loan_required', 'Yes').neq('loan_status', 'Approved').count(CountOption.exact);
+        final lnRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('is_merged', false).eq('loan_required', 'Yes').neq('loan_status', 'Approved').count(CountOption.exact);
         loanPending = lnRes.count;
       } catch (_) {}
 
       try {
-        final inRes = await _client.from('consumer_records').select('id').eq('deleted', false).neq('installation_status', 'Installation Completed').count(CountOption.exact);
+        final inRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('is_merged', false).neq('installation_status', 'Installation Completed').count(CountOption.exact);
         installationPending = inRes.count;
       } catch (_) {}
 
       try {
-        final rtsRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('installation_status', 'Installation Completed').neq('rts_status', 'Completed').count(CountOption.exact);
+        final rtsRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('is_merged', false).eq('installation_status', 'Installation Completed').neq('rts_status', 'Completed').count(CountOption.exact);
         rtsPending = rtsRes.count;
       } catch (_) {}
 
       try {
-        final subRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('rts_status', 'Completed').neq('subsidy_status', 'Received').count(CountOption.exact);
+        final subRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('is_merged', false).eq('rts_status', 'Completed').neq('subsidy_status', 'Received').count(CountOption.exact);
         subsidyPending = subRes.count;
       } catch (_) {}
 
@@ -685,6 +687,7 @@ class RecordService {
             .from('consumer_records')
             .select('submit_date, created_at, status, application_status')
             .eq('deleted', false)
+            .eq('is_merged', false)
             .not('status', 'ilike', 'completed')
             .not('status', 'ilike', 'cancelled')
             .not('application_status', 'ilike', 'completed')
