@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
+import '../services/supabase_service.dart';
+import 'login_screen.dart';
 import 'record_detail_screen.dart';
 
 class ConsumerRecordsScreen extends StatefulWidget {

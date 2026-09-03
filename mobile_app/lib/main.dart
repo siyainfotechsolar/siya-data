@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/supabase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SupabaseService.initialize();
+  try {
+    await SupabaseService.initialize();
+  } catch (e) {
+    // Prevent app crash at startup if offline
+    debugPrint('Supabase init error: $e');
+  }
   runApp(const SiyaMobileApp());
 }
 
@@ -16,23 +20,21 @@ class SiyaMobileApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Siya Solar Mobile',
+      title: 'Siya Solar',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFF57C00), // Solar Orange
+          seedColor: const Color(0xFF059669), // Emerald Solar Green
           brightness: Brightness.light,
         ),
-        textTheme: GoogleFonts.interTextTheme(),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFF57C00),
+          seedColor: const Color(0xFF059669),
           brightness: Brightness.dark,
         ),
-        textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
       ),
       themeMode: ThemeMode.system,
       home: SupabaseService.isAuthenticated
