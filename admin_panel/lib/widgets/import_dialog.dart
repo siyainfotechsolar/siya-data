@@ -120,7 +120,11 @@ class _ImportDialogState extends State<ImportDialog> {
           .map((r) => r.toConsumerRecord())
           .toList();
 
-      final analysis = await DuplicateDetectionService.analyzeDuplicates(validRecords);
+      final analysis = await DuplicateDetectionService.analyzeDuplicates(
+        validRecords,
+        allowedFieldKeys: _mapping.mappedFieldKeys,
+        ignoreBlankValues: _mapping.ignoreBlankValues,
+      );
 
       setState(() {
         _duplicateAnalysis = analysis;
@@ -152,6 +156,8 @@ class _ImportDialogState extends State<ImportDialog> {
         newRecords: newRecords,
         conflictRecords: conflictRecords,
         strategy: _selectedStrategy,
+        allowedFieldKeys: _mapping.mappedFieldKeys,
+        ignoreBlankValues: _mapping.ignoreBlankValues,
         fileName: _fileName,
         fileSizeBytes: _rawData?.fileSizeBytes,
         onProgress: (current, total) {
@@ -513,14 +519,65 @@ class _ImportDialogState extends State<ImportDialog> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
+
+        // Policy Notice Banner & Blank Values Setting
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.security, size: 18, color: Color(0xFF0F766E)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Only selected UPDATE columns will modify existing records. SKIPPED columns will remain 100% unchanged in the database.',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: const Color(0xFF334155)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _mapping.ignoreBlankValues = !_mapping.ignoreBlankValues;
+                  });
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Checkbox(
+                      value: _mapping.ignoreBlankValues,
+                      onChanged: (val) {
+                        setState(() {
+                          _mapping.ignoreBlankValues = val ?? true;
+                        });
+                      },
+                      activeColor: const Color(0xFF0F766E),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    Text(
+                      'Ignore blank values (Keep existing data)',
+                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
         Expanded(
           child: ListView(
             children: [
               _buildMappingRow('Consumer No *', 'Unique identifier (CA No, K No, Connection ID)', _mapping.consumerNoIndex, headers, (idx) {
                 setState(() => _mapping.consumerNoIndex = idx);
                 _revalidate();
-              }, isRequired: true),
+              }, isRequired: true, isUniqueKey: true),
               _buildMappingRow('Consumer Name *', 'Full name of applicant or beneficiary', _mapping.nameIndex, headers, (idx) {
                 setState(() => _mapping.nameIndex = idx);
                 _revalidate();
@@ -559,7 +616,10 @@ class _ImportDialogState extends State<ImportDialog> {
     List<String> headers,
     ValueChanged<int?> onChanged, {
     bool isRequired = false,
+    bool isUniqueKey = false,
   }) {
+    final bool isMapped = currentIndex != null && currentIndex >= 0 && currentIndex < headers.length;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -572,6 +632,7 @@ class _ImportDialogState extends State<ImportDialog> {
       ),
       child: Row(
         children: [
+          // Database Field Info
           Expanded(
             flex: 4,
             child: Column(
@@ -612,12 +673,39 @@ class _ImportDialogState extends State<ImportDialog> {
             ),
           ),
           const SizedBox(width: 16),
+
+          // Action Status Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: isUniqueKey
+                  ? const Color(0xFFEFF6FF)
+                  : (isMapped ? const Color(0xFFECFDF5) : const Color(0xFFF1F5F9)),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isUniqueKey
+                    ? const Color(0xFFBFDBFE)
+                    : (isMapped ? const Color(0xFFA7F3D0) : const Color(0xFFCBD5E1)),
+              ),
+            ),
+            child: Text(
+              isUniqueKey ? 'UNIQUE KEY' : (isMapped ? 'UPDATE' : 'SKIP'),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: isUniqueKey
+                    ? const Color(0xFF1D4ED8)
+                    : (isMapped ? const Color(0xFF047857) : const Color(0xFF64748B)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          // Dropdown Selector
           Expanded(
-            flex: 3,
+            flex: 4,
             child: DropdownButtonFormField<int?>(
-              initialValue: (currentIndex != null && currentIndex >= 0 && currentIndex < headers.length)
-                  ? currentIndex
-                  : null,
+              initialValue: isMapped ? currentIndex : null,
               decoration: InputDecoration(
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

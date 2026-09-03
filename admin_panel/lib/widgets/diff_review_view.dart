@@ -30,7 +30,30 @@ class _DiffReviewViewState extends State<DiffReviewView> {
       children: [
         // Top Overview Banner
         _buildOverviewBadges(),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+
+        // Policy Notice Banner
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FDF4),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFBBF7D0)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.verified_user_outlined, size: 18, color: Color(0xFF16A34A)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Only columns selected for UPDATE will be overwritten. SKIPPED fields are strictly preserved.',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF166534)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
 
         // Strategy Selector Card
         _buildStrategySelector(),

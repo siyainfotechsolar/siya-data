@@ -8,8 +8,10 @@ class DuplicateDetectionService {
 
   /// Analyze incoming records against existing database records to detect duplicates and field differences
   static Future<DuplicateAnalysisResult> analyzeDuplicates(
-    List<ConsumerRecord> incomingRecords,
-  ) async {
+    List<ConsumerRecord> incomingRecords, {
+    Set<String>? allowedFieldKeys,
+    bool ignoreBlankValues = true,
+  }) async {
     if (incomingRecords.isEmpty) {
       return DuplicateAnalysisResult(
         newRecords: [],
@@ -49,7 +51,7 @@ class DuplicateDetectionService {
       }
     }
 
-    // 3. Classify records and calculate field diffs
+    // 3. Classify records and calculate field diffs strictly for allowed update columns
     final newRecords = <ConsumerRecord>[];
     final identicalRecords = <ConsumerRecord>[];
     final conflictRecords = <RecordDiff>[];
@@ -61,8 +63,15 @@ class DuplicateDetectionService {
       if (existing == null) {
         newRecords.add(incoming);
       } else {
-        final diffs = computeFieldDiffs(existing, incoming);
+        final diffs = computeFieldDiffs(
+          existing,
+          incoming,
+          allowedFieldKeys: allowedFieldKeys,
+          ignoreBlankValues: ignoreBlankValues,
+        );
+
         if (diffs.isEmpty) {
+          // Differences in skipped columns do not trigger conflict/update!
           identicalRecords.add(existing);
         } else {
           conflictRecords.add(
@@ -84,45 +93,54 @@ class DuplicateDetectionService {
     );
   }
 
-  /// Compute field-level differences between existing and incoming record
+  /// Compute field-level differences between existing and incoming record, strictly restricted to allowed update fields
   static List<FieldDiff> computeFieldDiffs(
     ConsumerRecord existing,
-    ConsumerRecord incoming,
-  ) {
+    ConsumerRecord incoming, {
+    Set<String>? allowedFieldKeys,
+    bool ignoreBlankValues = false,
+  }) {
     final diffs = <FieldDiff>[];
 
-    _checkField(diffs, 'name', 'Consumer Name', existing.name, incoming.name);
-    _checkField(diffs, 'mobile', 'Mobile Number', existing.mobile, incoming.mobile);
-    _checkField(diffs, 'address', 'Address', existing.address, incoming.address);
-    _checkField(diffs, 'application_id', 'Application ID', existing.applicationId, incoming.applicationId);
-    _checkField(diffs, 'status', 'Status', existing.status, incoming.status);
-    _checkField(diffs, 'remarks', 'Remarks', existing.remarks, incoming.remarks);
+    final allowed = allowedFieldKeys ?? {
+      'name',
+      'mobile',
+      'address',
+      'application_id',
+      'status',
+      'remarks',
+    };
+
+    void check(String key, String label, String? oldVal, String? newVal) {
+      if (!allowed.contains(key)) return; // SKIPPED COLUMN: Never check or trigger diffs
+
+      final cleanOld = oldVal?.trim() ?? '';
+      final cleanNew = newVal?.trim() ?? '';
+
+      // If ignoring blank values and incoming value is empty, don't trigger diff
+      if (ignoreBlankValues && cleanNew.isEmpty) {
+        return;
+      }
+
+      if (cleanOld != cleanNew) {
+        diffs.add(
+          FieldDiff(
+            fieldKey: key,
+            fieldLabel: label,
+            oldValue: oldVal?.trim(),
+            newValue: newVal?.trim(),
+          ),
+        );
+      }
+    }
+
+    check('name', 'Consumer Name', existing.name, incoming.name);
+    check('mobile', 'Mobile Number', existing.mobile, incoming.mobile);
+    check('address', 'Address', existing.address, incoming.address);
+    check('application_id', 'Application ID', existing.applicationId, incoming.applicationId);
+    check('status', 'Status', existing.status, incoming.status);
+    check('remarks', 'Remarks', existing.remarks, incoming.remarks);
 
     return diffs;
-  }
-
-  static void _checkField(
-    List<FieldDiff> diffs,
-    String key,
-    String label,
-    String? oldVal,
-    String? newVal,
-  ) {
-    final cleanOld = oldVal?.trim() ?? '';
-    final cleanNew = newVal?.trim() ?? '';
-
-    // If both are empty, no change
-    if (cleanOld.isEmpty && cleanNew.isEmpty) return;
-
-    if (cleanOld != cleanNew) {
-      diffs.add(
-        FieldDiff(
-          fieldKey: key,
-          fieldLabel: label,
-          oldValue: oldVal?.trim(),
-          newValue: newVal?.trim(),
-        ),
-      );
-    }
   }
 }

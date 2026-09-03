@@ -21,7 +21,7 @@ class RawImportData {
   int get totalRows => rows.length;
 }
 
-/// Stores field to column-index mappings
+/// Stores field to column-index mappings and update behavior
 class ImportColumnMapping {
   int? consumerNoIndex;
   int? nameIndex;
@@ -31,6 +31,9 @@ class ImportColumnMapping {
   int? statusIndex;
   int? remarksIndex;
 
+  /// If true, blank values in imported columns will not overwrite existing database values
+  bool ignoreBlankValues;
+
   ImportColumnMapping({
     this.consumerNoIndex,
     this.nameIndex,
@@ -39,9 +42,26 @@ class ImportColumnMapping {
     this.applicationIdIndex,
     this.statusIndex,
     this.remarksIndex,
+    this.ignoreBlankValues = true,
   });
 
   bool get isValid => consumerNoIndex != null && nameIndex != null;
+
+  /// Returns the set of database field keys that are explicitly mapped (not skipped)
+  Set<String> get mappedFieldKeys {
+    final keys = <String>{};
+    if (consumerNoIndex != null) keys.add('consumer_no');
+    if (nameIndex != null) keys.add('name');
+    if (mobileIndex != null) keys.add('mobile');
+    if (addressIndex != null) keys.add('address');
+    if (applicationIdIndex != null) keys.add('application_id');
+    if (statusIndex != null) keys.add('status');
+    if (remarksIndex != null) keys.add('remarks');
+    return keys;
+  }
+
+  /// Check if a specific database field key is mapped for import/update
+  bool isFieldMapped(String fieldKey) => mappedFieldKeys.contains(fieldKey);
 }
 
 /// Represents a validated row ready for preview or import

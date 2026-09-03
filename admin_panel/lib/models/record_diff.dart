@@ -43,52 +43,78 @@ class RecordDiff {
 
   bool get hasChanges => changedFields.isNotEmpty;
 
-  /// Merge incoming record into existing record according to chosen strategy
-  ConsumerRecord createMergedRecord(ConflictStrategy strategy) {
+  /// Constructs a strictly sparse update payload containing ONLY fields that are:
+  /// 1. Included in [allowedFieldKeys] (not skipped).
+  /// 2. Different from the existing database value.
+  /// 3. If [ignoreBlankValues] is true, new empty values are rejected and preserved.
+  Map<String, dynamic> buildUpdatePayload({
+    Set<String>? allowedFieldKeys,
+    bool ignoreBlankValues = true,
+  }) {
+    final payload = <String, dynamic>{};
+    if (!shouldUpdate) return payload;
+
+    final allowed = allowedFieldKeys ?? {
+      'name',
+      'mobile',
+      'address',
+      'application_id',
+      'status',
+      'remarks',
+    };
+
+    void checkAndAdd(String key, String? oldVal, String? newVal) {
+      if (!allowed.contains(key)) return; // SKIPPED: never touch database
+
+      final cleanOld = oldVal?.trim() ?? '';
+      final cleanNew = newVal?.trim() ?? '';
+
+      // Ignore blank values if setting is enabled
+      if (ignoreBlankValues && cleanNew.isEmpty) {
+        return;
+      }
+
+      if (cleanOld != cleanNew) {
+        payload[key] = (newVal == null || cleanNew.isEmpty) ? null : cleanNew;
+      }
+    }
+
+    checkAndAdd('name', existingRecord.name, incomingRecord.name);
+    checkAndAdd('mobile', existingRecord.mobile, incomingRecord.mobile);
+    checkAndAdd('address', existingRecord.address, incomingRecord.address);
+    checkAndAdd('application_id', existingRecord.applicationId, incomingRecord.applicationId);
+    checkAndAdd('status', existingRecord.status, incomingRecord.status);
+    checkAndAdd('remarks', existingRecord.remarks, incomingRecord.remarks);
+
+    return payload;
+  }
+
+  /// Merge incoming record into existing record strictly respecting allowedFieldKeys
+  ConsumerRecord createMergedRecord(
+    ConflictStrategy strategy, {
+    Set<String>? allowedFieldKeys,
+    bool? ignoreBlankValues,
+  }) {
     if (strategy == ConflictStrategy.skipExisting || !shouldUpdate) {
       return existingRecord;
     }
 
-    if (strategy == ConflictStrategy.overwriteAll) {
-      return ConsumerRecord(
-        id: existingRecord.id,
-        consumerNo: existingRecord.consumerNo,
-        name: incomingRecord.name.isNotEmpty ? incomingRecord.name : existingRecord.name,
-        mobile: incomingRecord.mobile,
-        address: incomingRecord.address,
-        applicationId: incomingRecord.applicationId,
-        status: incomingRecord.status.isNotEmpty ? incomingRecord.status : existingRecord.status,
-        remarks: incomingRecord.remarks,
-        createdAt: existingRecord.createdAt,
-        updatedAt: DateTime.now(),
-        createdBy: existingRecord.createdBy,
-        updatedBy: existingRecord.updatedBy,
-        deleted: false,
-        deletedAt: null,
-        deletedBy: null,
-      );
-    }
+    final effectiveIgnoreBlank = ignoreBlankValues ?? (strategy != ConflictStrategy.overwriteAll);
 
-    // updateNonEmptyOnly: only replace if new field is not null and not empty
+    final payload = buildUpdatePayload(
+      allowedFieldKeys: allowedFieldKeys,
+      ignoreBlankValues: effectiveIgnoreBlank,
+    );
+
     return ConsumerRecord(
       id: existingRecord.id,
       consumerNo: existingRecord.consumerNo,
-      name: (incomingRecord.name.isNotEmpty) ? incomingRecord.name : existingRecord.name,
-      mobile: (incomingRecord.mobile != null && incomingRecord.mobile!.trim().isNotEmpty)
-          ? incomingRecord.mobile
-          : existingRecord.mobile,
-      address: (incomingRecord.address != null && incomingRecord.address!.trim().isNotEmpty)
-          ? incomingRecord.address
-          : existingRecord.address,
-      applicationId: (incomingRecord.applicationId != null && incomingRecord.applicationId!.trim().isNotEmpty)
-          ? incomingRecord.applicationId
-          : existingRecord.applicationId,
-      status: (incomingRecord.status.isNotEmpty && incomingRecord.status != 'Pending')
-          ? incomingRecord.status
-          : existingRecord.status,
-      remarks: (incomingRecord.remarks != null && incomingRecord.remarks!.trim().isNotEmpty)
-          ? incomingRecord.remarks
-          : existingRecord.remarks,
+      name: payload.containsKey('name') ? (payload['name'] as String? ?? existingRecord.name) : existingRecord.name,
+      mobile: payload.containsKey('mobile') ? payload['mobile'] as String? : existingRecord.mobile,
+      address: payload.containsKey('address') ? payload['address'] as String? : existingRecord.address,
+      applicationId: payload.containsKey('application_id') ? payload['application_id'] as String? : existingRecord.applicationId,
+      status: payload.containsKey('status') ? (payload['status'] as String? ?? existingRecord.status) : existingRecord.status,
+      remarks: payload.containsKey('remarks') ? payload['remarks'] as String? : existingRecord.remarks,
       createdAt: existingRecord.createdAt,
       updatedAt: DateTime.now(),
       createdBy: existingRecord.createdBy,

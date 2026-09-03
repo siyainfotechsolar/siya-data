@@ -422,11 +422,13 @@ class RecordService {
     };
   }
 
-  /// Execute smart import with duplicate resolution strategy and audit trail logging
+  /// Execute smart import with duplicate resolution strategy, sparse field updates, and audit trail logging
   static Future<Map<String, int>> executeSmartImport({
     required List<ConsumerRecord> newRecords,
     required List<RecordDiff> conflictRecords,
     required ConflictStrategy strategy,
+    Set<String>? allowedFieldKeys,
+    bool ignoreBlankValues = true,
     String? fileName,
     int? fileSizeBytes,
     Function(int current, int total)? onProgress,
@@ -455,7 +457,7 @@ class RecordService {
       errorCount += insertResult['errors'] ?? 0;
     }
 
-    // 2. Process modified records
+    // 2. Process modified records strictly with sparse payloads
     final auditLogs = <Map<String, dynamic>>[];
 
     for (final diff in conflictRecords) {
@@ -466,33 +468,49 @@ class RecordService {
         continue;
       }
 
-      final mergedRecord = diff.createMergedRecord(strategy);
-      final payload = mergedRecord.toJson();
-      if (user != null) {
-        payload['updated_by'] = user.id;
+      // Build strictly sparse payload containing ONLY allowed, changed fields
+      final sparsePayload = diff.buildUpdatePayload(
+        allowedFieldKeys: allowedFieldKeys,
+        ignoreBlankValues: ignoreBlankValues,
+      );
+
+      // If no allowed fields changed (e.g. blank ignored or skipped), skip DB update
+      if (sparsePayload.isEmpty) {
+        skippedCount++;
+        processedItems++;
+        if (onProgress != null) onProgress(processedItems, totalItems);
+        continue;
       }
+
+      if (user != null) {
+        sparsePayload['updated_by'] = user.id;
+      }
+      sparsePayload['updated_at'] = DateTime.now().toUtc().toIso8601String();
 
       try {
         await _client
             .from('consumer_records')
-            .update(payload)
-            .eq('consumer_no', mergedRecord.consumerNo);
+            .update(sparsePayload)
+            .eq('consumer_no', diff.existingRecord.consumerNo);
         updatedCount++;
 
-        // Prepare audit log entries for each changed field
-        for (final field in diff.changedFields) {
-          // If updateNonEmptyOnly and new field was empty, it wasn't overwritten
-          if (strategy == ConflictStrategy.updateNonEmptyOnly && field.isNewEmpty) {
-            continue;
-          }
+        // Prepare audit log entries ONLY for fields that were actually updated in DB
+        for (final entry in sparsePayload.entries) {
+          if (entry.key == 'updated_by' || entry.key == 'updated_at') continue;
+
+          // Find human-readable label
+          final matchingDiff = diff.changedFields.firstWhere(
+            (f) => f.fieldKey == entry.key,
+            orElse: () => FieldDiff(fieldKey: entry.key, fieldLabel: entry.key),
+          );
 
           auditLogs.add({
             'record_id': diff.existingRecord.id,
             'consumer_no': diff.existingRecord.consumerNo,
             'action': 'UPDATE',
-            'field_name': field.fieldLabel,
-            'old_value': field.oldValue,
-            'new_value': field.newValue,
+            'field_name': matchingDiff.fieldLabel,
+            'old_value': matchingDiff.oldValue,
+            'new_value': entry.value?.toString(),
             'changed_by': user?.id,
             'source': 'Excel / CSV Import',
             'created_at': DateTime.now().toUtc().toIso8601String(),
