@@ -198,5 +198,34 @@ void main() {
       expect(report.rows[2].submitDate, equals(DateTime(2024, 8, 15)));
       expect(report.rows[3].submitDate, equals(DateTime(2026, 8, 15)));
     });
+
+    test('8. Auto-detects Submitted Or Reverified column header and parses DD-MM-YY dates', () {
+      final headers = ['Consumer No', 'Name', 'Submitted Or Reverified'];
+      final mapping = ImportParserService.autoDetectColumns(headers);
+
+      expect(mapping.submitDateIndex, equals(2));
+
+      final rawData = RawImportData(
+        fileName: 'user_screenshot.xlsx',
+        fileSizeBytes: 100,
+        headers: headers,
+        rows: [
+          ['1001', 'Consumer 1', '19-08-26'],
+          ['1002', 'Consumer 2', '11-08-26'],
+          ['1003', 'Consumer 3', '10-08-26'],
+          ['1004', 'Consumer 4', '09-08-26'],
+          ['1005', 'Consumer 5', '08-08-26'],
+        ],
+      );
+
+      final report = ImportParserService.validateData(rawData, mapping);
+      expect(report.validRowsCount, equals(5));
+
+      expect(report.rows[0].submitDate, equals(DateTime(2026, 8, 19)));
+      expect(report.rows[1].submitDate, equals(DateTime(2026, 8, 11)));
+      expect(report.rows[2].submitDate, equals(DateTime(2026, 8, 10)));
+      expect(report.rows[3].submitDate, equals(DateTime(2026, 8, 9)));
+      expect(report.rows[4].submitDate, equals(DateTime(2026, 8, 8)));
+    });
   });
 }
