@@ -425,25 +425,106 @@ class ImportParserService {
     );
   }
 
-  /// Parse string cell into DateTime safely
+  static const _monthNames = {
+    'jan': 1, 'january': 1,
+    'feb': 2, 'february': 2,
+    'mar': 3, 'march': 3,
+    'apr': 4, 'april': 4,
+    'may': 5,
+    'jun': 6, 'june': 6,
+    'jul': 7, 'july': 7,
+    'aug': 8, 'august': 8,
+    'sep': 9, 'september': 9, 'sept': 9,
+    'oct': 10, 'october': 10,
+    'nov': 11, 'november': 11,
+    'dec': 12, 'december': 12,
+  };
+
+  /// Parse string cell into DateTime safely supporting ISO, Indian standard, 2-digit years, timestamps, month names, and Excel serial numbers
   static DateTime? _parseDateCell(String input) {
     if (input.trim().isEmpty) return null;
-    final str = input.trim();
+    var str = input.trim();
+
+    // 1. If string has space (e.g. "15/08/2026 00:00:00" or "15 Aug 2026"), check if first part is date
+    final spaceParts = str.split(RegExp(r'\s+'));
+    if (spaceParts.length > 1 && (spaceParts[0].contains('/') || spaceParts[0].contains('-') || spaceParts[0].contains('.'))) {
+      str = spaceParts[0]; // Extract date component prior to time
+    }
+
+    // 2. Direct ISO tryParse (e.g., "2026-08-15", "2026-08-15T00:00:00Z")
     final parsed = DateTime.tryParse(str);
     if (parsed != null) return parsed;
 
-    final parts = str.split(RegExp(r'[/.\-]'));
+    // 3. Excel Serial Date Number (e.g., "45520" or "45153.0")
+    final numVal = double.tryParse(str);
+    if (numVal != null && numVal > 30000 && numVal < 75000) {
+      final days = numVal.floor();
+      return DateTime(1899, 12, 29).add(Duration(days: days));
+    }
+
+    // 4. Split by delimiter: /, -, ., or spaces
+    final parts = str.split(RegExp(r'[/.\-\s,]+')).where((p) => p.isNotEmpty).toList();
+
     if (parts.length == 3) {
-      final p0 = int.tryParse(parts[0]);
-      final p1 = int.tryParse(parts[1]);
-      final p2 = int.tryParse(parts[2]);
+      int? day;
+      int? month;
+      int? year;
+
+      int? p0 = int.tryParse(parts[0]);
+      int? p1 = int.tryParse(parts[1]);
+      int? p2 = int.tryParse(parts[2]);
+
+      // Month name detection for p1 (e.g. "15-Aug-2026")
+      if (p1 == null) {
+        final mLower = parts[1].toLowerCase();
+        p1 = _monthNames[mLower];
+      }
+      // Month name detection for p0 (e.g. "August 15, 2026")
+      if (p0 == null) {
+        final mLower = parts[0].toLowerCase();
+        p0 = _monthNames[mLower];
+        if (p0 != null) {
+          // Swap: Month Day Year ➔ p0=Day, p1=Month
+          final dayVal = int.tryParse(parts[1]);
+          if (dayVal != null) {
+            month = p0;
+            day = dayVal;
+            p0 = day;
+            p1 = month;
+          }
+        }
+      }
+
       if (p0 != null && p1 != null && p2 != null) {
+        // Resolve 2-digit year vs 4-digit year for p2
+        if (p2 < 100) {
+          p2 = (p2 > 50) ? (1900 + p2) : (2000 + p2);
+        }
+        // Resolve 2-digit year for p0 if YYYY-MM-DD
+        if (p0 < 100 && p0 > 50) {
+          p0 = 1900 + p0;
+        }
+
         if (p0 > 1000) {
           // YYYY-MM-DD
-          return DateTime(p0, p1, p2);
+          year = p0;
+          month = p1;
+          day = p2;
         } else if (p2 > 1000) {
-          // DD/MM/YYYY
-          return DateTime(p2, p1, p0);
+          // DD/MM/YYYY or MM/DD/YYYY
+          year = p2;
+          // In India, DD/MM/YYYY is standard
+          if (p1 <= 12 && p0 <= 31) {
+            month = p1;
+            day = p0;
+          } else if (p0 <= 12 && p1 <= 31) {
+            month = p0;
+            day = p1;
+          }
+        }
+
+        if (year != null && month != null && day != null && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          return DateTime(year, month, day);
         }
       }
     }

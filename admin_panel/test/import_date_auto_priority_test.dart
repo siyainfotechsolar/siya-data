@@ -173,5 +173,30 @@ void main() {
       expect(merged.applicationDays, equals(10));
       expect(merged.priority, equals('MEDIUM'));
     });
+
+    test('7. Multi-format date parsing handles timestamps, 2-digit years, Excel serial dates, and month names', () {
+      final headers = ['Consumer No', 'Name', 'Submit Date'];
+      final mapping = ImportParserService.autoDetectColumns(headers);
+
+      final rawData = RawImportData(
+        fileName: 'dates.xlsx',
+        fileSizeBytes: 100,
+        headers: headers,
+        rows: [
+          ['1001', 'User 1', '15/08/2026 10:30:00'], // Timestamp
+          ['1002', 'User 2', '15-08-26'],           // 2-Digit Year
+          ['1003', 'User 3', '45520'],              // Excel Serial Number (2024-08-15)
+          ['1004', 'User 4', '15-Aug-2026'],        // Text Month Name
+        ],
+      );
+
+      final report = ImportParserService.validateData(rawData, mapping);
+      expect(report.validRowsCount, equals(4));
+
+      expect(report.rows[0].submitDate, equals(DateTime(2026, 8, 15)));
+      expect(report.rows[1].submitDate, equals(DateTime(2026, 8, 15)));
+      expect(report.rows[2].submitDate, equals(DateTime(2024, 8, 15)));
+      expect(report.rows[3].submitDate, equals(DateTime(2026, 8, 15)));
+    });
   });
 }
