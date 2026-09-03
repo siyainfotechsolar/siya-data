@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import '../utils/consumer_no_utils.dart';
 
 enum PriorityLevel {
@@ -11,6 +12,19 @@ enum PriorityLevel {
   final int rank;
 
   const PriorityLevel(this.label, this.rangeLabel, this.rank);
+
+  Color get color {
+    switch (this) {
+      case PriorityLevel.critical:
+        return const Color(0xFFDC2626);
+      case PriorityLevel.high:
+        return const Color(0xFFEA580C);
+      case PriorityLevel.medium:
+        return const Color(0xFFD97706);
+      case PriorityLevel.normal:
+        return const Color(0xFF16A34A);
+    }
+  }
 
   static PriorityLevel fromDays(int days) {
     if (days >= 31) return PriorityLevel.critical;

@@ -31,8 +31,32 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     return allowedItems.first;
   }
 
+  String _formatDate(DateTime? dt) {
+    if (dt == null) return 'Not Set';
+    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+  }
+
+  Future<void> _pickDate({required bool isSubmitDate}) async {
+    final initial = isSubmitDate ? (_record.submitDate ?? DateTime.now()) : (_record.applicationDate ?? DateTime.now());
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      if (isSubmitDate) {
+        await _updateWorkflowField(submitDate: picked);
+      } else {
+        await _updateWorkflowField(applicationDate: picked);
+      }
+    }
+  }
+
   Future<void> _updateWorkflowField({
     String? applicationStatus,
+    DateTime? applicationDate,
+    DateTime? submitDate,
     String? agreementStatus,
     String? loanRequired,
     String? loanStatus,
@@ -45,6 +69,8 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     // 1. Dependency Guard Validation
     final prospective = _record.copyWith(
       applicationStatus: applicationStatus,
+      applicationDate: applicationDate,
+      submitDate: submitDate,
       agreementStatus: agreementStatus,
       loanRequired: loanRequired,
       loanStatus: loanStatus,
@@ -189,12 +215,88 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                           _buildDetailRow('Application ID', _record.applicationId ?? '—'),
                           _buildDetailRow('Mobile Number', _record.mobile ?? '—'),
                           _buildDetailRow('Address', _record.address ?? '—'),
-                          _buildDetailRow('Application Days', '${_record.applicationDays} days elapsed'),
+                          
+                          // Application Date row with pick button
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Row(
+                              children: [
+                                const SizedBox(
+                                  width: 140,
+                                  child: Text('Application Date:', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
+                                ),
+                                Text(_formatDate(_record.applicationDate), style: const TextStyle(fontWeight: FontWeight.w500)),
+                                const SizedBox(width: 8),
+                                InkWell(
+                                  onTap: _isSaving ? null : () => _pickDate(isSubmitDate: false),
+                                  child: const Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                    child: Icon(Icons.calendar_month_outlined, size: 18, color: Colors.indigo),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Submit Date row with pick button
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Row(
+                              children: [
+                                const SizedBox(
+                                  width: 140,
+                                  child: Text('Submit Date:', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
+                                ),
+                                Text(_formatDate(_record.submitDate), style: const TextStyle(fontWeight: FontWeight.w500)),
+                                const SizedBox(width: 8),
+                                InkWell(
+                                  onTap: _isSaving ? null : () => _pickDate(isSubmitDate: true),
+                                  child: const Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                    child: Icon(Icons.edit_calendar_outlined, size: 18, color: Colors.indigo),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Application Days & Priority Badge
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Row(
+                              children: [
+                                const SizedBox(
+                                  width: 140,
+                                  child: Text('Application Days:', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
+                                ),
+                                Text('${_record.applicationDays} days elapsed ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: _record.priorityLevel.color.withAlpha(40),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: _record.priorityLevel.color),
+                                  ),
+                                  child: Text(
+                                    _record.priority,
+                                    style: TextStyle(
+                                      color: _record.priorityLevel.color,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              const Text('Application Status: ', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
-                              const SizedBox(width: 8),
+                              const SizedBox(
+                                width: 140,
+                                child: Text('Application Status: ', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
+                              ),
                               DropdownButton<String>(
                                 value: _safeValue(_record.applicationStatus, const ['Submitted', 'Pending', 'Under Verification', 'Approved', 'Rejected']),
                                 isDense: true,

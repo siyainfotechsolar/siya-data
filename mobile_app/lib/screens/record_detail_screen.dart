@@ -502,6 +502,31 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         value: _record.applicationId ?? 'Not registered',
                       ),
 
+                      // Application Date
+                      _buildInfoRow(
+                        icon: Icons.calendar_month_outlined,
+                        label: 'Application Date',
+                        value: _record.applicationDate != null
+                            ? '${_record.applicationDate!.day.toString().padLeft(2, '0')}/${_record.applicationDate!.month.toString().padLeft(2, '0')}/${_record.applicationDate!.year}'
+                            : 'Not Set',
+                      ),
+
+                      // Submit Date
+                      _buildInfoRow(
+                        icon: Icons.edit_calendar_outlined,
+                        label: 'Submit Date',
+                        value: _record.submitDate != null
+                            ? '${_record.submitDate!.day.toString().padLeft(2, '0')}/${_record.submitDate!.month.toString().padLeft(2, '0')}/${_record.submitDate!.year}'
+                            : 'Not Set',
+                      ),
+
+                      // Application Days & Priority
+                      _buildInfoRow(
+                        icon: Icons.timer_outlined,
+                        label: 'Application Days & Priority',
+                        value: '${_record.applicationDays} days elapsed (${_record.priority})',
+                      ),
+
                       // Address
                       _buildInfoRow(
                         icon: Icons.location_on_outlined,

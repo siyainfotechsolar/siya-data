@@ -549,14 +549,21 @@ class ImportParserService {
     'dateofapplication',
     'application_date',
     'applieddate',
+    'regdate',
+    'registrationdate',
+    'appldate',
   ];
 
   static const _submitDateAliases = [
     'submitdate',
     'submisiondate',
+    'submissiondate',
     'datesubmitted',
     'submit_date',
     'submission_date',
     'submitteddate',
+    'subdate',
+    'dateofsubmission',
+    'date',
   ];
 }
