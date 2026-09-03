@@ -59,21 +59,33 @@ class _RecordsScreenState extends State<RecordsScreen> {
   Future<void> _loadRecords() async {
     setState(() => _isLoading = true);
 
-    final result = await RecordService.fetchRecords(
-      page: _currentPage,
-      pageSize: _pageSize,
-      searchQuery: _searchController.text,
-      statusFilter: _selectedStatus,
-      sortBy: _sortBy,
-      ascending: _sortAscending,
-    );
+    try {
+      final result = await RecordService.fetchRecords(
+        page: _currentPage,
+        pageSize: _pageSize,
+        searchQuery: _searchController.text,
+        statusFilter: _selectedStatus,
+        sortBy: _sortBy,
+        ascending: _sortAscending,
+      );
 
-    if (mounted) {
-      setState(() {
-        _records = result.items;
-        _totalCount = result.totalCount;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _records = result.items;
+          _totalCount = result.totalCount;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load records: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

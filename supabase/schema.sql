@@ -122,6 +122,9 @@ CREATE POLICY "Staff can view consumer_records" ON public.consumer_records FOR S
 DROP POLICY IF EXISTS "Staff can update consumer_records" ON public.consumer_records;
 CREATE POLICY "Staff can update consumer_records" ON public.consumer_records FOR UPDATE TO authenticated USING ((SELECT public.is_active_user())) WITH CHECK ((SELECT public.is_active_user()));
 
+DROP POLICY IF EXISTS "Staff can insert consumer_records" ON public.consumer_records;
+CREATE POLICY "Staff can insert consumer_records" ON public.consumer_records FOR INSERT TO authenticated WITH CHECK ((SELECT public.is_active_user()));
+
 -- Audit Logs
 DROP POLICY IF EXISTS "Admins can view audit logs" ON public.audit_logs;
 CREATE POLICY "Admins can view audit logs" ON public.audit_logs FOR SELECT TO authenticated USING ((SELECT public.is_admin()));

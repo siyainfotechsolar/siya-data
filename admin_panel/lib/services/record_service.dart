@@ -89,12 +89,7 @@ class RecordService {
     } catch (e, stack) {
       // ignore: avoid_print
       print('Error in RecordService.fetchRecords: $e\n$stack');
-      return PaginatedResult<ConsumerRecord>(
-        items: [],
-        totalCount: 0,
-        page: page,
-        pageSize: pageSize,
-      );
+      rethrow;
     }
   }
 
@@ -151,6 +146,7 @@ class RecordService {
     final user = SupabaseService.currentUser;
     int successCount = 0;
     int errorCount = 0;
+    Object? firstError;
     const batchSize = 50;
 
     for (int i = 0; i < records.length; i += batchSize) {
@@ -172,6 +168,7 @@ class RecordService {
             .upsert(payloads, onConflict: 'consumer_no');
         successCount += batch.length;
       } catch (e) {
+        firstError ??= e;
         // Fallback: try individual inserts in this batch to maximize successful imports
         for (final payload in payloads) {
           try {
@@ -179,7 +176,8 @@ class RecordService {
                 .from('consumer_records')
                 .upsert(payload, onConflict: 'consumer_no');
             successCount++;
-          } catch (_) {
+          } catch (individualError) {
+            firstError ??= individualError;
             errorCount++;
           }
         }
@@ -188,6 +186,13 @@ class RecordService {
       if (onProgress != null) {
         onProgress(end, records.length);
       }
+    }
+
+    // If every single record failed, surface the error instead of silently succeeding
+    if (successCount == 0 && errorCount > 0 && firstError != null) {
+      throw Exception(
+        'All $errorCount records failed to import. Check your permissions or database connection. Error: $firstError',
+      );
     }
 
     return {
