@@ -342,8 +342,24 @@ class _PriorityListScreenState extends State<PriorityListScreen> {
                                   return DataRow(
                                     cells: [
                                       DataCell(_buildPriorityBadge(r)),
-                                      DataCell(Text(r.name, style: const TextStyle(fontWeight: FontWeight.w600))),
-                                      DataCell(Text(r.consumerNo)),
+                                      DataCell(
+                                        InkWell(
+                                          onTap: () => _openDetailsDialog(r),
+                                          child: Text(r.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        InkWell(
+                                          onTap: () => _openDetailsDialog(r),
+                                          child: Text(
+                                            r.consumerNo,
+                                            style: const TextStyle(
+                                              color: Color(0xFF2563EB),
+                                              decoration: TextDecoration.underline,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                       DataCell(Text(r.applicationId ?? '—')),
                                       DataCell(Text(r.applicationStatus)),
                                       DataCell(

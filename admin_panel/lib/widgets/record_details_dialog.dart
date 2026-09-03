@@ -22,6 +22,15 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     _record = widget.record;
   }
 
+  String _safeValue(String currentValue, List<String> allowedItems) {
+    for (final item in allowedItems) {
+      if (item.trim().toLowerCase() == currentValue.trim().toLowerCase()) {
+        return item;
+      }
+    }
+    return allowedItems.first;
+  }
+
   Future<void> _updateWorkflowField({
     String? applicationStatus,
     String? agreementStatus,
@@ -187,10 +196,11 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                               const Text('Application Status: ', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
                               const SizedBox(width: 8),
                               DropdownButton<String>(
-                                value: _record.applicationStatus,
+                                value: _safeValue(_record.applicationStatus, const ['Submitted', 'Pending', 'Under Verification', 'Approved', 'Rejected']),
                                 isDense: true,
                                 items: const [
                                   DropdownMenuItem(value: 'Submitted', child: Text('Submitted')),
+                                  DropdownMenuItem(value: 'Pending', child: Text('Pending')),
                                   DropdownMenuItem(value: 'Under Verification', child: Text('Under Verification')),
                                   DropdownMenuItem(value: 'Approved', child: Text('Approved')),
                                   DropdownMenuItem(value: 'Rejected', child: Text('Rejected')),
@@ -219,7 +229,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                               const Text('Agreement Status: ', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
                               const SizedBox(width: 8),
                               DropdownButton<String>(
-                                value: _record.agreementStatus,
+                                value: _safeValue(_record.agreementStatus, const ['Pending', 'Uploaded', 'Verified', 'Rejected']),
                                 isDense: true,
                                 items: const [
                                   DropdownMenuItem(value: 'Pending', child: Text('Pending')),
@@ -250,7 +260,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                               const Text('Loan Required? ', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
                               const SizedBox(width: 8),
                               DropdownButton<String>(
-                                value: _record.loanRequired,
+                                value: _safeValue(_record.loanRequired, const ['No', 'Yes']),
                                 isDense: true,
                                 items: const [
                                   DropdownMenuItem(value: 'No', child: Text('No (Direct Cash/Self)')),
@@ -270,9 +280,10 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                                 const Text('Loan Status: ', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
                                 const SizedBox(width: 8),
                                 DropdownButton<String>(
-                                  value: _record.loanStatus,
+                                  value: _safeValue(_record.loanStatus, const ['Not Required', 'Pending', 'Applied', 'Under Process', 'Approved', 'Rejected']),
                                   isDense: true,
                                   items: const [
+                                    DropdownMenuItem(value: 'Not Required', child: Text('Not Required')),
                                     DropdownMenuItem(value: 'Pending', child: Text('Pending')),
                                     DropdownMenuItem(value: 'Applied', child: Text('Applied')),
                                     DropdownMenuItem(value: 'Under Process', child: Text('Under Process')),
@@ -311,7 +322,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                               const Text('Installation Status: ', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
                               const SizedBox(width: 8),
                               DropdownButton<String>(
-                                value: _record.installationStatus,
+                                value: _safeValue(_record.installationStatus, const ['Not Started', 'Scheduled', 'Installation Pending', 'Structure Pending', 'Panel Pending', 'Wiring Pending', 'Installation Completed']),
                                 isDense: true,
                                 items: const [
                                   DropdownMenuItem(value: 'Not Started', child: Text('Not Started')),
@@ -347,7 +358,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                               const Text('RTS Status: ', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
                               const SizedBox(width: 8),
                               DropdownButton<String>(
-                                value: _record.rtsStatus,
+                                value: _safeValue(_record.rtsStatus, const ['Not Started', 'Application Pending', 'Applied', 'Meter Pending', 'Inspection Pending', 'Completed', 'Rejected']),
                                 isDense: true,
                                 items: const [
                                   DropdownMenuItem(value: 'Not Started', child: Text('Not Started')),
@@ -383,7 +394,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                               const Text('Subsidy Status: ', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
                               const SizedBox(width: 8),
                               DropdownButton<String>(
-                                value: _record.subsidyStatus,
+                                value: _safeValue(_record.subsidyStatus, const ['Not Applied', 'Applied', 'Under Process', 'Pending', 'Approved', 'Received', 'Rejected']),
                                 isDense: true,
                                 items: const [
                                   DropdownMenuItem(value: 'Not Applied', child: Text('Not Applied')),

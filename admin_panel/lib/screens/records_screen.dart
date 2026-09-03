@@ -726,14 +726,29 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                                 ? (val) => _toggleRecordSelection(r.id!, val)
                                                 : null,
                                           ),
-                                          Text(
-                                            r.consumerNo,
-                                            style: const TextStyle(fontWeight: FontWeight.w600),
+                                          InkWell(
+                                            onTap: () => _openDetailsDialog(r),
+                                            child: Text(
+                                              r.consumerNo,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF2563EB),
+                                                decoration: TextDecoration.underline,
+                                              ),
+                                            ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                    DataCell(Text(r.name)),
+                                    DataCell(
+                                      InkWell(
+                                        onTap: () => _openDetailsDialog(r),
+                                        child: Text(
+                                          r.name,
+                                          style: const TextStyle(fontWeight: FontWeight.w500),
+                                        ),
+                                      ),
+                                    ),
                                     DataCell(Text(r.mobile ?? '—')),
                                     DataCell(_buildWorkflowStageBadge(r)),
                                     DataCell(_buildStatusBadge(r.status)),
