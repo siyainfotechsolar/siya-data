@@ -1,0 +1,213 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/consumer_record.dart';
+import 'supabase_service.dart';
+
+class PaginatedResult<T> {
+  final List<T> items;
+  final int totalCount;
+  final int page;
+  final int pageSize;
+
+  PaginatedResult({
+    required this.items,
+    required this.totalCount,
+    required this.page,
+    required this.pageSize,
+  });
+
+  int get totalPages => (totalCount / pageSize).ceil();
+  bool get hasNextPage => page < totalPages;
+  bool get hasPreviousPage => page > 1;
+}
+
+class MobileRecordService {
+  static SupabaseClient get _client => SupabaseService.client;
+
+  /// Fetch active consumer records with optional status filter and search query
+  static Future<PaginatedResult<ConsumerRecord>> fetchRecords({
+    int page = 1,
+    int pageSize = 20,
+    String? searchQuery,
+    String? statusFilter,
+  }) async {
+    try {
+      final from = (page - 1) * pageSize;
+      final to = from + pageSize - 1;
+
+      var queryBuilder = _client
+          .from('consumer_records')
+          .select('*')
+          .eq('deleted', false);
+
+      if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {
+        queryBuilder = queryBuilder.eq('status', statusFilter);
+      }
+
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        final term = '%${searchQuery.trim()}%';
+        queryBuilder = queryBuilder.or(
+          'consumer_no.ilike.$term,name.ilike.$term,mobile.ilike.$term,application_id.ilike.$term',
+        );
+      }
+
+      final response = await queryBuilder
+          .order('updated_at', ascending: false)
+          .range(from, to)
+          .count(CountOption.exact);
+
+      final List<dynamic> data = response.data;
+      final int totalCount = response.count;
+
+      final records = data
+          .map((json) => ConsumerRecord.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      return PaginatedResult<ConsumerRecord>(
+        items: records,
+        totalCount: totalCount,
+        page: page,
+        pageSize: pageSize,
+      );
+    } catch (e, stack) {
+      // ignore: avoid_print
+      print('MobileRecordService.fetchRecords error: $e\n$stack');
+      rethrow;
+    }
+  }
+
+  /// Get record by ID
+  static Future<ConsumerRecord?> getRecordById(String id) async {
+    try {
+      final response = await _client
+          .from('consumer_records')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+
+      if (response == null) return null;
+      return ConsumerRecord.fromJson(response);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Update status and optional remarks from mobile app with audit trail
+  static Future<ConsumerRecord> updateRecordStatus({
+    required String id,
+    required String consumerNo,
+    required String oldStatus,
+    required String newStatus,
+    String? remarks,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final updatePayload = <String, dynamic>{
+      'status': newStatus,
+      'updated_at': nowIso,
+    };
+    if (user != null) {
+      updatePayload['updated_by'] = user.id;
+    }
+    if (remarks != null && remarks.trim().isNotEmpty) {
+      updatePayload['remarks'] = remarks.trim();
+    }
+
+    final response = await _client
+        .from('consumer_records')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    // Create field-level audit log entry
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': id,
+        'consumer_no': consumerNo,
+        'action': 'UPDATE',
+        'field_name': 'Status',
+        'old_value': oldStatus,
+        'new_value': newStatus,
+        'changed_by': user?.id,
+        'source': 'Mobile App',
+        'created_at': nowIso,
+      });
+
+      if (remarks != null && remarks.trim().isNotEmpty) {
+        await _client.from('audit_logs').insert({
+          'record_id': id,
+          'consumer_no': consumerNo,
+          'action': 'UPDATE',
+          'field_name': 'Remarks',
+          'old_value': null,
+          'new_value': remarks.trim(),
+          'changed_by': user?.id,
+          'source': 'Mobile App',
+          'created_at': nowIso,
+        });
+      }
+    } catch (_) {
+      // Audit log failures should not block successful record update
+    }
+
+    return updated;
+  }
+
+  /// Fetch current staff profile details
+  static Future<Map<String, dynamic>?> getCurrentStaffProfile() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return null;
+
+      final res = await _client
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      return res;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Summary counts for Mobile Dashboard
+  static Future<Map<String, int>> fetchDashboardSummary() async {
+    try {
+      final totalRes = await _client
+          .from('consumer_records')
+          .select('id')
+          .eq('deleted', false)
+          .count(CountOption.exact);
+
+      final inProgressRes = await _client
+          .from('consumer_records')
+          .select('id')
+          .eq('deleted', false)
+          .eq('status', 'In Progress')
+          .count(CountOption.exact);
+
+      final completedRes = await _client
+          .from('consumer_records')
+          .select('id')
+          .eq('deleted', false)
+          .eq('status', 'Completed')
+          .count(CountOption.exact);
+
+      return {
+        'total': totalRes.count,
+        'inProgress': inProgressRes.count,
+        'completed': completedRes.count,
+      };
+    } catch (_) {
+      return {
+        'total': 0,
+        'inProgress': 0,
+        'completed': 0,
+      };
+    }
+  }
+}

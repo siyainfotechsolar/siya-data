@@ -61,7 +61,7 @@ flutter run -d android --dart-define=SUPABASE_URL="YOUR_SUPABASE_URL" --dart-def
 - [x] **Phase 4: Excel/CSV Import** (File upload, column detection & mapping, validation preview)
 - [x] **Phase 5: Duplicate & Update Engine** (Production upsert & diff engine, change logging)
 - [x] **Phase 6: History & Audit Log** (Import run logs, field-level change history)
-- [ ] **Phase 7: Mobile App** (Field staff views, search & details)
+- [x] **Phase 7: Mobile App** (Field staff views, search & details)
 - [ ] **Phase 8: Admin ↔ Mobile Realtime Sync**
 - [ ] **Phase 9: User & Permission Management** (Admin & Staff roles, granular permissions)
 - [ ] **Phase 10: Testing & Security Hardening**

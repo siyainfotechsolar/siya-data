@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import 'login_screen.dart';
 
+import 'consumer_records_screen.dart';
+import 'search_records_screen.dart';
+import 'profile_screen.dart';
+import '../services/record_service.dart';
+
 class MobileHomeScreen extends StatefulWidget {
   const MobileHomeScreen({super.key});
 
@@ -11,6 +16,25 @@ class MobileHomeScreen extends StatefulWidget {
 
 class _MobileHomeScreenState extends State<MobileHomeScreen> {
   int _currentIndex = 0;
+  Map<String, int>? _summaryCounts;
+  bool _isLoadingSummary = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSummary();
+  }
+
+  Future<void> _loadSummary() async {
+    setState(() => _isLoadingSummary = true);
+    final summary = await MobileRecordService.fetchDashboardSummary();
+    if (mounted) {
+      setState(() {
+        _summaryCounts = summary;
+        _isLoadingSummary = false;
+      });
+    }
+  }
 
   Future<void> _handleSignOut() async {
     await SupabaseService.signOut();
@@ -37,7 +61,12 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
       body: _buildBody(),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
+        onDestinationSelected: (idx) {
+          setState(() => _currentIndex = idx);
+          if (idx == 0) {
+            _loadSummary();
+          }
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
@@ -68,11 +97,11 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
       case 0:
         return _buildHomeTab();
       case 1:
-        return _buildPlaceholderTab('Consumer Records', 'Available in Phase 7');
+        return const ConsumerRecordsScreen();
       case 2:
-        return _buildPlaceholderTab('Search Records', 'Available in Phase 7');
+        return const SearchRecordsScreen();
       case 3:
-        return _buildPlaceholderTab('Staff Profile', 'Phase 7 / 9 Feature');
+        return const StaffProfileScreen();
       default:
         return _buildHomeTab();
     }
@@ -113,7 +142,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                         Text(
                           'Connected to Supabase Backend',
                           style: TextStyle(
-                            color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
+                            color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
                             fontSize: 13,
                           ),
                         ),
@@ -125,6 +154,37 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
             ),
           ),
           const SizedBox(height: 16),
+
+          // Live Metrics Counters
+          Row(
+            children: [
+              Expanded(
+                child: _buildMetricCard(
+                  title: 'Total Active',
+                  value: _isLoadingSummary ? '...' : '${_summaryCounts?['total'] ?? 0}',
+                  color: Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildMetricCard(
+                  title: 'In Progress',
+                  value: _isLoadingSummary ? '...' : '${_summaryCounts?['inProgress'] ?? 0}',
+                  color: Colors.orange,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildMetricCard(
+                  title: 'Completed',
+                  value: _isLoadingSummary ? '...' : '${_summaryCounts?['completed'] ?? 0}',
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
           Text(
             'Quick Actions',
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -149,30 +209,51 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          Card(
-            elevation: 1,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Phase 1 Readiness',
-                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '• Mobile app framework initialized\n'
-                    '• Supabase authentication layer in place\n'
-                    '• Navigation and placeholder screens structured',
-                    style: TextStyle(height: 1.5, fontSize: 13),
-                  ),
-                ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionTile(
+                  icon: Icons.person_outline,
+                  label: 'My Staff Profile',
+                  onTap: () => setState(() => _currentIndex = 3),
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildActionTile(
+                  icon: Icons.sync,
+                  label: 'Refresh Data',
+                  onTap: _loadSummary,
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMetricCard({required String title, required String value, required Color color}) {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -188,10 +269,10 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 12.0),
+          padding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 12.0),
           child: Column(
             children: [
-              Icon(icon, size: 32, color: Theme.of(context).colorScheme.primary),
+              Icon(icon, size: 28, color: Theme.of(context).colorScheme.primary),
               const SizedBox(height: 8),
               Text(
                 label,
@@ -201,21 +282,6 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildPlaceholderTab(String title, String subtitle) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.construction_outlined, size: 56, color: Colors.grey.shade400),
-          const SizedBox(height: 12),
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          Text(subtitle, style: TextStyle(color: Colors.grey.shade600)),
-        ],
       ),
     );
   }
