@@ -360,50 +360,21 @@
   </footer>
 
   <script>
-    // Direct download URL for immediately hosted APK
     const REPO = 'siyainfotechsolar/siya-data';
-    const DIRECT_HOSTED_APK_URL = './siya-solar-v1.0.1.apk';
-    const GITHUB_RELEASES_URL = `https://github.com/${REPO}/releases`;
+    const DIRECT_APK = './siya-solar-v1.0.1.apk';
+    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.1.apk`;
 
-    async function loadLatestRelease() {
-      const primaryBtn = document.getElementById('primaryDownloadBtn');
-      const btnText = document.getElementById('btnText');
+    const primaryBtn = document.getElementById('primaryDownloadBtn');
+    const btnText = document.getElementById('btnText');
 
-      // Set direct hosted APK as default immediate download
-      primaryBtn.href = DIRECT_HOSTED_APK_URL;
-      primaryBtn.setAttribute('download', 'siya-solar-v1.0.0.apk');
-      btnText.textContent = 'DOWNLOAD APK (49.7 MB)';
+    // Default immediate direct link
+    primaryBtn.href = DIRECT_APK;
+    primaryBtn.setAttribute('download', 'siya-solar-v1.0.1.apk');
 
-      try {
-        const response = await fetch(`https://api.github.com/repos/${REPO}/releases`);
-        if (response.ok) {
-          const releases = await response.json();
-          if (releases && releases.length > 0) {
-            const latest = releases[0];
-            const version = latest.tag_name || 'v1.0.0';
-            document.getElementById('versionBadge').textContent = `Version ${version.replace('v', '')}`;
-            document.getElementById('metaVersion').textContent = version.replace('v', '');
-            
-            if (latest.published_at) {
-              document.getElementById('metaDate').textContent = latest.published_at.split('T')[0];
-            }
-
-            // Look for .apk asset
-            const apkAsset = latest.assets && latest.assets.find(a => a.name.endsWith('.apk'));
-            if (apkAsset && apkAsset.browser_download_url) {
-              primaryBtn.href = apkAsset.browser_download_url;
-              primaryBtn.removeAttribute('download');
-              btnText.textContent = `DOWNLOAD APK (${(apkAsset.size / (1024 * 1024)).toFixed(1)} MB)`;
-            }
-          }
-        }
-      } catch (err) {
-        // Fallback remains the direct hosted APK
-        primaryBtn.href = DIRECT_HOSTED_APK_URL;
-      }
-    }
-
-    loadLatestRelease();
+    // Ensure fallback to raw GitHub if relative link is blocked
+    primaryBtn.addEventListener('error', () => {
+      primaryBtn.href = GITHUB_RAW_APK;
+    });
   </script>
 </body>
 </html>
