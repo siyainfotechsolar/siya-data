@@ -8,6 +8,7 @@ import 'login_screen.dart';
 import 'records_screen.dart';
 import 'history_screen.dart';
 import 'recycle_bin_screen.dart';
+import 'users_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -175,7 +176,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 4:
         return const RecycleBinScreen();
       case 5:
-        return _buildPlaceholderView('User & Staff Management', 'Phase 9 Feature');
+        return const UsersScreen();
       case 6:
         return _buildPlaceholderView('Reports & Analytics', 'Upcoming Feature');
       case 7:
