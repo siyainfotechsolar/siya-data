@@ -118,7 +118,8 @@ class RecordService {
       var filterBuilder = _client
           .from('consumer_records')
           .select('*')
-          .eq('deleted', false);
+          .eq('deleted', false)
+          .eq('is_merged', false);
 
       if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {
         filterBuilder = filterBuilder.eq('status', statusFilter);
@@ -763,6 +764,7 @@ class RecordService {
           .from('consumer_records')
           .select('*')
           .eq('deleted', false)
+          .eq('is_merged', false)
           .not('status', 'ilike', 'completed')
           .not('status', 'ilike', 'cancelled')
           .not('application_status', 'ilike', 'completed')

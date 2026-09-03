@@ -50,6 +50,11 @@ class ConsumerRecord {
   final bool deleted;
   final DateTime? deletedAt;
   final String? deletedBy;
+  // Smart Merge Metadata
+  final bool isMerged;
+  final String? mergedIntoId;
+  final DateTime? mergedAt;
+  final String? mergedBy;
 
   // --- Step 1: Application ---
   final String applicationStatus;
@@ -101,6 +106,11 @@ class ConsumerRecord {
     this.deleted = false,
     this.deletedAt,
     this.deletedBy,
+    // Smart Merge
+    this.isMerged = false,
+    this.mergedIntoId,
+    this.mergedAt,
+    this.mergedBy,
     // Step 1
     this.applicationStatus = 'Submitted',
     this.submitDate,
@@ -164,9 +174,9 @@ class ConsumerRecord {
   /// Priority string label (CRITICAL, HIGH, MEDIUM, NORMAL)
   String get priority => priorityLevel.label;
 
-  /// Returns true if record is an active application (excluding Completed and Cancelled)
+  /// Returns true if record is an active application (excluding Completed, Cancelled, and Merged records)
   bool get isActiveApplication {
-    if (deleted) return false;
+    if (deleted || isMerged) return false;
     final st = status.trim().toLowerCase();
     final appSt = applicationStatus.trim().toLowerCase();
     return st != 'completed' && st != 'cancelled' && appSt != 'completed' && appSt != 'cancelled';
@@ -220,6 +230,11 @@ class ConsumerRecord {
       deleted: json['deleted'] as bool? ?? false,
       deletedAt: json['deleted_at'] != null ? DateTime.tryParse(json['deleted_at']) : null,
       deletedBy: json['deleted_by'] as String?,
+      // Smart Merge
+      isMerged: json['is_merged'] as bool? ?? false,
+      mergedIntoId: json['merged_into_id'] as String?,
+      mergedAt: json['merged_at'] != null ? DateTime.tryParse(json['merged_at']) : null,
+      mergedBy: json['merged_by'] as String?,
       // Step 1
       applicationStatus: json['application_status'] as String? ?? 'Submitted',
       submitDate: json['submit_date'] != null ? DateTime.tryParse(json['submit_date']) : null,
@@ -286,6 +301,11 @@ class ConsumerRecord {
     if (subsidyApprovedDate != null) map['subsidy_approved_date'] = subsidyApprovedDate!.toUtc().toIso8601String();
     if (subsidyReceivedDate != null) map['subsidy_received_date'] = subsidyReceivedDate!.toUtc().toIso8601String();
 
+    map['is_merged'] = isMerged;
+    if (mergedIntoId != null) map['merged_into_id'] = mergedIntoId;
+    if (mergedAt != null) map['merged_at'] = mergedAt!.toUtc().toIso8601String();
+    if (mergedBy != null) map['merged_by'] = mergedBy;
+
     if (deletedAt != null) map['deleted_at'] = deletedAt!.toUtc().toIso8601String();
     if (deletedBy != null) map['deleted_by'] = deletedBy;
     if (includeId && id != null) map['id'] = id;
@@ -309,6 +329,10 @@ class ConsumerRecord {
     DateTime? deletedAt,
     String? deletedBy,
     bool clearDeletedMetadata = false,
+    bool? isMerged,
+    String? mergedIntoId,
+    DateTime? mergedAt,
+    String? mergedBy,
     String? applicationStatus,
     DateTime? submitDate,
     bool? agreementRequired,
@@ -348,6 +372,10 @@ class ConsumerRecord {
       deleted: deleted ?? this.deleted,
       deletedAt: clearDeletedMetadata ? null : (deletedAt ?? this.deletedAt),
       deletedBy: clearDeletedMetadata ? null : (deletedBy ?? this.deletedBy),
+      isMerged: isMerged ?? this.isMerged,
+      mergedIntoId: mergedIntoId ?? this.mergedIntoId,
+      mergedAt: mergedAt ?? this.mergedAt,
+      mergedBy: mergedBy ?? this.mergedBy,
       applicationStatus: applicationStatus ?? this.applicationStatus,
       submitDate: submitDate ?? this.submitDate,
       agreementRequired: agreementRequired ?? this.agreementRequired,

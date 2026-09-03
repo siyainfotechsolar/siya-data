@@ -10,6 +10,7 @@ import 'history_screen.dart';
 import 'recycle_bin_screen.dart';
 import 'users_screen.dart';
 import 'priority_list_screen.dart';
+import 'duplicate_finder_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -29,6 +30,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final List<_NavDestination> _destinations = [
     _NavDestination('Dashboard', Icons.dashboard_outlined, Icons.dashboard),
     _NavDestination('Priority List', Icons.priority_high_outlined, Icons.priority_high),
+    _NavDestination('Duplicate Finder', Icons.find_in_page_outlined, Icons.find_in_page),
     _NavDestination('Records', Icons.table_chart_outlined, Icons.table_chart),
     _NavDestination('Import Data', Icons.upload_file_outlined, Icons.upload_file),
     _NavDestination('Import History', Icons.history_outlined, Icons.history),
@@ -177,21 +179,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           initialPriorityFilter: _selectedPriorityFilter,
         );
       case 2:
+        return const DuplicateFinderScreen();
+      case 3:
         return RecordsScreen(
           key: ValueKey(_selectedQueueFilter),
           initialWorkflowQueue: _selectedQueueFilter,
         );
-      case 3:
-        return _buildImportLandingView();
       case 4:
-        return const HistoryScreen();
+        return _buildImportLandingView();
       case 5:
-        return const RecycleBinScreen();
+        return const HistoryScreen();
       case 6:
-        return const UsersScreen();
+        return const RecycleBinScreen();
       case 7:
-        return _buildPlaceholderView('Reports & Analytics', 'Upcoming Feature');
+        return const UsersScreen();
       case 8:
+        return _buildPlaceholderView('Reports & Analytics', 'Upcoming Feature');
+      case 9:
         return _buildPlaceholderView('Settings', 'System Configuration');
       default:
         return _buildDashboardView();
@@ -506,7 +510,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void _openFilteredRecords(String queueName) {
     setState(() {
       _selectedQueueFilter = queueName;
-      _selectedIndex = 2; // Switch to Records tab
+      _selectedIndex = 3; // Switch to Records tab
     });
   }
 
