@@ -220,21 +220,47 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
                       )
                     : _records.isEmpty
                         ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.inbox_outlined, size: 60, color: Colors.grey.shade400),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'No records found',
-                                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Try selecting a different status filter.',
-                                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
-                                ),
-                              ],
+                            child: Padding(
+                              padding: const EdgeInsets.all(24.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    !SupabaseService.isAuthenticated
+                                        ? Icons.lock_outline
+                                        : Icons.inbox_outlined,
+                                    size: 60,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    !SupabaseService.isAuthenticated
+                                        ? 'Staff Login Required'
+                                        : 'No records found',
+                                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    !SupabaseService.isAuthenticated
+                                        ? 'You used Dev Demo mode (guest). To view live consumer records, please sign in with your Staff email and password.'
+                                        : 'Try selecting a different status filter.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+                                  ),
+                                  if (!SupabaseService.isAuthenticated) ...[
+                                    const SizedBox(height: 18),
+                                    FilledButton.icon(
+                                      onPressed: () {
+                                        Navigator.of(context).pushReplacement(
+                                          MaterialPageRoute(builder: (_) => const MobileLoginScreen()),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.login),
+                                      label: const Text('Go to Staff Sign In'),
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
                           )
                         : RefreshIndicator(
