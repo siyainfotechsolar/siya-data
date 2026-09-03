@@ -31,6 +31,8 @@ class ImportColumnMapping {
   int? applicationIdIndex;
   int? statusIndex;
   int? remarksIndex;
+  int? applicationDateIndex;
+  int? submitDateIndex;
 
   /// If true, blank values in imported columns will not overwrite existing database values
   bool ignoreBlankValues;
@@ -43,6 +45,8 @@ class ImportColumnMapping {
     this.applicationIdIndex,
     this.statusIndex,
     this.remarksIndex,
+    this.applicationDateIndex,
+    this.submitDateIndex,
     this.ignoreBlankValues = true,
   });
 
@@ -58,6 +62,8 @@ class ImportColumnMapping {
     if (applicationIdIndex != null) keys.add('application_id');
     if (statusIndex != null) keys.add('status');
     if (remarksIndex != null) keys.add('remarks');
+    if (applicationDateIndex != null) keys.add('application_date');
+    if (submitDateIndex != null) keys.add('submit_date');
     return keys;
   }
 
@@ -75,6 +81,8 @@ class ValidatedImportRow {
   final String? applicationId;
   final String status;
   final String? remarks;
+  final DateTime? applicationDate;
+  final DateTime? submitDate;
   final List<String> errors;
   final bool isDuplicateInFile;
 
@@ -87,11 +95,29 @@ class ValidatedImportRow {
     this.applicationId,
     required this.status,
     this.remarks,
+    this.applicationDate,
+    this.submitDate,
     this.errors = const [],
     this.isDuplicateInFile = false,
   });
 
   bool get isValid => errors.isEmpty && !isDuplicateInFile;
+
+  /// System calculated Application Days = Today - Submit Date
+  int get calculatedApplicationDays {
+    final now = DateTime.now();
+    final todayDate = DateTime(now.year, now.month, now.day);
+    final start = submitDate ?? now;
+    final startDate = DateTime(start.year, start.month, start.day);
+
+    if (startDate.isAfter(todayDate)) {
+      return 0;
+    }
+    return todayDate.difference(startDate).inDays;
+  }
+
+  /// Dynamic priority calculated from Application Days (0-7 Normal, 8-15 Medium, 16-30 High, 31+ Critical)
+  String get calculatedPriority => PriorityLevel.fromDays(calculatedApplicationDays).label;
 
   ConsumerRecord toConsumerRecord() {
     return ConsumerRecord(
@@ -102,6 +128,8 @@ class ValidatedImportRow {
       applicationId: applicationId,
       status: status.isEmpty ? 'Pending' : status,
       remarks: remarks,
+      applicationDate: applicationDate,
+      submitDate: submitDate,
     );
   }
 }
@@ -312,6 +340,14 @@ class ImportParserService {
       else if (mapping.remarksIndex == null && _matches(h, _remarksAliases)) {
         mapping.remarksIndex = i;
       }
+      // Application Date
+      else if (mapping.applicationDateIndex == null && _matches(h, _applicationDateAliases)) {
+        mapping.applicationDateIndex = i;
+      }
+      // Submit Date
+      else if (mapping.submitDateIndex == null && _matches(h, _submitDateAliases)) {
+        mapping.submitDateIndex = i;
+      }
     }
 
     return mapping;
@@ -333,6 +369,11 @@ class ImportParserService {
       final applicationId = _getCellValue(row, mapping.applicationIdIndex);
       final status = _getCellValue(row, mapping.statusIndex);
       final remarks = _getCellValue(row, mapping.remarksIndex);
+      final appDateStr = _getCellValue(row, mapping.applicationDateIndex);
+      final subDateStr = _getCellValue(row, mapping.submitDateIndex);
+
+      final applicationDate = _parseDateCell(appDateStr);
+      final submitDate = _parseDateCell(subDateStr);
 
       final errors = <String>[];
 
@@ -364,6 +405,8 @@ class ImportParserService {
         applicationId: applicationId.isEmpty ? null : applicationId,
         status: status.isEmpty ? 'Pending' : status,
         remarks: remarks.isEmpty ? null : remarks,
+        applicationDate: applicationDate,
+        submitDate: submitDate,
         errors: errors,
         isDuplicateInFile: isDuplicateInFile,
       ));
@@ -380,6 +423,31 @@ class ImportParserService {
       invalidRowsCount: invalidCount,
       duplicateCount: duplicateCount,
     );
+  }
+
+  /// Parse string cell into DateTime safely
+  static DateTime? _parseDateCell(String input) {
+    if (input.trim().isEmpty) return null;
+    final str = input.trim();
+    final parsed = DateTime.tryParse(str);
+    if (parsed != null) return parsed;
+
+    final parts = str.split(RegExp(r'[/.\-]'));
+    if (parts.length == 3) {
+      final p0 = int.tryParse(parts[0]);
+      final p1 = int.tryParse(parts[1]);
+      final p2 = int.tryParse(parts[2]);
+      if (p0 != null && p1 != null && p2 != null) {
+        if (p0 > 1000) {
+          // YYYY-MM-DD
+          return DateTime(p0, p1, p2);
+        } else if (p2 > 1000) {
+          // DD/MM/YYYY
+          return DateTime(p2, p1, p0);
+        }
+      }
+    }
+    return null;
   }
 
   static String _getCellValue(List<String> row, int? index) {
@@ -473,5 +541,22 @@ class ImportParserService {
     'notes',
     'note',
     'description',
+  ];
+
+  static const _applicationDateAliases = [
+    'applicationdate',
+    'appdate',
+    'dateofapplication',
+    'application_date',
+    'applieddate',
+  ];
+
+  static const _submitDateAliases = [
+    'submitdate',
+    'submisiondate',
+    'datesubmitted',
+    'submit_date',
+    'submission_date',
+    'submitteddate',
   ];
 }

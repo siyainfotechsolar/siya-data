@@ -62,6 +62,7 @@ class RecordDiff {
       'status',
       'remarks',
       // Workflow & Date fields
+      'application_date',
       'submit_date',
       'application_status',
       'agreement_status',
@@ -97,6 +98,13 @@ class RecordDiff {
     checkAndAdd('status', existingRecord.status, incomingRecord.status);
     checkAndAdd('remarks', existingRecord.remarks, incomingRecord.remarks);
     // Workflow & Date checks
+    if (allowed.contains('application_date')) {
+      final oldIso = existingRecord.applicationDate?.toIso8601String() ?? '';
+      final newIso = incomingRecord.applicationDate?.toIso8601String() ?? '';
+      if (newIso.isNotEmpty && oldIso != newIso) {
+        payload['application_date'] = incomingRecord.applicationDate!.toIso8601String();
+      }
+    }
     if (allowed.contains('submit_date')) {
       final oldIso = existingRecord.submitDate?.toIso8601String() ?? '';
       final newIso = incomingRecord.submitDate?.toIso8601String() ?? '';
@@ -152,6 +160,9 @@ class RecordDiff {
       deletedBy: null,
       // Workflow fields merged
       applicationStatus: payload.containsKey('application_status') ? (payload['application_status'] as String? ?? existingRecord.applicationStatus) : existingRecord.applicationStatus,
+      applicationDate: payload.containsKey('application_date')
+          ? (payload['application_date'] != null ? DateTime.tryParse(payload['application_date'] as String) : existingRecord.applicationDate)
+          : existingRecord.applicationDate,
       submitDate: payload.containsKey('submit_date')
           ? (payload['submit_date'] != null ? DateTime.tryParse(payload['submit_date'] as String) : existingRecord.submitDate)
           : existingRecord.submitDate,

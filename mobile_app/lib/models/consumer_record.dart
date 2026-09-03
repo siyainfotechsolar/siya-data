@@ -58,6 +58,7 @@ class ConsumerRecord {
 
   // --- Step 1: Application ---
   final String applicationStatus;
+  final DateTime? applicationDate;
   final DateTime? submitDate;
 
   // --- Step 2: Agreement ---
@@ -113,6 +114,7 @@ class ConsumerRecord {
     this.mergedBy,
     // Step 1
     this.applicationStatus = 'Submitted',
+    this.applicationDate,
     this.submitDate,
     // Step 2
     this.agreementRequired = true,
@@ -233,6 +235,7 @@ class ConsumerRecord {
       mergedBy: json['merged_by'] as String?,
       // Step 1
       applicationStatus: json['application_status'] as String? ?? 'Submitted',
+      applicationDate: json['application_date'] != null ? DateTime.tryParse(json['application_date']) : null,
       submitDate: json['submit_date'] != null ? DateTime.tryParse(json['submit_date']) : null,
       // Step 2
       agreementRequired: json['agreement_required'] as bool? ?? true,
@@ -286,6 +289,7 @@ class ConsumerRecord {
       'subsidy_status': subsidyStatus,
     };
 
+    if (applicationDate != null) map['application_date'] = applicationDate!.toUtc().toIso8601String();
     if (submitDate != null) map['submit_date'] = submitDate!.toUtc().toIso8601String();
     if (agreementDate != null) map['agreement_date'] = agreementDate!.toUtc().toIso8601String();
     if (loanAppliedDate != null) map['loan_applied_date'] = loanAppliedDate!.toUtc().toIso8601String();

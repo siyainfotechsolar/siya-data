@@ -602,6 +602,37 @@ class _ImportDialogState extends State<ImportDialog> {
                 setState(() => _mapping.remarksIndex = idx);
                 _revalidate();
               }),
+              _buildMappingRow('Application Date', 'Historical application date for reporting (Optional)', _mapping.applicationDateIndex, headers, (idx) {
+                setState(() => _mapping.applicationDateIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('Submit Date', 'Date used to calculate Application Days & Priority', _mapping.submitDateIndex, headers, (idx) {
+                setState(() => _mapping.submitDateIndex = idx);
+                _revalidate();
+              }),
+
+              // Auto Priority Notice
+              Container(
+                margin: const EdgeInsets.only(top: 8, bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.auto_awesome, color: Color(0xFFD97706), size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Application Days (Current Date - Submit Date) & Priority (0-7 Normal, 8-15 Medium, 16-30 High, 31+ Critical) are automatically calculated. Excel Priority or Days values will never overwrite system calculations.',
+                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF92400E)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -795,11 +826,43 @@ class _ImportDialogState extends State<ImportDialog> {
                       DataColumn(label: Text('Consumer No')),
                       DataColumn(label: Text('Consumer Name')),
                       DataColumn(label: Text('Mobile')),
-                      DataColumn(label: Text('Address')),
+                      DataColumn(label: Text('Application Date')),
+                      DataColumn(label: Text('Submit Date')),
+                      DataColumn(label: Text('Calculated Days')),
+                      DataColumn(label: Text('Calculated Priority')),
                       DataColumn(label: Text('Status')),
                       DataColumn(label: Text('Errors')),
                     ],
                     rows: rowsToShow.take(50).map((row) {
+                      final appDateStr = row.applicationDate != null
+                          ? '${row.applicationDate!.day.toString().padLeft(2, '0')}/${row.applicationDate!.month.toString().padLeft(2, '0')}/${row.applicationDate!.year}'
+                          : '—';
+                      final subDateStr = row.submitDate != null
+                          ? '${row.submitDate!.day.toString().padLeft(2, '0')}/${row.submitDate!.month.toString().padLeft(2, '0')}/${row.submitDate!.year}'
+                          : '—';
+                      final priority = row.calculatedPriority;
+                      Color priorityBg;
+                      Color priorityText;
+                      switch (priority) {
+                        case 'CRITICAL':
+                          priorityBg = Colors.red.shade100;
+                          priorityText = Colors.red.shade900;
+                          break;
+                        case 'HIGH':
+                          priorityBg = Colors.orange.shade100;
+                          priorityText = Colors.orange.shade900;
+                          break;
+                        case 'MEDIUM':
+                          priorityBg = Colors.blue.shade100;
+                          priorityText = Colors.blue.shade900;
+                          break;
+                        case 'NORMAL':
+                        default:
+                          priorityBg = Colors.grey.shade200;
+                          priorityText = Colors.grey.shade900;
+                          break;
+                      }
+
                       return DataRow(
                         color: WidgetStateProperty.resolveWith<Color?>((states) {
                           if (!row.isValid) return Colors.red.shade50.withValues(alpha: 0.5);
@@ -827,7 +890,26 @@ class _ImportDialogState extends State<ImportDialog> {
                           DataCell(Text(row.consumerNo.isEmpty ? '—' : row.consumerNo, style: const TextStyle(fontWeight: FontWeight.w600))),
                           DataCell(Text(row.name.isEmpty ? '—' : row.name)),
                           DataCell(Text(row.mobile ?? '—')),
-                          DataCell(Text(row.address ?? '—', overflow: TextOverflow.ellipsis)),
+                          DataCell(Text(appDateStr)),
+                          DataCell(Text(subDateStr, style: const TextStyle(fontWeight: FontWeight.w500))),
+                          DataCell(Text('${row.calculatedApplicationDays} Days')),
+                          DataCell(
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: priorityBg,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                priority,
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: priorityText,
+                                ),
+                              ),
+                            ),
+                          ),
                           DataCell(Text(row.status)),
                           DataCell(
                             row.errors.isEmpty
