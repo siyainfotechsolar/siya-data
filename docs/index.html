@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Siya Solar Staff - Official Android App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(180deg, #0b1329 0%, #0d1b3e 40%, #0f172a 100%);
+      --card-bg: #ffffff;
+      --card-border: rgba(226, 232, 240, 0.8);
+      --primary: #059669;
+      --primary-hover: #047857;
+      --primary-light: #ecfdf5;
+      --primary-border: #a7f3d0;
+      --accent-orange: #f59e0b;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg-gradient);
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px 60px;
+    }
+
+    /* Top App Branding */
+    .hero {
+      text-align: center;
+      max-width: 600px;
+      margin-bottom: 28px;
+    }
+
+    .app-icon {
+      width: 96px;
+      height: 96px;
+      background: #ffffff;
+      border-radius: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.45);
+      margin-bottom: 18px;
+    }
+
+    .app-icon svg {
+      width: 58px;
+      height: 58px;
+    }
+
+    .app-title {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+
+    .app-subtitle {
+      font-size: 15px;
+      color: #94a3b8;
+      font-weight: 500;
+      margin-bottom: 16px;
+    }
+
+    .badges {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    .badge-version {
+      background: rgba(255, 255, 255, 0.12);
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .badge-status {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+
+    /* Main Download Card */
+    .release-card {
+      background: var(--card-bg);
+      color: var(--text-main);
+      width: 100%;
+      max-width: 540px;
+      border-radius: 20px;
+      padding: 24px 24px 28px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .btn-download-primary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      background: var(--primary);
+      color: #ffffff;
+      padding: 16px 20px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      box-shadow: 0 10px 20px -5px rgba(5, 150, 105, 0.4);
+    }
+
+    .btn-download-primary:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 12px 22px -5px rgba(5, 150, 105, 0.5);
+    }
+
+    .btn-download-secondary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      background: #f8fafc;
+      color: #334155;
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid #e2e8f0;
+      margin-top: 10px;
+      transition: background 0.15s ease;
+    }
+
+    .btn-download-secondary:hover {
+      background: #f1f5f9;
+    }
+
+    /* Metadata Grid */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .meta-box {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 14px;
+      border: 1px solid #f1f5f9;
+    }
+
+    .meta-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .meta-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    /* What's New */
+    .changelog-section {
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .changelog-title {
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #475569;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .changelog-list {
+      list-style: none;
+    }
+
+    .changelog-list li {
+      position: relative;
+      padding-left: 22px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: #475569;
+      line-height: 1.5;
+    }
+
+    .changelog-list li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: var(--primary);
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    /* Install Instructions */
+    .instructions {
+      margin-top: 22px;
+      background: var(--primary-light);
+      border: 1px solid var(--primary-border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 12px;
+      color: #065f46;
+      line-height: 1.6;
+    }
+
+    .instructions strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 32px;
+      text-align: center;
+      color: #64748b;
+      font-size: 12px;
+    }
+
+    footer a {
+      color: #94a3b8;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Hero Header -->
+  <div class="hero">
+    <div class="app-icon">
+      <!-- Siya Solar Logo S Icon -->
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100" height="100" rx="22" fill="#059669"/>
+        <path d="M28 35C28 29.4772 32.4772 25 38 25H68C70.7614 25 73 27.2386 73 30C73 32.7614 70.7614 35 68 35H40C38.8954 35 38 35.8954 38 37C38 38.1046 38.8954 39 40 39H62C69.732 39 76 45.268 76 53C76 60.732 69.732 67 62 67H32C29.2386 67 27 64.7614 27 62C27 59.2386 29.2386 57 32 57H60C61.1046 57 62 56.1046 62 55C62 53.8954 61.1046 53 60 53H38C30.268 53 24 46.732 24 39C24 37.6 24.3 36.3 24.8 35H28Z" fill="white"/>
+        <circle cx="70" cy="27" r="4" fill="#F59E0B"/>
+      </svg>
+    </div>
+    <h1 class="app-title">Siya Solar Staff</h1>
+    <p class="app-subtitle">Official Android Application for Staff & Field Operations</p>
+    <div class="badges">
+      <span class="badge badge-version" id="versionBadge">Version 1.0.0</span>
+      <span class="badge badge-status">● Production Release</span>
+    </div>
+  </div>
+
+  <!-- Download & Details Card -->
+  <div class="release-card">
+    <!-- Primary APK Download -->
+    <a href="#" class="btn-download-primary" id="primaryDownloadBtn">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      DOWNLOAD APK
+    </a>
+
+    <!-- Secondary GitHub Release Link -->
+    <a href="https://github.com/siyainfotechsolar/siya-data/releases" target="_blank" class="btn-download-secondary" id="releasesLink">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+      View All GitHub Releases
+    </a>
+
+    <!-- Metadata Grid -->
+    <div class="meta-grid">
+      <div class="meta-box">
+        <div class="meta-label">Version</div>
+        <div class="meta-value" id="metaVersion">1.0.0</div>
+      </div>
+      <div class="meta-box">
+        <div class="meta-label">Release Date</div>
+        <div class="meta-value" id="metaDate">2026-09-03</div>
+      </div>
+      <div class="meta-box">
+        <div class="meta-label">Target OS</div>
+        <div class="meta-value">Android 7.0 (API 24)+</div>
+      </div>
+      <div class="meta-box">
+        <div class="meta-label">Architecture</div>
+        <div class="meta-value">arm64-v8a / armeabi</div>
+      </div>
+    </div>
+
+    <!-- What's New -->
+    <div class="changelog-section">
+      <div class="changelog-title">
+        <span>✨</span> Highlights in this version
+      </div>
+      <ul class="changelog-list" id="changelogList">
+        <li>Official release with Supabase backend synchronization</li>
+        <li>Consumer records directory with instant status filtering</li>
+        <li>Real-time search across Consumer No, Name, Mobile, and App ID</li>
+        <li>On-site Installation Status updates with automated audit logs</li>
+        <li>Staff Profile view with active role and permissions check</li>
+      </ul>
+    </div>
+
+    <!-- Sideloading Notice -->
+    <div class="instructions">
+      <strong>ℹ️ Installation Note:</strong>
+      When downloading the APK directly on Android, tap <em>"Download anyway"</em>. If prompted, enable <em>"Install unknown apps"</em> for your browser in Android Settings.
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <p>© 2026 Siya Infotech & Solar Energy • <a href="https://github.com/siyainfotechsolar/siya-data" target="_blank">GitHub Repository</a></p>
+  </footer>
+
+  <script>
+    // Automatically fetch latest release APK URL from GitHub API
+    const REPO = 'siyainfotechsolar/siya-data';
+    const DEFAULT_APK_URL = `https://github.com/${REPO}/releases/latest/download/siya-solar-v1.0.0.apk`;
+
+    async function loadLatestRelease() {
+      const primaryBtn = document.getElementById('primaryDownloadBtn');
+      primaryBtn.href = DEFAULT_APK_URL;
+
+      try {
+        const response = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`);
+        if (response.ok) {
+          const data = await response.json();
+          const version = data.tag_name || 'v1.0.0';
+          document.getElementById('versionBadge').textContent = `Version ${version.replace('v', '')}`;
+          document.getElementById('metaVersion').textContent = version.replace('v', '');
+          
+          if (data.published_at) {
+            document.getElementById('metaDate').textContent = data.published_at.split('T')[0];
+          }
+
+          // Find .apk asset
+          const apkAsset = data.assets && data.assets.find(a => a.name.endsWith('.apk'));
+          if (apkAsset && apkAsset.browser_download_url) {
+            primaryBtn.href = apkAsset.browser_download_url;
+          }
+        }
+      } catch (err) {
+        // Fallback to default direct download URL
+        primaryBtn.href = DEFAULT_APK_URL;
+      }
+    }
+
+    loadLatestRelease();
+  </script>
+</body>
+</html>
