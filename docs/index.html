@@ -284,7 +284,7 @@
     <h1 class="app-title">Siya Solar Staff</h1>
     <p class="app-subtitle">Official Android Application for Staff & Field Operations</p>
     <div class="badges">
-      <span class="badge badge-version" id="versionBadge">Version 1.0.0</span>
+      <span class="badge badge-version" id="versionBadge">Version 1.0.1</span>
       <span class="badge badge-status">● Production Release</span>
     </div>
   </div>
@@ -292,18 +292,18 @@
   <!-- Download & Details Card -->
   <div class="release-card">
     <!-- Primary APK Download -->
-    <a href="#" class="btn-download-primary" id="primaryDownloadBtn">
+    <a href="./siya-solar-v1.0.1.apk" download="siya-solar-v1.0.1.apk" class="btn-download-primary" id="primaryDownloadBtn">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      <span id="btnText">DOWNLOAD APK</span>
+      <span id="btnText">DOWNLOAD APK (v1.0.1)</span>
     </a>
 
     <!-- Secondary GitHub Release Link -->
     <a href="https://github.com/siyainfotechsolar/siya-data/releases" target="_blank" class="btn-download-secondary" id="releasesLink">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
         <polyline points="14 2 14 8 20 8"/>
         <line x1="16" y1="13" x2="8" y2="13"/>
@@ -317,7 +317,7 @@
     <div class="meta-grid">
       <div class="meta-box">
         <div class="meta-label">Version</div>
-        <div class="meta-value" id="metaVersion">1.0.0</div>
+        <div class="meta-value" id="metaVersion">1.0.1 (Build 2)</div>
       </div>
       <div class="meta-box">
         <div class="meta-label">Release Date</div>
@@ -336,14 +336,14 @@
     <!-- What's New -->
     <div class="changelog-section">
       <div class="changelog-title">
-        <span>✨</span> Highlights in this version
+        <span>✨</span> Highlights in v1.0.1
       </div>
       <ul class="changelog-list" id="changelogList">
-        <li>Official release with Supabase backend synchronization</li>
-        <li>Consumer records directory with instant status filtering</li>
-        <li>Real-time search across Consumer No, Name, Mobile, and App ID</li>
-        <li>On-site Installation Status updates with automated audit logs</li>
-        <li>Staff Profile view with active role and permissions check</li>
+        <li>Added Exit Confirmation Dialog & Back button navigation</li>
+        <li>Enhanced Data loading error handling and retry mechanism</li>
+        <li>Direct Supabase PostgreSQL synchronization for field technicians</li>
+        <li>Instant search across Consumer No, Name, Mobile, and App ID</li>
+        <li>Field status updates with automated audit logging</li>
       </ul>
     </div>
 
@@ -362,7 +362,7 @@
   <script>
     // Direct download URL for immediately hosted APK
     const REPO = 'siyainfotechsolar/siya-data';
-    const DIRECT_HOSTED_APK_URL = './siya-solar-v1.0.0.apk';
+    const DIRECT_HOSTED_APK_URL = './siya-solar-v1.0.1.apk';
     const GITHUB_RELEASES_URL = `https://github.com/${REPO}/releases`;
 
     async function loadLatestRelease() {
