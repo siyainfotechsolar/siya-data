@@ -65,4 +65,4 @@ flutter run -d android --dart-define=SUPABASE_URL="YOUR_SUPABASE_URL" --dart-def
 - [x] **Phase 8: Admin ↔ Mobile Realtime Sync** (Supabase Realtime channels, bidirectional live sync)
 - [x] **Phase 9: User & Permission Management** (Admin & Staff roles, granular permissions)
 - [x] **Phase 10: Testing & Security Hardening** (Immutable audit logs, hardened triggers, RLS audit, 25/25 automated tests)
-- [ ] **Phase 11: Production Deployment** (Vercel + Android APK/AAB)
+- [x] **Phase 11: Production Deployment** (Vercel Web Admin Panel + Android APK v1.0.1 + GitHub Pages)
