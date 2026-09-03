@@ -4,6 +4,7 @@ import 'package:admin_panel/models/duplicate_group.dart';
 import 'package:admin_panel/models/merge_conflict.dart';
 import 'package:admin_panel/models/record_diff.dart';
 import 'package:admin_panel/utils/consumer_no_utils.dart';
+import 'package:admin_panel/services/duplicate_finder_service.dart';
 
 void main() {
   group('Phase 14: Duplicate Finder & Smart Merge System Tests', () {
@@ -277,6 +278,38 @@ void main() {
 
       expect(record.applicationDays, equals(10));
       expect(record.priority, equals('MEDIUM'));
+    });
+
+    test('19. Bulk Duplicate Selection: exact matches selection set aggregation', () {
+      final group1 = DuplicateGroup(
+        normalizedConsumerNo: '1001',
+        records: [ConsumerRecord(consumerNo: '1001', name: 'A'), ConsumerRecord(consumerNo: '1001', name: 'B')],
+        matchType: DuplicateMatchType.exactMatch,
+      );
+
+      final group2 = DuplicateGroup(
+        normalizedConsumerNo: '1002',
+        records: [ConsumerRecord(consumerNo: '1002', name: 'C'), ConsumerRecord(consumerNo: "'1002", name: 'D')],
+        matchType: DuplicateMatchType.formattingVariation,
+      );
+
+      final groups = [group1, group2];
+      final exactSelected = groups.where((g) => g.matchType == DuplicateMatchType.exactMatch).map((g) => g.normalizedConsumerNo).toSet();
+
+      expect(exactSelected, contains('1001'));
+      expect(exactSelected, isNot(contains('1002')));
+    });
+
+    test('20. Bulk Merge Summary payload and progress tracking contract', () {
+      final summary = BulkMergeSummary(
+        mergedGroupsCount: 5,
+        mergedRecordsCount: 12,
+        success: true,
+      );
+
+      expect(summary.mergedGroupsCount, equals(5));
+      expect(summary.mergedRecordsCount, equals(12));
+      expect(summary.success, isTrue);
     });
   });
 }

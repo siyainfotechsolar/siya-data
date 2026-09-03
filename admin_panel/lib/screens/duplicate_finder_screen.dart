@@ -14,7 +14,13 @@ class _DuplicateFinderScreenState extends State<DuplicateFinderScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isBulkMerging = false;
+  int _bulkProgressProcessed = 0;
+  int _bulkProgressTotal = 0;
+
   List<DuplicateGroup> _groups = [];
+  final Set<String> _selectedGroupNos = {};
+
   String _selectedMatchTypeFilter = 'ALL';
   String _sortBy = 'count';
 
@@ -31,7 +37,10 @@ class _DuplicateFinderScreenState extends State<DuplicateFinderScreen> {
   }
 
   Future<void> _loadDuplicateGroups() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _selectedGroupNos.clear();
+    });
 
     try {
       final groups = await DuplicateFinderService.fetchDuplicateGroups(
@@ -65,6 +74,104 @@ class _DuplicateFinderScreenState extends State<DuplicateFinderScreen> {
     );
   }
 
+  void _selectAllExactMatches(List<DuplicateGroup> displayed) {
+    setState(() {
+      for (final g in displayed) {
+        if (g.matchType == DuplicateMatchType.exactMatch) {
+          _selectedGroupNos.add(g.normalizedConsumerNo);
+        }
+      }
+    });
+  }
+
+  void _selectAllDisplayed(List<DuplicateGroup> displayed) {
+    setState(() {
+      for (final g in displayed) {
+        _selectedGroupNos.add(g.normalizedConsumerNo);
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedGroupNos.clear();
+    });
+  }
+
+  Future<void> _handleBulkMergeSelected() async {
+    final selectedGroups = _groups.where((g) => _selectedGroupNos.contains(g.normalizedConsumerNo)).toList();
+    if (selectedGroups.isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.bolt_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Bulk Merge Confirmation'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to Bulk Merge ${selectedGroups.length} duplicate groups?\n\n'
+          '• Oldest records will be automatically selected as Masters.\n'
+          '• Missing non-empty values will be copied to Master.\n'
+          '• Highest workflow stage statuses will be preserved.\n'
+          '• Duplicate entries will be marked as merged with full audit logging.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.check),
+            label: Text('Yes, Merge ${selectedGroups.length} Groups'),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() {
+      _isBulkMerging = true;
+      _bulkProgressProcessed = 0;
+      _bulkProgressTotal = selectedGroups.length;
+    });
+
+    final result = await DuplicateFinderService.executeBulkAutoMerge(
+      groups: selectedGroups,
+      onProgress: (processed, total) {
+        if (mounted) {
+          setState(() {
+            _bulkProgressProcessed = processed;
+            _bulkProgressTotal = total;
+          });
+        }
+      },
+    );
+
+    if (mounted) {
+      setState(() {
+        _isBulkMerging = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Bulk Merge Complete! Merged ${result.mergedGroupsCount} groups (${result.mergedRecordsCount} duplicate records resolved).',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      _loadDuplicateGroups();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -85,7 +192,7 @@ class _DuplicateFinderScreenState extends State<DuplicateFinderScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Title
+          // Header Title & Bulk Action Buttons
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -104,15 +211,31 @@ class _DuplicateFinderScreenState extends State<DuplicateFinderScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Detects duplicate records by normalized Consumer No and provides safe field-by-field merge.',
+                    'Detects duplicate records by normalized Consumer No and provides safe single or bulk merging.',
                     style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
-              IconButton.outlined(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh Duplicates',
-                onPressed: _loadDuplicateGroups,
+              Row(
+                children: [
+                  if (_selectedGroupNos.isNotEmpty)
+                    FilledButton.icon(
+                      icon: _isBulkMerging
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.bolt_rounded, size: 18),
+                      label: Text(_isBulkMerging
+                          ? 'Merging ($_bulkProgressProcessed/$_bulkProgressTotal)...'
+                          : '⚡ BULK MERGE SELECTED (${_selectedGroupNos.length})'),
+                      style: FilledButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
+                      onPressed: _isBulkMerging ? null : _handleBulkMergeSelected,
+                    ),
+                  const SizedBox(width: 12),
+                  IconButton.outlined(
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'Refresh Duplicates',
+                    onPressed: _isBulkMerging ? null : _loadDuplicateGroups,
+                  ),
+                ],
               ),
             ],
           ),
@@ -137,78 +260,120 @@ class _DuplicateFinderScreenState extends State<DuplicateFinderScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Row(
+              child: Column(
                 children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (_) => _loadDuplicateGroups(),
-                      decoration: InputDecoration(
-                        hintText: 'Search Duplicates by Consumer No, Name, Mobile...',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  _loadDuplicateGroups();
-                                },
-                              )
-                            : null,
-                        border: const OutlineInputBorder(),
-                        isDense: true,
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (_) => _loadDuplicateGroups(),
+                          decoration: InputDecoration(
+                            hintText: 'Search Duplicates by Consumer No, Name, Mobile...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _searchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      _loadDuplicateGroups();
+                                    },
+                                  )
+                                : null,
+                            border: const OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 16),
+                      // Match Type Filter
+                      DropdownButtonHideUnderline(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade400),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: DropdownButton<String>(
+                            value: _selectedMatchTypeFilter,
+                            items: const [
+                              DropdownMenuItem(value: 'ALL', child: Text('All Duplicate Types')),
+                              DropdownMenuItem(value: 'EXACT', child: Text('Exact Matches')),
+                              DropdownMenuItem(value: 'FORMATTING', child: Text('Formatting Variations')),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) setState(() => _selectedMatchTypeFilter = val);
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Sort By Dropdown
+                      DropdownButtonHideUnderline(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade400),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: DropdownButton<String>(
+                            value: _sortBy,
+                            items: const [
+                              DropdownMenuItem(value: 'count', child: Text('Sort: Record Count')),
+                              DropdownMenuItem(value: 'appDays', child: Text('Sort: Application Days')),
+                              DropdownMenuItem(value: 'submitDate', child: Text('Sort: Submit Date')),
+                              DropdownMenuItem(value: 'name', child: Text('Sort: Customer Name')),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() => _sortBy = val);
+                                _loadDuplicateGroups();
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  // Match Type Filter
-                  DropdownButtonHideUnderline(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade400),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: DropdownButton<String>(
-                        value: _selectedMatchTypeFilter,
-                        items: const [
-                          DropdownMenuItem(value: 'ALL', child: Text('All Duplicate Types')),
-                          DropdownMenuItem(value: 'EXACT', child: Text('Exact Matches')),
-                          DropdownMenuItem(value: 'FORMATTING', child: Text('Formatting Variations')),
+
+                  // Selection Controls Bar
+                  if (displayedGroups.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        TextButton.icon(
+                          icon: const Icon(Icons.select_all_rounded, size: 18),
+                          label: const Text('Select All Exact Matches'),
+                          onPressed: () => _selectAllExactMatches(displayedGroups),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          icon: const Icon(Icons.done_all_rounded, size: 18),
+                          label: const Text('Select All Filtered'),
+                          onPressed: () => _selectAllDisplayed(displayedGroups),
+                        ),
+                        if (_selectedGroupNos.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          TextButton.icon(
+                            icon: const Icon(Icons.deselect_rounded, size: 18),
+                            label: const Text('Deselect All'),
+                            onPressed: _clearSelection,
+                          ),
                         ],
-                        onChanged: (val) {
-                          if (val != null) setState(() => _selectedMatchTypeFilter = val);
-                        },
-                      ),
+                        const Spacer(),
+                        Text(
+                          '${_selectedGroupNos.length} of ${displayedGroups.length} Groups Selected',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _selectedGroupNos.isNotEmpty ? Colors.green.shade800 : Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Sort By Dropdown
-                  DropdownButtonHideUnderline(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade400),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: DropdownButton<String>(
-                        value: _sortBy,
-                        items: const [
-                          DropdownMenuItem(value: 'count', child: Text('Sort: Record Count')),
-                          DropdownMenuItem(value: 'appDays', child: Text('Sort: Application Days')),
-                          DropdownMenuItem(value: 'submitDate', child: Text('Sort: Submit Date')),
-                          DropdownMenuItem(value: 'name', child: Text('Sort: Customer Name')),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _sortBy = val);
-                            _loadDuplicateGroups();
-                          }
-                        },
-                      ),
-                    ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -278,11 +443,18 @@ class _DuplicateFinderScreenState extends State<DuplicateFinderScreen> {
 
   Widget _buildDuplicateGroupCard(DuplicateGroup group) {
     final theme = Theme.of(context);
+    final isSelected = _selectedGroupNos.contains(group.normalizedConsumerNo);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: isSelected ? 3 : 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: isSelected ? Colors.green : Colors.transparent,
+          width: isSelected ? 2.0 : 0.0,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(18.0),
         child: Column(
@@ -294,6 +466,20 @@ class _DuplicateFinderScreenState extends State<DuplicateFinderScreen> {
               children: [
                 Row(
                   children: [
+                    Checkbox(
+                      value: isSelected,
+                      activeColor: Colors.green,
+                      onChanged: (val) {
+                        setState(() {
+                          if (val == true) {
+                            _selectedGroupNos.add(group.normalizedConsumerNo);
+                          } else {
+                            _selectedGroupNos.remove(group.normalizedConsumerNo);
+                          }
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 4),
                     Text(
                       'Consumer No: ${group.normalizedConsumerNo}',
                       style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),

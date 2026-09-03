@@ -4,6 +4,18 @@ import '../models/duplicate_group.dart';
 import '../utils/consumer_no_utils.dart';
 import 'supabase_service.dart';
 
+class BulkMergeSummary {
+  final int mergedGroupsCount;
+  final int mergedRecordsCount;
+  final bool success;
+
+  BulkMergeSummary({
+    required this.mergedGroupsCount,
+    required this.mergedRecordsCount,
+    required this.success,
+  });
+}
+
 class DuplicateFinderService {
   static SupabaseClient get _client => SupabaseService.client;
 
@@ -187,5 +199,109 @@ class DuplicateFinderService {
         return false;
       }
     }
+  }
+
+  /// Automatically merge multiple duplicate groups in bulk without losing any data
+  static Future<BulkMergeSummary> executeBulkAutoMerge({
+    required List<DuplicateGroup> groups,
+    void Function(int processed, int total)? onProgress,
+  }) async {
+    int mergedGroups = 0;
+    int mergedRecords = 0;
+
+    for (int i = 0; i < groups.length; i++) {
+      final g = groups[i];
+      if (g.records.length < 2) continue;
+
+      // 1. Pick Master Record (oldest submit date or created_at)
+      final master = g.records.reduce((a, b) {
+        final dateA = a.submitDate ?? a.createdAt ?? DateTime(2099);
+        final dateB = b.submitDate ?? b.createdAt ?? DateTime(2099);
+        return dateA.isBefore(dateB) ? a : b;
+      });
+
+      // 2. Build non-empty payload & highest workflow stages
+      final mergedPayload = <String, dynamic>{
+        'consumer_no': g.normalizedConsumerNo,
+      };
+
+      String? getNonEmpty(String? Function(ConsumerRecord r) getter) {
+        final masterVal = getter(master)?.trim();
+        if (masterVal != null && masterVal.isNotEmpty) return masterVal;
+        for (final r in g.records) {
+          final val = getter(r)?.trim();
+          if (val != null && val.isNotEmpty) return val;
+        }
+        return masterVal;
+      }
+
+      final name = getNonEmpty((r) => r.name);
+      if (name != null) mergedPayload['name'] = name;
+
+      final mobile = getNonEmpty((r) => r.mobile);
+      if (mobile != null) mergedPayload['mobile'] = mobile;
+
+      final address = getNonEmpty((r) => r.address);
+      if (address != null) mergedPayload['address'] = address;
+
+      final appId = getNonEmpty((r) => r.applicationId);
+      if (appId != null) mergedPayload['application_id'] = appId;
+
+      final remarks = getNonEmpty((r) => r.remarks);
+      if (remarks != null) mergedPayload['remarks'] = remarks;
+
+      final agreeDoc = getNonEmpty((r) => r.agreementDocUrl);
+      if (agreeDoc != null) mergedPayload['agreement_doc_url'] = agreeDoc;
+
+      final instPhotos = getNonEmpty((r) => r.installationPhotosUrl);
+      if (instPhotos != null) mergedPayload['installation_photos_url'] = instPhotos;
+
+      final rtsAppId = getNonEmpty((r) => r.rtsApplicationId);
+      if (rtsAppId != null) mergedPayload['rts_application_id'] = rtsAppId;
+
+      final installerTeam = getNonEmpty((r) => r.installerTeam);
+      if (installerTeam != null) mergedPayload['installer_team'] = installerTeam;
+
+      // Workflow Stages - Pick highest stage value
+      mergedPayload['application_status'] = _pickHighestStage(g.records.map((r) => r.applicationStatus), ['Approved', 'Submitted', 'Pending']);
+      mergedPayload['agreement_status'] = _pickHighestStage(g.records.map((r) => r.agreementStatus), ['Verified', 'Uploaded', 'Pending']);
+      mergedPayload['loan_status'] = _pickHighestStage(g.records.map((r) => r.loanStatus), ['Approved', 'Applied', 'Under Process', 'Pending', 'Not Required']);
+      mergedPayload['installation_status'] = _pickHighestStage(g.records.map((r) => r.installationStatus), ['Completed', 'Installed', 'In Progress', 'Approved', 'Not Started']);
+      mergedPayload['rts_status'] = _pickHighestStage(g.records.map((r) => r.rtsStatus), ['Completed', 'Applied', 'Pending', 'Not Started']);
+      mergedPayload['subsidy_status'] = _pickHighestStage(g.records.map((r) => r.subsidyStatus), ['Received', 'Approved', 'Applied', 'Under Process', 'Not Applied']);
+
+      // 3. Execute smart merge for this group
+      final duplicateIds = g.records.where((r) => r.id != master.id).map((r) => r.id ?? '').where((id) => id.isNotEmpty).toList();
+
+      final ok = await executeSmartMerge(
+        masterId: master.id ?? '',
+        duplicateIds: duplicateIds,
+        mergedPayload: mergedPayload,
+        conflictsSummary: {'auto_merge': 'Bulk Auto-Merge executed'},
+      );
+
+      if (ok) {
+        mergedGroups++;
+        mergedRecords += duplicateIds.length;
+      }
+
+      onProgress?.call(i + 1, groups.length);
+    }
+
+    return BulkMergeSummary(
+      mergedGroupsCount: mergedGroups,
+      mergedRecordsCount: mergedRecords,
+      success: true,
+    );
+  }
+
+  static String _pickHighestStage(Iterable<String> values, List<String> rankOrder) {
+    for (final rank in rankOrder) {
+      if (values.any((v) => v.trim().toLowerCase() == rank.toLowerCase())) {
+        return rank;
+      }
+    }
+    final firstNonEmpty = values.firstWhere((v) => v.trim().isNotEmpty, orElse: () => rankOrder.last);
+    return firstNonEmpty;
   }
 }
