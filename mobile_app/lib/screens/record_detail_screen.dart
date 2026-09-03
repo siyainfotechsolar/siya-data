@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
 
@@ -239,14 +240,29 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         icon: Icons.phone,
                         label: 'Mobile Number',
                         value: _record.mobile ?? 'Not provided',
-                        trailing: _record.mobile != null && _record.mobile!.isNotEmpty
+                        trailing: _record.mobile != null && _record.mobile!.trim().isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.call, color: Colors.green),
                                 tooltip: 'Call Consumer',
-                                onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Dialing ${_record.mobile}...')),
-                                  );
+                                onPressed: () async {
+                                  final rawPhone = _record.mobile!.replaceAll(RegExp(r'[^\d+]'), '');
+                                  final Uri phoneUri = Uri.parse('tel:$rawPhone');
+                                  try {
+                                    if (await canLaunchUrl(phoneUri)) {
+                                      await launchUrl(phoneUri, mode: LaunchMode.externalApplication);
+                                    } else {
+                                      await launchUrl(phoneUri);
+                                    }
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Could not open phone dialer: $e'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
                                 },
                               )
                             : null,
