@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
@@ -18,6 +19,8 @@ class RecordsScreen extends StatefulWidget {
 
 class _RecordsScreenState extends State<RecordsScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _verticalScrollController = ScrollController();
+  final ScrollController _horizontalScrollController = ScrollController();
   Timer? _debounceTimer;
 
   bool _isLoading = false;
@@ -119,6 +122,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
   void dispose() {
     _realtimeSub?.cancel();
     _searchController.dispose();
+    _verticalScrollController.dispose();
+    _horizontalScrollController.dispose();
     _debounceTimer?.cancel();
     super.dispose();
   }
@@ -679,117 +684,139 @@ class _RecordsScreenState extends State<RecordsScreen> {
                             ],
                           ),
                         )
-                      : SingleChildScrollView(
-                          scrollDirection: Axis.vertical,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
-                              headingRowColor: WidgetStateProperty.all(
-                                theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                              ),
-                              columns: [
-                                DataColumn(
-                                  label: Row(
-                                    children: [
-                                      Checkbox(
-                                        value: allCurrentPageSelected,
-                                        tristate: hasSomeSelected && !allCurrentPageSelected,
-                                        onChanged: _toggleSelectAll,
+                      : ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(context).copyWith(
+                            dragDevices: {
+                              PointerDeviceKind.touch,
+                              PointerDeviceKind.mouse,
+                              PointerDeviceKind.trackpad,
+                              PointerDeviceKind.stylus,
+                            },
+                          ),
+                          child: Scrollbar(
+                            controller: _verticalScrollController,
+                            thumbVisibility: true,
+                            trackVisibility: true,
+                            child: SingleChildScrollView(
+                              controller: _verticalScrollController,
+                              scrollDirection: Axis.vertical,
+                              child: Scrollbar(
+                                controller: _horizontalScrollController,
+                                thumbVisibility: true,
+                                trackVisibility: true,
+                                child: SingleChildScrollView(
+                                  controller: _horizontalScrollController,
+                                  scrollDirection: Axis.horizontal,
+                                  child: DataTable(
+                                    headingRowColor: WidgetStateProperty.all(
+                                      theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                                    ),
+                                    columns: [
+                                      DataColumn(
+                                        label: Row(
+                                          children: [
+                                            Checkbox(
+                                              value: allCurrentPageSelected,
+                                              tristate: hasSomeSelected && !allCurrentPageSelected,
+                                              onChanged: _toggleSelectAll,
+                                            ),
+                                            const Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold)),
+                                          ],
+                                        ),
                                       ),
-                                      const Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold)),
+                                      const DataColumn(label: Text('Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Mobile', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Workflow Stage', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Last Updated', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
                                     ],
-                                  ),
-                                ),
-                                const DataColumn(label: Text('Name', style: TextStyle(fontWeight: FontWeight.bold))),
-                                const DataColumn(label: Text('Mobile', style: TextStyle(fontWeight: FontWeight.bold))),
-                                const DataColumn(label: Text('Workflow Stage', style: TextStyle(fontWeight: FontWeight.bold))),
-                                const DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
-                                const DataColumn(label: Text('Last Updated', style: TextStyle(fontWeight: FontWeight.bold))),
-                                const DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
-                              ],
-                              rows: _records.map((r) {
-                                final isSelected = r.id != null && _selectedRecordIds.contains(r.id);
+                                    rows: _records.map((r) {
+                                      final isSelected = r.id != null && _selectedRecordIds.contains(r.id);
 
-                                return DataRow(
-                                  selected: isSelected,
-                                  onSelectChanged: r.id != null
-                                      ? (val) => _toggleRecordSelection(r.id!, val)
-                                      : null,
-                                  cells: [
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Checkbox(
-                                            value: isSelected,
-                                            onChanged: r.id != null
-                                                ? (val) => _toggleRecordSelection(r.id!, val)
-                                                : null,
+                                      return DataRow(
+                                        selected: isSelected,
+                                        onSelectChanged: r.id != null
+                                            ? (val) => _toggleRecordSelection(r.id!, val)
+                                            : null,
+                                        cells: [
+                                          DataCell(
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Checkbox(
+                                                  value: isSelected,
+                                                  onChanged: r.id != null
+                                                      ? (val) => _toggleRecordSelection(r.id!, val)
+                                                      : null,
+                                                ),
+                                                InkWell(
+                                                  onTap: () => _openDetailsDialog(r),
+                                                  child: Text(
+                                                    r.consumerNo,
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.w600,
+                                                      color: Color(0xFF2563EB),
+                                                      decoration: TextDecoration.underline,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
-                                          InkWell(
-                                            onTap: () => _openDetailsDialog(r),
-                                            child: Text(
-                                              r.consumerNo,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                color: Color(0xFF2563EB),
-                                                decoration: TextDecoration.underline,
+                                          DataCell(
+                                            InkWell(
+                                              onTap: () => _openDetailsDialog(r),
+                                              child: Text(
+                                                r.name,
+                                                style: const TextStyle(fontWeight: FontWeight.w500),
                                               ),
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                    DataCell(
-                                      InkWell(
-                                        onTap: () => _openDetailsDialog(r),
-                                        child: Text(
-                                          r.name,
-                                          style: const TextStyle(fontWeight: FontWeight.w500),
-                                        ),
-                                      ),
-                                    ),
-                                    DataCell(Text(r.mobile ?? '—')),
-                                    DataCell(_buildWorkflowStageBadge(r)),
-                                    DataCell(_buildStatusBadge(r.status)),
-                                    DataCell(
-                                      Text(
-                                        r.updatedAt != null
-                                            ? r.updatedAt!.toLocal().toString().split(' ')[0]
-                                            : '—',
-                                      ),
-                                    ),
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.timeline_rounded, size: 20, color: Color(0xFFD97706)),
-                                            tooltip: 'Workflow Timeline',
-                                            onPressed: () => _openDetailsDialog(r),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.visibility_outlined, size: 20),
-                                            tooltip: 'View Details',
-                                            onPressed: () => _openDetailsDialog(r),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.edit_outlined, size: 20),
-                                            tooltip: 'Edit Record',
-                                            onPressed: () => _openEditRecordDialog(r),
-                                          ),
-                                          if (_canDelete)
-                                            IconButton(
-                                              icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                                              tooltip: 'Delete Record',
-                                              onPressed: () => _openSingleDeleteDialog(r),
+                                          DataCell(Text(r.mobile ?? '—')),
+                                          DataCell(_buildWorkflowStageBadge(r)),
+                                          DataCell(_buildStatusBadge(r.status)),
+                                          DataCell(
+                                            Text(
+                                              r.updatedAt != null
+                                                  ? r.updatedAt!.toLocal().toString().split(' ')[0]
+                                                  : '—',
                                             ),
+                                          ),
+                                          DataCell(
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  icon: const Icon(Icons.timeline_rounded, size: 20, color: Color(0xFFD97706)),
+                                                  tooltip: 'Workflow Timeline',
+                                                  onPressed: () => _openDetailsDialog(r),
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.visibility_outlined, size: 20),
+                                                  tooltip: 'View Details',
+                                                  onPressed: () => _openDetailsDialog(r),
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.edit_outlined, size: 20),
+                                                  tooltip: 'Edit Record',
+                                                  onPressed: () => _openEditRecordDialog(r),
+                                                ),
+                                                if (_canDelete)
+                                                  IconButton(
+                                                    icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                                                    tooltip: 'Delete Record',
+                                                    onPressed: () => _openSingleDeleteDialog(r),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
                                         ],
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),

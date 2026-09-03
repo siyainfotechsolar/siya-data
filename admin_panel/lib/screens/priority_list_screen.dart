@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
@@ -17,6 +18,8 @@ class PriorityListScreen extends StatefulWidget {
 
 class _PriorityListScreenState extends State<PriorityListScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _verticalScrollController = ScrollController();
+  final ScrollController _horizontalScrollController = ScrollController();
   Timer? _debounceTimer;
 
   bool _isLoading = false;
@@ -53,6 +56,8 @@ class _PriorityListScreenState extends State<PriorityListScreen> {
   void dispose() {
     _realtimeSub?.cancel();
     _searchController.dispose();
+    _verticalScrollController.dispose();
+    _horizontalScrollController.dispose();
     _debounceTimer?.cancel();
     super.dispose();
   }
@@ -319,107 +324,129 @@ class _PriorityListScreenState extends State<PriorityListScreen> {
                               ),
                             ),
                           )
-                        : SingleChildScrollView(
-                            scrollDirection: Axis.vertical,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: DataTable(
-                                headingRowColor: WidgetStateProperty.all(
-                                  theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                                ),
-                                columns: const [
-                                  DataColumn(label: Text('Priority Level', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('App ID', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('App Status', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Submit Date', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Application Days', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Assigned Staff', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
-                                ],
-                                rows: _records.map((r) {
-                                  return DataRow(
-                                    cells: [
-                                      DataCell(_buildPriorityBadge(r)),
-                                      DataCell(
-                                        InkWell(
-                                          onTap: () => _openDetailsDialog(r),
-                                          child: Text(r.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                        ),
+                        : ScrollConfiguration(
+                            behavior: ScrollConfiguration.of(context).copyWith(
+                              dragDevices: {
+                                PointerDeviceKind.touch,
+                                PointerDeviceKind.mouse,
+                                PointerDeviceKind.trackpad,
+                                PointerDeviceKind.stylus,
+                              },
+                            ),
+                            child: Scrollbar(
+                              controller: _verticalScrollController,
+                              thumbVisibility: true,
+                              trackVisibility: true,
+                              child: SingleChildScrollView(
+                                controller: _verticalScrollController,
+                                scrollDirection: Axis.vertical,
+                                child: Scrollbar(
+                                  controller: _horizontalScrollController,
+                                  thumbVisibility: true,
+                                  trackVisibility: true,
+                                  child: SingleChildScrollView(
+                                    controller: _horizontalScrollController,
+                                    scrollDirection: Axis.horizontal,
+                                    child: DataTable(
+                                      headingRowColor: WidgetStateProperty.all(
+                                        theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
                                       ),
-                                      DataCell(
-                                        InkWell(
-                                          onTap: () => _openDetailsDialog(r),
-                                          child: Text(
-                                            r.consumerNo,
-                                            style: const TextStyle(
-                                              color: Color(0xFF2563EB),
-                                              decoration: TextDecoration.underline,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(Text(r.applicationId ?? '—')),
-                                      DataCell(Text(r.applicationStatus)),
-                                      DataCell(
-                                        Row(
-                                          children: [
-                                            Text(
-                                              r.submitDate != null
-                                                  ? r.submitDate!.toLocal().toString().split(' ')[0]
-                                                  : (r.createdAt != null
-                                                      ? r.createdAt!.toLocal().toString().split(' ')[0]
-                                                      : '—'),
-                                            ),
-                                            if (r.isSubmitDateFuture) ...[
-                                              const SizedBox(width: 6),
-                                              const Tooltip(
-                                                message: 'Warning: Submit date is in the future!',
-                                                child: Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 16),
+                                      columns: const [
+                                        DataColumn(label: Text('Priority Level', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('App ID', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('App Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('Submit Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('Application Days', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('Assigned Staff', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      ],
+                                      rows: _records.map((r) {
+                                        return DataRow(
+                                          cells: [
+                                            DataCell(_buildPriorityBadge(r)),
+                                            DataCell(
+                                              InkWell(
+                                                onTap: () => _openDetailsDialog(r),
+                                                child: Text(r.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                                               ),
-                                            ],
+                                            ),
+                                            DataCell(
+                                              InkWell(
+                                                onTap: () => _openDetailsDialog(r),
+                                                child: Text(
+                                                  r.consumerNo,
+                                                  style: const TextStyle(
+                                                    color: Color(0xFF2563EB),
+                                                    decoration: TextDecoration.underline,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            DataCell(Text(r.applicationId ?? '—')),
+                                            DataCell(Text(r.applicationStatus)),
+                                            DataCell(
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    r.submitDate != null
+                                                        ? r.submitDate!.toLocal().toString().split(' ')[0]
+                                                        : (r.createdAt != null
+                                                            ? r.createdAt!.toLocal().toString().split(' ')[0]
+                                                            : '—'),
+                                                  ),
+                                                  if (r.isSubmitDateFuture) ...[
+                                                    const SizedBox(width: 6),
+                                                    const Tooltip(
+                                                      message: 'Warning: Submit date is in the future!',
+                                                      child: Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 16),
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+                                            ),
+                                            DataCell(
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey.shade100,
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  '${r.applicationDays} Days',
+                                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                                ),
+                                              ),
+                                            ),
+                                            DataCell(Text(r.installerTeam ?? 'Unassigned')),
+                                            DataCell(
+                                              Row(
+                                                children: [
+                                                  IconButton(
+                                                    icon: const Icon(Icons.timeline_rounded, size: 20, color: Color(0xFFD97706)),
+                                                    tooltip: 'Workflow Lifecycle',
+                                                    onPressed: () => _openDetailsDialog(r),
+                                                  ),
+                                                  IconButton(
+                                                    icon: const Icon(Icons.visibility_outlined, size: 20),
+                                                    tooltip: 'View Record',
+                                                    onPressed: () => _openDetailsDialog(r),
+                                                  ),
+                                                  IconButton(
+                                                    icon: const Icon(Icons.edit_outlined, size: 20),
+                                                    tooltip: 'Edit Record',
+                                                    onPressed: () => _openEditDialog(r),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
                                           ],
-                                        ),
-                                      ),
-                                      DataCell(
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.shade100,
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: Text(
-                                            '${r.applicationDays} Days',
-                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(Text(r.installerTeam ?? 'Unassigned')),
-                                      DataCell(
-                                        Row(
-                                          children: [
-                                            IconButton(
-                                              icon: const Icon(Icons.timeline_rounded, size: 20, color: Color(0xFFD97706)),
-                                              tooltip: 'Workflow Lifecycle',
-                                              onPressed: () => _openDetailsDialog(r),
-                                            ),
-                                            IconButton(
-                                              icon: const Icon(Icons.visibility_outlined, size: 20),
-                                              tooltip: 'View Record',
-                                              onPressed: () => _openDetailsDialog(r),
-                                            ),
-                                            IconButton(
-                                              icon: const Icon(Icons.edit_outlined, size: 20),
-                                              tooltip: 'Edit Record',
-                                              onPressed: () => _openEditDialog(r),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                }).toList(),
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
