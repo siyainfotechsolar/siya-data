@@ -4,6 +4,7 @@ import '../models/record_diff.dart';
 import '../models/import_log.dart';
 import 'audit_service.dart';
 import 'supabase_service.dart';
+import '../utils/consumer_no_utils.dart';
 
 class PaginatedResult<T> {
   final List<T> items;
@@ -145,9 +146,10 @@ class RecordService {
       }
 
       if (searchQuery != null && searchQuery.trim().isNotEmpty) {
-        final term = '%${searchQuery.trim()}%';
+        final rawTerm = '%${searchQuery.trim()}%';
+        final normTerm = '%${ConsumerNoNormalizer.normalize(searchQuery)}%';
         filterBuilder = filterBuilder.or(
-          'consumer_no.ilike.$term,name.ilike.$term,mobile.ilike.$term,application_id.ilike.$term',
+          'consumer_no.ilike.$rawTerm,consumer_no.ilike.$normTerm,name.ilike.$rawTerm,mobile.ilike.$rawTerm,application_id.ilike.$rawTerm',
         );
       }
 
@@ -782,9 +784,10 @@ class RecordService {
       }
 
       if (searchQuery != null && searchQuery.trim().isNotEmpty) {
-        final term = '%${searchQuery.trim()}%';
+        final rawTerm = '%${searchQuery.trim()}%';
+        final normTerm = '%${ConsumerNoNormalizer.normalize(searchQuery)}%';
         filterBuilder = filterBuilder.or(
-          'consumer_no.ilike.$term,name.ilike.$term,mobile.ilike.$term,application_id.ilike.$term',
+          'consumer_no.ilike.$rawTerm,consumer_no.ilike.$normTerm,name.ilike.$rawTerm,mobile.ilike.$rawTerm,application_id.ilike.$rawTerm',
         );
       }
 

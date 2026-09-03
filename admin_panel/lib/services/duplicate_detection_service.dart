@@ -1,12 +1,13 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
 import '../models/record_diff.dart';
+import '../utils/consumer_no_utils.dart';
 import 'supabase_service.dart';
 
 class DuplicateDetectionService {
   static SupabaseClient get _client => SupabaseService.client;
 
-  /// Analyze incoming records against existing database records to detect duplicates and field differences
+  /// Analyze incoming records against existing database records using normalized Consumer No matching
   static Future<DuplicateAnalysisResult> analyzeDuplicates(
     List<ConsumerRecord> incomingRecords, {
     Set<String>? allowedFieldKeys,
@@ -20,45 +21,58 @@ class DuplicateDetectionService {
       );
     }
 
-    // 1. Gather all unique consumer numbers
-    final consumerNos = incomingRecords
-        .map((r) => r.consumerNo.trim())
+    // 1. Gather all unique normalized consumer numbers
+    final normalizedNos = incomingRecords
+        .map((r) => r.normalizedConsumerNo)
         .where((no) => no.isNotEmpty)
         .toSet()
         .toList();
 
-    // 2. Fetch existing records in chunks of 100
+    // 2. Fetch existing records using RPC with fallback
     final existingRecordsMap = <String, ConsumerRecord>{};
     const chunkSize = 100;
 
-    for (int i = 0; i < consumerNos.length; i += chunkSize) {
-      final end = (i + chunkSize < consumerNos.length) ? i + chunkSize : consumerNos.length;
-      final chunk = consumerNos.sublist(i, end);
+    for (int i = 0; i < normalizedNos.length; i += chunkSize) {
+      final end = (i + chunkSize < normalizedNos.length) ? i + chunkSize : normalizedNos.length;
+      final chunk = normalizedNos.sublist(i, end);
 
       try {
-        final response = await _client
-            .from('consumer_records')
-            .select('*')
-            .inFilter('consumer_no', chunk);
+        // Primary strategy: Call Postgres RPC function for normalized matching
+        final response = await _client.rpc(
+          'match_consumer_records_by_normalized_no',
+          params: {'normalized_nos': chunk},
+        );
 
         final List<dynamic> data = response as List<dynamic>;
         for (final item in data) {
           final record = ConsumerRecord.fromJson(item as Map<String, dynamic>);
-          existingRecordsMap[record.consumerNo.trim().toUpperCase()] = record;
+          existingRecordsMap[record.normalizedConsumerNo] = record;
         }
-      } catch (e) {
-        // Fallback or handle offline
+      } catch (_) {
+        // Fallback strategy: Query by raw values and index by normalizedConsumerNo locally
+        try {
+          final rawResponse = await _client
+              .from('consumer_records')
+              .select('*')
+              .eq('deleted', false);
+
+          final List<dynamic> data = rawResponse as List<dynamic>;
+          for (final item in data) {
+            final record = ConsumerRecord.fromJson(item as Map<String, dynamic>);
+            existingRecordsMap[record.normalizedConsumerNo] = record;
+          }
+        } catch (_) {}
       }
     }
 
-    // 3. Classify records and calculate field diffs strictly for allowed update columns
+    // 3. Classify records using normalized Consumer No matching
     final newRecords = <ConsumerRecord>[];
     final identicalRecords = <ConsumerRecord>[];
     final conflictRecords = <RecordDiff>[];
 
     for (final incoming in incomingRecords) {
-      final normalizedNo = incoming.consumerNo.trim().toUpperCase();
-      final existing = existingRecordsMap[normalizedNo];
+      final normNo = incoming.normalizedConsumerNo;
+      final existing = normNo.isEmpty ? null : existingRecordsMap[normNo];
 
       if (existing == null) {
         newRecords.add(incoming);
@@ -71,7 +85,7 @@ class DuplicateDetectionService {
         );
 
         if (diffs.isEmpty) {
-          // Differences in skipped columns do not trigger conflict/update!
+          // EXACT DUPLICATE: Differences in skipped columns do not trigger conflict/update!
           identicalRecords.add(existing);
         } else {
           conflictRecords.add(

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
 import '../models/consumer_record.dart';
+import '../utils/consumer_no_utils.dart';
 
 /// Holds the raw tabular data parsed from an uploaded file
 class RawImportData {
@@ -345,7 +346,7 @@ class ImportParserService {
 
       bool isDuplicateInFile = false;
       if (consumerNo.isNotEmpty) {
-        final normalizedNo = consumerNo.toUpperCase();
+        final normalizedNo = ConsumerNoNormalizer.normalize(consumerNo);
         if (seenConsumerNos.containsKey(normalizedNo)) {
           isDuplicateInFile = true;
           errors.add('Duplicate Consumer No in file (also in Row ${seenConsumerNos[normalizedNo]})');

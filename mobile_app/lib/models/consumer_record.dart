@@ -1,3 +1,5 @@
+import '../utils/consumer_no_utils.dart';
+
 enum PriorityLevel {
   critical('CRITICAL', '31+ Days', 1),
   high('HIGH', '16–30 Days', 2),
@@ -128,6 +130,10 @@ class ConsumerRecord {
     this.subsidyApprovedDate,
     this.subsidyReceivedDate,
   });
+
+  // --- Computed Normalized Keys & Priority Engine ---
+
+  String get normalizedConsumerNo => ConsumerNoNormalizer.normalize(consumerNo);
 
   // --- Computed Priority & Application Days Engine ---
 
