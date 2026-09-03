@@ -6,6 +6,7 @@ import 'login_screen.dart';
 import 'consumer_records_screen.dart';
 import 'search_records_screen.dart';
 import 'profile_screen.dart';
+import 'priority_screen.dart';
 import '../services/record_service.dart';
 import '../services/realtime_service.dart';
 
@@ -86,26 +87,17 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.exit_to_app, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Exit App?'),
-          ],
-        ),
-        content: const Text('Are you sure you want to exit Siya Solar App?'),
+        title: const Text('Exit App'),
+        content: const Text('Are you sure you want to sign out and exit?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               Navigator.of(ctx).pop();
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const MobileLoginScreen()),
-              );
+              _handleSignOut();
             },
             child: const Text('Log Out & Exit'),
           ),
@@ -119,10 +111,12 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
       case 0:
         return 'Siya Solar';
       case 1:
-        return 'Consumer Records';
+        return 'Priority List';
       case 2:
-        return 'Search Consumers';
+        return 'Consumer Records';
       case 3:
+        return 'Search Consumers';
+      case 4:
         return 'Staff Profile';
       default:
         return 'Siya Solar';
@@ -186,6 +180,11 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
             label: 'Home',
           ),
           NavigationDestination(
+            icon: Icon(Icons.priority_high_outlined),
+            selectedIcon: Icon(Icons.priority_high),
+            label: 'Priority',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.assignment_outlined),
             selectedIcon: Icon(Icons.assignment),
             label: 'Records',
@@ -210,10 +209,12 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
       case 0:
         return _buildHomeTab();
       case 1:
-        return const ConsumerRecordsScreen();
+        return const PriorityScreen();
       case 2:
-        return const SearchRecordsScreen();
+        return const ConsumerRecordsScreen();
       case 3:
+        return const SearchRecordsScreen();
+      case 4:
         return const StaffProfileScreen();
       default:
         return _buildHomeTab();

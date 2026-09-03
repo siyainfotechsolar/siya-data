@@ -272,4 +272,91 @@ class MobileRecordService {
       };
     }
   }
+
+  /// Fetch Priority List summary counts for Mobile App
+  static Future<Map<String, int>> fetchPrioritySummary() async {
+    try {
+      final activeRes = await _client
+          .from('consumer_records')
+          .select('submit_date, created_at, status, application_status')
+          .eq('deleted', false)
+          .not('status', 'ilike', 'completed')
+          .not('status', 'ilike', 'cancelled')
+          .not('application_status', 'ilike', 'completed')
+          .not('application_status', 'ilike', 'cancelled');
+
+      int critical = 0;
+      int high = 0;
+      int medium = 0;
+      int normal = 0;
+
+      final List<dynamic> activeData = activeRes as List<dynamic>;
+      for (final row in activeData) {
+        final rec = ConsumerRecord.fromJson(row as Map<String, dynamic>);
+        switch (rec.priorityLevel) {
+          case PriorityLevel.critical:
+            critical++;
+            break;
+          case PriorityLevel.high:
+            high++;
+            break;
+          case PriorityLevel.medium:
+            medium++;
+            break;
+          case PriorityLevel.normal:
+            normal++;
+            break;
+        }
+      }
+
+      return {
+        'critical': critical,
+        'high': high,
+        'medium': medium,
+        'normal': normal,
+        'total': activeData.length,
+      };
+    } catch (_) {
+      return {'critical': 0, 'high': 0, 'medium': 0, 'normal': 0, 'total': 0};
+    }
+  }
+
+  /// Fetch active applications for Mobile Priority List sorted by Priority Rank & Application Days DESC
+  static Future<List<ConsumerRecord>> fetchPriorityRecords({
+    String? priorityFilter,
+  }) async {
+    try {
+      var queryBuilder = _client
+          .from('consumer_records')
+          .select('*')
+          .eq('deleted', false)
+          .not('status', 'ilike', 'completed')
+          .not('status', 'ilike', 'cancelled')
+          .not('application_status', 'ilike', 'completed')
+          .not('application_status', 'ilike', 'cancelled');
+
+      final response = await queryBuilder
+          .order('submit_date', ascending: true, nullsFirst: false)
+          .order('created_at', ascending: true);
+
+      final List<dynamic> data = response as List<dynamic>;
+      List<ConsumerRecord> records = data.map((j) => ConsumerRecord.fromJson(j as Map<String, dynamic>)).toList();
+
+      if (priorityFilter != null && priorityFilter.isNotEmpty && priorityFilter.toUpperCase() != 'ALL') {
+        records = records.where((r) => r.priority.toUpperCase() == priorityFilter.toUpperCase()).toList();
+      }
+
+      records.sort((a, b) {
+        final rankCmp = a.priorityLevel.rank.compareTo(b.priorityLevel.rank);
+        if (rankCmp != 0) return rankCmp;
+        return b.applicationDays.compareTo(a.applicationDays);
+      });
+
+      return records;
+    } catch (e) {
+      // ignore: avoid_print
+      print('Error in MobileRecordService.fetchPriorityRecords: $e');
+      return [];
+    }
+  }
 }

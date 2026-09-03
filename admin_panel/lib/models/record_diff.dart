@@ -61,7 +61,8 @@ class RecordDiff {
       'application_id',
       'status',
       'remarks',
-      // Workflow fields
+      // Workflow & Date fields
+      'submit_date',
       'application_status',
       'agreement_status',
       'loan_required',
@@ -95,7 +96,14 @@ class RecordDiff {
     checkAndAdd('application_id', existingRecord.applicationId, incomingRecord.applicationId);
     checkAndAdd('status', existingRecord.status, incomingRecord.status);
     checkAndAdd('remarks', existingRecord.remarks, incomingRecord.remarks);
-    // Workflow checks
+    // Workflow & Date checks
+    if (allowed.contains('submit_date')) {
+      final oldIso = existingRecord.submitDate?.toIso8601String() ?? '';
+      final newIso = incomingRecord.submitDate?.toIso8601String() ?? '';
+      if (newIso.isNotEmpty && oldIso != newIso) {
+        payload['submit_date'] = incomingRecord.submitDate!.toIso8601String();
+      }
+    }
     checkAndAdd('application_status', existingRecord.applicationStatus, incomingRecord.applicationStatus);
     checkAndAdd('agreement_status', existingRecord.agreementStatus, incomingRecord.agreementStatus);
     checkAndAdd('loan_required', existingRecord.loanRequired, incomingRecord.loanRequired);
@@ -144,7 +152,9 @@ class RecordDiff {
       deletedBy: null,
       // Workflow fields merged
       applicationStatus: payload.containsKey('application_status') ? (payload['application_status'] as String? ?? existingRecord.applicationStatus) : existingRecord.applicationStatus,
-      submitDate: existingRecord.submitDate,
+      submitDate: payload.containsKey('submit_date')
+          ? (payload['submit_date'] != null ? DateTime.tryParse(payload['submit_date'] as String) : existingRecord.submitDate)
+          : existingRecord.submitDate,
       agreementRequired: existingRecord.agreementRequired,
       agreementStatus: payload.containsKey('agreement_status') ? (payload['agreement_status'] as String? ?? existingRecord.agreementStatus) : existingRecord.agreementStatus,
       agreementDocUrl: existingRecord.agreementDocUrl,

@@ -38,6 +38,12 @@ class DashboardMetrics {
   final int rtsPendingCount;
   final int subsidyPendingCount;
 
+  // Application Days Based Priority Counts
+  final int criticalPriorityCount;
+  final int highPriorityCount;
+  final int mediumPriorityCount;
+  final int normalPriorityCount;
+
   DashboardMetrics({
     required this.totalRecords,
     required this.activeUsers,
@@ -50,6 +56,10 @@ class DashboardMetrics {
     this.installationPendingCount = 0,
     this.rtsPendingCount = 0,
     this.subsidyPendingCount = 0,
+    this.criticalPriorityCount = 0,
+    this.highPriorityCount = 0,
+    this.mediumPriorityCount = 0,
+    this.normalPriorityCount = 0,
   });
 }
 
@@ -661,6 +671,41 @@ class RecordService {
         subsidyPending = subRes.count;
       } catch (_) {}
 
+      // Application Days Based Priority Counts
+      int criticalCount = 0;
+      int highCount = 0;
+      int mediumCount = 0;
+      int normalCount = 0;
+
+      try {
+        final activeRes = await _client
+            .from('consumer_records')
+            .select('submit_date, created_at, status, application_status')
+            .eq('deleted', false)
+            .not('status', 'ilike', 'completed')
+            .not('status', 'ilike', 'cancelled')
+            .not('application_status', 'ilike', 'completed')
+            .not('application_status', 'ilike', 'cancelled');
+        final List<dynamic> activeData = activeRes as List<dynamic>;
+        for (final row in activeData) {
+          final rec = ConsumerRecord.fromJson(row as Map<String, dynamic>);
+          switch (rec.priorityLevel) {
+            case PriorityLevel.critical:
+              criticalCount++;
+              break;
+            case PriorityLevel.high:
+              highCount++;
+              break;
+            case PriorityLevel.medium:
+              mediumCount++;
+              break;
+            case PriorityLevel.normal:
+              normalCount++;
+              break;
+          }
+        }
+      } catch (_) {}
+
       final statusCounts = <String, int>{
         'Pending': 0,
         'Approved': 0,
@@ -681,6 +726,10 @@ class RecordService {
         installationPendingCount: installationPending,
         rtsPendingCount: rtsPending,
         subsidyPendingCount: subsidyPending,
+        criticalPriorityCount: criticalCount,
+        highPriorityCount: highCount,
+        mediumPriorityCount: mediumCount,
+        normalPriorityCount: normalCount,
       );
     } catch (_) {
       return DashboardMetrics(
@@ -691,6 +740,89 @@ class RecordService {
         statusCounts: {},
         recentRecords: [],
       );
+    }
+  }
+
+  /// Fetch active records for Priority List ordered strictly by Priority Rank & Application Days DESC
+  static Future<PaginatedResult<ConsumerRecord>> fetchPriorityRecords({
+    int page = 1,
+    int pageSize = 15,
+    String? priorityFilter, // 'ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'NORMAL'
+    String? applicationStatusFilter,
+    String? assignedStaffFilter,
+    String? searchQuery,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    try {
+      final from = (page - 1) * pageSize;
+
+      var filterBuilder = _client
+          .from('consumer_records')
+          .select('*')
+          .eq('deleted', false)
+          .not('status', 'ilike', 'completed')
+          .not('status', 'ilike', 'cancelled')
+          .not('application_status', 'ilike', 'completed')
+          .not('application_status', 'ilike', 'cancelled');
+
+      if (applicationStatusFilter != null && applicationStatusFilter.isNotEmpty && applicationStatusFilter != 'All') {
+        filterBuilder = filterBuilder.eq('application_status', applicationStatusFilter);
+      }
+
+      if (assignedStaffFilter != null && assignedStaffFilter.isNotEmpty && assignedStaffFilter != 'All') {
+        filterBuilder = filterBuilder.eq('installer_team', assignedStaffFilter);
+      }
+
+      if (startDate != null) {
+        filterBuilder = filterBuilder.gte('submit_date', startDate.toIso8601String());
+      }
+      if (endDate != null) {
+        filterBuilder = filterBuilder.lte('submit_date', endDate.toIso8601String());
+      }
+
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        final term = '%${searchQuery.trim()}%';
+        filterBuilder = filterBuilder.or(
+          'consumer_no.ilike.$term,name.ilike.$term,mobile.ilike.$term,application_id.ilike.$term',
+        );
+      }
+
+      // Query active records ordered by submit_date ascending (oldest first)
+      final response = await filterBuilder
+          .order('submit_date', ascending: true, nullsFirst: false)
+          .order('created_at', ascending: true);
+
+      final List<dynamic> data = response as List<dynamic>;
+      List<ConsumerRecord> records = data.map((j) => ConsumerRecord.fromJson(j as Map<String, dynamic>)).toList();
+
+      // Priority Filter
+      if (priorityFilter != null && priorityFilter.isNotEmpty && priorityFilter.toUpperCase() != 'ALL') {
+        records = records.where((r) => r.priority.toUpperCase() == priorityFilter.toUpperCase()).toList();
+      }
+
+      // Sort order:
+      // 1. Priority level rank (CRITICAL=1, HIGH=2, MEDIUM=3, NORMAL=4)
+      // 2. Application Days DESC (oldest application appears first)
+      records.sort((a, b) {
+        final rankCmp = a.priorityLevel.rank.compareTo(b.priorityLevel.rank);
+        if (rankCmp != 0) return rankCmp;
+        return b.applicationDays.compareTo(a.applicationDays);
+      });
+
+      final totalCount = records.length;
+      final pagedItems = records.skip(from).take(pageSize).toList();
+
+      return PaginatedResult<ConsumerRecord>(
+        items: pagedItems,
+        totalCount: totalCount,
+        page: page,
+        pageSize: pageSize,
+      );
+    } catch (e, stack) {
+      // ignore: avoid_print
+      print('Error in RecordService.fetchPriorityRecords: $e\n$stack');
+      rethrow;
     }
   }
 }

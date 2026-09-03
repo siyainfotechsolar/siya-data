@@ -4,8 +4,9 @@ import '../services/record_service.dart';
 
 class RecordFormDialog extends StatefulWidget {
   final ConsumerRecord? initialRecord;
+  final Function(ConsumerRecord)? onRecordSaved;
 
-  const RecordFormDialog({super.key, this.initialRecord});
+  const RecordFormDialog({super.key, this.initialRecord, this.onRecordSaved});
 
   @override
   State<RecordFormDialog> createState() => _RecordFormDialogState();

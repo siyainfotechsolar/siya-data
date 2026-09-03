@@ -9,6 +9,7 @@ import 'records_screen.dart';
 import 'history_screen.dart';
 import 'recycle_bin_screen.dart';
 import 'users_screen.dart';
+import 'priority_list_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -23,9 +24,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   DashboardMetrics? _metrics;
   StreamSubscription<ConsumerRecordChangeEvent>? _metricsRealtimeSub;
   String? _selectedQueueFilter;
+  String? _selectedPriorityFilter;
 
   final List<_NavDestination> _destinations = [
     _NavDestination('Dashboard', Icons.dashboard_outlined, Icons.dashboard),
+    _NavDestination('Priority List', Icons.priority_high_outlined, Icons.priority_high),
     _NavDestination('Records', Icons.table_chart_outlined, Icons.table_chart),
     _NavDestination('Import Data', Icons.upload_file_outlined, Icons.upload_file),
     _NavDestination('Import History', Icons.history_outlined, Icons.history),
@@ -169,21 +172,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 0:
         return _buildDashboardView();
       case 1:
+        return PriorityListScreen(
+          key: ValueKey(_selectedPriorityFilter),
+          initialPriorityFilter: _selectedPriorityFilter,
+        );
+      case 2:
         return RecordsScreen(
           key: ValueKey(_selectedQueueFilter),
           initialWorkflowQueue: _selectedQueueFilter,
         );
-      case 2:
-        return _buildImportLandingView();
       case 3:
-        return const HistoryScreen();
+        return _buildImportLandingView();
       case 4:
-        return const RecycleBinScreen();
+        return const HistoryScreen();
       case 5:
-        return const UsersScreen();
+        return const RecycleBinScreen();
       case 6:
-        return _buildPlaceholderView('Reports & Analytics', 'Upcoming Feature');
+        return const UsersScreen();
       case 7:
+        return _buildPlaceholderView('Reports & Analytics', 'Upcoming Feature');
+      case 8:
         return _buildPlaceholderView('Settings', 'System Configuration');
       default:
         return _buildDashboardView();
@@ -297,6 +305,57 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 _isLoadingMetrics ? '...' : '${_metrics?.totalImportBatches ?? 0}',
                 Icons.cloud_upload_outlined,
                 Colors.purple,
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+
+          // Application Priority Summary (Application Days)
+          Text(
+            'Application Priority Dashboard',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Priority is calculated strictly from Application Days (Submit Date → Today). Click any card to view Priority List.',
+            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+          ),
+          const SizedBox(height: 14),
+
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildQueueCard(
+                title: 'CRITICAL (31+ Days)',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.criticalPriorityCount ?? 0}',
+                icon: Icons.priority_high_rounded,
+                color: const Color(0xFFDC2626),
+                onTap: () => _openPriorityList('CRITICAL'),
+              ),
+              _buildQueueCard(
+                title: 'HIGH (16–30 Days)',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.highPriorityCount ?? 0}',
+                icon: Icons.error_outline_rounded,
+                color: const Color(0xFFEA580C),
+                onTap: () => _openPriorityList('HIGH'),
+              ),
+              _buildQueueCard(
+                title: 'MEDIUM (8–15 Days)',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.mediumPriorityCount ?? 0}',
+                icon: Icons.warning_amber_rounded,
+                color: const Color(0xFFD97706),
+                onTap: () => _openPriorityList('MEDIUM'),
+              ),
+              _buildQueueCard(
+                title: 'NORMAL (0–7 Days)',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.normalPriorityCount ?? 0}',
+                icon: Icons.check_circle_outline_rounded,
+                color: const Color(0xFF16A34A),
+                onTap: () => _openPriorityList('NORMAL'),
               ),
             ],
           ),
@@ -437,10 +496,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void _openPriorityList(String priorityCode) {
+    setState(() {
+      _selectedPriorityFilter = priorityCode;
+      _selectedIndex = 1; // Switch to Priority List tab
+    });
+  }
+
   void _openFilteredRecords(String queueName) {
     setState(() {
       _selectedQueueFilter = queueName;
-      _selectedIndex = 1; // Switch to Records tab
+      _selectedIndex = 2; // Switch to Records tab
     });
   }
 

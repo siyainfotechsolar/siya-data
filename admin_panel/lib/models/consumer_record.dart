@@ -1,3 +1,37 @@
+enum PriorityLevel {
+  critical('CRITICAL', '31+ Days', 1),
+  high('HIGH', '16–30 Days', 2),
+  medium('MEDIUM', '8–15 Days', 3),
+  normal('NORMAL', '0–7 Days', 4);
+
+  final String label;
+  final String rangeLabel;
+  final int rank;
+
+  const PriorityLevel(this.label, this.rangeLabel, this.rank);
+
+  static PriorityLevel fromDays(int days) {
+    if (days >= 31) return PriorityLevel.critical;
+    if (days >= 16) return PriorityLevel.high;
+    if (days >= 8) return PriorityLevel.medium;
+    return PriorityLevel.normal;
+  }
+
+  static PriorityLevel fromLabel(String label) {
+    switch (label.toUpperCase()) {
+      case 'CRITICAL':
+        return PriorityLevel.critical;
+      case 'HIGH':
+        return PriorityLevel.high;
+      case 'MEDIUM':
+        return PriorityLevel.medium;
+      case 'NORMAL':
+      default:
+        return PriorityLevel.normal;
+    }
+  }
+}
+
 class ConsumerRecord {
   final String? id;
   final String consumerNo;
@@ -95,33 +129,59 @@ class ConsumerRecord {
     this.subsidyReceivedDate,
   });
 
-  // --- Computed Business Logic & Workflow Rules ---
+  // --- Computed Priority & Application Days Engine ---
 
-  /// Days elapsed since application submit date
+  /// Calendar-date difference between current date and submit date
   int get applicationDays {
-    final start = submitDate ?? createdAt ?? DateTime.now();
-    return DateTime.now().difference(start).inDays.clamp(0, 9999);
+    final now = DateTime.now();
+    final todayDate = DateTime(now.year, now.month, now.day);
+    final start = submitDate ?? createdAt ?? now;
+    final startDate = DateTime(start.year, start.month, start.day);
+
+    if (startDate.isAfter(todayDate)) {
+      return 0;
+    }
+    return todayDate.difference(startDate).inDays;
   }
 
-  /// True if loan condition is satisfied to allow installation to proceed to completion
+  /// True if submit date is set in the future
+  bool get isSubmitDateFuture {
+    if (submitDate == null) return false;
+    final now = DateTime.now();
+    final todayDate = DateTime(now.year, now.month, now.day);
+    final sDate = DateTime(submitDate!.year, submitDate!.month, submitDate!.day);
+    return sDate.isAfter(todayDate);
+  }
+
+  /// Dynamic priority level derived purely from Application Days
+  PriorityLevel get priorityLevel => PriorityLevel.fromDays(applicationDays);
+
+  /// Priority string label (CRITICAL, HIGH, MEDIUM, NORMAL)
+  String get priority => priorityLevel.label;
+
+  /// Returns true if record is an active application (excluding Completed and Cancelled)
+  bool get isActiveApplication {
+    if (deleted) return false;
+    final st = status.trim().toLowerCase();
+    final appSt = applicationStatus.trim().toLowerCase();
+    return st != 'completed' && st != 'cancelled' && appSt != 'completed' && appSt != 'cancelled';
+  }
+
+  // --- Computed Business Logic & Workflow Rules ---
+
   bool get isLoanSatisfied {
     if (loanRequired.toLowerCase() != 'yes') return true;
     return loanStatus.toLowerCase() == 'approved';
   }
 
-  /// Installation cannot be marked as completed if Loan is required but not approved
   bool get canCompleteInstallation => isLoanSatisfied;
 
-  /// RTS cannot start until installation is completed
   bool get canStartRts => installationStatus.toLowerCase() == 'installation completed';
 
-  /// Subsidy cannot start until RTS is completed
   bool get canStartSubsidy => rtsStatus.toLowerCase() == 'completed';
 
-  /// Workflow is fully completed when subsidy is received
   bool get isFullyCompleted => subsidyStatus.toLowerCase() == 'received';
 
-  /// Overall derived customer workflow stage
   String get overallStage {
     if (isFullyCompleted) return 'Completed';
     if (subsidyStatus.toLowerCase() != 'not applied') return 'Subsidy';
@@ -196,23 +256,17 @@ class ConsumerRecord {
       'status': status,
       'remarks': remarks?.trim(),
       'deleted': deleted,
-      // Step 1
       'application_status': applicationStatus,
-      // Step 2
       'agreement_required': agreementRequired,
       'agreement_status': agreementStatus,
       'agreement_doc_url': agreementDocUrl?.trim(),
-      // Step 3
       'loan_required': loanRequired,
       'loan_status': loanStatus,
-      // Step 4
       'installation_status': installationStatus,
       'installer_team': installerTeam?.trim(),
       'installation_photos_url': installationPhotosUrl?.trim(),
-      // Step 5
       'rts_status': rtsStatus,
       'rts_application_id': rtsApplicationId?.trim(),
-      // Step 6
       'subsidy_status': subsidyStatus,
     };
 

@@ -1,3 +1,37 @@
+enum PriorityLevel {
+  critical('CRITICAL', '31+ Days', 1),
+  high('HIGH', '16–30 Days', 2),
+  medium('MEDIUM', '8–15 Days', 3),
+  normal('NORMAL', '0–7 Days', 4);
+
+  final String label;
+  final String rangeLabel;
+  final int rank;
+
+  const PriorityLevel(this.label, this.rangeLabel, this.rank);
+
+  static PriorityLevel fromDays(int days) {
+    if (days >= 31) return PriorityLevel.critical;
+    if (days >= 16) return PriorityLevel.high;
+    if (days >= 8) return PriorityLevel.medium;
+    return PriorityLevel.normal;
+  }
+
+  static PriorityLevel fromLabel(String label) {
+    switch (label.toUpperCase()) {
+      case 'CRITICAL':
+        return PriorityLevel.critical;
+      case 'HIGH':
+        return PriorityLevel.high;
+      case 'MEDIUM':
+        return PriorityLevel.medium;
+      case 'NORMAL':
+      default:
+        return PriorityLevel.normal;
+    }
+  }
+}
+
 class ConsumerRecord {
   final String? id;
   final String consumerNo;
@@ -95,12 +129,40 @@ class ConsumerRecord {
     this.subsidyReceivedDate,
   });
 
-  // --- Computed Business Logic & Workflow Rules ---
+  // --- Computed Priority & Application Days Engine ---
 
   int get applicationDays {
-    final start = submitDate ?? createdAt ?? DateTime.now();
-    return DateTime.now().difference(start).inDays.clamp(0, 9999);
+    final now = DateTime.now();
+    final todayDate = DateTime(now.year, now.month, now.day);
+    final start = submitDate ?? createdAt ?? now;
+    final startDate = DateTime(start.year, start.month, start.day);
+
+    if (startDate.isAfter(todayDate)) {
+      return 0;
+    }
+    return todayDate.difference(startDate).inDays;
   }
+
+  bool get isSubmitDateFuture {
+    if (submitDate == null) return false;
+    final now = DateTime.now();
+    final todayDate = DateTime(now.year, now.month, now.day);
+    final sDate = DateTime(submitDate!.year, submitDate!.month, submitDate!.day);
+    return sDate.isAfter(todayDate);
+  }
+
+  PriorityLevel get priorityLevel => PriorityLevel.fromDays(applicationDays);
+
+  String get priority => priorityLevel.label;
+
+  bool get isActiveApplication {
+    if (deleted) return false;
+    final st = status.trim().toLowerCase();
+    final appSt = applicationStatus.trim().toLowerCase();
+    return st != 'completed' && st != 'cancelled' && appSt != 'completed' && appSt != 'cancelled';
+  }
+
+  // --- Computed Business Logic & Workflow Rules ---
 
   bool get isLoanSatisfied {
     if (loanRequired.toLowerCase() != 'yes') return true;
