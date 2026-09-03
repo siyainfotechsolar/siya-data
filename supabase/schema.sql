@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     role public.app_role NOT NULL DEFAULT 'staff',
     full_name TEXT,
     is_active BOOLEAN NOT NULL DEFAULT true,
+    can_delete BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
@@ -31,6 +32,9 @@ CREATE TABLE IF NOT EXISTS public.consumer_records (
     application_id TEXT,
     status TEXT NOT NULL DEFAULT 'Pending',
     remarks TEXT,
+    deleted BOOLEAN NOT NULL DEFAULT false,
+    deleted_at TIMESTAMPTZ,
+    deleted_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -42,7 +46,7 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     record_id UUID REFERENCES public.consumer_records(id) ON DELETE SET NULL,
     consumer_no TEXT,
-    action TEXT NOT NULL, -- 'INSERT', 'UPDATE', 'DELETE', 'IMPORT'
+    action TEXT NOT NULL, -- 'INSERT', 'UPDATE', 'DELETE', 'BULK_DELETE', 'RESTORE', 'PERMANENT_DELETE', 'IMPORT'
     field_name TEXT,
     old_value TEXT,
     new_value TEXT,
@@ -57,6 +61,8 @@ CREATE INDEX IF NOT EXISTS idx_consumer_records_application_id ON public.consume
 CREATE INDEX IF NOT EXISTS idx_consumer_records_mobile ON public.consumer_records (mobile);
 CREATE INDEX IF NOT EXISTS idx_consumer_records_status ON public.consumer_records (status);
 CREATE INDEX IF NOT EXISTS idx_consumer_records_updated_at ON public.consumer_records (updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_consumer_records_deleted_updated ON public.consumer_records (deleted, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_consumer_records_deleted_consumer_no ON public.consumer_records (consumer_no) WHERE deleted = false;
 CREATE INDEX IF NOT EXISTS idx_audit_logs_consumer_no ON public.audit_logs (consumer_no);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON public.audit_logs (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles (role);
@@ -96,10 +102,27 @@ AS $$
   );
 $$;
 
+CREATE OR REPLACE FUNCTION public.can_delete_records()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = (SELECT auth.uid())
+      AND is_active = true
+      AND (role = 'admin' OR can_delete = true)
+  );
+$$;
+
 REVOKE EXECUTE ON FUNCTION public.is_admin() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.is_active_user() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.is_active_user() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.can_delete_records() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.can_delete_records() TO authenticated;
 
 -- 8. Policies
 -- Profiles
@@ -117,10 +140,21 @@ DROP POLICY IF EXISTS "Admins have full access to consumer_records" ON public.co
 CREATE POLICY "Admins have full access to consumer_records" ON public.consumer_records FOR ALL TO authenticated USING ((SELECT public.is_admin())) WITH CHECK ((SELECT public.is_admin()));
 
 DROP POLICY IF EXISTS "Staff can view consumer_records" ON public.consumer_records;
-CREATE POLICY "Staff can view consumer_records" ON public.consumer_records FOR SELECT TO authenticated USING ((SELECT public.is_active_user()));
+CREATE POLICY "Staff can view consumer_records" ON public.consumer_records FOR SELECT TO authenticated USING (
+  (SELECT public.is_admin()) 
+  OR ((SELECT public.is_active_user()) AND deleted = false)
+);
 
 DROP POLICY IF EXISTS "Staff can update consumer_records" ON public.consumer_records;
-CREATE POLICY "Staff can update consumer_records" ON public.consumer_records FOR UPDATE TO authenticated USING ((SELECT public.is_active_user())) WITH CHECK ((SELECT public.is_active_user()));
+CREATE POLICY "Staff can update consumer_records" ON public.consumer_records FOR UPDATE TO authenticated USING (
+  (SELECT public.is_admin())
+  OR ((SELECT public.can_delete_records()) AND deleted = false)
+  OR ((SELECT public.is_active_user()) AND deleted = false)
+) WITH CHECK (
+  (SELECT public.is_admin())
+  OR ((SELECT public.can_delete_records()) AND deleted = true)
+  OR ((SELECT public.is_active_user()) AND deleted = false)
+);
 
 DROP POLICY IF EXISTS "Staff can insert consumer_records" ON public.consumer_records;
 CREATE POLICY "Staff can insert consumer_records" ON public.consumer_records FOR INSERT TO authenticated WITH CHECK ((SELECT public.is_active_user()));

@@ -5,6 +5,7 @@ import '../widgets/import_dialog.dart';
 import 'login_screen.dart';
 import 'records_screen.dart';
 import 'history_screen.dart';
+import 'recycle_bin_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -23,6 +24,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavDestination('Records', Icons.table_chart_outlined, Icons.table_chart),
     _NavDestination('Import Data', Icons.upload_file_outlined, Icons.upload_file),
     _NavDestination('Import History', Icons.history_outlined, Icons.history),
+    _NavDestination('Recycle Bin', Icons.delete_sweep_outlined, Icons.delete_sweep),
     _NavDestination('Users', Icons.people_outline, Icons.people),
     _NavDestination('Reports', Icons.bar_chart_outlined, Icons.bar_chart),
     _NavDestination('Settings', Icons.settings_outlined, Icons.settings),
@@ -152,10 +154,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 3:
         return const HistoryScreen();
       case 4:
-        return _buildPlaceholderView('User & Staff Management', 'Phase 9 Feature');
+        return const RecycleBinScreen();
       case 5:
-        return _buildPlaceholderView('Reports & Analytics', 'Upcoming Feature');
+        return _buildPlaceholderView('User & Staff Management', 'Phase 9 Feature');
       case 6:
+        return _buildPlaceholderView('Reports & Analytics', 'Upcoming Feature');
+      case 7:
         return _buildPlaceholderView('Settings', 'System Configuration');
       default:
         return _buildDashboardView();

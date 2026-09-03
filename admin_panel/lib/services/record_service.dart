@@ -44,7 +44,41 @@ class DashboardMetrics {
 class RecordService {
   static SupabaseClient get _client => SupabaseService.client;
 
-  /// Fetch paginated, filtered, searched and sorted records
+  /// Check if the currently authenticated user is an Admin
+  static Future<bool> isCurrentUserAdmin() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return false;
+      final res = await _client
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+      if (res == null) return false;
+      return res['role'] == 'admin';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Check if current user has delete permission (either admin or staff with can_delete)
+  static Future<bool> canCurrentUserDelete() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return false;
+      final res = await _client
+          .from('profiles')
+          .select('role, can_delete')
+          .eq('id', user.id)
+          .maybeSingle();
+      if (res == null) return false;
+      return res['role'] == 'admin' || res['can_delete'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Fetch paginated, filtered, searched and sorted records (excluding soft-deleted)
   static Future<PaginatedResult<ConsumerRecord>> fetchRecords({
     int page = 1,
     int pageSize = 15,
@@ -57,7 +91,10 @@ class RecordService {
       final from = (page - 1) * pageSize;
       final to = from + pageSize - 1;
 
-      var filterBuilder = _client.from('consumer_records').select('*');
+      var filterBuilder = _client
+          .from('consumer_records')
+          .select('*')
+          .eq('deleted', false);
 
       if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {
         filterBuilder = filterBuilder.eq('status', statusFilter);
@@ -89,6 +126,51 @@ class RecordService {
     } catch (e, stack) {
       // ignore: avoid_print
       print('Error in RecordService.fetchRecords: $e\n$stack');
+      rethrow;
+    }
+  }
+
+  /// Fetch paginated deleted records (Recycle Bin, admin only)
+  static Future<PaginatedResult<ConsumerRecord>> fetchDeletedRecords({
+    int page = 1,
+    int pageSize = 15,
+    String? searchQuery,
+  }) async {
+    try {
+      final from = (page - 1) * pageSize;
+      final to = from + pageSize - 1;
+
+      var filterBuilder = _client
+          .from('consumer_records')
+          .select('*')
+          .eq('deleted', true);
+
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        final term = '%${searchQuery.trim()}%';
+        filterBuilder = filterBuilder.or(
+          'consumer_no.ilike.$term,name.ilike.$term,mobile.ilike.$term,application_id.ilike.$term',
+        );
+      }
+
+      final response = await filterBuilder
+          .order('deleted_at', ascending: false)
+          .range(from, to)
+          .count(CountOption.exact);
+
+      final List<dynamic> data = response.data;
+      final int totalCount = response.count;
+
+      final records = data.map((json) => ConsumerRecord.fromJson(json as Map<String, dynamic>)).toList();
+
+      return PaginatedResult<ConsumerRecord>(
+        items: records,
+        totalCount: totalCount,
+        page: page,
+        pageSize: pageSize,
+      );
+    } catch (e, stack) {
+      // ignore: avoid_print
+      print('Error in RecordService.fetchDeletedRecords: $e\n$stack');
       rethrow;
     }
   }
@@ -133,9 +215,147 @@ class RecordService {
     return ConsumerRecord.fromJson(response);
   }
 
-  /// Delete a record
-  static Future<void> deleteRecord(String id) async {
-    await _client.from('consumer_records').delete().eq('id', id);
+  /// Soft delete a single record
+  static Future<void> deleteRecord(String id, {String? consumerNo}) async {
+    await softDeleteMultipleRecords([id]);
+  }
+
+  /// Soft delete multiple records (moves to Recycle Bin)
+  static Future<int> softDeleteMultipleRecords(List<String> recordIds) async {
+    if (recordIds.isEmpty) {
+      throw Exception('No records selected for deletion.');
+    }
+
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    // 1. Fetch consumer_nos for audit logs
+    final fetched = await _client
+        .from('consumer_records')
+        .select('id, consumer_no')
+        .inFilter('id', recordIds);
+
+    // 2. Perform soft delete update
+    await _client.from('consumer_records').update({
+      'deleted': true,
+      'deleted_at': nowIso,
+      'deleted_by': user?.id,
+    }).inFilter('id', recordIds);
+
+    // 3. Insert audit log entries
+    final auditLogs = (fetched as List<dynamic>).map((row) {
+      return {
+        'record_id': row['id'],
+        'consumer_no': row['consumer_no'],
+        'action': recordIds.length > 1 ? 'BULK_DELETE' : 'DELETE',
+        'field_name': 'deleted',
+        'old_value': 'false',
+        'new_value': 'true',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'created_at': nowIso,
+      };
+    }).toList();
+
+    if (auditLogs.isNotEmpty) {
+      try {
+        await _client.from('audit_logs').insert(auditLogs);
+      } catch (_) {
+        // Non-blocking audit log insert
+      }
+    }
+
+    return recordIds.length;
+  }
+
+  /// Restore soft-deleted records from Recycle Bin (Admin only)
+  static Future<int> restoreRecords(List<String> recordIds) async {
+    if (recordIds.isEmpty) {
+      throw Exception('No records selected to restore.');
+    }
+
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    // 1. Fetch consumer_nos for audit logs
+    final fetched = await _client
+        .from('consumer_records')
+        .select('id, consumer_no')
+        .inFilter('id', recordIds);
+
+    // 2. Clear soft delete flags
+    await _client.from('consumer_records').update({
+      'deleted': false,
+      'deleted_at': null,
+      'deleted_by': null,
+      'updated_at': nowIso,
+      'updated_by': user?.id,
+    }).inFilter('id', recordIds);
+
+    // 3. Insert audit logs
+    final auditLogs = (fetched as List<dynamic>).map((row) {
+      return {
+        'record_id': row['id'],
+        'consumer_no': row['consumer_no'],
+        'action': 'RESTORE',
+        'field_name': 'deleted',
+        'old_value': 'true',
+        'new_value': 'false',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'created_at': nowIso,
+      };
+    }).toList();
+
+    if (auditLogs.isNotEmpty) {
+      try {
+        await _client.from('audit_logs').insert(auditLogs);
+      } catch (_) {}
+    }
+
+    return recordIds.length;
+  }
+
+  /// Permanently delete records from database (Admin only)
+  static Future<int> permanentDeleteRecords(List<String> recordIds) async {
+    if (recordIds.isEmpty) {
+      throw Exception('No records selected for permanent deletion.');
+    }
+
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    // 1. Fetch consumer_nos for audit logs before hard delete
+    final fetched = await _client
+        .from('consumer_records')
+        .select('id, consumer_no')
+        .inFilter('id', recordIds);
+
+    // 2. Hard delete records
+    await _client.from('consumer_records').delete().inFilter('id', recordIds);
+
+    // 3. Insert audit logs
+    final auditLogs = (fetched as List<dynamic>).map((row) {
+      return {
+        'record_id': row['id'],
+        'consumer_no': row['consumer_no'],
+        'action': 'PERMANENT_DELETE',
+        'field_name': 'all_fields',
+        'old_value': 'Record Existed',
+        'new_value': 'Permanently Removed',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'created_at': nowIso,
+      };
+    }).toList();
+
+    if (auditLogs.isNotEmpty) {
+      try {
+        await _client.from('audit_logs').insert(auditLogs);
+      } catch (_) {}
+    }
+
+    return recordIds.length;
   }
 
   /// Bulk import records in batches of 50 with real-time progress callbacks
@@ -332,6 +552,7 @@ class RecordService {
       final recordsCountResponse = await _client
           .from('consumer_records')
           .select('id')
+          .eq('deleted', false)
           .count(CountOption.exact);
       final totalRecords = recordsCountResponse.count;
 
@@ -347,6 +568,7 @@ class RecordService {
       final recentResponse = await _client
           .from('consumer_records')
           .select('*')
+          .eq('deleted', false)
           .order('updated_at', ascending: false)
           .limit(5);
 

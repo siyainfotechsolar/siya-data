@@ -63,6 +63,9 @@ class RecordDiff {
         updatedAt: DateTime.now(),
         createdBy: existingRecord.createdBy,
         updatedBy: existingRecord.updatedBy,
+        deleted: false,
+        deletedAt: null,
+        deletedBy: null,
       );
     }
 
@@ -90,6 +93,9 @@ class RecordDiff {
       updatedAt: DateTime.now(),
       createdBy: existingRecord.createdBy,
       updatedBy: existingRecord.updatedBy,
+      deleted: false,
+      deletedAt: null,
+      deletedBy: null,
     );
   }
 }
