@@ -84,7 +84,8 @@ class _ImportDialogState extends State<ImportDialog> {
         _rawData = parsed;
         _mapping = detectedMapping;
         _validationReport = validation;
-        _currentStep = ImportStep.mapping;
+        // If required columns (Consumer No & Name) are cleanly auto-detected, skip mapping step directly to Preview!
+        _currentStep = detectedMapping.isValid ? ImportStep.preview : ImportStep.mapping;
         _isLoading = false;
       });
     } catch (e) {
@@ -487,9 +488,26 @@ class _ImportDialogState extends State<ImportDialog> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Selected File: ${_fileName ?? 'Dataset'} (${_rawData?.totalRows ?? 0} rows). Please verify the column mappings below. Consumer No and Name are required.',
+                  'Selected File: ${_fileName ?? 'Dataset'} (${_rawData?.totalRows ?? 0} rows). Columns were auto-detected. You can skip directly or verify below.',
                   style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF1E40AF)),
                 ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: _mapping.isValid
+                    ? () {
+                        _revalidate();
+                        setState(() => _currentStep = ImportStep.preview);
+                      }
+                    : null,
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF2563EB),
+                  side: const BorderSide(color: Color(0xFF93C5FD)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                ),
+                icon: const Icon(Icons.fast_forward_rounded, size: 16),
+                label: const Text('Skip Mapping ➔'),
               ),
             ],
           ),
