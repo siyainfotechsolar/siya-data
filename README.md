@@ -57,12 +57,55 @@ flutter run -d android --dart-define=SUPABASE_URL="YOUR_SUPABASE_URL" --dart-def
 
 - [x] **Phase 1: Project Foundation** (Monorepo, Flutter setup, Supabase Auth foundation)
 - [x] **Phase 2: Database & Security** (Supabase schema, Unique consumer_no constraint, RLS policies)
-- [x] **Phase 3: Admin Panel** (CRUD table, navigation, pagination, search & filters)
-- [x] **Phase 4: Excel/CSV Import** (File upload, column detection & mapping, validation preview)
-- [x] **Phase 5: Duplicate & Update Engine** (Production upsert & diff engine, change logging)
-- [x] **Phase 6: History & Audit Log** (Import run logs, field-level change history)
-- [x] **Phase 7: Mobile App** (Field staff views, search & details)
-- [x] **Phase 8: Admin ↔ Mobile Realtime Sync** (Supabase Realtime channels, bidirectional live sync)
-- [x] **Phase 9: User & Permission Management** (Admin & Staff roles, granular permissions)
-- [x] **Phase 10: Testing & Security Hardening** (Immutable audit logs, hardened triggers, RLS audit, 25/25 automated tests)
-- [x] **Phase 11: Production Deployment** (Vercel Web Admin Panel + Android APK v1.0.1 + GitHub Pages)
+- [x] **Phase 12: Customer Solar Workflow** (Agreement ➔ Loan ➔ Installation ➔ RTS ➔ Subsidy workflow guards)
+- [x] **Phase 13: Priority List Engine** (Calendar date `Application Days = Current Date - Submit Date`, CRITICAL/HIGH/MEDIUM/NORMAL sorting)
+- [x] **Phase 14: Consumer No Normalization Engine** (Strips quotes, spaces, hyphens, float suffix with Postgres RPC)
+- [x] **Phase 15: Duplicate Finder & Smart Merge System** (Interactive 3-step wizard, soft-merge tracking, 18 automated tests)
+
+---
+
+## 🏛️ Feature Responsibility Matrix
+
+| Feature | Admin Panel (Web) | Mobile App (Field Staff) |
+|---|---|---|
+| Dashboard | ✅ Full Analytics & Metrics | ✅ Simple Summary & Priority |
+| Customer Records | ✅ Full Management & Tables | ✅ View + Permitted Edit |
+| Excel/CSV Import | ✅ Full Import Engine & Mappings | ❌ Disabled |
+| Duplicate Finder | ✅ Full Group Scanner & Filters | ❌ Disabled |
+| Duplicate Merge | ✅ Interactive 3-Step Smart Merge | ❌ Disabled |
+| Multi Delete | ✅ Bulk Soft-Delete & Recycle Bin | ❌ Disabled |
+| Import History | ✅ Import Run Audits & Records | ❌ Disabled |
+| Recycle Bin | ✅ Soft-Delete Restore & Purge | ❌ Disabled |
+| User Management | ✅ User Roles & Permissions | ❌ Disabled |
+| Roles & Permissions | ✅ Admin Control Panel | ❌ Disabled |
+| Reports | ✅ Full Reports & Export | ✅ Basic Summary Views |
+| Search | ✅ Advanced Search & Filters | ✅ Live Search |
+| Filters | ✅ Multi-stage Advanced Filters | ✅ Simple Status Filters |
+| Application Priority | ✅ Calculated & Sorted | ✅ Priority Cards & List |
+| Application Days | ✅ Pure Calendar Days | ✅ Days Counter Badge |
+| Status Update | ✅ Full Workflow Updates | ✅ Role-Permitted Updates |
+| Agreement Upload | ✅ View, Verify, & Upload | ✅ Photo / PDF Upload |
+| Loan Status | ✅ Full Loan Stage Tracking | ✅ View & Stage Update |
+| Installation Status | ✅ Full Installer Assignment | ✅ View & Photo Upload |
+| RTS Status | ✅ Net Meter & Application ID | ✅ View & Stage Update |
+| Subsidy Status | ✅ Applied / Approved / Disbursed | ✅ View & Stage Update |
+| Documents/Photos | ✅ Document Viewer & Links | ✅ Camera & Gallery Upload |
+| Audit Log | ✅ Immutable Audit Trail | ❌ Disabled |
+| Settings | ✅ System Configuration | 🔒 Profile & Account |
+| Notifications | ✅ System Notifications | ✅ Field Alerts |
+
+---
+
+## 🔄 Core Data Architecture
+
+Both applications share a single **Supabase PostgreSQL** backend. When an Admin executes an Excel import or Smart Merge in the Admin Web Panel, changes instantly reflect across all Field Staff Mobile App devices via Supabase Realtime Channels.
+
+```text
+               SUPABASE POSTGRESQL
+                       │
+        ┌──────────────┴──────────────┐
+        ↓                             ↓
+ ADMIN PANEL (Web)           MOBILE APP (Android/iOS)
+ (Data Control & Admin)      (Field Work & Stage Updates)
+```
+
