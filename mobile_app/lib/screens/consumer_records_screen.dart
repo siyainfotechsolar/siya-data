@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
+import '../services/realtime_service.dart';
 import '../services/supabase_service.dart';
 import 'login_screen.dart';
 import 'record_detail_screen.dart';
@@ -32,15 +34,57 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
     'Rejected',
   ];
 
+  StreamSubscription<MobileRecordChangeEvent>? _realtimeSub;
+
   @override
   void initState() {
     super.initState();
     _loadRecords();
     _scrollController.addListener(_onScroll);
+    _initRealtime();
+  }
+
+  void _initRealtime() {
+    MobileRealtimeService.initialize();
+    _realtimeSub = MobileRealtimeService.recordEvents.listen((event) {
+      if (!mounted) return;
+
+      if (event.type == MobileRealtimeChangeType.update && event.record != null) {
+        final updatedRecord = event.record!;
+        final index = _records.indexWhere((r) => r.id == updatedRecord.id);
+
+        if (index != -1) {
+          if (updatedRecord.deleted) {
+            setState(() {
+              _records.removeAt(index);
+              _totalCount = (_totalCount > 0) ? _totalCount - 1 : 0;
+            });
+          } else {
+            setState(() {
+              _records[index] = updatedRecord;
+            });
+          }
+        } else if (!updatedRecord.deleted && _currentPage == 1) {
+          _loadRecords();
+        }
+      } else if (event.type == MobileRealtimeChangeType.insert && !event.record!.deleted) {
+        if (_currentPage == 1) {
+          _loadRecords();
+        } else {
+          setState(() => _totalCount += 1);
+        }
+      } else if (event.type == MobileRealtimeChangeType.delete) {
+        setState(() {
+          _records.removeWhere((r) => r.id == event.recordId);
+          _totalCount = (_totalCount > 0) ? _totalCount - 1 : 0;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
+    _realtimeSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
+import '../services/realtime_service.dart';
 import '../widgets/record_form_dialog.dart';
 import '../widgets/record_details_dialog.dart';
 import '../widgets/import_dialog.dart';
@@ -40,11 +41,65 @@ class _RecordsScreenState extends State<RecordsScreen> {
     'Rejected',
   ];
 
+  StreamSubscription<ConsumerRecordChangeEvent>? _realtimeSub;
+
   @override
   void initState() {
     super.initState();
     _checkDeletePermission();
     _loadRecords();
+    _initRealtimeSync();
+  }
+
+  void _initRealtimeSync() {
+    RealtimeSyncService.initialize();
+    _realtimeSub = RealtimeSyncService.recordEvents.listen((event) {
+      if (!mounted) return;
+
+      if (event.type == RealtimeChangeType.update && event.record != null) {
+        final updatedRecord = event.record!;
+        final index = _records.indexWhere((r) => r.id == updatedRecord.id);
+
+        if (index != -1) {
+          // If record is now soft-deleted, remove from active list
+          if (updatedRecord.deleted) {
+            setState(() {
+              _records.removeAt(index);
+              _totalCount = (_totalCount > 0) ? _totalCount - 1 : 0;
+            });
+          } else {
+            // Update in-place
+            setState(() {
+              _records[index] = updatedRecord;
+            });
+          }
+        } else if (!updatedRecord.deleted && _currentPage == 1) {
+          // New/restored record might belong on current view
+          _loadRecords();
+        }
+
+        // Show brief status snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Record #${updatedRecord.consumerNo} updated (${updatedRecord.status})'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else if (event.type == RealtimeChangeType.insert && !event.record!.deleted) {
+        // If on first page, refresh to show new insert
+        if (_currentPage == 1) {
+          _loadRecords();
+        } else {
+          setState(() => _totalCount += 1);
+        }
+      } else if (event.type == RealtimeChangeType.delete) {
+        setState(() {
+          _records.removeWhere((r) => r.id == event.recordId);
+          _totalCount = (_totalCount > 0) ? _totalCount - 1 : 0;
+        });
+      }
+    });
   }
 
   Future<void> _checkDeletePermission() async {
@@ -56,6 +111,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
 
   @override
   void dispose() {
+    _realtimeSub?.cancel();
     _searchController.dispose();
     _debounceTimer?.cancel();
     super.dispose();

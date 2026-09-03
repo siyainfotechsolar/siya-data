@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import '../services/record_service.dart';
+import '../services/realtime_service.dart';
 import '../widgets/import_dialog.dart';
 import 'login_screen.dart';
 import 'records_screen.dart';
@@ -18,6 +20,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _selectedIndex = 0;
   bool _isLoadingMetrics = false;
   DashboardMetrics? _metrics;
+  StreamSubscription<ConsumerRecordChangeEvent>? _metricsRealtimeSub;
 
   final List<_NavDestination> _destinations = [
     _NavDestination('Dashboard', Icons.dashboard_outlined, Icons.dashboard),
@@ -34,6 +37,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void initState() {
     super.initState();
     _loadMetrics();
+    _initMetricsRealtime();
+  }
+
+  void _initMetricsRealtime() {
+    RealtimeSyncService.initialize();
+    _metricsRealtimeSub = RealtimeSyncService.recordEvents.listen((_) {
+      if (mounted) {
+        _loadMetrics();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _metricsRealtimeSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadMetrics() async {

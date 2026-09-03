@@ -62,7 +62,7 @@ flutter run -d android --dart-define=SUPABASE_URL="YOUR_SUPABASE_URL" --dart-def
 - [x] **Phase 5: Duplicate & Update Engine** (Production upsert & diff engine, change logging)
 - [x] **Phase 6: History & Audit Log** (Import run logs, field-level change history)
 - [x] **Phase 7: Mobile App** (Field staff views, search & details)
-- [ ] **Phase 8: Admin ↔ Mobile Realtime Sync**
+- [x] **Phase 8: Admin ↔ Mobile Realtime Sync** (Supabase Realtime channels, bidirectional live sync)
 - [ ] **Phase 9: User & Permission Management** (Admin & Staff roles, granular permissions)
 - [ ] **Phase 10: Testing & Security Hardening**
 - [ ] **Phase 11: Production Deployment** (Vercel + Android APK/AAB)

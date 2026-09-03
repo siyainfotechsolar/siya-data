@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import 'login_screen.dart';
@@ -6,6 +7,7 @@ import 'consumer_records_screen.dart';
 import 'search_records_screen.dart';
 import 'profile_screen.dart';
 import '../services/record_service.dart';
+import '../services/realtime_service.dart';
 
 class MobileHomeScreen extends StatefulWidget {
   const MobileHomeScreen({super.key});
@@ -18,11 +20,28 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
   int _currentIndex = 0;
   Map<String, int>? _summaryCounts;
   bool _isLoadingSummary = false;
+  StreamSubscription<MobileRecordChangeEvent>? _metricsSub;
 
   @override
   void initState() {
     super.initState();
     _loadSummary();
+    _initMetricsRealtime();
+  }
+
+  void _initMetricsRealtime() {
+    MobileRealtimeService.initialize();
+    _metricsSub = MobileRealtimeService.recordEvents.listen((_) {
+      if (mounted) {
+        _loadSummary();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _metricsSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadSummary() async {
