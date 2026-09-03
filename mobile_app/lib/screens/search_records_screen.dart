@@ -149,34 +149,13 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
                             itemCount: _results.length,
                             itemBuilder: (context, index) {
                               final record = _results[index];
+                              final statusColor = _getStatusColor(record.status);
                               return Card(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                child: ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor: theme.colorScheme.primaryContainer,
-                                    child: Icon(Icons.solar_power, color: theme.colorScheme.primary, size: 20),
-                                  ),
-                                  title: Text(record.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                  subtitle: Text(
-                                    'No: ${record.consumerNo} • ${record.mobile ?? 'No Mobile'}',
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                  trailing: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        record.status,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                          color: _getStatusColor(record.status),
-                                        ),
-                                      ),
-                                      const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
-                                    ],
-                                  ),
+                                margin: const EdgeInsets.only(bottom: 10),
+                                elevation: 1,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
                                   onTap: () async {
                                     final updated = await Navigator.of(context).push<bool>(
                                       MaterialPageRoute(
@@ -187,6 +166,84 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
                                       _performSearch(_searchController.text.trim());
                                     }
                                   },
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(14.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Header Row: Consumer No & Overall Stage Badge
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: theme.colorScheme.surfaceContainerHighest,
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                'No: ${record.consumerNo}',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                  color: theme.colorScheme.onSurfaceVariant,
+                                                ),
+                                              ),
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: statusColor.withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius.circular(20),
+                                                border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                                              ),
+                                              child: Text(
+                                                record.overallStage,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 11,
+                                                  color: statusColor,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+
+                                        // Full Consumer Name
+                                        Text(
+                                          record.name,
+                                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                        ),
+                                        const SizedBox(height: 6),
+
+                                        // Mobile & Address Details Row
+                                        Row(
+                                          children: [
+                                            Icon(Icons.phone_android, size: 14, color: Colors.grey.shade600),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              record.mobile ?? 'No Mobile',
+                                              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                            ),
+                                            if (record.address != null && record.address!.isNotEmpty) ...[
+                                              const SizedBox(width: 12),
+                                              Icon(Icons.location_on_outlined, size: 14, color: Colors.grey.shade600),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  record.address!,
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               );
                             },

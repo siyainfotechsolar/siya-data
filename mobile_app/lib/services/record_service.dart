@@ -37,7 +37,8 @@ class MobileRecordService {
       var queryBuilder = _client
           .from('consumer_records')
           .select('*')
-          .eq('deleted', false);
+          .eq('deleted', false)
+          .eq('is_merged', false);
 
       if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {
         queryBuilder = queryBuilder.eq('status', statusFilter);
@@ -243,12 +244,14 @@ class MobileRecordService {
           .from('consumer_records')
           .select('id')
           .eq('deleted', false)
+          .eq('is_merged', false)
           .count(CountOption.exact);
 
       final inProgressRes = await _client
           .from('consumer_records')
           .select('id')
           .eq('deleted', false)
+          .eq('is_merged', false)
           .eq('status', 'In Progress')
           .count(CountOption.exact);
 
@@ -256,6 +259,7 @@ class MobileRecordService {
           .from('consumer_records')
           .select('id')
           .eq('deleted', false)
+          .eq('is_merged', false)
           .eq('status', 'Completed')
           .count(CountOption.exact);
 
@@ -280,6 +284,7 @@ class MobileRecordService {
           .from('consumer_records')
           .select('submit_date, created_at, status, application_status')
           .eq('deleted', false)
+          .eq('is_merged', false)
           .not('status', 'ilike', 'completed')
           .not('status', 'ilike', 'cancelled')
           .not('application_status', 'ilike', 'completed')
@@ -330,6 +335,7 @@ class MobileRecordService {
           .from('consumer_records')
           .select('*')
           .eq('deleted', false)
+          .eq('is_merged', false)
           .not('status', 'ilike', 'completed')
           .not('status', 'ilike', 'cancelled')
           .not('application_status', 'ilike', 'completed')
