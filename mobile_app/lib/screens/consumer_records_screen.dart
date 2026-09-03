@@ -52,9 +52,12 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
     }
   }
 
+  String? _errorMessage;
+
   Future<void> _loadRecords() async {
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
       _currentPage = 1;
     });
 
@@ -70,13 +73,21 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
           _records = res.items;
           _totalCount = res.totalCount;
           _isLoading = false;
+          _errorMessage = null;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString();
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load records: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Failed to load records: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
     }
@@ -113,16 +124,6 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Solar Consumers', style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: _loadRecords,
-          ),
-        ],
-      ),
       body: Column(
         children: [
           // Filter Chips Bar
@@ -188,26 +189,55 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _records.isEmpty
+                : _errorMessage != null
                     ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.inbox_outlined, size: 60, color: Colors.grey.shade400),
-                            const SizedBox(height: 12),
-                            Text(
-                              'No records found',
-                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Try selecting a different status filter.',
-                              style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
-                            ),
-                          ],
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline, size: 56, color: Colors.red),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Unable to Load Records',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _errorMessage!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton.icon(
+                                onPressed: _loadRecords,
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Try Again'),
+                              ),
+                            ],
+                          ),
                         ),
                       )
-                    : RefreshIndicator(
+                    : _records.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.inbox_outlined, size: 60, color: Colors.grey.shade400),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No records found',
+                                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Try selecting a different status filter.',
+                                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          )
+                        : RefreshIndicator(
                         onRefresh: _loadRecords,
                         child: ListView.builder(
                           controller: _scrollController,

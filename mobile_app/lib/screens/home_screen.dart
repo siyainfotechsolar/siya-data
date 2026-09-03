@@ -45,20 +45,113 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Siya Solar'),
+  DateTime? _lastBackPressTime;
+
+  Future<bool> _onWillPop() async {
+    final now = DateTime.now();
+    if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+      _lastBackPressTime = now;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Press back again to exit app'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return false;
+    }
+    return true;
+  }
+
+  void _showExitDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.exit_to_app, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Exit App?'),
+          ],
+        ),
+        content: const Text('Are you sure you want to exit Siya Solar App?'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: _handleSignOut,
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const MobileLoginScreen()),
+              );
+            },
+            child: const Text('Log Out & Exit'),
           ),
         ],
       ),
-      body: _buildBody(),
+    );
+  }
+
+  String _getAppBarTitle() {
+    switch (_currentIndex) {
+      case 0:
+        return 'Siya Solar';
+      case 1:
+        return 'Consumer Records';
+      case 2:
+        return 'Search Consumers';
+      case 3:
+        return 'Staff Profile';
+      default:
+        return 'Siya Solar';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldPop = await _onWillPop();
+        if (shouldPop && context.mounted) {
+          // Exit or logout to login screen
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const MobileLoginScreen()),
+          );
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            _getAppBarTitle(),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Exit to Login',
+            onPressed: _showExitDialog,
+          ),
+          actions: [
+            if (_currentIndex == 1)
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh',
+                onPressed: () {
+                  setState(() {});
+                },
+              ),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Logout / Exit',
+              onPressed: _showExitDialog,
+            ),
+          ],
+        ),
+        body: _buildBody(),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (idx) {
@@ -88,6 +181,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
             label: 'Profile',
           ),
         ],
+      ),
       ),
     );
   }

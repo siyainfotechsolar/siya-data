@@ -73,9 +73,6 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Search Consumers', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
       body: Column(
         children: [
           // Search Input Card

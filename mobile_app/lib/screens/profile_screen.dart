@@ -51,9 +51,6 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
     final fullName = _profile?['full_name'] ?? 'Solar Field Technician';
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Staff Profile', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
