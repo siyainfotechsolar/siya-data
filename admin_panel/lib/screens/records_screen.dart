@@ -8,7 +8,9 @@ import '../widgets/record_details_dialog.dart';
 import '../widgets/import_dialog.dart';
 
 class RecordsScreen extends StatefulWidget {
-  const RecordsScreen({super.key});
+  final String? initialWorkflowQueue;
+
+  const RecordsScreen({super.key, this.initialWorkflowQueue});
 
   @override
   State<RecordsScreen> createState() => _RecordsScreenState();
@@ -24,6 +26,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
   int _currentPage = 1;
   final int _pageSize = 15;
   String _selectedStatus = 'All';
+  String _selectedWorkflowQueue = 'All';
   String _sortBy = 'updated_at';
   bool _sortAscending = false;
 
@@ -46,6 +49,9 @@ class _RecordsScreenState extends State<RecordsScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialWorkflowQueue != null) {
+      _selectedWorkflowQueue = widget.initialWorkflowQueue!;
+    }
     _checkDeletePermission();
     _loadRecords();
     _initRealtimeSync();
@@ -137,6 +143,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
         pageSize: _pageSize,
         searchQuery: _searchController.text,
         statusFilter: _selectedStatus,
+        workflowQueueFilter: _selectedWorkflowQueue,
         sortBy: _sortBy,
         ascending: _sortAscending,
       );
@@ -512,6 +519,39 @@ class _RecordsScreenState extends State<RecordsScreen> {
                     ),
                   ),
                   const SizedBox(width: 16),
+                  // Workflow Queue Dropdown
+                  DropdownButtonHideUnderline(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFD97706)),
+                        borderRadius: BorderRadius.circular(4),
+                        color: const Color(0xFFFFFBEB),
+                      ),
+                      child: DropdownButton<String>(
+                        value: _selectedWorkflowQueue,
+                        items: const [
+                          DropdownMenuItem(value: 'All', child: Text('All Queues', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DropdownMenuItem(value: 'Agreement Pending', child: Text('⚡ Agreement Pending')),
+                          DropdownMenuItem(value: 'Loan Pending', child: Text('💰 Loan Pending')),
+                          DropdownMenuItem(value: 'Installation Pending', child: Text('🔧 Installation Pending')),
+                          DropdownMenuItem(value: 'RTS Pending', child: Text('⚡ RTS Pending')),
+                          DropdownMenuItem(value: 'Subsidy Pending', child: Text('🏛️ Subsidy Pending')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              _selectedWorkflowQueue = val;
+                              _currentPage = 1;
+                              _selectedRecordIds.clear();
+                            });
+                            _loadRecords();
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
                   DropdownButtonHideUnderline(
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -662,7 +702,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                 ),
                                 const DataColumn(label: Text('Name', style: TextStyle(fontWeight: FontWeight.bold))),
                                 const DataColumn(label: Text('Mobile', style: TextStyle(fontWeight: FontWeight.bold))),
-                                const DataColumn(label: Text('App ID', style: TextStyle(fontWeight: FontWeight.bold))),
+                                const DataColumn(label: Text('Workflow Stage', style: TextStyle(fontWeight: FontWeight.bold))),
                                 const DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
                                 const DataColumn(label: Text('Last Updated', style: TextStyle(fontWeight: FontWeight.bold))),
                                 const DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -695,7 +735,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                     ),
                                     DataCell(Text(r.name)),
                                     DataCell(Text(r.mobile ?? '—')),
-                                    DataCell(Text(r.applicationId ?? '—')),
+                                    DataCell(_buildWorkflowStageBadge(r)),
                                     DataCell(_buildStatusBadge(r.status)),
                                     DataCell(
                                       Text(
@@ -708,6 +748,11 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                       Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
+                                          IconButton(
+                                            icon: const Icon(Icons.timeline_rounded, size: 20, color: Color(0xFFD97706)),
+                                            tooltip: 'Workflow Timeline',
+                                            onPressed: () => _openDetailsDialog(r),
+                                          ),
                                           IconButton(
                                             icon: const Icon(Icons.visibility_outlined, size: 20),
                                             tooltip: 'View Details',
@@ -815,6 +860,72 @@ class _RecordsScreenState extends State<RecordsScreen> {
       child: Text(
         status,
         style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 12),
+      ),
+    );
+  }
+
+  Widget _buildWorkflowStageBadge(ConsumerRecord record) {
+    final stage = record.overallStage;
+    Color bg;
+    Color fg;
+    IconData icon;
+
+    switch (stage) {
+      case 'Completed':
+        bg = const Color(0xFFECFDF5);
+        fg = const Color(0xFF047857);
+        icon = Icons.check_circle_rounded;
+        break;
+      case 'Subsidy':
+        bg = const Color(0xFFF0FDF4);
+        fg = const Color(0xFF16A34A);
+        icon = Icons.currency_rupee_rounded;
+        break;
+      case 'RTS':
+        bg = const Color(0xFFF5F3FF);
+        fg = const Color(0xFF7C3AED);
+        icon = Icons.electric_meter_rounded;
+        break;
+      case 'Installation':
+        bg = const Color(0xFFF0FDFA);
+        fg = const Color(0xFF0F766E);
+        icon = Icons.build_circle_rounded;
+        break;
+      case 'Loan':
+        bg = const Color(0xFFFFFBEB);
+        fg = const Color(0xFFD97706);
+        icon = Icons.account_balance_rounded;
+        break;
+      case 'Agreement':
+        bg = const Color(0xFFEFF6FF);
+        fg = const Color(0xFF2563EB);
+        icon = Icons.history_edu_rounded;
+        break;
+      case 'Application':
+      default:
+        bg = const Color(0xFFF8FAFC);
+        fg = const Color(0xFF475569);
+        icon = Icons.assignment_rounded;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: fg.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: fg),
+          const SizedBox(width: 4),
+          Text(
+            stage,
+            style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 11),
+          ),
+        ],
       ),
     );
   }

@@ -31,6 +31,13 @@ class DashboardMetrics {
   final Map<String, int> statusCounts;
   final List<ConsumerRecord> recentRecords;
 
+  // Workflow Pending Queues
+  final int agreementPendingCount;
+  final int loanPendingCount;
+  final int installationPendingCount;
+  final int rtsPendingCount;
+  final int subsidyPendingCount;
+
   DashboardMetrics({
     required this.totalRecords,
     required this.activeUsers,
@@ -38,6 +45,11 @@ class DashboardMetrics {
     this.totalImportBatches = 0,
     required this.statusCounts,
     required this.recentRecords,
+    this.agreementPendingCount = 0,
+    this.loanPendingCount = 0,
+    this.installationPendingCount = 0,
+    this.rtsPendingCount = 0,
+    this.subsidyPendingCount = 0,
   });
 }
 
@@ -84,6 +96,7 @@ class RecordService {
     int pageSize = 15,
     String? searchQuery,
     String? statusFilter,
+    String? workflowQueueFilter, // 'Agreement Pending', 'Loan Pending', 'Installation Pending', 'RTS Pending', 'Subsidy Pending'
     String sortBy = 'updated_at',
     bool ascending = false,
   }) async {
@@ -98,6 +111,27 @@ class RecordService {
 
       if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {
         filterBuilder = filterBuilder.eq('status', statusFilter);
+      }
+
+      // Workflow Queue filter
+      if (workflowQueueFilter != null && workflowQueueFilter.isNotEmpty && workflowQueueFilter != 'All') {
+        switch (workflowQueueFilter) {
+          case 'Agreement Pending':
+            filterBuilder = filterBuilder.eq('agreement_status', 'Pending');
+            break;
+          case 'Loan Pending':
+            filterBuilder = filterBuilder.eq('loan_required', 'Yes').neq('loan_status', 'Approved');
+            break;
+          case 'Installation Pending':
+            filterBuilder = filterBuilder.neq('installation_status', 'Installation Completed');
+            break;
+          case 'RTS Pending':
+            filterBuilder = filterBuilder.eq('installation_status', 'Installation Completed').neq('rts_status', 'Completed');
+            break;
+          case 'Subsidy Pending':
+            filterBuilder = filterBuilder.eq('rts_status', 'Completed').neq('subsidy_status', 'Received');
+            break;
+        }
       }
 
       if (searchQuery != null && searchQuery.trim().isNotEmpty) {
@@ -595,6 +629,38 @@ class RecordService {
           .map((json) => ConsumerRecord.fromJson(json as Map<String, dynamic>))
           .toList();
 
+      // Workflow Queue Counts (independent queries with fallback)
+      int agreementPending = 0;
+      int loanPending = 0;
+      int installationPending = 0;
+      int rtsPending = 0;
+      int subsidyPending = 0;
+
+      try {
+        final agRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('agreement_status', 'Pending').count(CountOption.exact);
+        agreementPending = agRes.count;
+      } catch (_) {}
+
+      try {
+        final lnRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('loan_required', 'Yes').neq('loan_status', 'Approved').count(CountOption.exact);
+        loanPending = lnRes.count;
+      } catch (_) {}
+
+      try {
+        final inRes = await _client.from('consumer_records').select('id').eq('deleted', false).neq('installation_status', 'Installation Completed').count(CountOption.exact);
+        installationPending = inRes.count;
+      } catch (_) {}
+
+      try {
+        final rtsRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('installation_status', 'Installation Completed').neq('rts_status', 'Completed').count(CountOption.exact);
+        rtsPending = rtsRes.count;
+      } catch (_) {}
+
+      try {
+        final subRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('rts_status', 'Completed').neq('subsidy_status', 'Received').count(CountOption.exact);
+        subsidyPending = subRes.count;
+      } catch (_) {}
+
       final statusCounts = <String, int>{
         'Pending': 0,
         'Approved': 0,
@@ -610,6 +676,11 @@ class RecordService {
         totalImportBatches: totalImportBatches,
         statusCounts: statusCounts,
         recentRecords: recentRecords,
+        agreementPendingCount: agreementPending,
+        loanPendingCount: loanPending,
+        installationPendingCount: installationPending,
+        rtsPendingCount: rtsPending,
+        subsidyPendingCount: subsidyPending,
       );
     } catch (_) {
       return DashboardMetrics(

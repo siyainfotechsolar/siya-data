@@ -22,6 +22,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _isLoadingMetrics = false;
   DashboardMetrics? _metrics;
   StreamSubscription<ConsumerRecordChangeEvent>? _metricsRealtimeSub;
+  String? _selectedQueueFilter;
 
   final List<_NavDestination> _destinations = [
     _NavDestination('Dashboard', Icons.dashboard_outlined, Icons.dashboard),
@@ -168,7 +169,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 0:
         return _buildDashboardView();
       case 1:
-        return const RecordsScreen();
+        return RecordsScreen(
+          key: ValueKey(_selectedQueueFilter),
+          initialWorkflowQueue: _selectedQueueFilter,
+        );
       case 2:
         return _buildImportLandingView();
       case 3:
@@ -296,6 +300,64 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 28),
+
+          // Customer Workflow Pending Queues
+          Text(
+            'Customer Workflow Queues',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Click any pending queue to inspect and manage customers at that workflow stage',
+            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+          ),
+          const SizedBox(height: 14),
+
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildQueueCard(
+                title: 'Agreement Pending',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.agreementPendingCount ?? 0}',
+                icon: Icons.history_edu_rounded,
+                color: const Color(0xFF2563EB),
+                onTap: () => _openFilteredRecords('Agreement Pending'),
+              ),
+              _buildQueueCard(
+                title: 'Loan Pending',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.loanPendingCount ?? 0}',
+                icon: Icons.account_balance_rounded,
+                color: const Color(0xFFD97706),
+                onTap: () => _openFilteredRecords('Loan Pending'),
+              ),
+              _buildQueueCard(
+                title: 'Installation Pending',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.installationPendingCount ?? 0}',
+                icon: Icons.build_circle_outlined,
+                color: const Color(0xFF0F766E),
+                onTap: () => _openFilteredRecords('Installation Pending'),
+              ),
+              _buildQueueCard(
+                title: 'RTS Pending',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.rtsPendingCount ?? 0}',
+                icon: Icons.electric_meter_rounded,
+                color: const Color(0xFF7C3AED),
+                onTap: () => _openFilteredRecords('RTS Pending'),
+              ),
+              _buildQueueCard(
+                title: 'Subsidy Pending',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.subsidyPendingCount ?? 0}',
+                icon: Icons.currency_rupee_rounded,
+                color: const Color(0xFF059669),
+                onTap: () => _openFilteredRecords('Subsidy Pending'),
+              ),
+            ],
+          ),
           const SizedBox(height: 32),
 
           // Recent Records Table Card
@@ -371,6 +433,68 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _openFilteredRecords(String queueName) {
+    setState(() {
+      _selectedQueueFilter = queueName;
+      _selectedIndex = 1; // Switch to Records tab
+    });
+  }
+
+  Widget _buildQueueCard({
+    required String title,
+    required String count,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 175,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: color.withValues(alpha: 0.12),
+                  child: Icon(icon, size: 16, color: color),
+                ),
+                Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.grey.shade400),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              count,
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+            ),
+          ],
+        ),
       ),
     );
   }

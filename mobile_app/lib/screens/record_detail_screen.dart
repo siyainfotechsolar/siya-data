@@ -4,9 +4,13 @@ import '../models/consumer_record.dart';
 import '../services/record_service.dart';
 
 class RecordDetailScreen extends StatefulWidget {
-  final ConsumerRecord initialRecord;
+  final ConsumerRecord record;
 
-  const RecordDetailScreen({super.key, required this.initialRecord});
+  RecordDetailScreen({
+    super.key,
+    ConsumerRecord? record,
+    ConsumerRecord? initialRecord,
+  }) : record = (record ?? initialRecord)!;
 
   @override
   State<RecordDetailScreen> createState() => _RecordDetailScreenState();
@@ -16,25 +20,13 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
   late ConsumerRecord _record;
   bool _hasChanged = false;
 
-  final List<String> _statusOptions = [
-    'Pending',
-    'Approved',
-    'In Progress',
-    'Completed',
-    'Rejected',
-  ];
-
   @override
   void initState() {
     super.initState();
-    _record = widget.initialRecord;
+    _record = widget.record;
   }
 
-  void _showUpdateStatusSheet() {
-    String selectedStatus = _record.status;
-    final remarksController = TextEditingController(text: _record.remarks ?? '');
-    bool isSaving = false;
-
+  void _showWorkflowUpdateSheet() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -42,6 +34,16 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
+        String selectedAppStatus = _record.applicationStatus;
+        String selectedAgreeStatus = _record.agreementStatus;
+        String selectedLoanReq = _record.loanRequired;
+        String selectedLoanStatus = _record.loanStatus;
+        String selectedInstallStatus = _record.installationStatus;
+        String selectedRtsStatus = _record.rtsStatus;
+        String selectedSubsidyStatus = _record.subsidyStatus;
+        final remarksController = TextEditingController(text: _record.remarks ?? '');
+        bool isSaving = false;
+
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return Padding(
@@ -49,115 +51,274 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                 left: 20,
                 right: 20,
                 top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Update Installation Status',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.of(ctx).pop(),
-                      ),
-                    ],
-                  ),
-                  const Divider(),
-                  const SizedBox(height: 10),
-
-                  // Status Radio Options
-                  ..._statusOptions.map((status) {
-                    return RadioListTile<String>(
-                      title: Text(status, style: const TextStyle(fontWeight: FontWeight.w500)),
-                      value: status,
-                      groupValue: selectedStatus,
-                      activeColor: Theme.of(context).colorScheme.primary,
-                      onChanged: (val) {
-                        if (val != null) {
-                          setSheetState(() => selectedStatus = val);
-                        }
-                      },
-                    );
-                  }),
-
-                  const SizedBox(height: 10),
-
-                  // Remarks Input
-                  TextField(
-                    controller: remarksController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Field Notes / Site Remarks',
-                      hintText: 'e.g., Solar panels mounted, inverter pending grid connection...',
-                      border: OutlineInputBorder(),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Update Workflow Stages',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.of(ctx).pop(),
+                        ),
+                      ],
                     ),
-                  ),
+                    const Divider(height: 20),
 
-                  const SizedBox(height: 20),
+                    // Stage 1: Application
+                    _buildSheetDropdown(
+                      label: '1. Application Status',
+                      value: selectedAppStatus,
+                      items: const ['Submitted', 'Under Verification', 'Approved', 'Rejected'],
+                      onChanged: (val) => setSheetState(() => selectedAppStatus = val!),
+                    ),
 
-                  FilledButton(
-                    onPressed: isSaving
-                        ? null
-                        : () async {
-                            if (_record.id == null) return;
+                    const SizedBox(height: 12),
 
-                            setSheetState(() => isSaving = true);
+                    // Stage 2: Agreement
+                    _buildSheetDropdown(
+                      label: '2. Agreement Status',
+                      value: selectedAgreeStatus,
+                      items: const ['Pending', 'Uploaded', 'Verified', 'Rejected'],
+                      onChanged: (val) => setSheetState(() => selectedAgreeStatus = val!),
+                    ),
 
-                            try {
-                              final updated = await MobileRecordService.updateRecordStatus(
-                                id: _record.id!,
-                                consumerNo: _record.consumerNo,
-                                oldStatus: _record.status,
-                                newStatus: selectedStatus,
-                                remarks: remarksController.text,
-                              );
+                    const SizedBox(height: 12),
 
-                              if (mounted) {
-                                setState(() {
-                                  _record = updated;
-                                  _hasChanged = true;
-                                });
-                                Navigator.of(ctx).pop();
+                    // Stage 3: Loan Required & Status
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildSheetDropdown(
+                            label: '3. Loan Required?',
+                            value: selectedLoanReq,
+                            items: const ['No', 'Yes'],
+                            onChanged: (val) {
+                              setSheetState(() {
+                                selectedLoanReq = val!;
+                                if (val == 'Yes' && selectedLoanStatus == 'Not Required') {
+                                  selectedLoanStatus = 'Pending';
+                                } else if (val == 'No') {
+                                  selectedLoanStatus = 'Not Required';
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                        if (selectedLoanReq == 'Yes') ...[
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _buildSheetDropdown(
+                              label: 'Loan Status',
+                              value: selectedLoanStatus,
+                              items: const ['Pending', 'Applied', 'Under Process', 'Approved', 'Rejected'],
+                              onChanged: (val) => setSheetState(() => selectedLoanStatus = val!),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Stage 4: Installation
+                    _buildSheetDropdown(
+                      label: '4. Installation Status',
+                      value: selectedInstallStatus,
+                      items: const [
+                        'Not Started',
+                        'Scheduled',
+                        'Installation Pending',
+                        'Structure Pending',
+                        'Panel Pending',
+                        'Wiring Pending',
+                        'Installation Completed',
+                      ],
+                      onChanged: (val) => setSheetState(() => selectedInstallStatus = val!),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Stage 5: RTS
+                    _buildSheetDropdown(
+                      label: '5. RTS / Net Meter Status',
+                      value: selectedRtsStatus,
+                      items: const [
+                        'Not Started',
+                        'Application Pending',
+                        'Applied',
+                        'Meter Pending',
+                        'Inspection Pending',
+                        'Completed',
+                        'Rejected',
+                      ],
+                      onChanged: (val) => setSheetState(() => selectedRtsStatus = val!),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Stage 6: Subsidy
+                    _buildSheetDropdown(
+                      label: '6. Government Subsidy Status',
+                      value: selectedSubsidyStatus,
+                      items: const [
+                        'Not Applied',
+                        'Applied',
+                        'Under Process',
+                        'Pending',
+                        'Approved',
+                        'Received',
+                        'Rejected',
+                      ],
+                      onChanged: (val) => setSheetState(() => selectedSubsidyStatus = val!),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    TextField(
+                      controller: remarksController,
+                      decoration: const InputDecoration(
+                        labelText: 'Remarks / Notes',
+                        hintText: 'Add field updates or visit remarks',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      maxLines: 2,
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    FilledButton(
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              if (_record.id == null) return;
+
+                              // Dependency Guard Validations
+                              if (selectedInstallStatus.toLowerCase() == 'installation completed' &&
+                                  selectedLoanReq == 'Yes' &&
+                                  selectedLoanStatus != 'Approved') {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('Installation status updated successfully!'),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              setSheetState(() => isSaving = false);
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Failed to update status: $e'),
+                                    content: Text('Cannot complete installation! Loan must be Approved first.'),
                                     backgroundColor: Colors.red,
                                   ),
                                 );
+                                return;
                               }
-                            }
-                          },
-                    style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                    child: isSaving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Text('Save Status Update', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                  ),
-                ],
+
+                              if (selectedRtsStatus.toLowerCase() == 'completed' &&
+                                  selectedInstallStatus.toLowerCase() != 'installation completed') {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Cannot mark RTS Completed! Installation must be completed first.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              if ((selectedSubsidyStatus.toLowerCase() == 'approved' ||
+                                      selectedSubsidyStatus.toLowerCase() == 'received') &&
+                                  selectedRtsStatus.toLowerCase() != 'completed') {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Cannot mark Subsidy Approved/Received! RTS must be Completed first.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              setSheetState(() => isSaving = true);
+
+                              try {
+                                final updated = await MobileRecordService.updateWorkflowStage(
+                                  record: _record,
+                                  applicationStatus: selectedAppStatus,
+                                  agreementStatus: selectedAgreeStatus,
+                                  loanRequired: selectedLoanReq,
+                                  loanStatus: selectedLoanStatus,
+                                  installationStatus: selectedInstallStatus,
+                                  rtsStatus: selectedRtsStatus,
+                                  subsidyStatus: selectedSubsidyStatus,
+                                  remarks: remarksController.text,
+                                );
+
+                                if (mounted) {
+                                  setState(() {
+                                    _record = updated;
+                                    _hasChanged = true;
+                                  });
+                                  Navigator.of(ctx).pop();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Customer workflow updated successfully!'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                setSheetState(() => isSaving = false);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Failed to update: $e'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                      style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                      child: isSaving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text('Save Workflow Update', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
               ),
             );
           },
         );
       },
+    );
+  }
+
+  Widget _buildSheetDropdown({
+    required String label,
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87)),
+        const SizedBox(height: 4),
+        DropdownButtonFormField<String>(
+          value: items.contains(value) ? value : items.first,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          ),
+          items: items.map((i) => DropdownMenuItem(value: i, child: Text(i, style: const TextStyle(fontSize: 13)))).toList(),
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 
@@ -167,9 +328,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
 
     return PopScope(
       canPop: true,
-      onPopInvokedWithResult: (didPop, result) {
-        // Return hasChanged to parent list
-      },
+      onPopInvokedWithResult: (didPop, result) {},
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Consumer Details'),
@@ -192,11 +351,11 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                   child: Column(
                     children: [
                       CircleAvatar(
-                        radius: 32,
+                        radius: 30,
                         backgroundColor: theme.colorScheme.primaryContainer,
-                        child: Icon(Icons.person, size: 36, color: theme.colorScheme.primary),
+                        child: Icon(Icons.solar_power_rounded, size: 34, color: theme.colorScheme.primary),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       Text(
                         _record.name,
                         textAlign: TextAlign.center,
@@ -214,8 +373,20 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                           style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurfaceVariant),
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      _buildStatusBadge(_record.status),
+                      const SizedBox(height: 10),
+                      // Overall Stage Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFF2563EB)),
+                        ),
+                        child: Text(
+                          'Stage: ${_record.overallStage}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E40AF), fontSize: 13),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -223,7 +394,63 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
 
               const SizedBox(height: 16),
 
-              // Details Information Card
+              // Vertical Workflow Stepper Card
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Workflow Progress', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                          Text('${_record.applicationDays} days elapsed', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        ],
+                      ),
+                      const Divider(height: 20),
+
+                      _buildTimelineItem(
+                        step: '1. Application',
+                        status: _record.applicationStatus,
+                        isDone: true,
+                      ),
+                      _buildTimelineItem(
+                        step: '2. Agreement',
+                        status: _record.agreementStatus,
+                        isDone: _record.agreementStatus.toLowerCase() == 'verified',
+                      ),
+                      _buildTimelineItem(
+                        step: '3. Loan (${_record.loanRequired == 'Yes' ? 'Bank' : 'Self/Cash'})',
+                        status: _record.loanRequired == 'Yes' ? _record.loanStatus : 'Not Required',
+                        isDone: _record.isLoanSatisfied,
+                      ),
+                      _buildTimelineItem(
+                        step: '4. Installation',
+                        status: _record.installationStatus,
+                        isDone: _record.installationStatus.toLowerCase() == 'installation completed',
+                      ),
+                      _buildTimelineItem(
+                        step: '5. RTS / Net Meter',
+                        status: _record.rtsStatus,
+                        isDone: _record.rtsStatus.toLowerCase() == 'completed',
+                      ),
+                      _buildTimelineItem(
+                        step: '6. Subsidy',
+                        status: _record.subsidyStatus,
+                        isDone: _record.isFullyCompleted,
+                        isLast: true,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Contact & Details Card
               Card(
                 elevation: 1,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -288,14 +515,6 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         label: 'Field Remarks',
                         value: _record.remarks ?? 'No notes available',
                       ),
-
-                      // Updated At
-                      if (_record.updatedAt != null)
-                        _buildInfoRow(
-                          icon: Icons.update,
-                          label: 'Last Synchronized',
-                          value: _record.updatedAt!.toLocal().toString().split('.')[0],
-                        ),
                     ],
                   ),
                 ),
@@ -305,17 +524,76 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
 
               // Action Button
               FilledButton.icon(
-                onPressed: _showUpdateStatusSheet,
+                onPressed: _showWorkflowUpdateSheet,
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                icon: const Icon(Icons.edit_note, size: 22),
-                label: const Text('Update Installation Status', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.timeline_rounded, size: 22),
+                label: const Text('Update Workflow Stage', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTimelineItem({
+    required String step,
+    required String status,
+    required bool isDone,
+    bool isLast = false,
+  }) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Icon(
+                isDone ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                size: 20,
+                color: isDone ? Colors.green : Colors.grey.shade400,
+              ),
+              if (!isLast)
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    color: isDone ? Colors.green.shade200 : Colors.grey.shade300,
+                    margin: const EdgeInsets.symmetric(vertical: 2),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(step, style: TextStyle(fontWeight: isDone ? FontWeight.bold : FontWeight.w500, fontSize: 13)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isDone ? Colors.green.withValues(alpha: 0.1) : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isDone ? Colors.green.shade800 : Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -345,44 +623,6 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           ),
           if (trailing != null) trailing,
         ],
-      ),
-    );
-  }
-
-  Widget _buildStatusBadge(String status) {
-    Color bg;
-    Color fg;
-
-    switch (status) {
-      case 'Approved':
-      case 'Completed':
-        bg = Colors.green.withValues(alpha: 0.15);
-        fg = Colors.green.shade800;
-        break;
-      case 'In Progress':
-        bg = Colors.blue.withValues(alpha: 0.15);
-        fg = Colors.blue.shade800;
-        break;
-      case 'Rejected':
-        bg = Colors.red.withValues(alpha: 0.15);
-        fg = Colors.red.shade800;
-        break;
-      case 'Pending':
-      default:
-        bg = Colors.orange.withValues(alpha: 0.15);
-        fg = Colors.orange.shade800;
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 13),
       ),
     );
   }

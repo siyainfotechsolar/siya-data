@@ -156,6 +156,68 @@ class MobileRecordService {
     return updated;
   }
 
+  /// Update individual workflow stages and values with audit logging
+  static Future<ConsumerRecord> updateWorkflowStage({
+    required ConsumerRecord record,
+    String? applicationStatus,
+    String? agreementStatus,
+    String? loanRequired,
+    String? loanStatus,
+    String? installationStatus,
+    String? installerTeam,
+    String? rtsStatus,
+    String? rtsApplicationId,
+    String? subsidyStatus,
+    String? remarks,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final updatePayload = <String, dynamic>{
+      'updated_at': nowIso,
+    };
+    if (user != null) {
+      updatePayload['updated_by'] = user.id;
+    }
+
+    if (applicationStatus != null) updatePayload['application_status'] = applicationStatus;
+    if (agreementStatus != null) updatePayload['agreement_status'] = agreementStatus;
+    if (loanRequired != null) updatePayload['loan_required'] = loanRequired;
+    if (loanStatus != null) updatePayload['loan_status'] = loanStatus;
+    if (installationStatus != null) updatePayload['installation_status'] = installationStatus;
+    if (installerTeam != null) updatePayload['installer_team'] = installerTeam;
+    if (rtsStatus != null) updatePayload['rts_status'] = rtsStatus;
+    if (rtsApplicationId != null) updatePayload['rts_application_id'] = rtsApplicationId;
+    if (subsidyStatus != null) updatePayload['subsidy_status'] = subsidyStatus;
+    if (remarks != null && remarks.trim().isNotEmpty) updatePayload['remarks'] = remarks.trim();
+
+    final response = await _client
+        .from('consumer_records')
+        .update(updatePayload)
+        .eq('id', record.id!)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    // Audit log
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': record.id,
+        'consumer_no': record.consumerNo,
+        'action': 'WORKFLOW_UPDATE',
+        'field_name': 'Workflow Stage',
+        'old_value': record.overallStage,
+        'new_value': updated.overallStage,
+        'changed_by': user?.id,
+        'source': 'Mobile App',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
   /// Fetch current staff profile details
   static Future<Map<String, dynamic>?> getCurrentStaffProfile() async {
     try {

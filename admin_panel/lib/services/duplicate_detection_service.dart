@@ -141,6 +141,17 @@ class DuplicateDetectionService {
     check('status', 'Status', existing.status, incoming.status);
     check('remarks', 'Remarks', existing.remarks, incoming.remarks);
 
+    // Workflow checks
+    check('application_status', 'Application Status', existing.applicationStatus, incoming.applicationStatus);
+    check('agreement_status', 'Agreement Status', existing.agreementStatus, incoming.agreementStatus);
+    check('loan_required', 'Loan Required', existing.loanRequired, incoming.loanRequired);
+    check('loan_status', 'Loan Status', existing.loanStatus, incoming.loanStatus);
+    check('installation_status', 'Installation Status', existing.installationStatus, incoming.installationStatus);
+    check('installer_team', 'Installer Team', existing.installerTeam, incoming.installerTeam);
+    check('rts_status', 'RTS Status', existing.rtsStatus, incoming.rtsStatus);
+    check('rts_application_id', 'RTS Application ID', existing.rtsApplicationId, incoming.rtsApplicationId);
+    check('subsidy_status', 'Subsidy Status', existing.subsidyStatus, incoming.subsidyStatus);
+
     return diffs;
   }
 }

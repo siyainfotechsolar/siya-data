@@ -61,6 +61,16 @@ class RecordDiff {
       'application_id',
       'status',
       'remarks',
+      // Workflow fields
+      'application_status',
+      'agreement_status',
+      'loan_required',
+      'loan_status',
+      'installation_status',
+      'installer_team',
+      'rts_status',
+      'rts_application_id',
+      'subsidy_status',
     };
 
     void checkAndAdd(String key, String? oldVal, String? newVal) {
@@ -85,6 +95,16 @@ class RecordDiff {
     checkAndAdd('application_id', existingRecord.applicationId, incomingRecord.applicationId);
     checkAndAdd('status', existingRecord.status, incomingRecord.status);
     checkAndAdd('remarks', existingRecord.remarks, incomingRecord.remarks);
+    // Workflow checks
+    checkAndAdd('application_status', existingRecord.applicationStatus, incomingRecord.applicationStatus);
+    checkAndAdd('agreement_status', existingRecord.agreementStatus, incomingRecord.agreementStatus);
+    checkAndAdd('loan_required', existingRecord.loanRequired, incomingRecord.loanRequired);
+    checkAndAdd('loan_status', existingRecord.loanStatus, incomingRecord.loanStatus);
+    checkAndAdd('installation_status', existingRecord.installationStatus, incomingRecord.installationStatus);
+    checkAndAdd('installer_team', existingRecord.installerTeam, incomingRecord.installerTeam);
+    checkAndAdd('rts_status', existingRecord.rtsStatus, incomingRecord.rtsStatus);
+    checkAndAdd('rts_application_id', existingRecord.rtsApplicationId, incomingRecord.rtsApplicationId);
+    checkAndAdd('subsidy_status', existingRecord.subsidyStatus, incomingRecord.subsidyStatus);
 
     return payload;
   }
@@ -122,6 +142,29 @@ class RecordDiff {
       deleted: false,
       deletedAt: null,
       deletedBy: null,
+      // Workflow fields merged
+      applicationStatus: payload.containsKey('application_status') ? (payload['application_status'] as String? ?? existingRecord.applicationStatus) : existingRecord.applicationStatus,
+      submitDate: existingRecord.submitDate,
+      agreementRequired: existingRecord.agreementRequired,
+      agreementStatus: payload.containsKey('agreement_status') ? (payload['agreement_status'] as String? ?? existingRecord.agreementStatus) : existingRecord.agreementStatus,
+      agreementDocUrl: existingRecord.agreementDocUrl,
+      agreementDate: existingRecord.agreementDate,
+      loanRequired: payload.containsKey('loan_required') ? (payload['loan_required'] as String? ?? existingRecord.loanRequired) : existingRecord.loanRequired,
+      loanStatus: payload.containsKey('loan_status') ? (payload['loan_status'] as String? ?? existingRecord.loanStatus) : existingRecord.loanStatus,
+      loanAppliedDate: existingRecord.loanAppliedDate,
+      loanApprovedDate: existingRecord.loanApprovedDate,
+      installationStatus: payload.containsKey('installation_status') ? (payload['installation_status'] as String? ?? existingRecord.installationStatus) : existingRecord.installationStatus,
+      installationDate: existingRecord.installationDate,
+      installerTeam: payload.containsKey('installer_team') ? payload['installer_team'] as String? : existingRecord.installerTeam,
+      installationPhotosUrl: existingRecord.installationPhotosUrl,
+      rtsStatus: payload.containsKey('rts_status') ? (payload['rts_status'] as String? ?? existingRecord.rtsStatus) : existingRecord.rtsStatus,
+      rtsApplicationId: payload.containsKey('rts_application_id') ? payload['rts_application_id'] as String? : existingRecord.rtsApplicationId,
+      rtsDate: existingRecord.rtsDate,
+      rtsCompletionDate: existingRecord.rtsCompletionDate,
+      subsidyStatus: payload.containsKey('subsidy_status') ? (payload['subsidy_status'] as String? ?? existingRecord.subsidyStatus) : existingRecord.subsidyStatus,
+      subsidyAppliedDate: existingRecord.subsidyAppliedDate,
+      subsidyApprovedDate: existingRecord.subsidyApprovedDate,
+      subsidyReceivedDate: existingRecord.subsidyReceivedDate,
     );
   }
 }
