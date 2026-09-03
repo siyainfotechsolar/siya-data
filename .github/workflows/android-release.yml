@@ -1,0 +1,152 @@
+name: Mobile App Android Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      # 1. Checkout repository with full git history
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Extract Version Tag
+      - name: Get Version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "VERSION=${TAG}" >> $GITHUB_ENV
+          echo "CLEAN_VERSION=${TAG#v}" >> $GITHUB_ENV
+          echo "Building version ${TAG}"
+
+      # 3. Set up Java 17 for Gradle
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 4. Set up Flutter SDK
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Print Flutter & Dart Version
+        run: flutter --version
+
+      # 5. Cache Gradle & Pub dependencies
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('mobile_app/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # 6. Install Dependencies
+      - name: Install Dependencies
+        working-directory: mobile_app
+        run: flutter pub get
+
+      # 7. Code Quality & Lint Check
+      - name: Run Flutter Analyze
+        working-directory: mobile_app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      # 8. Run Automated Unit Tests
+      - name: Run Flutter Tests
+        working-directory: mobile_app
+        run: flutter test
+
+      # 9. Build Android APK (Release)
+      - name: Build Android APK
+        working-directory: mobile_app
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://unueboqvasadiuvgcvvh.supabase.co' }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVudWVib3F2YXNhZGl1dmdjdnZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxOTIyNDUsImV4cCI6MjEwMzc2ODI0NX0.hMTMoNDivYTP1i1fd86zoFPChSvQcjzBNRkd07iB6zk' }}
+        run: |
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL=$SUPABASE_URL \
+            --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+
+      # 10. Build Android App Bundle (AAB for Google Play Store)
+      - name: Build Android AAB (App Bundle)
+        working-directory: mobile_app
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://unueboqvasadiuvgcvvh.supabase.co' }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVudWVib3F2YXNhZGl1dmdjdnZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxOTIyNDUsImV4cCI6MjEwMzc2ODI0NX0.hMTMoNDivYTP1i1fd86zoFPChSvQcjzBNRkd07iB6zk' }}
+        run: |
+          flutter build appbundle --release \
+            --dart-define=SUPABASE_URL=$SUPABASE_URL \
+            --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+
+      # 11. Stage & Rename Artifacts
+      - name: Prepare Release Artifacts
+        run: |
+          mkdir -p release-artifacts
+          cp mobile_app/build/app/outputs/flutter-apk/app-release.apk release-artifacts/siya-solar-${{ env.VERSION }}.apk
+          cp mobile_app/build/app/outputs/bundle/release/app-release.aab release-artifacts/siya-solar-${{ env.VERSION }}.aab
+          ls -lh release-artifacts/
+
+      # 12. Upload Artifacts to Workflow Run
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: siya-solar-builds-${{ env.VERSION }}
+          path: release-artifacts/*
+          if-no-files-found: error
+
+      # 13. Create GitHub Release
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Mobile App ${{ env.VERSION }}
+          tag_name: ${{ env.VERSION }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release-artifacts/siya-solar-${{ env.VERSION }}.apk
+            release-artifacts/siya-solar-${{ env.VERSION }}.aab
+          body: |
+            ## 📱 Siya Solar Mobile App ${{ env.VERSION }}
+            
+            ### 📦 Release Assets
+            - **`siya-solar-${{ env.VERSION }}.apk`**: Direct Android APK for field testing and sideloading on staff devices.
+            - **`siya-solar-${{ env.VERSION }}.aab`**: Android App Bundle ready for Google Play Console distribution.
+            
+            ### ✨ Highlights
+            - **Solar Consumer Records**: View and inspect assigned solar consumer profiles.
+            - **Live Status Filtering & Search**: Instant filter by Pending, Approved, In Progress, Completed, Rejected.
+            - **On-Site Status Updates**: Update installation progress directly with automated audit logging.
+            - **Staff Profiles & Permissions**: Real-time permission checks connected to Supabase backend.
+            
+            ---
+            *Built automatically with GitHub Actions & Flutter SDK.*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
