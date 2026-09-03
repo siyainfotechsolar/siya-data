@@ -201,6 +201,32 @@ class DuplicateFinderService {
     }
   }
 
+  /// Execute 100% server-side PostgreSQL Bulk Auto-Merge for all duplicate groups in 1 fast transaction
+  static Future<BulkMergeSummary> executeBulkAutoMergeAll() async {
+    try {
+      final user = SupabaseService.currentUser;
+      final res = await _client.rpc(
+        'execute_bulk_smart_merge_all',
+        params: {
+          'executing_user_id': user?.id,
+        },
+      );
+
+      if (res != null && res['success'] == true) {
+        return BulkMergeSummary(
+          mergedGroupsCount: (res['merged_groups_count'] as num?)?.toInt() ?? 0,
+          mergedRecordsCount: (res['merged_records_count'] as num?)?.toInt() ?? 0,
+          success: true,
+        );
+      }
+      return BulkMergeSummary(mergedGroupsCount: 0, mergedRecordsCount: 0, success: false);
+    } catch (e, stack) {
+      // ignore: avoid_print
+      print('Error calling execute_bulk_smart_merge_all RPC: $e\n$stack');
+      return BulkMergeSummary(mergedGroupsCount: 0, mergedRecordsCount: 0, success: false);
+    }
+  }
+
   /// Automatically merge multiple duplicate groups in bulk without losing any data
   static Future<BulkMergeSummary> executeBulkAutoMerge({
     required List<DuplicateGroup> groups,

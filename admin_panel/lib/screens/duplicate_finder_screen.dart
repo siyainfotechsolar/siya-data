@@ -172,6 +172,62 @@ class _DuplicateFinderScreenState extends State<DuplicateFinderScreen> {
     }
   }
 
+  Future<void> _handleAutoMergeAll() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.rocket_launch_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Auto-Merge All Duplicates'),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to Auto-Merge ALL duplicate groups in the database?\n\n'
+          '• Fast server-side execution in 1 transaction.\n'
+          '• Oldest records auto-selected as Masters.\n'
+          '• Missing non-empty data copied into Master.\n'
+          '• Highest workflow stage statuses preserved.\n'
+          '• Duplicate records safely soft-merged with full audit logs.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.flash_on_rounded),
+            label: const Text('Yes, Auto-Merge All Duplicates'),
+            style: FilledButton.styleFrom(backgroundColor: Color(0xFF16A34A)),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isBulkMerging = true);
+
+    final result = await DuplicateFinderService.executeBulkAutoMergeAll();
+
+    if (mounted) {
+      setState(() => _isBulkMerging = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Auto-Merge Complete! Merged ${result.mergedGroupsCount} groups (${result.mergedRecordsCount} duplicate records resolved).',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      _loadDuplicateGroups();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -218,18 +274,24 @@ class _DuplicateFinderScreenState extends State<DuplicateFinderScreen> {
               ),
               Row(
                 children: [
-                  if (_selectedGroupNos.isNotEmpty)
+                  if (totalGroups > 0)
                     FilledButton.icon(
                       icon: _isBulkMerging
                           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.bolt_rounded, size: 18),
-                      label: Text(_isBulkMerging
-                          ? 'Merging ($_bulkProgressProcessed/$_bulkProgressTotal)...'
-                          : '⚡ BULK MERGE SELECTED (${_selectedGroupNos.length})'),
+                          : const Icon(Icons.rocket_launch_rounded, size: 18),
+                      label: Text(_isBulkMerging ? 'Merging All...' : '🚀 AUTO-MERGE ALL DUPLICATES ($totalGroups)'),
                       style: FilledButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
-                      onPressed: _isBulkMerging ? null : _handleBulkMergeSelected,
+                      onPressed: _isBulkMerging ? null : _handleAutoMergeAll,
                     ),
                   const SizedBox(width: 12),
+                  if (_selectedGroupNos.isNotEmpty) ...[
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.bolt_rounded, size: 18),
+                      label: Text('⚡ Merge Selected (${_selectedGroupNos.length})'),
+                      onPressed: _isBulkMerging ? null : _handleBulkMergeSelected,
+                    ),
+                    const SizedBox(width: 12),
+                  ],
                   IconButton.outlined(
                     icon: const Icon(Icons.refresh),
                     tooltip: 'Refresh Duplicates',
