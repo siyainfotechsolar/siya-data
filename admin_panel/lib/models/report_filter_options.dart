@@ -13,6 +13,7 @@ class ReportFilterOptions {
   final String? rtsStatus;
   final String? subsidyStatus;
   final String? assignedStaff;
+  final String customerScope; // 'Active', 'Completed', 'All'
   final String searchQuery;
   final String sortBy; // 'days', 'app_date', 'submit_date', 'priority', 'stage', 'status', 'name'
   final bool sortAscending;
@@ -30,6 +31,7 @@ class ReportFilterOptions {
     this.rtsStatus,
     this.subsidyStatus,
     this.assignedStaff,
+    this.customerScope = 'Active',
     this.searchQuery = '',
     this.sortBy = 'days',
     this.sortAscending = false,
@@ -63,6 +65,7 @@ class ReportFilterOptions {
     String? rtsStatus,
     String? subsidyStatus,
     String? assignedStaff,
+    String? customerScope,
     String? searchQuery,
     String? sortBy,
     bool? sortAscending,
@@ -90,6 +93,7 @@ class ReportFilterOptions {
       rtsStatus: clearRts ? null : (rtsStatus ?? this.rtsStatus),
       subsidyStatus: clearSubsidy ? null : (subsidyStatus ?? this.subsidyStatus),
       assignedStaff: clearStaff ? null : (assignedStaff ?? this.assignedStaff),
+      customerScope: customerScope ?? this.customerScope,
       searchQuery: searchQuery ?? this.searchQuery,
       sortBy: sortBy ?? this.sortBy,
       sortAscending: sortAscending ?? this.sortAscending,

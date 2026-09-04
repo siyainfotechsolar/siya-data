@@ -67,7 +67,7 @@ void main() {
     final testRecords = [rec1, rec2, rec3, mergedRec, deletedRec];
 
     test('Filter logic strictly excludes soft-deleted and merged records', () {
-      final filtered = ReportService.applyFilters(testRecords, const ReportFilterOptions());
+      final filtered = ReportService.applyFilters(testRecords, const ReportFilterOptions(customerScope: 'All'));
       expect(filtered.length, equals(3));
       expect(filtered.any((r) => r.isMerged), isFalse);
       expect(filtered.any((r) => r.deleted), isFalse);

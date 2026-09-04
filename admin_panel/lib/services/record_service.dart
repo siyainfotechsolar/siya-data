@@ -107,7 +107,8 @@ class RecordService {
     int pageSize = 15,
     String? searchQuery,
     String? statusFilter,
-    String? workflowQueueFilter, // 'Agreement Pending', 'Loan Pending', 'Installation Pending', 'RTS Pending', 'Subsidy Pending'
+    String? workflowQueueFilter, // 'Agreement Pending', 'Loan Pending', 'Installation Pending', 'RTS Pending', 'Subsidy Pending', 'Subsidy Processing', 'Completed'
+    String workQueueScope = 'Active', // 'Active', 'Completed', 'Old Applications', 'All'
     String sortBy = 'updated_at',
     bool ascending = false,
   }) async {
@@ -120,6 +121,15 @@ class RecordService {
           .select('*')
           .eq('deleted', false)
           .eq('is_merged', false);
+
+      if (workQueueScope == 'Active') {
+        filterBuilder = filterBuilder.neq('subsidy_status', 'Received').neq('status', 'Completed');
+      } else if (workQueueScope == 'Completed') {
+        filterBuilder = filterBuilder.or('subsidy_status.ilike.Received,status.ilike.Completed');
+      } else if (workQueueScope == 'Old Applications') {
+        final sixtyDaysAgo = DateTime.now().subtract(const Duration(days: 60)).toIso8601String();
+        filterBuilder = filterBuilder.lte('application_date', sixtyDaysAgo);
+      }
 
       if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {
         filterBuilder = filterBuilder.eq('status', statusFilter);
@@ -141,7 +151,11 @@ class RecordService {
             filterBuilder = filterBuilder.eq('installation_status', 'Installation Completed').neq('rts_status', 'Completed');
             break;
           case 'Subsidy Pending':
+          case 'Subsidy Processing':
             filterBuilder = filterBuilder.eq('rts_status', 'Completed').neq('subsidy_status', 'Received');
+            break;
+          case 'Completed':
+            filterBuilder = filterBuilder.or('subsidy_status.ilike.Received,status.ilike.Completed');
             break;
         }
       }

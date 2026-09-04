@@ -30,6 +30,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
   final int _pageSize = 15;
   String _selectedStatus = 'All';
   String _selectedWorkflowQueue = 'All';
+  String _workQueueScope = 'Active'; // 'Active', 'Completed', 'Old Applications', 'All'
   String _sortBy = 'updated_at';
   bool _sortAscending = false;
 
@@ -54,6 +55,9 @@ class _RecordsScreenState extends State<RecordsScreen> {
     super.initState();
     if (widget.initialWorkflowQueue != null) {
       _selectedWorkflowQueue = widget.initialWorkflowQueue!;
+      if (_selectedWorkflowQueue == 'Completed') {
+        _workQueueScope = 'Completed';
+      }
     }
     _checkDeletePermission();
     _loadRecords();
@@ -70,8 +74,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
         final index = _records.indexWhere((r) => r.id == updatedRecord.id);
 
         if (index != -1) {
-          // If record is now soft-deleted, remove from active list
-          if (updatedRecord.deleted) {
+          // If record is now soft-deleted or completed (when scope is Active), evict
+          if (updatedRecord.deleted || (_workQueueScope == 'Active' && updatedRecord.subsidyStatus.toLowerCase() == 'received')) {
             setState(() {
               _records.removeAt(index);
               _totalCount = (_totalCount > 0) ? _totalCount - 1 : 0;
@@ -82,8 +86,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
               _records[index] = updatedRecord;
             });
           }
-        } else if (!updatedRecord.deleted && _currentPage == 1) {
-          // New/restored record might belong on current view
+        } else {
+          // Re-fetch on new inserts
           _loadRecords();
         }
 
@@ -149,6 +153,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
         searchQuery: _searchController.text,
         statusFilter: _selectedStatus,
         workflowQueueFilter: _selectedWorkflowQueue,
+        workQueueScope: _workQueueScope,
         sortBy: _sortBy,
         ascending: _sortAscending,
       );
@@ -524,6 +529,37 @@ class _RecordsScreenState extends State<RecordsScreen> {
                     ),
                   ),
                   const SizedBox(width: 16),
+                  // Work Queue Scope Dropdown
+                  DropdownButtonHideUnderline(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: theme.colorScheme.primary),
+                        borderRadius: BorderRadius.circular(4),
+                        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+                      ),
+                      child: DropdownButton<String>(
+                        value: _workQueueScope,
+                        items: const [
+                          DropdownMenuItem(value: 'Active', child: Text('⚡ Active Customers', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DropdownMenuItem(value: 'Completed', child: Text('✅ Completed Customers')),
+                          DropdownMenuItem(value: 'Old Applications', child: Text('⏳ Old Applications (≥60 Days)')),
+                          DropdownMenuItem(value: 'All', child: Text('🌐 All Customers')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              _workQueueScope = val;
+                              _currentPage = 1;
+                              _selectedRecordIds.clear();
+                            });
+                            _loadRecords();
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
                   // Workflow Queue Dropdown
                   DropdownButtonHideUnderline(
                     child: Container(
@@ -720,19 +756,30 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                               tristate: hasSomeSelected && !allCurrentPageSelected,
                                               onChanged: _toggleSelectAll,
                                             ),
-                                            const Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold)),
+                                            const Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold)),
                                           ],
                                         ),
                                       ),
-                                      const DataColumn(label: Text('Name', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Mobile', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Workflow Stage', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Application Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Application Age', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Submit Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Application Days', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Work Stage', style: TextStyle(fontWeight: FontWeight.bold))),
                                       const DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Last Updated', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Action Required', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Priority', style: TextStyle(fontWeight: FontWeight.bold))),
                                       const DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
                                     ],
                                     rows: _records.map((r) {
                                       final isSelected = r.id != null && _selectedRecordIds.contains(r.id);
+
+                                      final appDateStr = r.applicationDate != null
+                                          ? r.applicationDate!.toLocal().toString().split(' ')[0]
+                                          : '—';
+                                      final subDateStr = r.submitDate != null
+                                          ? r.submitDate!.toLocal().toString().split(' ')[0]
+                                          : '—';
 
                                       return DataRow(
                                         selected: isSelected,
@@ -753,7 +800,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                                 InkWell(
                                                   onTap: () => _openDetailsDialog(r),
                                                   child: Text(
-                                                    r.consumerNo,
+                                                    r.name,
                                                     style: const TextStyle(
                                                       fontWeight: FontWeight.w600,
                                                       color: Color(0xFF2563EB),
@@ -768,21 +815,40 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                             InkWell(
                                               onTap: () => _openDetailsDialog(r),
                                               child: Text(
-                                                r.name,
+                                                r.consumerNo,
                                                 style: const TextStyle(fontWeight: FontWeight.w500),
                                               ),
                                             ),
                                           ),
-                                          DataCell(Text(r.mobile ?? '—')),
-                                          DataCell(_buildWorkflowStageBadge(r)),
-                                          DataCell(_buildStatusBadge(r.status)),
+                                          DataCell(Text(appDateStr)),
                                           DataCell(
-                                            Text(
-                                              r.updatedAt != null
-                                                  ? r.updatedAt!.toLocal().toString().split(' ')[0]
-                                                  : '—',
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: Colors.blueGrey.shade50,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                '${r.applicationAgeDays} Days',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.blueGrey.shade800,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
                                             ),
                                           ),
+                                          DataCell(Text(subDateStr)),
+                                          DataCell(
+                                            Text(
+                                              '${r.applicationDays} Days',
+                                              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+                                            ),
+                                          ),
+                                          DataCell(_buildWorkflowStageBadge(r)),
+                                          DataCell(_buildStatusBadge(r.status)),
+                                          DataCell(_buildActionRequiredBadge(r.actionRequired)),
+                                          DataCell(_buildPriorityCategoryBadge(r.priorityCategory)),
                                           DataCell(
                                             Row(
                                               mainAxisSize: MainAxisSize.min,
@@ -968,6 +1034,111 @@ class _RecordsScreenState extends State<RecordsScreen> {
             style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 11),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionRequiredBadge(String action) {
+    Color bg;
+    Color fg;
+    IconData icon;
+
+    switch (action) {
+      case 'Agreement':
+        bg = const Color(0xFFEFF6FF);
+        fg = const Color(0xFF2563EB);
+        icon = Icons.history_edu_rounded;
+        break;
+      case 'Loan':
+        bg = const Color(0xFFFFFBEB);
+        fg = const Color(0xFFD97706);
+        icon = Icons.account_balance_rounded;
+        break;
+      case 'Installation':
+        bg = const Color(0xFFF0FDFA);
+        fg = const Color(0xFF0F766E);
+        icon = Icons.build_circle_rounded;
+        break;
+      case 'RTS':
+        bg = const Color(0xFFF5F3FF);
+        fg = const Color(0xFF7C3AED);
+        icon = Icons.electric_meter_rounded;
+        break;
+      case 'Subsidy':
+        bg = const Color(0xFFF0FDF4);
+        fg = const Color(0xFF16A34A);
+        icon = Icons.currency_rupee_rounded;
+        break;
+      case 'None':
+      default:
+        bg = const Color(0xFFF1F5F9);
+        fg = const Color(0xFF64748B);
+        icon = Icons.check_circle_outline;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: fg.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: fg),
+          const SizedBox(width: 4),
+          Text(
+            action,
+            style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriorityCategoryBadge(String priority) {
+    Color bg;
+    Color fg;
+
+    switch (priority) {
+      case 'Critical Active Work':
+        bg = const Color(0xFFFEF2F2);
+        fg = const Color(0xFFDC2626);
+        break;
+      case 'High Active Work':
+        bg = const Color(0xFFFFEDD5);
+        fg = const Color(0xFFEA580C);
+        break;
+      case 'Medium Active Work':
+        bg = const Color(0xFFFEF3C7);
+        fg = const Color(0xFFD97706);
+        break;
+      case 'Normal Active Work':
+        bg = const Color(0xFFDCFCE7);
+        fg = const Color(0xFF16A34A);
+        break;
+      case 'Processing':
+        bg = const Color(0xFFF0F9FF);
+        fg = const Color(0xFF0284C7);
+        break;
+      case 'Completed':
+      default:
+        bg = const Color(0xFFF1F5F9);
+        fg = const Color(0xFF64748B);
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        priority,
+        style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 11),
       ),
     );
   }

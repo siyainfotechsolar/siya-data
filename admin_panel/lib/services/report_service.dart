@@ -83,6 +83,17 @@ class ReportService {
     var result = records.where((r) {
       if (r.deleted || r.isMerged) return false;
 
+      // 0. Customer Scope Filter (Active, Completed, All)
+      if (options.customerScope == 'Active') {
+        if (r.isFullyCompleted || r.subsidyStatus.toLowerCase() == 'received') {
+          return false;
+        }
+      } else if (options.customerScope == 'Completed') {
+        if (!r.isFullyCompleted && r.subsidyStatus.toLowerCase() != 'received') {
+          return false;
+        }
+      }
+
       // 1. Application Date Range
       if (options.applicationDateFrom != null) {
         if (r.applicationDate == null || r.applicationDate!.isBefore(options.applicationDateFrom!)) {

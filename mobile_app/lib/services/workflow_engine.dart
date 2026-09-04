@@ -79,13 +79,19 @@ class WorkflowEngine {
     return st == 'completed';
   }
 
-  /// Check if Subsidy stage is completed
+  /// Check if Subsidy stage is completed (Subsidy Received = COMPLETED)
   static bool isSubsidyCompleted(ConsumerRecord record) {
     final st = record.subsidyStatus.trim().toLowerCase();
-    return st == 'received' || st == 'completed' || st == 'approved';
+    final recSt = record.status.trim().toLowerCase();
+    return st == 'received' || st == 'completed' || recSt == 'completed';
   }
 
-  /// Calculate exact current active stage for a record
+  /// Returns true if customer work is 100% completed (Subsidy Received)
+  static bool isWorkCompleted(ConsumerRecord record) {
+    return isSubsidyCompleted(record);
+  }
+
+  /// Calculate exact current active work stage for a record
   static String getCurrentWorkStage(ConsumerRecord record) {
     if (isSubsidyCompleted(record)) {
       return 'Completed';
@@ -110,6 +116,55 @@ class WorkflowEngine {
       return 'Agreement';
     }
     return 'Application';
+  }
+
+  /// Calculate intelligent Action Required step
+  static String getActionRequired(ConsumerRecord record) {
+    if (isWorkCompleted(record)) {
+      return 'None';
+    }
+    if (isRtsCompleted(record)) {
+      return 'Subsidy';
+    }
+    if (isInstallationCompleted(record)) {
+      return 'RTS';
+    }
+    if (isLoanCompleted(record)) {
+      if (isAgreementCompleted(record)) {
+        return 'Installation';
+      }
+      return 'Agreement';
+    }
+    if (isAgreementCompleted(record)) {
+      return 'Loan';
+    }
+    return 'Agreement';
+  }
+
+  /// Calculate intelligent Priority Category
+  static String getPriorityCategory(ConsumerRecord record) {
+    if (isWorkCompleted(record)) {
+      return 'Completed';
+    }
+
+    final subSt = record.subsidyStatus.trim().toLowerCase();
+    // If RTS is done and subsidy is submitted/under process/approved -> Processing (not critical active work)
+    if (isRtsCompleted(record) && (subSt == 'applied' || subSt == 'under process' || subSt == 'approved' || subSt == 'subsidy request' || subSt == 'pending')) {
+      return 'Processing';
+    }
+
+    // Active actionable work pending -> categorize based on application_days
+    final days = record.applicationDays;
+    if (days >= 31) {
+      return 'Critical Active Work';
+    }
+    if (days >= 16) {
+      return 'High Active Work';
+    }
+    if (days >= 8) {
+      return 'Medium Active Work';
+    }
+    return 'Normal Active Work';
   }
 
   /// Calculate state of each stage for timeline and lockers

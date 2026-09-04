@@ -431,6 +431,112 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
                   ],
                 ),
               ],
+
+              const Divider(height: 16),
+
+              // Workflow & Action Info Row
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  // Work Stage
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.task_alt, size: 12, color: Color(0xFF1D4ED8)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'STAGE: ${record.overallStage}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1D4ED8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Action Required
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.flash_on, size: 12, color: Color(0xFFB45309)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'ACTION: ${record.actionRequired}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFB45309),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Application Age
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Text(
+                      'AGE: ${record.applicationAgeDays}d (${record.applicationDays}d active)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                  ),
+
+                  // Priority Category
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: record.priorityCategory == 'Critical Active Work'
+                          ? const Color(0xFFFEF2F2)
+                          : record.priorityCategory == 'High Active Work'
+                              ? const Color(0xFFFFEDD5)
+                              : record.priorityCategory == 'Completed'
+                                  ? const Color(0xFFECFDF5)
+                                  : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      record.priorityCategory,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: record.priorityCategory == 'Critical Active Work'
+                            ? const Color(0xFFDC2626)
+                            : record.priorityCategory == 'High Active Work'
+                                ? const Color(0xFFEA580C)
+                                : record.priorityCategory == 'Completed'
+                                    ? const Color(0xFF047857)
+                                    : const Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

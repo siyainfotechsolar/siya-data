@@ -176,6 +176,22 @@ class ConsumerRecord {
     return todayDate.difference(startDate).inDays;
   }
 
+  /// Calendar-date difference between current date and application date (Application Age)
+  int get applicationAgeDays {
+    if (applicationDate == null) return 0;
+    final now = DateTime.now();
+    final todayDate = DateTime(now.year, now.month, now.day);
+    final aDate = DateTime(applicationDate!.year, applicationDate!.month, applicationDate!.day);
+    if (aDate.isAfter(todayDate)) return 0;
+    return todayDate.difference(aDate).inDays;
+  }
+
+  /// Intelligent Action Required step
+  String get actionRequired => WorkflowEngine.getActionRequired(this);
+
+  /// Intelligent Priority Category
+  String get priorityCategory => WorkflowEngine.getPriorityCategory(this);
+
   /// True if submit date is set in the future
   bool get isSubmitDateFuture {
     if (submitDate == null) return false;
@@ -191,13 +207,16 @@ class ConsumerRecord {
   /// Priority string label (CRITICAL, HIGH, MEDIUM, NORMAL)
   String get priority => priorityLevel.label;
 
-  /// Returns true if record is an active application (excluding Completed, Cancelled, and Merged records)
+  /// Returns true if record requires active operational work (excluding Completed, Cancelled, and Merged records)
   bool get isActiveApplication {
     if (deleted || isMerged) return false;
     final st = status.trim().toLowerCase();
     final appSt = applicationStatus.trim().toLowerCase();
-    return st != 'completed' && st != 'cancelled' && appSt != 'completed' && appSt != 'cancelled';
+    final subSt = subsidyStatus.trim().toLowerCase();
+    return st != 'completed' && st != 'cancelled' && appSt != 'completed' && appSt != 'cancelled' && subSt != 'received';
   }
+
+  bool get isActiveWork => isActiveApplication;
 
   // --- Computed Business Logic & Workflow Rules ---
 
