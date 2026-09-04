@@ -141,6 +141,63 @@ class WorkflowEngine {
     return 'Agreement';
   }
 
+  /// Calculate useful Next Action instruction for staff
+  static String getNextAction(ConsumerRecord record) {
+    final action = getActionRequired(record);
+    switch (action) {
+      case 'Agreement':
+        return 'Upload Agreement';
+      case 'Loan':
+        return 'Follow Up Loan';
+      case 'Installation':
+        return 'Schedule Installation';
+      case 'RTS':
+        return 'Process RTS';
+      case 'Subsidy':
+        return 'Process Subsidy';
+      case 'None':
+      default:
+        return 'None';
+    }
+  }
+
+  /// Calculate Days in Current Stage (Current Date - Current Stage Start Date)
+  static int getDaysInCurrentStage(ConsumerRecord record) {
+    if (isWorkCompleted(record)) return 0;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final stage = getCurrentWorkStage(record);
+
+    DateTime? startDate;
+    switch (stage) {
+      case 'Subsidy':
+        startDate = record.subsidyAppliedDate ?? record.rtsCompletionDate ?? record.rtsDate ?? record.submitDate;
+        break;
+      case 'RTS':
+        startDate = record.rtsDate ?? record.installationDate ?? record.submitDate;
+        break;
+      case 'Installation':
+        startDate = record.installationDate ?? record.loanApprovedDate ?? record.agreementDate ?? record.submitDate;
+        break;
+      case 'Loan':
+        startDate = record.loanAppliedDate ?? record.agreementDate ?? record.submitDate;
+        break;
+      case 'Agreement':
+        startDate = record.agreementDate ?? record.submitDate;
+        break;
+      case 'Application':
+      default:
+        startDate = record.submitDate ?? record.applicationDate ?? record.createdAt;
+        break;
+    }
+
+    if (startDate == null) return 0;
+    final sDate = DateTime(startDate.year, startDate.month, startDate.day);
+    if (sDate.isAfter(today)) return 0;
+    return today.difference(sDate).inDays;
+  }
+
   /// Calculate intelligent Priority Category
   static String getPriorityCategory(ConsumerRecord record) {
     if (isWorkCompleted(record)) {
@@ -153,12 +210,14 @@ class WorkflowEngine {
       return 'Processing';
     }
 
-    // Active actionable work pending -> categorize based on application_days
+    // Active actionable work pending -> categorize based on applicationDays and stage duration
     final days = record.applicationDays;
-    if (days >= 31) {
+    final stageDays = getDaysInCurrentStage(record);
+
+    if (days >= 31 || stageDays >= 15) {
       return 'Critical Active Work';
     }
-    if (days >= 16) {
+    if (days >= 16 || stageDays >= 8) {
       return 'High Active Work';
     }
     if (days >= 8) {

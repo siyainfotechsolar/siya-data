@@ -5,33 +5,31 @@ import 'package:admin_panel/services/report_service.dart';
 import 'package:admin_panel/models/report_filter_options.dart';
 
 void main() {
-  group('Intelligent Customer Work Queue Tests', () {
-    test('1. Application Age vs Application Days separation', () {
+  group('Intelligent Customer Work Queue Tests (No Customer Age)', () {
+    test('1. Application Days calculation from Submit Date', () {
       final now = DateTime.now();
-      final appDate = now.subtract(const Duration(days: 66));
       final subDate = now.subtract(const Duration(days: 20));
 
       final record = ConsumerRecord(
         consumerNo: '123456789012',
         name: 'Amit Patel',
-        applicationDate: appDate,
         submitDate: subDate,
       );
 
-      expect(record.applicationAgeDays, equals(66));
       expect(record.applicationDays, equals(20));
     });
 
-    test('2. Intelligent Action Required derivation', () {
-      // Agreement Missing -> Action Required = Agreement
+    test('2. Intelligent Action Required & Next Action derivation', () {
+      // Agreement Missing -> Action Required = Agreement, Next Action = Upload Agreement
       final r1 = ConsumerRecord(
         consumerNo: '1001',
         name: 'Test 1',
         agreementStatus: 'Pending',
       );
       expect(r1.actionRequired, equals('Agreement'));
+      expect(r1.nextAction, equals('Upload Agreement'));
 
-      // Agreement completed, Loan Required YES, Loan pending -> Action Required = Loan
+      // Agreement completed, Loan Required YES, Loan pending -> Action Required = Loan, Next Action = Follow Up Loan
       final r2 = ConsumerRecord(
         consumerNo: '1002',
         name: 'Test 2',
@@ -40,8 +38,9 @@ void main() {
         loanStatus: 'Pending',
       );
       expect(r2.actionRequired, equals('Loan'));
+      expect(r2.nextAction, equals('Follow Up Loan'));
 
-      // Loan approved, Installation pending -> Action Required = Installation
+      // Loan approved, Installation pending -> Action Required = Installation, Next Action = Schedule Installation
       final r3 = ConsumerRecord(
         consumerNo: '1003',
         name: 'Test 3',
@@ -51,8 +50,9 @@ void main() {
         installationStatus: 'Not Started',
       );
       expect(r3.actionRequired, equals('Installation'));
+      expect(r3.nextAction, equals('Schedule Installation'));
 
-      // Installation completed, RTS pending -> Action Required = RTS
+      // Installation completed, RTS pending -> Action Required = RTS, Next Action = Process RTS
       final r4 = ConsumerRecord(
         consumerNo: '1004',
         name: 'Test 4',
@@ -61,8 +61,9 @@ void main() {
         rtsStatus: 'Not Started',
       );
       expect(r4.actionRequired, equals('RTS'));
+      expect(r4.nextAction, equals('Process RTS'));
 
-      // RTS completed, Subsidy Request -> Action Required = Subsidy
+      // RTS completed, Subsidy Request -> Action Required = Subsidy, Next Action = Process Subsidy
       final r5 = ConsumerRecord(
         consumerNo: '1005',
         name: 'Test 5',
@@ -72,8 +73,9 @@ void main() {
         subsidyStatus: 'Applied',
       );
       expect(r5.actionRequired, equals('Subsidy'));
+      expect(r5.nextAction, equals('Process Subsidy'));
 
-      // Subsidy Received -> Action Required = None
+      // Subsidy Received -> Action Required = None, Next Action = None
       final r6 = ConsumerRecord(
         consumerNo: '1006',
         name: 'Test 6',
@@ -83,9 +85,27 @@ void main() {
         subsidyStatus: 'Received',
       );
       expect(r6.actionRequired, equals('None'));
+      expect(r6.nextAction, equals('None'));
     });
 
-    test('3. Subsidy Received = COMPLETED & Queue Removal', () {
+    test('3. Days in Current Stage calculation', () {
+      final now = DateTime.now();
+      final tenDaysAgo = now.subtract(const Duration(days: 10));
+
+      final record = ConsumerRecord(
+        consumerNo: '2001',
+        name: 'Stage Duration Test',
+        agreementStatus: 'Verified',
+        installationStatus: 'Installation Completed',
+        rtsStatus: 'Completed',
+        subsidyStatus: 'Applied',
+        subsidyAppliedDate: tenDaysAgo,
+      );
+
+      expect(record.daysInCurrentStage, equals(10));
+    });
+
+    test('4. Subsidy Received = COMPLETED & Queue Removal', () {
       final record = ConsumerRecord(
         consumerNo: '9999',
         name: 'Completed Customer',
@@ -98,27 +118,25 @@ void main() {
       expect(record.isActiveWork, isFalse);
     });
 
-    test('4. Priority Categories do not rely on Application Age alone', () {
+    test('5. Priority Categories considering Stage Duration and Application Days', () {
       final now = DateTime.now();
-      final oldAppDate = now.subtract(const Duration(days: 90));
+      final oldSubmitDate = now.subtract(const Duration(days: 80));
 
-      // Customer A: 90 Days Old + Installation Pending -> High/Critical Active Work
+      // Customer A: 80 Application Days + Installation Pending -> Critical Active Work
       final customerA = ConsumerRecord(
         consumerNo: 'A100',
         name: 'Customer A',
-        applicationDate: oldAppDate,
-        submitDate: oldAppDate,
+        submitDate: oldSubmitDate,
         agreementStatus: 'Verified',
         installationStatus: 'Not Started',
       );
       expect(customerA.priorityCategory, equals('Critical Active Work'));
 
-      // Customer B: 90 Days Old + Subsidy Under Process -> Processing (NOT Critical)
+      // Customer B: 80 Application Days + Subsidy Under Process -> Processing (NOT Critical Active Work)
       final customerB = ConsumerRecord(
         consumerNo: 'B200',
         name: 'Customer B',
-        applicationDate: oldAppDate,
-        submitDate: oldAppDate,
+        submitDate: oldSubmitDate,
         agreementStatus: 'Verified',
         installationStatus: 'Installation Completed',
         rtsStatus: 'Completed',
@@ -126,12 +144,11 @@ void main() {
       );
       expect(customerB.priorityCategory, equals('Processing'));
 
-      // Customer C: 90 Days Old + Subsidy Received -> Completed
+      // Customer C: 80 Application Days + Subsidy Received -> Completed
       final customerC = ConsumerRecord(
         consumerNo: 'C300',
         name: 'Customer C',
-        applicationDate: oldAppDate,
-        submitDate: oldAppDate,
+        submitDate: oldSubmitDate,
         agreementStatus: 'Verified',
         installationStatus: 'Installation Completed',
         rtsStatus: 'Completed',
@@ -140,8 +157,7 @@ void main() {
       expect(customerC.priorityCategory, equals('Completed'));
     });
 
-    test('5. ReportService active vs completed filter scope', () {
-      final now = DateTime.now();
+    test('6. ReportService active vs completed filter scope', () {
       final records = [
         ConsumerRecord(
           consumerNo: '1',

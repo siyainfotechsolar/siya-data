@@ -464,7 +464,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
                     ),
                   ),
 
-                  // Action Required
+                  // Action Required & Next Action
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
@@ -478,7 +478,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
                         const Icon(Icons.flash_on, size: 12, color: Color(0xFFB45309)),
                         const SizedBox(width: 4),
                         Text(
-                          'ACTION: ${record.actionRequired}',
+                          'ACTION: ${record.actionRequired} → ${record.nextAction}',
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -489,20 +489,20 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
                     ),
                   ),
 
-                  // Application Age
+                  // Stage Duration & Application Days
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: Colors.blue.shade50,
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.grey.shade300),
+                      border: Border.all(color: Colors.blue.shade200),
                     ),
                     child: Text(
-                      'AGE: ${record.applicationAgeDays}d (${record.applicationDays}d active)',
+                      'STAGE DAYS: ${record.daysInCurrentStage}d (${record.applicationDays}d total)',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade800,
+                        color: Colors.blue.shade900,
                       ),
                     ),
                   ),

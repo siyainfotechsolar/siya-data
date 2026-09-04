@@ -128,7 +128,7 @@ class RecordService {
         filterBuilder = filterBuilder.or('subsidy_status.ilike.Received,status.ilike.Completed');
       } else if (workQueueScope == 'Old Applications') {
         final sixtyDaysAgo = DateTime.now().subtract(const Duration(days: 60)).toIso8601String();
-        filterBuilder = filterBuilder.lte('application_date', sixtyDaysAgo);
+        filterBuilder = filterBuilder.lte('submit_date', sixtyDaysAgo);
       }
 
       if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {

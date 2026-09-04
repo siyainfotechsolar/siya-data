@@ -176,18 +176,14 @@ class ConsumerRecord {
     return todayDate.difference(startDate).inDays;
   }
 
-  /// Calendar-date difference between current date and application date (Application Age)
-  int get applicationAgeDays {
-    if (applicationDate == null) return 0;
-    final now = DateTime.now();
-    final todayDate = DateTime(now.year, now.month, now.day);
-    final aDate = DateTime(applicationDate!.year, applicationDate!.month, applicationDate!.day);
-    if (aDate.isAfter(todayDate)) return 0;
-    return todayDate.difference(aDate).inDays;
-  }
-
   /// Intelligent Action Required step
   String get actionRequired => WorkflowEngine.getActionRequired(this);
+
+  /// Useful Next Action for staff
+  String get nextAction => WorkflowEngine.getNextAction(this);
+
+  /// Days spent in the current work stage
+  int get daysInCurrentStage => WorkflowEngine.getDaysInCurrentStage(this);
 
   /// Intelligent Priority Category
   String get priorityCategory => WorkflowEngine.getPriorityCategory(this);

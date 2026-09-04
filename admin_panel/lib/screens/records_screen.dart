@@ -762,13 +762,14 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                       ),
                                       const DataColumn(label: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
                                       const DataColumn(label: Text('Application Date', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Application Age', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Submit Date', style: TextStyle(fontWeight: FontWeight.bold))),
                                       const DataColumn(label: Text('Application Days', style: TextStyle(fontWeight: FontWeight.bold))),
                                       const DataColumn(label: Text('Work Stage', style: TextStyle(fontWeight: FontWeight.bold))),
                                       const DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
                                       const DataColumn(label: Text('Action Required', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Next Action', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Days in Stage', style: TextStyle(fontWeight: FontWeight.bold))),
                                       const DataColumn(label: Text('Priority', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      const DataColumn(label: Text('Staff', style: TextStyle(fontWeight: FontWeight.bold))),
                                       const DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
                                     ],
                                     rows: _records.map((r) {
@@ -776,9 +777,6 @@ class _RecordsScreenState extends State<RecordsScreen> {
 
                                       final appDateStr = r.applicationDate != null
                                           ? r.applicationDate!.toLocal().toString().split(' ')[0]
-                                          : '—';
-                                      final subDateStr = r.submitDate != null
-                                          ? r.submitDate!.toLocal().toString().split(' ')[0]
                                           : '—';
 
                                       return DataRow(
@@ -825,30 +823,47 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                               decoration: BoxDecoration(
-                                                color: Colors.blueGrey.shade50,
+                                                color: Colors.blue.shade50,
                                                 borderRadius: BorderRadius.circular(4),
                                               ),
                                               child: Text(
-                                                '${r.applicationAgeDays} Days',
+                                                '${r.applicationDays} Days',
                                                 style: TextStyle(
                                                   fontWeight: FontWeight.bold,
-                                                  color: Colors.blueGrey.shade800,
+                                                  color: Colors.blue.shade900,
                                                   fontSize: 12,
                                                 ),
                                               ),
                                             ),
                                           ),
-                                          DataCell(Text(subDateStr)),
-                                          DataCell(
-                                            Text(
-                                              '${r.applicationDays} Days',
-                                              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
-                                            ),
-                                          ),
                                           DataCell(_buildWorkflowStageBadge(r)),
                                           DataCell(_buildStatusBadge(r.status)),
                                           DataCell(_buildActionRequiredBadge(r.actionRequired)),
+                                          DataCell(
+                                            Text(
+                                              r.nextAction,
+                                              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: Colors.amber.shade50,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                '${r.daysInCurrentStage} Days',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.amber.shade900,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
                                           DataCell(_buildPriorityCategoryBadge(r.priorityCategory)),
+                                          DataCell(Text(r.createdBy ?? 'Unassigned')),
                                           DataCell(
                                             Row(
                                               mainAxisSize: MainAxisSize.min,
