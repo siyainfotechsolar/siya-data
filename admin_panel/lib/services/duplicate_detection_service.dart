@@ -123,6 +123,8 @@ class DuplicateDetectionService {
       'application_id',
       'status',
       'remarks',
+      'application_date',
+      'submit_date',
     };
 
     void check(String key, String label, String? oldVal, String? newVal) {
@@ -148,12 +150,44 @@ class DuplicateDetectionService {
       }
     }
 
+    /// Check DateTime fields — compare by date-only ISO string (YYYY-MM-DD)
+    void checkDate(String key, String label, DateTime? oldDate, DateTime? newDate) {
+      if (!allowed.contains(key)) return; // SKIPPED COLUMN
+
+      final oldStr = oldDate != null
+          ? '${oldDate.year}-${oldDate.month.toString().padLeft(2, '0')}-${oldDate.day.toString().padLeft(2, '0')}'
+          : '';
+      final newStr = newDate != null
+          ? '${newDate.year}-${newDate.month.toString().padLeft(2, '0')}-${newDate.day.toString().padLeft(2, '0')}'
+          : '';
+
+      // If ignoring blank values and incoming date is null/empty, don't trigger diff
+      if (ignoreBlankValues && newStr.isEmpty) {
+        return;
+      }
+
+      if (oldStr != newStr) {
+        diffs.add(
+          FieldDiff(
+            fieldKey: key,
+            fieldLabel: label,
+            oldValue: oldStr.isEmpty ? null : oldStr,
+            newValue: newStr.isEmpty ? null : newStr,
+          ),
+        );
+      }
+    }
+
     check('name', 'Consumer Name', existing.name, incoming.name);
     check('mobile', 'Mobile Number', existing.mobile, incoming.mobile);
     check('address', 'Address', existing.address, incoming.address);
     check('application_id', 'Application ID', existing.applicationId, incoming.applicationId);
     check('status', 'Status', existing.status, incoming.status);
     check('remarks', 'Remarks', existing.remarks, incoming.remarks);
+
+    // Date field checks (DateTime comparison)
+    checkDate('application_date', 'Application Date', existing.applicationDate, incoming.applicationDate);
+    checkDate('submit_date', 'Submit Date', existing.submitDate, incoming.submitDate);
 
     // Workflow checks
     check('application_status', 'Application Status', existing.applicationStatus, incoming.applicationStatus);

@@ -445,49 +445,63 @@ class ImportParserService {
     if (input.trim().isEmpty) return null;
     var str = input.trim();
 
-    // 1. If string has space (e.g. "15/08/2026 00:00:00" or "15 Aug 2026"), check if first part is date
+    // 1. Direct ISO tryParse first (e.g., "2026-08-15", "2026-08-15T00:00:00Z")
+    final isoParsed = DateTime.tryParse(str);
+    if (isoParsed != null) return isoParsed;
+
+    // 2. If string has space (e.g. "15/08/2026 00:00:00" or "15 Aug 2026"), extract date part
     final spaceParts = str.split(RegExp(r'\s+'));
-    if (spaceParts.length > 1 && (spaceParts[0].contains('/') || spaceParts[0].contains('-') || spaceParts[0].contains('.'))) {
-      str = spaceParts[0]; // Extract date component prior to time
+    if (spaceParts.length > 1) {
+      // Check if first part looks like a date (contains / or - or .)
+      if (spaceParts[0].contains('/') || spaceParts[0].contains('-') || spaceParts[0].contains('.')) {
+        str = spaceParts[0]; // Extract date component prior to time
+      }
+      // Also try "15 Aug 2026" format — handled below in month name detection
     }
 
-    // 2. Direct ISO tryParse (e.g., "2026-08-15", "2026-08-15T00:00:00Z")
-    final parsed = DateTime.tryParse(str);
-    if (parsed != null) return parsed;
+    // 3. Try ISO parse again after stripping time component
+    final parsed2 = DateTime.tryParse(str);
+    if (parsed2 != null) return parsed2;
 
-    // 3. Excel Serial Date Number (e.g., "45520" or "45153.0")
+    // 4. Excel Serial Date Number (e.g., "45520" or "45153.0")
     final numVal = double.tryParse(str);
     if (numVal != null && numVal > 30000 && numVal < 75000) {
       final days = numVal.floor();
       return DateTime(1899, 12, 29).add(Duration(days: days));
     }
 
-    // 4. Split by delimiter: /, -, ., or spaces
-    final parts = str.split(RegExp(r'[/.\-\s,]+')).where((p) => p.isNotEmpty).toList();
+    // 5. Split by delimiter: /, -, ., spaces, or commas
+    // Use the ORIGINAL trimmed input (not the space-stripped one) for month name support
+    final splitInput = input.trim();
+    final parts = splitInput.split(RegExp(r'[/.\-\s,]+')).where((p) => p.isNotEmpty).toList();
 
-    if (parts.length == 3) {
+    if (parts.length >= 3) {
+      // Take only first 3 meaningful parts
+      final p0Str = parts[0];
+      final p1Str = parts[1];
+      final p2Str = parts[2];
+
       int? day;
       int? month;
       int? year;
 
-      int? p0 = int.tryParse(parts[0]);
-      int? p1 = int.tryParse(parts[1]);
-      int? p2 = int.tryParse(parts[2]);
+      int? p0 = int.tryParse(p0Str);
+      int? p1 = int.tryParse(p1Str);
+      int? p2 = int.tryParse(p2Str);
 
-      // Month name detection for p1 (e.g. "15-Aug-2026")
+      // Month name detection for p1 (e.g. "15-Aug-2026" or "15 Aug 2026")
       if (p1 == null) {
-        final mLower = parts[1].toLowerCase();
+        final mLower = p1Str.toLowerCase();
         p1 = _monthNames[mLower];
       }
       // Month name detection for p0 (e.g. "August 15, 2026")
       if (p0 == null) {
-        final mLower = parts[0].toLowerCase();
-        p0 = _monthNames[mLower];
-        if (p0 != null) {
-          // Swap: Month Day Year ➔ p0=Day, p1=Month
-          final dayVal = int.tryParse(parts[1]);
+        final mLower = p0Str.toLowerCase();
+        final monthVal = _monthNames[mLower];
+        if (monthVal != null) {
+          final dayVal = int.tryParse(p1Str);
           if (dayVal != null) {
-            month = p0;
+            month = monthVal;
             day = dayVal;
             p0 = day;
             p1 = month;
@@ -496,13 +510,10 @@ class ImportParserService {
       }
 
       if (p0 != null && p1 != null && p2 != null) {
-        // Resolve 2-digit year vs 4-digit year for p2
-        if (p2 < 100) {
-          p2 = (p2 > 50) ? (1900 + p2) : (2000 + p2);
-        }
-        // Resolve 2-digit year for p0 if YYYY-MM-DD
-        if (p0 < 100 && p0 > 50) {
-          p0 = 1900 + p0;
+        // Resolve 2-digit year in any position
+        int resolve2DigitYear(int v) {
+          if (v < 100) return (v > 50) ? (1900 + v) : (2000 + v);
+          return v;
         }
 
         if (p0 > 1000) {
@@ -511,7 +522,7 @@ class ImportParserService {
           month = p1;
           day = p2;
         } else if (p2 > 1000) {
-          // DD/MM/YYYY or MM/DD/YYYY
+          // DD/MM/YYYY or MM/DD/YYYY (4-digit year at end)
           year = p2;
           // In India, DD/MM/YYYY is standard
           if (p1 <= 12 && p0 <= 31) {
@@ -521,6 +532,22 @@ class ImportParserService {
             month = p0;
             day = p1;
           }
+        } else if (p2 < 100) {
+          // DD-MM-YY format (2-digit year at end)
+          year = resolve2DigitYear(p2);
+          // In India, DD/MM/YY is standard
+          if (p1 <= 12 && p0 <= 31) {
+            month = p1;
+            day = p0;
+          } else if (p0 <= 12 && p1 <= 31) {
+            month = p0;
+            day = p1;
+          }
+        } else if (p0 < 100 && p0 > 31) {
+          // YY-MM-DD format (2-digit year at start, > 31 so not a day)
+          year = resolve2DigitYear(p0);
+          month = p1;
+          day = p2;
         }
 
         if (year != null && month != null && day != null && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
