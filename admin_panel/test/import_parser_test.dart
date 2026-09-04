@@ -51,5 +51,23 @@ CN-2001,Duplicate Person,6666666666
       expect(validation.invalidRowsCount, 3);
       expect(validation.duplicateCount, 1); // Row 4 has duplicate consumer number
     });
+    test('Auto-detects MahaDiscom truncated headers and parses DD-MM-YY dates', () async {
+      const csvData = '''Application Number,Discom Name,Consumer Numbe,Consumer Name,Mobile No.,Proposed Capacity,Status,Submitted Or
+NP-MHSED26-14436435,MSEDCL,097030013003,SHRI. DILIP MAHADU MALI,9325129919,4.000,Subsidy Request,19-08-26
+''';
+      final bytes = Uint8List.fromList(utf8.encode(csvData));
+      final parsed = await ImportParserService.parseFile('msedcl.csv', bytes);
+
+      final mapping = ImportParserService.autoDetectColumns(parsed.headers);
+      expect(mapping.consumerNoIndex, equals(2)); // Consumer Numbe
+      expect(mapping.nameIndex, equals(3));       // Consumer Name
+      expect(mapping.applicationIdIndex, equals(0)); // Application Number
+      expect(mapping.submitDateIndex, equals(7));   // Submitted Or
+
+      final validation = ImportParserService.validateData(parsed, mapping);
+      expect(validation.validRowsCount, equals(1));
+      final row = validation.rows.first;
+      expect(row.submitDate, equals(DateTime(2026, 8, 19)));
+    });
   });
 }

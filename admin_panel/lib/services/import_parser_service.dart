@@ -541,12 +541,20 @@ class ImportParserService {
   }
 
   static bool _matches(String normalizedHeader, List<String> aliases) {
-    return aliases.any((alias) => normalizedHeader == alias || normalizedHeader.contains(alias));
+    if (normalizedHeader.contains('discom')) return false;
+    return aliases.any((alias) {
+      if (alias == 'name') {
+        return normalizedHeader == 'name' || normalizedHeader == 'fullname' || (normalizedHeader.endsWith('name') && !normalizedHeader.contains('discom'));
+      }
+      return normalizedHeader == alias || normalizedHeader.contains(alias);
+    });
   }
 
   static const _consumerNoAliases = [
     'consumerno',
     'consumernumber',
+    'consumernumbe',
+    'consumernum',
     'cano',
     'canumber',
     'kno',
@@ -599,6 +607,8 @@ class ImportParserService {
   static const _applicationIdAliases = [
     'applicationid',
     'applicationno',
+    'applicationnumber',
+    'applicationnum',
     'appid',
     'registrationno',
     'regno',
@@ -648,6 +658,8 @@ class ImportParserService {
     'date',
     'submitted',
     'submit',
+    'submittedor',
+    'submittedordate',
     'submittedorreverified',
     'submittedorreverifieddate',
     'submittedreverified',
