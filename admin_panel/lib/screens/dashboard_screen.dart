@@ -11,6 +11,7 @@ import 'recycle_bin_screen.dart';
 import 'users_screen.dart';
 import 'priority_list_screen.dart';
 import 'duplicate_finder_screen.dart';
+import 'reports_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -194,7 +195,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 7:
         return const UsersScreen();
       case 8:
-        return _buildPlaceholderView('Reports & Analytics', 'Upcoming Feature');
+        return const ReportsScreen();
       case 9:
         return _buildPlaceholderView('Settings', 'System Configuration');
       default:
