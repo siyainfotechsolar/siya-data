@@ -7,16 +7,18 @@ void main() {
   group('ReportService Tests', () {
     final now = DateTime.now();
 
-    // Stage: Application (agreementNotRequired/Pending app)
+    // Stage: Application
     final rec1 = ConsumerRecord(
       id: '1',
       consumerNo: 'SI001',
       name: 'Ramesh Sharma',
       status: 'Pending',
+      createdAt: now.subtract(const Duration(days: 35)),
       submitDate: now.subtract(const Duration(days: 35)), // Critical priority (35 days)
-      applicationStatus: 'Submitted',
-      agreementStatus: 'Verified',
-      loanRequired: 'No',
+      applicationStatus: 'Pending',
+      agreementStatus: 'Pending',
+      loanRequired: 'Yes',
+      loanStatus: 'Not Started',
     );
 
     // Stage: Loan

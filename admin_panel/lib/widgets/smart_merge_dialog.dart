@@ -3,6 +3,7 @@ import '../models/consumer_record.dart';
 import '../models/duplicate_group.dart';
 import '../models/merge_conflict.dart';
 import '../services/duplicate_finder_service.dart';
+import '../services/workflow_engine.dart';
 
 class SmartMergeDialog extends StatefulWidget {
   final DuplicateGroup group;
@@ -105,6 +106,10 @@ class _SmartMergeDialogState extends State<SmartMergeDialog> {
         }
       }
     });
+
+    // Recalculate status using WorkflowEngine on prospective record
+    final prospective = ConsumerRecord.fromJson({..._masterRecord.toJson(), ...payload});
+    payload['status'] = WorkflowEngine.getCurrentWorkStage(prospective);
 
     return payload;
   }

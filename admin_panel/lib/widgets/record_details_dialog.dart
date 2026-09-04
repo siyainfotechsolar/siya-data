@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
+import '../services/workflow_engine.dart';
 
 class RecordDetailsDialog extends StatefulWidget {
   final ConsumerRecord record;
@@ -15,6 +16,8 @@ class RecordDetailsDialog extends StatefulWidget {
 class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
   late ConsumerRecord _record;
   bool _isSaving = false;
+  bool _isOwnerOverride = false;
+  String _overrideReason = '';
 
   @override
   void initState() {
@@ -53,6 +56,69 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     }
   }
 
+  Future<void> _toggleOwnerOverride() async {
+    if (_isOwnerOverride) {
+      setState(() {
+        _isOwnerOverride = false;
+        _overrideReason = '';
+      });
+      return;
+    }
+
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.shield_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Owner Workflow Override'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enabling Owner Override allows editing locked future stages out-of-order.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'Reason for Override *',
+                hintText: 'e.g. Manual backdated import correction',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              if (controller.text.trim().isEmpty) return;
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Confirm Override'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      setState(() {
+        _isOwnerOverride = true;
+        _overrideReason = controller.text.trim();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Owner Override Active: $_overrideReason')),
+      );
+    }
+  }
+
   Future<void> _updateWorkflowField({
     String? applicationStatus,
     DateTime? applicationDate,
@@ -81,43 +147,27 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
       subsidyStatus: subsidyStatus,
     );
 
-    // Guard 1: Loan required but not approved blocks installation completion
-    if (installationStatus != null &&
-        installationStatus.toLowerCase() == 'installation completed' &&
-        !prospective.isLoanSatisfied) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cannot mark Installation Completed! Loan is required and must be Approved first.'),
-          backgroundColor: Colors.red,
-        ),
+    // 1-by-1 Workflow Rule Validation
+    if (!_isOwnerOverride) {
+      final errors = WorkflowEngine.validateStageProgression(
+        _record,
+        newAgreementStatus: agreementStatus,
+        newLoanStatus: loanStatus,
+        newInstallationStatus: installationStatus,
+        newRtsStatus: rtsStatus,
+        newSubsidyStatus: subsidyStatus,
+        newLoanRequired: loanRequired,
       );
-      return;
-    }
 
-    // Guard 2: RTS Completed requires Installation Completed
-    if (rtsStatus != null &&
-        rtsStatus.toLowerCase() == 'completed' &&
-        _record.installationStatus.toLowerCase() != 'installation completed') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cannot mark RTS Completed! Installation must be completed first.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // Guard 3: Subsidy Approved/Received requires RTS Completed
-    if (subsidyStatus != null &&
-        (subsidyStatus.toLowerCase() == 'approved' || subsidyStatus.toLowerCase() == 'received') &&
-        _record.rtsStatus.toLowerCase() != 'completed') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cannot mark Subsidy Approved/Received! RTS must be Completed first.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+      if (errors.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errors.first),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
     }
 
     setState(() => _isSaving = true);
@@ -150,6 +200,8 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    final stageStates = WorkflowEngine.getStageStates(_record, isOwnerOverride: _isOwnerOverride);
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -209,6 +261,8 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       title: '1. Application',
                       icon: Icons.assignment_outlined,
                       color: Colors.indigo,
+                      isUnlocked: stageStates[WorkflowStage.application]!.isUnlocked,
+                      lockReason: stageStates[WorkflowStage.application]!.lockReason,
                       content: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -322,6 +376,8 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       title: '2. Agreement',
                       icon: Icons.history_edu_rounded,
                       color: const Color(0xFF2563EB),
+                      isUnlocked: stageStates[WorkflowStage.agreement]!.isUnlocked,
+                      lockReason: stageStates[WorkflowStage.agreement]!.lockReason,
                       content: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -339,7 +395,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                                   DropdownMenuItem(value: 'Verified', child: Text('Verified')),
                                   DropdownMenuItem(value: 'Rejected', child: Text('Rejected')),
                                 ],
-                                onChanged: _isSaving ? null : (val) => _updateWorkflowField(agreementStatus: val),
+                                onChanged: (_isSaving || !stageStates[WorkflowStage.agreement]!.isUnlocked) ? null : (val) => _updateWorkflowField(agreementStatus: val),
                               ),
                             ],
                           ),
@@ -354,6 +410,8 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       title: '3. Loan Decision & Status',
                       icon: Icons.account_balance_rounded,
                       color: const Color(0xFFD97706),
+                      isUnlocked: stageStates[WorkflowStage.loan]!.isUnlocked,
+                      lockReason: stageStates[WorkflowStage.loan]!.lockReason,
                       content: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -368,7 +426,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                                   DropdownMenuItem(value: 'No', child: Text('No (Direct Cash/Self)')),
                                   DropdownMenuItem(value: 'Yes', child: Text('Yes (Bank Loan)')),
                                 ],
-                                onChanged: _isSaving ? null : (val) {
+                                onChanged: (_isSaving || !stageStates[WorkflowStage.loan]!.isUnlocked) ? null : (val) {
                                   final newLoanStatus = val == 'Yes' ? 'Pending' : 'Not Required';
                                   _updateWorkflowField(loanRequired: val, loanStatus: newLoanStatus);
                                 },
@@ -392,7 +450,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                                     DropdownMenuItem(value: 'Approved', child: Text('Approved')),
                                     DropdownMenuItem(value: 'Rejected', child: Text('Rejected')),
                                   ],
-                                  onChanged: _isSaving ? null : (val) => _updateWorkflowField(loanStatus: val),
+                                  onChanged: (_isSaving || !stageStates[WorkflowStage.loan]!.isUnlocked) ? null : (val) => _updateWorkflowField(loanStatus: val),
                                 ),
                               ],
                             ),
@@ -416,6 +474,8 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       title: '4. Installation Stage',
                       icon: Icons.build_circle_rounded,
                       color: const Color(0xFF0F766E),
+                      isUnlocked: stageStates[WorkflowStage.installation]!.isUnlocked,
+                      lockReason: stageStates[WorkflowStage.installation]!.lockReason,
                       content: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -435,7 +495,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                                   DropdownMenuItem(value: 'Wiring Pending', child: Text('Wiring Pending')),
                                   DropdownMenuItem(value: 'Installation Completed', child: Text('Installation Completed')),
                                 ],
-                                onChanged: _isSaving ? null : (val) => _updateWorkflowField(installationStatus: val),
+                                onChanged: (_isSaving || !stageStates[WorkflowStage.installation]!.isUnlocked) ? null : (val) => _updateWorkflowField(installationStatus: val),
                               ),
                             ],
                           ),
@@ -452,6 +512,8 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       title: '5. RTS / Net Metering',
                       icon: Icons.electric_meter_rounded,
                       color: const Color(0xFF7C3AED),
+                      isUnlocked: stageStates[WorkflowStage.rts]!.isUnlocked,
+                      lockReason: stageStates[WorkflowStage.rts]!.lockReason,
                       content: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -471,7 +533,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                                   DropdownMenuItem(value: 'Completed', child: Text('Completed')),
                                   DropdownMenuItem(value: 'Rejected', child: Text('Rejected')),
                                 ],
-                                onChanged: _isSaving ? null : (val) => _updateWorkflowField(rtsStatus: val),
+                                onChanged: (_isSaving || !stageStates[WorkflowStage.rts]!.isUnlocked) ? null : (val) => _updateWorkflowField(rtsStatus: val),
                               ),
                             ],
                           ),
@@ -488,6 +550,8 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       title: '6. Government Subsidy',
                       icon: Icons.currency_rupee_rounded,
                       color: const Color(0xFF059669),
+                      isUnlocked: stageStates[WorkflowStage.subsidy]!.isUnlocked,
+                      lockReason: stageStates[WorkflowStage.subsidy]!.lockReason,
                       content: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -507,7 +571,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                                   DropdownMenuItem(value: 'Received', child: Text('Received')),
                                   DropdownMenuItem(value: 'Rejected', child: Text('Rejected')),
                                 ],
-                                onChanged: _isSaving ? null : (val) => _updateWorkflowField(subsidyStatus: val),
+                                onChanged: (_isSaving || !stageStates[WorkflowStage.subsidy]!.isUnlocked) ? null : (val) => _updateWorkflowField(subsidyStatus: val),
                               ),
                             ],
                           ),
@@ -542,45 +606,116 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
   }
 
   Widget _buildVisualTimeline() {
-    final stages = [
-      {'label': 'App', 'done': true},
-      {'label': 'Agreement', 'done': _record.agreementStatus.toLowerCase() == 'verified'},
-      {'label': 'Loan', 'done': _record.isLoanSatisfied},
-      {'label': 'Install', 'done': _record.installationStatus.toLowerCase() == 'installation completed'},
-      {'label': 'RTS', 'done': _record.rtsStatus.toLowerCase() == 'completed'},
-      {'label': 'Subsidy', 'done': _record.subsidyStatus.toLowerCase() == 'received'},
+    final states = WorkflowEngine.getStageStates(_record, isOwnerOverride: _isOwnerOverride);
+    final stageList = [
+      states[WorkflowStage.application]!,
+      states[WorkflowStage.agreement]!,
+      states[WorkflowStage.loan]!,
+      states[WorkflowStage.installation]!,
+      states[WorkflowStage.rts]!,
+      states[WorkflowStage.subsidy]!,
+      states[WorkflowStage.completed]!,
     ];
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: stages.map((s) {
-          final isDone = s['done'] as bool;
-          return Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(
-                isDone ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
-                size: 16,
-                color: isDone ? const Color(0xFF059669) : Colors.grey.shade400,
-              ),
-              const SizedBox(width: 4),
               Text(
-                s['label'] as String,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isDone ? FontWeight.bold : FontWeight.normal,
-                  color: isDone ? const Color(0xFF0F766E) : Colors.grey.shade600,
+                'Current Stage: ${WorkflowEngine.getCurrentWorkStage(_record).toUpperCase()}',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+              ),
+              InkWell(
+                onTap: _toggleOwnerOverride,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _isOwnerOverride ? Colors.amber.shade100 : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: _isOwnerOverride ? Colors.amber.shade800 : Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _isOwnerOverride ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+                        size: 13,
+                        color: _isOwnerOverride ? Colors.amber.shade900 : Colors.grey.shade700,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _isOwnerOverride ? 'Override ACTIVE' : 'Owner Override',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: _isOwnerOverride ? Colors.amber.shade900 : Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
-          );
-        }).toList(),
+          ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: stageList.map((info) {
+                IconData icon;
+                Color color;
+
+                switch (info.state) {
+                  case StageState.completed:
+                    icon = Icons.check_circle_rounded;
+                    color = const Color(0xFF059669);
+                    break;
+                  case StageState.active:
+                    icon = Icons.arrow_circle_right_rounded;
+                    color = const Color(0xFF2563EB);
+                    break;
+                  case StageState.skipped:
+                    icon = Icons.remove_circle_outline_rounded;
+                    color = Colors.grey.shade500;
+                    break;
+                  case StageState.locked:
+                    icon = Icons.lock_clock_rounded;
+                    color = Colors.grey.shade400;
+                    break;
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Row(
+                    children: [
+                      Icon(icon, size: 16, color: color),
+                      const SizedBox(width: 4),
+                      Text(
+                        info.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: info.state == StageState.active || info.state == StageState.completed
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -590,26 +725,49 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     required IconData icon,
     required Color color,
     required Widget content,
+    bool isUnlocked = true,
+    String lockReason = '',
   }) {
+    final effectiveColor = isUnlocked ? color : Colors.grey.shade500;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isUnlocked ? Colors.white : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+        border: Border.all(color: effectiveColor.withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: color),
+              Icon(isUnlocked ? icon : Icons.lock_outline_rounded, size: 18, color: effectiveColor),
               const SizedBox(width: 8),
-              Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+              Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: effectiveColor)),
+              if (!isUnlocked) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    lockReason.isNotEmpty ? lockReason : '🔒 Locked',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                  ),
+                ),
+              ],
             ],
           ),
           const Divider(height: 16),
-          content,
+          AbsorbPointer(
+            absorbing: !isUnlocked,
+            child: Opacity(
+              opacity: isUnlocked ? 1.0 : 0.6,
+              child: content,
+            ),
+          ),
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/consumer_no_utils.dart';
+import '../services/workflow_engine.dart';
 
 enum PriorityLevel {
   critical('CRITICAL', '31+ Days', 1),
@@ -200,34 +201,17 @@ class ConsumerRecord {
 
   // --- Computed Business Logic & Workflow Rules ---
 
-  bool get isLoanSatisfied {
-    if (loanRequired.toLowerCase() != 'yes') return true;
-    return loanStatus.toLowerCase() == 'approved';
-  }
+  bool get isLoanSatisfied => WorkflowEngine.isLoanCompleted(this);
 
-  bool get canCompleteInstallation => isLoanSatisfied;
+  bool get canCompleteInstallation => WorkflowEngine.isAgreementCompleted(this) && isLoanSatisfied;
 
-  bool get canStartRts => installationStatus.toLowerCase() == 'installation completed';
+  bool get canStartRts => WorkflowEngine.isInstallationCompleted(this);
 
-  bool get canStartSubsidy => rtsStatus.toLowerCase() == 'completed';
+  bool get canStartSubsidy => WorkflowEngine.isRtsCompleted(this);
 
-  bool get isFullyCompleted => subsidyStatus.toLowerCase() == 'received';
+  bool get isFullyCompleted => WorkflowEngine.isSubsidyCompleted(this);
 
-  String get overallStage {
-    if (isFullyCompleted) return 'Completed';
-    if (subsidyStatus.toLowerCase() != 'not applied') return 'Subsidy';
-    if (rtsStatus.toLowerCase() == 'completed' || rtsStatus.toLowerCase() != 'not started') return 'RTS';
-    if (installationStatus.toLowerCase() == 'installation completed' || installationStatus.toLowerCase() != 'not started') {
-      return 'Installation';
-    }
-    if (loanRequired.toLowerCase() == 'yes' && loanStatus.toLowerCase() != 'approved') {
-      return 'Loan';
-    }
-    if (agreementStatus.toLowerCase() != 'verified') {
-      return 'Agreement';
-    }
-    return 'Application';
-  }
+  String get overallStage => WorkflowEngine.getCurrentWorkStage(this);
 
   factory ConsumerRecord.fromJson(Map<String, dynamic> json) {
     return ConsumerRecord(

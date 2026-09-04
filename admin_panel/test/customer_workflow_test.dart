@@ -8,6 +8,7 @@ void main() {
       final recordPendingLoan = ConsumerRecord(
         consumerNo: '1001',
         name: 'Ramesh Patil',
+        agreementStatus: 'Verified',
         loanRequired: 'Yes',
         loanStatus: 'Pending',
         installationStatus: 'Not Started',
@@ -26,6 +27,7 @@ void main() {
       final recordCashCustomer = ConsumerRecord(
         consumerNo: '1002',
         name: 'Suresh Shinde',
+        agreementStatus: 'Verified',
         loanRequired: 'No',
         loanStatus: 'Not Required',
         installationStatus: 'Scheduled',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
+import '../services/workflow_engine.dart';
 
 class RecordDetailScreen extends StatefulWidget {
   final ConsumerRecord record;
@@ -46,6 +47,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
 
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final stageStates = WorkflowEngine.getStageStates(_record);
+
             return Padding(
               padding: EdgeInsets.only(
                 left: 20,
@@ -79,6 +82,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                       value: selectedAppStatus,
                       items: const ['Submitted', 'Under Verification', 'Approved', 'Rejected'],
                       onChanged: (val) => setSheetState(() => selectedAppStatus = val!),
+                      enabled: stageStates[WorkflowStage.application]!.isUnlocked,
+                      lockReason: stageStates[WorkflowStage.application]!.lockReason,
                     ),
 
                     const SizedBox(height: 12),
@@ -89,6 +94,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                       value: selectedAgreeStatus,
                       items: const ['Pending', 'Uploaded', 'Verified', 'Rejected'],
                       onChanged: (val) => setSheetState(() => selectedAgreeStatus = val!),
+                      enabled: stageStates[WorkflowStage.agreement]!.isUnlocked,
+                      lockReason: stageStates[WorkflowStage.agreement]!.lockReason,
                     ),
 
                     const SizedBox(height: 12),
@@ -111,6 +118,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                                 }
                               });
                             },
+                            enabled: stageStates[WorkflowStage.loan]!.isUnlocked,
+                            lockReason: stageStates[WorkflowStage.loan]!.lockReason,
                           ),
                         ),
                         if (selectedLoanReq == 'Yes') ...[
@@ -121,6 +130,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                               value: selectedLoanStatus,
                               items: const ['Pending', 'Applied', 'Under Process', 'Approved', 'Rejected'],
                               onChanged: (val) => setSheetState(() => selectedLoanStatus = val!),
+                              enabled: stageStates[WorkflowStage.loan]!.isUnlocked,
+                              lockReason: stageStates[WorkflowStage.loan]!.lockReason,
                             ),
                           ),
                         ],
@@ -143,6 +154,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         'Installation Completed',
                       ],
                       onChanged: (val) => setSheetState(() => selectedInstallStatus = val!),
+                      enabled: stageStates[WorkflowStage.installation]!.isUnlocked,
+                      lockReason: stageStates[WorkflowStage.installation]!.lockReason,
                     ),
 
                     const SizedBox(height: 12),
@@ -161,6 +174,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         'Rejected',
                       ],
                       onChanged: (val) => setSheetState(() => selectedRtsStatus = val!),
+                      enabled: stageStates[WorkflowStage.rts]!.isUnlocked,
+                      lockReason: stageStates[WorkflowStage.rts]!.lockReason,
                     ),
 
                     const SizedBox(height: 12),
@@ -179,6 +194,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         'Rejected',
                       ],
                       onChanged: (val) => setSheetState(() => selectedSubsidyStatus = val!),
+                      enabled: stageStates[WorkflowStage.subsidy]!.isUnlocked,
+                      lockReason: stageStates[WorkflowStage.subsidy]!.lockReason,
                     ),
 
                     const SizedBox(height: 14),
@@ -202,36 +219,20 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                           : () async {
                               if (_record.id == null) return;
 
-                              // Dependency Guard Validations
-                              if (selectedInstallStatus.toLowerCase() == 'installation completed' &&
-                                  selectedLoanReq == 'Yes' &&
-                                  selectedLoanStatus != 'Approved') {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Cannot complete installation! Loan must be Approved first.'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                                return;
-                              }
+                              final errors = WorkflowEngine.validateStageProgression(
+                                _record,
+                                newAgreementStatus: selectedAgreeStatus,
+                                newLoanStatus: selectedLoanStatus,
+                                newInstallationStatus: selectedInstallStatus,
+                                newRtsStatus: selectedRtsStatus,
+                                newSubsidyStatus: selectedSubsidyStatus,
+                                newLoanRequired: selectedLoanReq,
+                              );
 
-                              if (selectedRtsStatus.toLowerCase() == 'completed' &&
-                                  selectedInstallStatus.toLowerCase() != 'installation completed') {
+                              if (errors.isNotEmpty) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Cannot mark RTS Completed! Installation must be completed first.'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                                return;
-                              }
-
-                              if ((selectedSubsidyStatus.toLowerCase() == 'approved' ||
-                                      selectedSubsidyStatus.toLowerCase() == 'received') &&
-                                  selectedRtsStatus.toLowerCase() != 'completed') {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Cannot mark Subsidy Approved/Received! RTS must be Completed first.'),
+                                  SnackBar(
+                                    content: Text(errors.first),
                                     backgroundColor: Colors.red,
                                   ),
                                 );
@@ -302,21 +303,42 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     required String value,
     required List<String> items,
     required ValueChanged<String?> onChanged,
+    bool enabled = true,
+    String lockReason = '',
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: enabled ? Colors.black87 : Colors.grey.shade600,
+              ),
+            ),
+            if (!enabled && lockReason.isNotEmpty)
+              Text(
+                lockReason,
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+              ),
+          ],
+        ),
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
           value: items.contains(value) ? value : items.first,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            border: const OutlineInputBorder(),
             isDense: true,
-            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            filled: !enabled,
+            fillColor: !enabled ? Colors.grey.shade100 : Colors.white,
           ),
           items: items.map((i) => DropdownMenuItem(value: i, child: Text(i, style: const TextStyle(fontSize: 13)))).toList(),
-          onChanged: onChanged,
+          onChanged: enabled ? onChanged : null,
         ),
       ],
     );
