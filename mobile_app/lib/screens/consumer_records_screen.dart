@@ -54,7 +54,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
         final index = _records.indexWhere((r) => r.id == updatedRecord.id);
 
         if (index != -1) {
-          if (updatedRecord.deleted) {
+          if (updatedRecord.deleted || updatedRecord.isMerged) {
             setState(() {
               _records.removeAt(index);
               _totalCount = (_totalCount > 0) ? _totalCount - 1 : 0;
@@ -64,10 +64,10 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
               _records[index] = updatedRecord;
             });
           }
-        } else if (!updatedRecord.deleted && _currentPage == 1) {
+        } else if (!updatedRecord.deleted && !updatedRecord.isMerged && _currentPage == 1) {
           _loadRecords();
         }
-      } else if (event.type == MobileRealtimeChangeType.insert && !event.record!.deleted) {
+      } else if (event.type == MobileRealtimeChangeType.insert && !event.record!.deleted && !event.record!.isMerged) {
         if (_currentPage == 1) {
           _loadRecords();
         } else {

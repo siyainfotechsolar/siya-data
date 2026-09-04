@@ -720,6 +720,18 @@ class RecordService {
         'Rejected': 0,
       };
 
+      try {
+        final statusRes = await _client
+            .from('consumer_records')
+            .select('status')
+            .eq('deleted', false)
+            .eq('is_merged', false);
+        for (final row in (statusRes as List<dynamic>)) {
+          final s = row['status'] as String? ?? 'Pending';
+          statusCounts[s] = (statusCounts[s] ?? 0) + 1;
+        }
+      } catch (_) {}
+
       return DashboardMetrics(
         totalRecords: totalRecords,
         activeUsers: 1,
