@@ -110,3 +110,14 @@ For internal testing and GitHub release distribution, standard release signing i
 - [ ] `flutter test` executes and passes all test cases.
 - [ ] Version number incremented in `mobile_app/pubspec.yaml`.
 - [ ] Relevant features documented in commit message.
+
+---
+
+## 📌 Release History
+
+### Release v1.0.5 (Build 6) - 2026-09-04
+- **New Admin Reports Dashboard**: Comprehensive executive reporting screen with global filter bar, removable chips, 8 executive summary cards, 6-stage workflow breakdown, priority metrics, stage-wise status pending table, and custom column visibility grid.
+- **Export Engines**: Added Excel (`.xlsx`), CSV (`.csv`), and PDF (`.pdf`) report exporters with executive header, filters summary, and table layout.
+- **Data Sync & Exclusions**: Strict filtering excluding soft-deleted (`deleted = true`) and merged duplicate records (`is_merged = true`) from all active counts and lists.
+- **Realtime Listener Eviction**: Realtime listener immediately evicts merged duplicate records upon database WebSocket updates without requiring manual screen refresh.
+
