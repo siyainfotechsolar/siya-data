@@ -86,14 +86,15 @@ class WorkflowEngine {
     return st == 'received' || st == 'completed' || recSt == 'completed';
   }
 
-  /// Returns true if customer work is 100% completed (Subsidy Received)
+  /// Returns true if customer work is 100% completed (Subsidy Received or Mark as Complete)
   static bool isWorkCompleted(ConsumerRecord record) {
+    if (record.customerWorkState.toUpperCase() == 'COMPLETED') return true;
     return isSubsidyCompleted(record);
   }
 
   /// Calculate exact current active work stage for a record
   static String getCurrentWorkStage(ConsumerRecord record) {
-    if (isSubsidyCompleted(record)) {
+    if (isWorkCompleted(record)) {
       return 'Completed';
     }
     if (isRtsCompleted(record)) {
@@ -200,8 +201,8 @@ class WorkflowEngine {
 
   /// Calculate intelligent Priority Category
   static String getPriorityCategory(ConsumerRecord record) {
-    if (isWorkCompleted(record)) {
-      return 'Completed';
+    if (isWorkCompleted(record) || getCurrentWorkStage(record) == 'Completed') {
+      return 'None';
     }
 
     final subSt = record.subsidyStatus.trim().toLowerCase();

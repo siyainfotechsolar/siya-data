@@ -123,9 +123,12 @@ class RecordService {
           .eq('is_merged', false);
 
       if (workQueueScope == 'Active') {
-        filterBuilder = filterBuilder.neq('subsidy_status', 'Received').neq('status', 'Completed');
+        filterBuilder = filterBuilder
+            .neq('customer_work_state', 'COMPLETED')
+            .neq('subsidy_status', 'Received')
+            .neq('status', 'Completed');
       } else if (workQueueScope == 'Completed') {
-        filterBuilder = filterBuilder.or('subsidy_status.ilike.Received,status.ilike.Completed');
+        filterBuilder = filterBuilder.or('customer_work_state.eq.COMPLETED,subsidy_status.ilike.Received,status.ilike.Completed');
       } else if (workQueueScope == 'Old Applications') {
         final sixtyDaysAgo = DateTime.now().subtract(const Duration(days: 60)).toIso8601String();
         filterBuilder = filterBuilder.lte('submit_date', sixtyDaysAgo);
@@ -699,13 +702,16 @@ class RecordService {
       try {
         final activeRes = await _client
             .from('consumer_records')
-            .select('submit_date, created_at, status, application_status')
+            .select('*')
             .eq('deleted', false)
             .eq('is_merged', false)
+            .neq('customer_work_state', 'COMPLETED')
             .not('status', 'ilike', 'completed')
             .not('status', 'ilike', 'cancelled')
             .not('application_status', 'ilike', 'completed')
-            .not('application_status', 'ilike', 'cancelled');
+            .not('application_status', 'ilike', 'cancelled')
+            .not('subsidy_status', 'ilike', 'received')
+            .not('subsidy_status', 'ilike', 'completed');
         final List<dynamic> activeData = activeRes as List<dynamic>;
         for (final row in activeData) {
           final rec = ConsumerRecord.fromJson(row as Map<String, dynamic>);
@@ -721,6 +727,8 @@ class RecordService {
               break;
             case PriorityLevel.normal:
               normalCount++;
+              break;
+            default:
               break;
           }
         }
@@ -794,10 +802,13 @@ class RecordService {
           .select('*')
           .eq('deleted', false)
           .eq('is_merged', false)
+          .neq('customer_work_state', 'COMPLETED')
           .not('status', 'ilike', 'completed')
           .not('status', 'ilike', 'cancelled')
           .not('application_status', 'ilike', 'completed')
-          .not('application_status', 'ilike', 'cancelled');
+          .not('application_status', 'ilike', 'cancelled')
+          .not('subsidy_status', 'ilike', 'received')
+          .not('subsidy_status', 'ilike', 'completed');
 
       if (applicationStatusFilter != null && applicationStatusFilter.isNotEmpty && applicationStatusFilter != 'All') {
         filterBuilder = filterBuilder.eq('application_status', applicationStatusFilter);
@@ -830,9 +841,15 @@ class RecordService {
       final List<dynamic> data = response as List<dynamic>;
       List<ConsumerRecord> records = data.map((j) => ConsumerRecord.fromJson(j as Map<String, dynamic>)).toList();
 
+      // Completed & Subsidy Received MUST NEVER be active priority
+      records = records.where((r) => r.priorityLevel != PriorityLevel.none).toList();
+
       // Priority Filter
       if (priorityFilter != null && priorityFilter.isNotEmpty && priorityFilter.toUpperCase() != 'ALL') {
         records = records.where((r) => r.priority.toUpperCase() == priorityFilter.toUpperCase()).toList();
+      } else {
+        // Exclude Subsidy Processing cases from Critical/High/Medium/Normal active operational queue
+        records = records.where((r) => r.priorityLevel != PriorityLevel.processing).toList();
       }
 
       // Sort order:
@@ -858,5 +875,75 @@ class RecordService {
       print('Error in RecordService.fetchPriorityRecords: $e\n$stack');
       rethrow;
     }
+  }
+
+  /// Mark customer work state as COMPLETED (removes from Priority List)
+  static Future<ConsumerRecord> markCustomerAsComplete(String recordId) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('consumer_records')
+        .update({
+          'customer_work_state': 'COMPLETED',
+          'updated_at': nowIso,
+          'updated_by': user?.id,
+        })
+        .eq('id', recordId)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': recordId,
+        'consumer_no': updated.consumerNo,
+        'action': 'MARK_AS_COMPLETE',
+        'field_name': 'customer_work_state',
+        'old_value': 'ACTIVE',
+        'new_value': 'COMPLETED',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Reopen customer work state back to ACTIVE (returns to priority list)
+  static Future<ConsumerRecord> reopenCustomer(String recordId) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('consumer_records')
+        .update({
+          'customer_work_state': 'ACTIVE',
+          'updated_at': nowIso,
+          'updated_by': user?.id,
+        })
+        .eq('id', recordId)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': recordId,
+        'consumer_no': updated.consumerNo,
+        'action': 'REOPEN_CUSTOMER',
+        'field_name': 'customer_work_state',
+        'old_value': 'COMPLETED',
+        'new_value': 'ACTIVE',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
   }
 }

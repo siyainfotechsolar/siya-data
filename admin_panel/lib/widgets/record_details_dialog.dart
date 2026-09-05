@@ -197,6 +197,113 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     }
   }
 
+  Future<void> _handleMarkAsComplete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Mark as Complete'),
+          ],
+        ),
+        content: const Text('Mark this customer as complete?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Mark as Complete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && _record.id != null && mounted) {
+      setState(() => _isSaving = true);
+      try {
+        final updated = await RecordService.markCustomerAsComplete(_record.id!);
+        if (mounted) {
+          setState(() {
+            _record = updated;
+            _isSaving = false;
+          });
+          widget.onRecordUpdated?.call();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Customer marked as complete! Removed from Priority List.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to mark complete: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _handleReopen() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.refresh, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Reopen Customer'),
+          ],
+        ),
+        content: const Text('Reopen this customer and return to active priority list?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reopen'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && _record.id != null && mounted) {
+      setState(() => _isSaving = true);
+      try {
+        final updated = await RecordService.reopenCustomer(_record.id!);
+        if (mounted) {
+          setState(() {
+            _record = updated;
+            _isSaving = false;
+          });
+          widget.onRecordUpdated?.call();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Customer reopened and returned to active workflow!'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to reopen customer: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -592,12 +699,27 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
             ),
 
             const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Done'),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (_record.customerWorkState.toUpperCase() == 'COMPLETED')
+                  OutlinedButton.icon(
+                    onPressed: _isSaving ? null : _handleReopen,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Reopen Customer'),
+                  )
+                else
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+                    onPressed: _isSaving ? null : _handleMarkAsComplete,
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: const Text('Mark as Complete'),
+                  ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Done'),
+                ),
+              ],
             ),
           ],
         ),

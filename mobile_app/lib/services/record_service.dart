@@ -282,13 +282,16 @@ class MobileRecordService {
     try {
       final activeRes = await _client
           .from('consumer_records')
-          .select('submit_date, created_at, status, application_status')
+          .select('*')
           .eq('deleted', false)
           .eq('is_merged', false)
+          .neq('customer_work_state', 'COMPLETED')
           .not('status', 'ilike', 'completed')
           .not('status', 'ilike', 'cancelled')
           .not('application_status', 'ilike', 'completed')
-          .not('application_status', 'ilike', 'cancelled');
+          .not('application_status', 'ilike', 'cancelled')
+          .not('subsidy_status', 'ilike', 'received')
+          .not('subsidy_status', 'ilike', 'completed');
 
       int critical = 0;
       int high = 0;
@@ -311,15 +314,19 @@ class MobileRecordService {
           case PriorityLevel.normal:
             normal++;
             break;
+          default:
+            break;
         }
       }
+
+      final totalOperationalActive = critical + high + medium + normal;
 
       return {
         'critical': critical,
         'high': high,
         'medium': medium,
         'normal': normal,
-        'total': activeData.length,
+        'total': totalOperationalActive,
       };
     } catch (_) {
       return {'critical': 0, 'high': 0, 'medium': 0, 'normal': 0, 'total': 0};
@@ -336,10 +343,13 @@ class MobileRecordService {
           .select('*')
           .eq('deleted', false)
           .eq('is_merged', false)
+          .neq('customer_work_state', 'COMPLETED')
           .not('status', 'ilike', 'completed')
           .not('status', 'ilike', 'cancelled')
           .not('application_status', 'ilike', 'completed')
-          .not('application_status', 'ilike', 'cancelled');
+          .not('application_status', 'ilike', 'cancelled')
+          .not('subsidy_status', 'ilike', 'received')
+          .not('subsidy_status', 'ilike', 'completed');
 
       final response = await queryBuilder
           .order('submit_date', ascending: true, nullsFirst: false)
@@ -348,8 +358,14 @@ class MobileRecordService {
       final List<dynamic> data = response as List<dynamic>;
       List<ConsumerRecord> records = data.map((j) => ConsumerRecord.fromJson(j as Map<String, dynamic>)).toList();
 
+      // Exclude Completed & Subsidy Received
+      records = records.where((r) => r.priorityLevel != PriorityLevel.none).toList();
+
       if (priorityFilter != null && priorityFilter.isNotEmpty && priorityFilter.toUpperCase() != 'ALL') {
         records = records.where((r) => r.priority.toUpperCase() == priorityFilter.toUpperCase()).toList();
+      } else {
+        // Exclude Subsidy Processing from Operational Active queue
+        records = records.where((r) => r.priorityLevel != PriorityLevel.processing).toList();
       }
 
       records.sort((a, b) {
@@ -364,5 +380,75 @@ class MobileRecordService {
       print('Error in MobileRecordService.fetchPriorityRecords: $e');
       return [];
     }
+  }
+
+  /// Mark customer work state as COMPLETED (removes from Priority List)
+  static Future<ConsumerRecord> markCustomerAsComplete(String recordId) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('consumer_records')
+        .update({
+          'customer_work_state': 'COMPLETED',
+          'updated_at': nowIso,
+          'updated_by': user?.id,
+        })
+        .eq('id', recordId)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': recordId,
+        'consumer_no': updated.consumerNo,
+        'action': 'MARK_AS_COMPLETE',
+        'field_name': 'customer_work_state',
+        'old_value': 'ACTIVE',
+        'new_value': 'COMPLETED',
+        'changed_by': user?.id,
+        'source': 'Mobile App',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Reopen customer work state back to ACTIVE (returns to priority list)
+  static Future<ConsumerRecord> reopenCustomer(String recordId) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('consumer_records')
+        .update({
+          'customer_work_state': 'ACTIVE',
+          'updated_at': nowIso,
+          'updated_by': user?.id,
+        })
+        .eq('id', recordId)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': recordId,
+        'consumer_no': updated.consumerNo,
+        'action': 'REOPEN_CUSTOMER',
+        'field_name': 'customer_work_state',
+        'old_value': 'COMPLETED',
+        'new_value': 'ACTIVE',
+        'changed_by': user?.id,
+        'source': 'Mobile App',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
   }
 }

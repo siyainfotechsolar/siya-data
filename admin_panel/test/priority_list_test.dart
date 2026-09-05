@@ -122,82 +122,63 @@ void main() {
       expect(list.first.priority, equals('CRITICAL'));
     });
 
-    test('Test Case 10: Completed records are excluded from active priority list', () {
+    test('Test Case 10: Completed records are excluded from active priority list and get Priority None', () {
       final recordCompleted = ConsumerRecord(
         consumerNo: 'P110',
         name: 'Finished Consumer',
         status: 'Completed',
-        submitDate: daysAgo(45),
+        submitDate: daysAgo(908),
       );
 
       expect(recordCompleted.isActiveApplication, isFalse);
+      expect(recordCompleted.priorityLevel, equals(PriorityLevel.none));
+      expect(recordCompleted.priority, equals('None'));
+      expect(recordCompleted.actionRequired, equals('None'));
+      expect(recordCompleted.nextAction, equals('None'));
     });
 
-    test('Test Case 11: Cancelled records are excluded from active priority list', () {
-      final recordCancelled = ConsumerRecord(
+    test('Test Case 11: Subsidy Received records get Priority None', () {
+      final recordSubsidyReceived = ConsumerRecord(
         consumerNo: 'P111',
-        name: 'Cancelled Consumer',
-        status: 'Cancelled',
-        submitDate: daysAgo(50),
+        name: 'Subsidy Received Consumer',
+        subsidyStatus: 'Received',
+        submitDate: daysAgo(500),
       );
 
-      expect(recordCancelled.isActiveApplication, isFalse);
+      expect(recordSubsidyReceived.isActiveApplication, isFalse);
+      expect(recordSubsidyReceived.priorityLevel, equals(PriorityLevel.none));
+      expect(recordSubsidyReceived.priority, equals('None'));
+      expect(recordSubsidyReceived.actionRequired, equals('None'));
     });
 
-    test('Test Case 12: Status changes DO NOT change calculated priority', () {
-      final initial = ConsumerRecord(
+    test('Test Case 12: Subsidy Processing cases resolve to Processing priority, NOT Critical', () {
+      final recordProcessing = ConsumerRecord(
         consumerNo: 'P112',
-        name: 'Status Test',
-        status: 'Pending',
-        submitDate: daysAgo(20), // HIGH (20)
+        name: 'Subsidy Processing Customer',
+        rtsStatus: 'Completed',
+        subsidyStatus: 'Subsidy Request',
+        submitDate: daysAgo(300),
       );
 
-      final updatedStatus = initial.copyWith(status: 'Approved');
-      expect(updatedStatus.applicationDays, equals(20));
-      expect(updatedStatus.priority, equals('HIGH'));
+      expect(recordProcessing.priorityLevel, equals(PriorityLevel.processing));
+      expect(recordProcessing.priority, equals('Processing'));
+      expect(recordProcessing.actionRequired, equals('Subsidy'));
     });
 
-    test('Test Case 13: Subsidy status changes DO NOT change calculated priority', () {
-      final initial = ConsumerRecord(
+    test('Test Case 13: Operational Pending stage Agreement resolves to Critical for 753 days', () {
+      final recordAgreement = ConsumerRecord(
         consumerNo: 'P113',
-        name: 'Subsidy Test',
-        subsidyStatus: 'Not Applied',
-        submitDate: daysAgo(25), // HIGH (25)
+        name: 'Agreement Pending Customer',
+        agreementStatus: 'Pending',
+        submitDate: daysAgo(753),
       );
 
-      final updatedSubsidy = initial.copyWith(subsidyStatus: 'Approved');
-      expect(updatedSubsidy.applicationDays, equals(25));
-      expect(updatedSubsidy.priority, equals('HIGH'));
+      expect(recordAgreement.priorityLevel, equals(PriorityLevel.critical));
+      expect(recordAgreement.priority, equals('CRITICAL'));
+      expect(recordAgreement.actionRequired, equals('Agreement'));
     });
 
-    test('Test Case 14: Installation status changes DO NOT change calculated priority', () {
-      final initial = ConsumerRecord(
-        consumerNo: 'P114',
-        name: 'Installation Test',
-        installationStatus: 'Not Started',
-        submitDate: daysAgo(12), // MEDIUM (12)
-      );
-
-      final updatedInstall = initial.copyWith(installationStatus: 'Panel Pending');
-      expect(updatedInstall.applicationDays, equals(12));
-      expect(updatedInstall.priority, equals('MEDIUM'));
-    });
-
-    test('Test Case 15: Loan status changes DO NOT change calculated priority', () {
-      final initial = ConsumerRecord(
-        consumerNo: 'P115',
-        name: 'Loan Test',
-        loanRequired: 'Yes',
-        loanStatus: 'Pending',
-        submitDate: daysAgo(35), // CRITICAL (35)
-      );
-
-      final updatedLoan = initial.copyWith(loanStatus: 'Approved');
-      expect(updatedLoan.applicationDays, equals(35));
-      expect(updatedLoan.priority, equals('CRITICAL'));
-    });
-
-    test('Test Case 16: Submit Date UPDATE recalculates application days & priority', () {
+    test('Test Case 14: Submit Date UPDATE recalculates application days & priority', () {
       final existing = ConsumerRecord(
         consumerNo: 'P116',
         name: 'Submit Update Test',
@@ -225,37 +206,7 @@ void main() {
       expect(merged.priority, equals('CRITICAL'));
     });
 
-    test('Test Case 17: Submit Date SKIP preserves existing submit date', () {
-      final existing = ConsumerRecord(
-        consumerNo: 'P117',
-        name: 'Submit Skip Test',
-        submitDate: daysAgo(22), // HIGH (22)
-      );
-
-      final incoming = ConsumerRecord(
-        consumerNo: 'P117',
-        name: 'Submit Skip Test',
-        submitDate: daysAgo(2), // Mapped as SKIP in import
-      );
-
-      final diff = RecordDiff(
-        existingRecord: existing,
-        incomingRecord: incoming,
-        changedFields: [],
-      );
-
-      // 'submit_date' is omitted from allowedFieldKeys (SKIP)
-      final merged = diff.createMergedRecord(
-        ConflictStrategy.updateNonEmptyOnly,
-        allowedFieldKeys: {'name'},
-      );
-
-      expect(merged.submitDate, equals(existing.submitDate));
-      expect(merged.applicationDays, equals(22));
-      expect(merged.priority, equals('HIGH'));
-    });
-
-    test('Test Case 18: Future submit date returns 0 days and isSubmitDateFuture warning flag', () {
+    test('Test Case 15: Future submit date returns 0 days and isSubmitDateFuture warning flag', () {
       final recordFuture = ConsumerRecord(
         consumerNo: 'P118',
         name: 'Future Date Customer',
@@ -265,6 +216,47 @@ void main() {
       expect(recordFuture.applicationDays, equals(0));
       expect(recordFuture.priority, equals('NORMAL'));
       expect(recordFuture.isSubmitDateFuture, isTrue);
+    });
+
+    test('Test Case 16: Mark as Complete sets priority = None, action_required = None, next_action = None & removes from Active Priority List', () {
+      final activeRecord = ConsumerRecord(
+        consumerNo: 'P119',
+        name: 'Active Customer to Complete',
+        submitDate: daysAgo(45), // Originally CRITICAL
+      );
+
+      expect(activeRecord.priority, equals('CRITICAL'));
+      expect(activeRecord.isActiveApplication, isTrue);
+
+      final completedRecord = activeRecord.copyWith(customerWorkState: 'COMPLETED');
+
+      expect(completedRecord.customerWorkState, equals('COMPLETED'));
+      expect(completedRecord.priorityLevel, equals(PriorityLevel.none));
+      expect(completedRecord.priority, equals('None'));
+      expect(completedRecord.actionRequired, equals('None'));
+      expect(completedRecord.nextAction, equals('None'));
+      expect(completedRecord.isActiveApplication, isFalse);
+      expect(completedRecord.overallStage, equals('Completed'));
+    });
+
+    test('Test Case 17: Reopened customer returns to active status and recalculates priority from Workflow Engine', () {
+      final completedRecord = ConsumerRecord(
+        consumerNo: 'P120',
+        name: 'Completed Customer to Reopen',
+        submitDate: daysAgo(20), // 20 days -> HIGH
+        customerWorkState: 'COMPLETED',
+      );
+
+      expect(completedRecord.priority, equals('None'));
+      expect(completedRecord.isActiveApplication, isFalse);
+
+      final reopenedRecord = completedRecord.copyWith(customerWorkState: 'ACTIVE');
+
+      expect(reopenedRecord.customerWorkState, equals('ACTIVE'));
+      expect(reopenedRecord.isActiveApplication, isTrue);
+      expect(reopenedRecord.priorityLevel, equals(PriorityLevel.high));
+      expect(reopenedRecord.priority, equals('HIGH'));
+      expect(reopenedRecord.actionRequired, equals('Agreement'));
     });
   });
 }

@@ -68,6 +68,54 @@ class _PriorityScreenState extends State<PriorityScreen> {
     }
   }
 
+  Future<void> _confirmMarkAsComplete(ConsumerRecord record) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Mark as Complete'),
+          ],
+        ),
+        content: const Text('Mark this customer as complete?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Mark as Complete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && record.id != null && mounted) {
+      try {
+        await MobileRecordService.markCustomerAsComplete(record.id!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Customer ${record.name} marked as complete and removed from Priority List.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadPriorityData();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to mark complete: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -102,7 +150,7 @@ class _PriorityScreenState extends State<PriorityScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Active customer applications ordered strictly by Application Days (Older = Higher Priority).',
+                        'Active customers requiring action, prioritized by workflow status and application age.',
                         style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                       ),
                       const Divider(height: 20),
@@ -375,7 +423,9 @@ class _PriorityScreenState extends State<PriorityScreen> {
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                     ),
                     const SizedBox(height: 4),
-                    Row(
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -388,8 +438,18 @@ class _PriorityScreenState extends State<PriorityScreen> {
                             style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade800),
                           ),
                         ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'Action: ${r.actionRequired}',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber.shade900),
+                          ),
+                        ),
                         if (r.isSubmitDateFuture) ...[
-                          const SizedBox(width: 6),
                           const Tooltip(
                             message: 'Future Submit Date',
                             child: Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 14),
@@ -401,7 +461,7 @@ class _PriorityScreenState extends State<PriorityScreen> {
                 ),
               ),
 
-              // Application Days Highlight Pill
+              // Application Days Highlight Pill & Mark Complete Action
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -416,10 +476,13 @@ class _PriorityScreenState extends State<PriorityScreen> {
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    priority.label,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
+                  const SizedBox(height: 2),
+                  IconButton(
+                    icon: const Icon(Icons.check_circle_outline, size: 22, color: Color(0xFF059669)),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Mark as Complete',
+                    onPressed: () => _confirmMarkAsComplete(r),
                   ),
                 ],
               ),

@@ -124,6 +124,54 @@ class _PriorityListScreenState extends State<PriorityListScreen> {
     );
   }
 
+  Future<void> _confirmMarkAsComplete(ConsumerRecord record) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Mark as Complete'),
+          ],
+        ),
+        content: const Text('Mark this customer as complete?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Mark as Complete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && record.id != null && mounted) {
+      try {
+        await RecordService.markCustomerAsComplete(record.id!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Customer ${record.name} marked as complete and removed from Priority List.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadPriorityRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to mark complete: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -153,7 +201,7 @@ class _PriorityListScreenState extends State<PriorityListScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Active applications ordered by age: Older Application = Higher Priority',
+                    'Active customers requiring action, prioritized by workflow status and application age.',
                     style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
@@ -423,6 +471,11 @@ class _PriorityListScreenState extends State<PriorityListScreen> {
                                             DataCell(
                                               Row(
                                                 children: [
+                                                  IconButton(
+                                                    icon: const Icon(Icons.check_circle_outline, size: 20, color: Color(0xFF059669)),
+                                                    tooltip: 'Mark as Complete',
+                                                    onPressed: () => _confirmMarkAsComplete(r),
+                                                  ),
                                                   IconButton(
                                                     icon: const Icon(Icons.timeline_rounded, size: 20, color: Color(0xFFD97706)),
                                                     tooltip: 'Workflow Lifecycle',

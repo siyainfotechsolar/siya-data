@@ -267,6 +267,9 @@ class ReportService {
         case PriorityLevel.normal:
           normal++;
           break;
+        case PriorityLevel.processing:
+        case PriorityLevel.none:
+          break;
       }
     }
 

@@ -5,7 +5,9 @@ enum PriorityLevel {
   critical('CRITICAL', '31+ Days', 1),
   high('HIGH', '16–30 Days', 2),
   medium('MEDIUM', '8–15 Days', 3),
-  normal('NORMAL', '0–7 Days', 4);
+  normal('NORMAL', '0–7 Days', 4),
+  processing('PROCESSING', 'Under Process', 5),
+  none('NONE', 'Completed', 6);
 
   final String label;
   final String rangeLabel;
@@ -29,8 +31,12 @@ enum PriorityLevel {
       case 'MEDIUM':
         return PriorityLevel.medium;
       case 'NORMAL':
-      default:
         return PriorityLevel.normal;
+      case 'PROCESSING':
+        return PriorityLevel.processing;
+      case 'NONE':
+      default:
+        return PriorityLevel.none;
     }
   }
 }
@@ -92,6 +98,8 @@ class ConsumerRecord {
   final DateTime? subsidyApprovedDate;
   final DateTime? subsidyReceivedDate;
 
+  final String customerWorkState; // 'ACTIVE', 'COMPLETED'
+
   ConsumerRecord({
     this.id,
     required this.consumerNo,
@@ -108,6 +116,7 @@ class ConsumerRecord {
     this.deleted = false,
     this.deletedAt,
     this.deletedBy,
+    this.customerWorkState = 'ACTIVE',
     // Smart Merge
     this.isMerged = false,
     this.mergedIntoId,
@@ -182,16 +191,35 @@ class ConsumerRecord {
     return sDate.isAfter(todayDate);
   }
 
-  PriorityLevel get priorityLevel => PriorityLevel.fromDays(applicationDays);
+  /// Dynamic priority level derived from Workflow Stage/Status first, Application Days second
+  PriorityLevel get priorityLevel {
+    if (customerWorkState.toUpperCase() == 'COMPLETED' || WorkflowEngine.isWorkCompleted(this) || overallStage == 'Completed') {
+      return PriorityLevel.none;
+    }
+    final subSt = subsidyStatus.trim().toLowerCase();
+    if (WorkflowEngine.isRtsCompleted(this) &&
+        (subSt == 'applied' || subSt == 'under process' || subSt == 'approved' || subSt == 'subsidy request' || subSt == 'pending') &&
+        subSt != 'received') {
+      return PriorityLevel.processing;
+    }
+    return PriorityLevel.fromDays(applicationDays);
+  }
 
-  String get priority => priorityLevel.label;
+  /// Priority string label ('None', 'Processing', 'CRITICAL', 'HIGH', 'MEDIUM', 'NORMAL')
+  String get priority {
+    if (customerWorkState.toUpperCase() == 'COMPLETED' || priorityLevel == PriorityLevel.none) return 'None';
+    if (priorityLevel == PriorityLevel.processing) return 'Processing';
+    return priorityLevel.label;
+  }
 
+  /// Returns true if record requires active operational work (excluding Completed, Subsidy Received, Cancelled, and Merged records)
   bool get isActiveApplication {
     if (deleted || isMerged) return false;
+    if (customerWorkState.toUpperCase() == 'COMPLETED' || WorkflowEngine.isWorkCompleted(this) || overallStage == 'Completed') return false;
     final st = status.trim().toLowerCase();
     final appSt = applicationStatus.trim().toLowerCase();
     final subSt = subsidyStatus.trim().toLowerCase();
-    return st != 'completed' && st != 'cancelled' && appSt != 'completed' && appSt != 'cancelled' && subSt != 'received';
+    return st != 'completed' && st != 'cancelled' && appSt != 'completed' && appSt != 'cancelled' && subSt != 'received' && subSt != 'completed';
   }
 
   bool get isActiveWork => isActiveApplication;
@@ -261,6 +289,7 @@ class ConsumerRecord {
       subsidyAppliedDate: json['subsidy_applied_date'] != null ? DateTime.tryParse(json['subsidy_applied_date']) : null,
       subsidyApprovedDate: json['subsidy_approved_date'] != null ? DateTime.tryParse(json['subsidy_approved_date']) : null,
       subsidyReceivedDate: json['subsidy_received_date'] != null ? DateTime.tryParse(json['subsidy_received_date']) : null,
+      customerWorkState: json['customer_work_state'] as String? ?? 'ACTIVE',
     );
   }
 
@@ -274,6 +303,7 @@ class ConsumerRecord {
       'status': status,
       'remarks': remarks?.trim(),
       'deleted': deleted,
+      'customer_work_state': customerWorkState,
       'application_status': applicationStatus,
       'agreement_required': agreementRequired,
       'agreement_status': agreementStatus,
@@ -328,6 +358,7 @@ class ConsumerRecord {
     DateTime? deletedAt,
     String? deletedBy,
     bool clearDeletedMetadata = false,
+    String? customerWorkState,
     bool? isMerged,
     String? mergedIntoId,
     DateTime? mergedAt,
@@ -371,6 +402,7 @@ class ConsumerRecord {
       deleted: deleted ?? this.deleted,
       deletedAt: clearDeletedMetadata ? null : (deletedAt ?? this.deletedAt),
       deletedBy: clearDeletedMetadata ? null : (deletedBy ?? this.deletedBy),
+      customerWorkState: customerWorkState ?? this.customerWorkState,
       isMerged: isMerged ?? this.isMerged,
       mergedIntoId: mergedIntoId ?? this.mergedIntoId,
       mergedAt: mergedAt ?? this.mergedAt,

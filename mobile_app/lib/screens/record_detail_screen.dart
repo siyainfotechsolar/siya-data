@@ -27,6 +27,107 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     _record = widget.record;
   }
 
+  Future<void> _handleMarkAsComplete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Mark as Complete'),
+          ],
+        ),
+        content: const Text('Mark this customer as complete?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Mark as Complete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && _record.id != null && mounted) {
+      try {
+        final updated = await MobileRecordService.markCustomerAsComplete(_record.id!);
+        if (mounted) {
+          setState(() {
+            _record = updated;
+            _hasChanged = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Customer marked as complete! Removed from Priority List.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to mark complete: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _handleReopen() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.refresh, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Reopen Customer'),
+          ],
+        ),
+        content: const Text('Reopen this customer and return to active priority list?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reopen'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && _record.id != null && mounted) {
+      try {
+        final updated = await MobileRecordService.reopenCustomer(_record.id!);
+        if (mounted) {
+          setState(() {
+            _record = updated;
+            _hasChanged = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Customer reopened and returned to active workflow!'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to reopen customer: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   void _showWorkflowUpdateSheet() {
     showModalBottomSheet(
       context: context,
@@ -569,7 +670,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
 
               const SizedBox(height: 24),
 
-              // Action Button
+              // Action Buttons
               FilledButton.icon(
                 onPressed: _showWorkflowUpdateSheet,
                 style: FilledButton.styleFrom(
@@ -579,6 +680,28 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                 icon: const Icon(Icons.timeline_rounded, size: 22),
                 label: const Text('Update Workflow Stage', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
+              const SizedBox(height: 12),
+              if (_record.customerWorkState.toUpperCase() == 'COMPLETED')
+                OutlinedButton.icon(
+                  onPressed: _handleReopen,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.refresh, size: 20),
+                  label: const Text('Reopen Customer', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                )
+              else
+                FilledButton.icon(
+                  onPressed: _handleMarkAsComplete,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.check_circle_outline, size: 20),
+                  label: const Text('Mark as Complete', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                ),
             ],
           ),
         ),

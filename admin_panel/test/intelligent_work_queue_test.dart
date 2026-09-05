@@ -154,7 +154,7 @@ void main() {
         rtsStatus: 'Completed',
         subsidyStatus: 'Received',
       );
-      expect(customerC.priorityCategory, equals('Completed'));
+      expect(customerC.priorityCategory, equals('None'));
     });
 
     test('6. ReportService active vs completed filter scope', () {

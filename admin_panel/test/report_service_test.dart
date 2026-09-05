@@ -78,7 +78,7 @@ void main() {
       expect(summary.totalApplications, equals(3));
       expect(summary.critical, equals(1)); // rec1 (35 days)
       expect(summary.high, equals(1));     // rec2 (20 days)
-      expect(summary.normal, equals(1));   // rec3 (5 days)
+      expect(summary.normal, equals(0));   // rec3 is Completed (Priority None)
       expect(summary.completed, equals(1));
     });
 

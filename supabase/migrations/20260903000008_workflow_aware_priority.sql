@@ -1,14 +1,8 @@
 -- ==============================================================================
--- Migration: Priority List Helper RPC & Indexes
--- Dynamic Application Days Based Priority List
+-- Migration: Workflow-Aware Priority List Helper RPC
+-- Excludes Completed, Subsidy Received, and Subsidy Processing records from Active Priority Counts
 -- ==============================================================================
 
--- 1. Performance index for sorting and filtering by submit_date & created_at
-CREATE INDEX IF NOT EXISTS idx_consumer_records_submit_date_active 
-ON public.consumer_records (submit_date ASC NULLS LAST, created_at ASC) 
-WHERE deleted = false;
-
--- 2. Database RPC Function for aggregated priority summary counts
 CREATE OR REPLACE FUNCTION get_priority_summary_counts()
 RETURNS TABLE (
   critical_count BIGINT,
