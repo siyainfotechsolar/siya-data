@@ -63,8 +63,12 @@ class WorkflowEngine {
   /// Check if Loan stage is completed (or skipped)
   static bool isLoanCompleted(ConsumerRecord record) {
     if (!isLoanRequired(record)) return true; // Skipped = satisfied
+    final subStage = record.loanSubStage.trim().toLowerCase();
     final st = record.loanStatus.trim().toLowerCase();
-    return st == 'approved' || st == 'completed' || st == 'not required';
+    return subStage == '2nd installment completed' ||
+        subStage == 'completed' ||
+        st == '2nd installment completed' ||
+        st == 'completed';
   }
 
   /// Check if Installation stage is completed
@@ -92,7 +96,7 @@ class WorkflowEngine {
     return isSubsidyCompleted(record);
   }
 
-  /// Calculate exact current active work stage for a record
+  /// Calculate exact current active work stage for a record (Only ONE stage actionable at a time)
   static String getCurrentWorkStage(ConsumerRecord record) {
     if (isWorkCompleted(record)) {
       return 'Completed';
@@ -103,20 +107,38 @@ class WorkflowEngine {
     if (isInstallationCompleted(record)) {
       return 'RTS';
     }
-    if (isLoanCompleted(record)) {
-      // Loan is either approved or skipped (Loan Required = NO)
-      if (isAgreementCompleted(record)) {
-        return 'Installation';
+    final agreeDone = isAgreementCompleted(record);
+    final loanReq = isLoanRequired(record);
+    final loanDone = isLoanCompleted(record);
+
+    if (agreeDone) {
+      if (loanReq && !loanDone) {
+        return 'Loan';
       }
-      return 'Agreement';
+      return 'Installation';
     }
-    if (isAgreementCompleted(record)) {
-      return 'Loan';
+    return 'Agreement';
+  }
+
+  /// Calculate current work status derived from current work stage
+  static String getCurrentWorkStatus(ConsumerRecord record) {
+    if (isWorkCompleted(record)) {
+      return 'Completed';
     }
-    if (isApplicationCompleted(record)) {
-      return 'Agreement';
+    final stage = getCurrentWorkStage(record);
+    switch (stage) {
+      case 'Subsidy':
+        return record.subsidyStatus;
+      case 'RTS':
+        return record.rtsStatus;
+      case 'Installation':
+        return record.installationStatus;
+      case 'Loan':
+        return record.loanSubStage.isNotEmpty ? record.loanSubStage : record.loanStatus;
+      case 'Agreement':
+      default:
+        return record.agreementStatus;
     }
-    return 'Application';
   }
 
   /// Calculate intelligent Action Required step
@@ -124,32 +146,69 @@ class WorkflowEngine {
     if (isWorkCompleted(record)) {
       return 'None';
     }
-    if (isRtsCompleted(record)) {
-      return 'Subsidy';
-    }
-    if (isInstallationCompleted(record)) {
-      return 'RTS';
-    }
-    if (isLoanCompleted(record)) {
-      if (isAgreementCompleted(record)) {
+    final stage = getCurrentWorkStage(record);
+    switch (stage) {
+      case 'Agreement':
+        return 'Agreement';
+      case 'Loan':
+        final subStage = record.loanSubStage.trim().toLowerCase();
+        if (subStage.contains('rejected')) {
+          return 'Loan Correction';
+        } else if (subStage.contains('correction')) {
+          return 'Correct Loan File';
+        } else if (subStage.contains('re-apply') || subStage.contains('reapply')) {
+          return 'Re-Apply Loan';
+        } else if (subStage.contains('file at bank') || subStage.contains('bank')) {
+          return 'Bank Follow-up';
+        } else if (subStage.contains('ready')) {
+          return 'Loan File Action Required';
+        } else if (subStage.contains('approved') || subStage.contains('1st installment')) {
+          return '1st Installment';
+        } else if (subStage.contains('2nd installment')) {
+          return '2nd Installment';
+        }
+        return 'Loan Action Required';
+      case 'Installation':
         return 'Installation';
-      }
-      return 'Agreement';
+      case 'RTS':
+        return 'RTS';
+      case 'Subsidy':
+        return 'Subsidy';
+      case 'Completed':
+      default:
+        return 'None';
     }
-    if (isAgreementCompleted(record)) {
-      return 'Loan';
-    }
-    return 'Agreement';
   }
 
   /// Calculate useful Next Action instruction for staff
   static String getNextAction(ConsumerRecord record) {
+    if (isWorkCompleted(record)) {
+      return 'None';
+    }
+    final stage = getCurrentWorkStage(record);
+    if (stage == 'Loan') {
+      final subStage = record.loanSubStage.trim().toLowerCase();
+      if (subStage.contains('rejected')) {
+        return 'Correct Issue';
+      } else if (subStage.contains('correction')) {
+        return 'Prepare Corrected File';
+      } else if (subStage.contains('re-apply') || subStage.contains('reapply')) {
+        return 'Re-Apply Loan File';
+      } else if (subStage.contains('file at bank') || subStage.contains('bank')) {
+        return 'Check Bank Status';
+      } else if (subStage.contains('ready')) {
+        return 'Submit to Bank';
+      } else if (subStage.contains('approved') || subStage.contains('1st installment')) {
+        return 'Process 1st Installment';
+      } else if (subStage.contains('2nd installment')) {
+        return 'Process 2nd Installment';
+      }
+      return 'Prepare / Submit Loan File';
+    }
     final action = getActionRequired(record);
     switch (action) {
       case 'Agreement':
         return 'Upload Agreement';
-      case 'Loan':
-        return 'Follow Up Loan';
       case 'Installation':
         return 'Schedule Installation';
       case 'RTS':
@@ -160,6 +219,21 @@ class WorkflowEngine {
       default:
         return 'None';
     }
+  }
+
+  /// Sort records for Action Center: 1) Days in Current Stage DESC, 2) Application Days DESC, 3) Application Date ASC
+  static void sortRecordsForActionCenter(List<ConsumerRecord> list) {
+    list.sort((a, b) {
+      final stageDaysCmp = b.daysInCurrentStage.compareTo(a.daysInCurrentStage);
+      if (stageDaysCmp != 0) return stageDaysCmp;
+
+      final appDaysCmp = b.applicationDays.compareTo(a.applicationDays);
+      if (appDaysCmp != 0) return appDaysCmp;
+
+      final aDate = a.applicationDate ?? a.submitDate ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = b.applicationDate ?? b.submitDate ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return aDate.compareTo(bDate);
+    });
   }
 
   /// Calculate Days in Current Stage (Current Date - Current Stage Start Date)

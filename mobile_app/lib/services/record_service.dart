@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
 import 'supabase_service.dart';
+import 'workflow_engine.dart';
+
 
 class PaginatedResult<T> {
   final List<T> items;
@@ -277,109 +279,142 @@ class MobileRecordService {
     }
   }
 
-  /// Fetch Priority List summary counts for Mobile App
-  static Future<Map<String, int>> fetchPrioritySummary() async {
+  /// Fetch Action Center summary counts for Mobile App
+  static Future<Map<String, int>> fetchActionCenterSummary({String? staffFilter}) async {
     try {
-      final activeRes = await _client
+      var queryBuilder = _client
           .from('consumer_records')
           .select('*')
           .eq('deleted', false)
-          .eq('is_merged', false)
-          .neq('customer_work_state', 'COMPLETED')
-          .not('status', 'ilike', 'completed')
-          .not('status', 'ilike', 'cancelled')
-          .not('application_status', 'ilike', 'completed')
-          .not('application_status', 'ilike', 'cancelled')
-          .not('subsidy_status', 'ilike', 'received')
-          .not('subsidy_status', 'ilike', 'completed');
+          .eq('is_merged', false);
 
-      int critical = 0;
-      int high = 0;
-      int medium = 0;
-      int normal = 0;
+      if (staffFilter != null && staffFilter.trim().isNotEmpty && staffFilter.trim().toLowerCase() != 'all') {
+        final st = staffFilter.trim();
+        queryBuilder = queryBuilder.or('assigned_staff.ilike.%$st%,installer_team.ilike.%$st%');
+      }
 
-      final List<dynamic> activeData = activeRes as List<dynamic>;
-      for (final row in activeData) {
+      final response = await queryBuilder;
+      final List<dynamic> data = response as List<dynamic>;
+
+      int agreementPending = 0;
+      int loanPending = 0;
+      int installationPending = 0;
+      int rtsPending = 0;
+      int subsidyProcessing = 0;
+      int completed = 0;
+
+      for (final row in data) {
         final rec = ConsumerRecord.fromJson(row as Map<String, dynamic>);
-        switch (rec.priorityLevel) {
-          case PriorityLevel.critical:
-            critical++;
-            break;
-          case PriorityLevel.high:
-            high++;
-            break;
-          case PriorityLevel.medium:
-            medium++;
-            break;
-          case PriorityLevel.normal:
-            normal++;
-            break;
-          default:
-            break;
+        final stage = WorkflowEngine.getCurrentWorkStage(rec);
+        if (rec.customerWorkState.toUpperCase() == 'COMPLETED' || stage == 'Completed') {
+          completed++;
+        } else {
+          switch (stage) {
+            case 'Agreement':
+              agreementPending++;
+              break;
+            case 'Loan':
+              loanPending++;
+              break;
+            case 'Installation':
+              installationPending++;
+              break;
+            case 'RTS':
+              rtsPending++;
+              break;
+            case 'Subsidy':
+              subsidyProcessing++;
+              break;
+          }
         }
       }
 
-      final totalOperationalActive = critical + high + medium + normal;
-
       return {
-        'critical': critical,
-        'high': high,
-        'medium': medium,
-        'normal': normal,
-        'total': totalOperationalActive,
+        'agreementPending': agreementPending,
+        'loanPending': loanPending,
+        'installationPending': installationPending,
+        'rtsPending': rtsPending,
+        'subsidyProcessing': subsidyProcessing,
+        'completed': completed,
+        'totalActive': agreementPending + loanPending + installationPending + rtsPending + subsidyProcessing,
       };
     } catch (_) {
-      return {'critical': 0, 'high': 0, 'medium': 0, 'normal': 0, 'total': 0};
+      return {
+        'agreementPending': 0,
+        'loanPending': 0,
+        'installationPending': 0,
+        'rtsPending': 0,
+        'subsidyProcessing': 0,
+        'completed': 0,
+        'totalActive': 0,
+      };
     }
   }
 
-  /// Fetch active applications for Mobile Priority List sorted by Priority Rank & Application Days DESC
-  static Future<List<ConsumerRecord>> fetchPriorityRecords({
-    String? priorityFilter,
+  /// Backward-compatible alias for fetchActionCenterSummary
+  static Future<Map<String, int>> fetchPrioritySummary() async {
+    final summary = await fetchActionCenterSummary();
+    return {
+      'critical': summary['agreementPending'] ?? 0,
+      'high': summary['loanPending'] ?? 0,
+      'medium': summary['installationPending'] ?? 0,
+      'normal': summary['rtsPending'] ?? 0,
+      'total': summary['totalActive'] ?? 0,
+    };
+  }
+
+  /// Fetch active applications for Mobile Action Center sorted by Days in Stage DESC & Application Days DESC
+  static Future<List<ConsumerRecord>> fetchActionCenterRecords({
+    String? stageFilter,
+    String? assignedStaffFilter,
   }) async {
     try {
       var queryBuilder = _client
           .from('consumer_records')
           .select('*')
           .eq('deleted', false)
-          .eq('is_merged', false)
-          .neq('customer_work_state', 'COMPLETED')
-          .not('status', 'ilike', 'completed')
-          .not('status', 'ilike', 'cancelled')
-          .not('application_status', 'ilike', 'completed')
-          .not('application_status', 'ilike', 'cancelled')
-          .not('subsidy_status', 'ilike', 'received')
-          .not('subsidy_status', 'ilike', 'completed');
+          .eq('is_merged', false);
 
-      final response = await queryBuilder
-          .order('submit_date', ascending: true, nullsFirst: false)
-          .order('created_at', ascending: true);
+      if (assignedStaffFilter != null && assignedStaffFilter.trim().isNotEmpty && assignedStaffFilter.trim().toLowerCase() != 'all') {
+        final st = assignedStaffFilter.trim();
+        queryBuilder = queryBuilder.or('assigned_staff.ilike.%$st%,installer_team.ilike.%$st%');
+      }
 
+      final response = await queryBuilder;
       final List<dynamic> data = response as List<dynamic>;
       List<ConsumerRecord> records = data.map((j) => ConsumerRecord.fromJson(j as Map<String, dynamic>)).toList();
 
-      // Exclude Completed & Subsidy Received
-      records = records.where((r) => r.priorityLevel != PriorityLevel.none).toList();
-
-      if (priorityFilter != null && priorityFilter.isNotEmpty && priorityFilter.toUpperCase() != 'ALL') {
-        records = records.where((r) => r.priority.toUpperCase() == priorityFilter.toUpperCase()).toList();
-      } else {
-        // Exclude Subsidy Processing from Operational Active queue
-        records = records.where((r) => r.priorityLevel != PriorityLevel.processing).toList();
+      if (stageFilter != null && stageFilter.isNotEmpty && stageFilter.toUpperCase() != 'ALL') {
+        final sf = stageFilter.trim().toLowerCase();
+        if (sf.contains('agreement')) {
+          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Agreement').toList();
+        } else if (sf.contains('loan')) {
+          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Loan').toList();
+        } else if (sf.contains('installation')) {
+          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Installation').toList();
+        } else if (sf.contains('rts')) {
+          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'RTS').toList();
+        } else if (sf.contains('subsidy')) {
+          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Subsidy').toList();
+        } else if (sf.contains('completed')) {
+          records = records.where((r) => r.customerWorkState.toUpperCase() == 'COMPLETED' || r.overallStage == 'Completed').toList();
+        }
       }
 
-      records.sort((a, b) {
-        final rankCmp = a.priorityLevel.rank.compareTo(b.priorityLevel.rank);
-        if (rankCmp != 0) return rankCmp;
-        return b.applicationDays.compareTo(a.applicationDays);
-      });
-
+      WorkflowEngine.sortRecordsForActionCenter(records);
       return records;
     } catch (e) {
       // ignore: avoid_print
-      print('Error in MobileRecordService.fetchPriorityRecords: $e');
+      print('Error in MobileRecordService.fetchActionCenterRecords: $e');
       return [];
     }
+  }
+
+  /// Backward-compatible alias for fetchActionCenterRecords
+  static Future<List<ConsumerRecord>> fetchPriorityRecords({
+    String? priorityFilter,
+  }) async {
+    return fetchActionCenterRecords(stageFilter: priorityFilter);
   }
 
   /// Mark customer work state as COMPLETED (removes from Priority List)
@@ -443,6 +478,108 @@ class MobileRecordService {
         'field_name': 'customer_work_state',
         'old_value': 'COMPLETED',
         'new_value': 'ACTIVE',
+        'changed_by': user?.id,
+        'source': 'Mobile App',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Mark loan as Rejected with reason, bank remarks, correction required, and log audit entry
+  static Future<ConsumerRecord> markLoanRejected({
+    required String recordId,
+    required String rejectionReason,
+    String? bankRemarks,
+    required String correctionRequired,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('consumer_records')
+        .update({
+          'loan_status': 'Rejected',
+          'loan_sub_stage': 'Loan Rejected',
+          'rejection_reason': rejectionReason,
+          'bank_remarks': bankRemarks,
+          'correction_required': correctionRequired,
+          'rejection_date': nowIso,
+          'customer_work_state': 'ACTIVE',
+          'updated_at': nowIso,
+          'updated_by': user?.id,
+        })
+        .eq('id', recordId)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': recordId,
+        'consumer_no': updated.consumerNo,
+        'action': 'LOAN_REJECTED',
+        'field_name': 'loan_sub_stage',
+        'old_value': 'File at Bank',
+        'new_value': 'Loan Rejected',
+        'changed_by': user?.id,
+        'source': 'Mobile App',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Create new Loan Attempt, increment reapply count, set loan_sub_stage = 'Loan Applied', update history log
+  static Future<ConsumerRecord> reapplyLoan({
+    required ConsumerRecord currentRecord,
+    String? remarks,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final nextAttemptNo = currentRecord.loanReapplyCount + 1;
+    final newAttempt = {
+      'attempt_number': nextAttemptNo,
+      'reapply_date': nowIso,
+      'previous_rejection_reason': currentRecord.rejectionReason,
+      'previous_bank_remarks': currentRecord.bankRemarks,
+      'previous_rejection_date': currentRecord.rejectionDate?.toUtc().toIso8601String(),
+      'remarks': remarks ?? 'Re-applied by staff',
+    };
+
+    final updatedAttempts = List<Map<String, dynamic>>.from(currentRecord.loanAttempts)..add(newAttempt);
+
+    final response = await _client
+        .from('consumer_records')
+        .update({
+          'loan_status': 'Applied',
+          'loan_sub_stage': 'Loan Applied',
+          'loan_reapply_count': nextAttemptNo,
+          'last_reapply_date': nowIso,
+          'loan_applied_date': nowIso,
+          'loan_attempts': updatedAttempts,
+          'customer_work_state': 'ACTIVE',
+          'updated_at': nowIso,
+          'updated_by': user?.id,
+        })
+        .eq('id', currentRecord.id!)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': currentRecord.id!,
+        'consumer_no': updated.consumerNo,
+        'action': 'LOAN_REAPPLY',
+        'field_name': 'loan_sub_stage',
+        'old_value': currentRecord.loanSubStage,
+        'new_value': 'Loan Applied (Attempt #$nextAttemptNo)',
         'changed_by': user?.id,
         'source': 'Mobile App',
         'created_at': nowIso,

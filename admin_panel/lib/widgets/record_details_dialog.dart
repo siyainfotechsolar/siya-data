@@ -39,7 +39,186 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
   }
 
+  Future<void> _showMarkLoanRejectedDialog() async {
+    final reasonCtrl = TextEditingController();
+    final remarksCtrl = TextEditingController();
+    final correctionCtrl = TextEditingController();
+    bool isSaving = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.gavel_rounded, color: Color(0xFFDC2626)),
+              SizedBox(width: 8),
+              Text('Mark Loan Rejected'),
+            ],
+          ),
+          content: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Enter the bank rejection details. The loan stage will be set to "Correction Required".',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: reasonCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Rejection Reason *',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: remarksCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Bank Remarks (optional)',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: correctionCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Correction Required *',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      if (reasonCtrl.text.trim().isEmpty || correctionCtrl.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(content: Text('Rejection Reason and Correction Required are mandatory.')),
+                        );
+                        return;
+                      }
+                      setDlgState(() => isSaving = true);
+                      try {
+                        final updated = await RecordService.markLoanRejected(
+                          recordId: _record.id!,
+                          rejectionReason: reasonCtrl.text.trim(),
+                          bankRemarks: remarksCtrl.text.trim().isEmpty ? null : remarksCtrl.text.trim(),
+                          correctionRequired: correctionCtrl.text.trim(),
+                        );
+                        if (mounted) {
+                          setState(() {
+                            _record = updated;
+                          });
+                          widget.onRecordUpdated?.call();
+                          // ignore: use_build_context_synchronously
+                          Navigator.pop(ctx);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Loan marked as Rejected. Stage set to Correction Required.'),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                          }
+                        }
+                      } catch (e) {
+                        setDlgState(() => isSaving = false);
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Confirm Rejection'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleReapplyLoan() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.replay_rounded, color: Color(0xFF2563EB)),
+            SizedBox(width: 8),
+            Text('Re-Apply Loan'),
+          ],
+        ),
+        content: Text(
+          'This will increment the re-apply count to ${_record.loanReapplyCount + 1} and reset the loan stage back to "Loan Applied".\n\nPrevious rejection details will be saved in the history.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm Re-Apply'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && _record.id != null && mounted) {
+      setState(() => _isSaving = true);
+      try {
+        final updated = await RecordService.reapplyLoan(currentRecord: _record);
+        if (mounted) {
+          setState(() {
+            _record = updated;
+            _isSaving = false;
+          });
+          widget.onRecordUpdated?.call();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Loan re-application #${updated.loanReapplyCount} submitted. Stage reset to Loan Applied.'),
+              backgroundColor: const Color(0xFF2563EB),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to re-apply loan: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _pickDate({required bool isSubmitDate}) async {
+
     final initial = isSubmitDate ? (_record.submitDate ?? DateTime.now()) : (_record.applicationDate ?? DateTime.now());
     final picked = await showDatePicker(
       context: context,
@@ -126,6 +305,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     String? agreementStatus,
     String? loanRequired,
     String? loanStatus,
+    String? loanSubStage,
     String? installationStatus,
     String? installerTeam,
     String? rtsStatus,
@@ -140,6 +320,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
       agreementStatus: agreementStatus,
       loanRequired: loanRequired,
       loanStatus: loanStatus,
+      loanSubStage: loanSubStage,
       installationStatus: installationStatus,
       installerTeam: installerTeam,
       rtsStatus: rtsStatus,
@@ -514,7 +695,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
 
                     // Stage 3: Loan Decision
                     _buildStageCard(
-                      title: '3. Loan Decision & Status',
+                      title: '3. Loan Decision & Sub-Stages',
                       icon: Icons.account_balance_rounded,
                       color: const Color(0xFFD97706),
                       isUnlocked: stageStates[WorkflowStage.loan]!.isUnlocked,
@@ -541,31 +722,147 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                             ],
                           ),
                           if (_record.loanRequired.toLowerCase() == 'yes') ...[
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 10),
                             Row(
                               children: [
-                                const Text('Loan Status: ', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
+                                const Text('Loan Sub-Stage: ', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
                                 const SizedBox(width: 8),
                                 DropdownButton<String>(
-                                  value: _safeValue(_record.loanStatus, const ['Not Required', 'Pending', 'Applied', 'Under Process', 'Approved', 'Rejected']),
+                                  value: _safeValue(_record.loanSubStage, const [
+                                    'Loan Applied',
+                                    'Loan File Ready',
+                                    'File at Bank',
+                                    'Loan Rejected',
+                                    'Correction Required',
+                                    'Re-Apply Loan',
+                                    'Loan Approved',
+                                    '1st Installment',
+                                    '2nd Installment',
+                                  ]),
                                   isDense: true,
                                   items: const [
-                                    DropdownMenuItem(value: 'Not Required', child: Text('Not Required')),
-                                    DropdownMenuItem(value: 'Pending', child: Text('Pending')),
-                                    DropdownMenuItem(value: 'Applied', child: Text('Applied')),
-                                    DropdownMenuItem(value: 'Under Process', child: Text('Under Process')),
-                                    DropdownMenuItem(value: 'Approved', child: Text('Approved')),
-                                    DropdownMenuItem(value: 'Rejected', child: Text('Rejected')),
+                                    DropdownMenuItem(value: 'Loan Applied', child: Text('1. Loan Applied')),
+                                    DropdownMenuItem(value: 'Loan File Ready', child: Text('2. Loan File Ready')),
+                                    DropdownMenuItem(value: 'File at Bank', child: Text('3. File at Bank')),
+                                    DropdownMenuItem(value: 'Loan Rejected', child: Text('🔴 4. Loan Rejected')),
+                                    DropdownMenuItem(value: 'Correction Required', child: Text('🟠 5. Correction Required')),
+                                    DropdownMenuItem(value: 'Re-Apply Loan', child: Text('🔵 6. Re-Apply Loan')),
+                                    DropdownMenuItem(value: 'Loan Approved', child: Text('🟢 7. Loan Approved')),
+                                    DropdownMenuItem(value: '1st Installment', child: Text('8. 1st Installment')),
+                                    DropdownMenuItem(value: '2nd Installment', child: Text('9. 2nd Installment')),
                                   ],
-                                  onChanged: (_isSaving || !stageStates[WorkflowStage.loan]!.isUnlocked) ? null : (val) => _updateWorkflowField(loanStatus: val),
+                                  onChanged: (_isSaving || !stageStates[WorkflowStage.loan]!.isUnlocked)
+                                      ? null
+                                      : (val) {
+                                          if (val == 'Loan Rejected') {
+                                            _showMarkLoanRejectedDialog();
+                                          } else {
+                                            _updateWorkflowField(loanSubStage: val, loanStatus: val);
+                                          }
+                                        },
                                 ),
                               ],
                             ),
-                            if (_record.loanStatus != 'Approved')
+                            const SizedBox(height: 8),
+                            _buildDetailRow('Re-Apply Count', '${_record.loanReapplyCount} Re-Applications'),
+
+                            // Rejection Details Box
+                            if (_record.rejectionReason != null && _record.rejectionReason!.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF2F2),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFFFCA5A5)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Row(
+                                      children: [
+                                        Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 18),
+                                        SizedBox(width: 6),
+                                        Text('Bank Rejection Details', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFDC2626))),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text('Reason: ${_record.rejectionReason}', style: const TextStyle(fontSize: 13)),
+                                    if (_record.bankRemarks != null) Text('Remarks: ${_record.bankRemarks}', style: const TextStyle(fontSize: 13)),
+                                    if (_record.correctionRequired != null) Text('Correction: ${_record.correctionRequired}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                                    if (_record.rejectionDate != null) Text('Rejected Date: ${_formatDate(_record.rejectionDate)}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                  ],
+                                ),
+                              ),
+                            ],
+
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                FilledButton.icon(
+                                  onPressed: _isSaving ? null : _handleReapplyLoan,
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: const Color(0xFF2563EB),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  ),
+                                  icon: const Icon(Icons.replay_rounded, size: 18),
+                                  label: const Text('RE-APPLY LOAN', style: TextStyle(fontWeight: FontWeight.bold)),
+                                ),
+                                const SizedBox(width: 12),
+                                OutlinedButton.icon(
+                                  onPressed: _isSaving ? null : _showMarkLoanRejectedDialog,
+                                  style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
+                                  icon: const Icon(Icons.gavel_rounded, size: 18),
+                                  label: const Text('Mark Loan Rejected'),
+                                ),
+                              ],
+                            ),
+
+                            // Loan Attempt History Timeline
+                            if (_record.loanAttempts.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              const Text('Loan Attempt History:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              const SizedBox(height: 8),
+                              Column(
+                                children: _record.loanAttempts.map((attempt) {
+                                  final num = attempt['attempt_number'] ?? 1;
+                                  final date = attempt['reapply_date'] != null ? attempt['reapply_date'].toString().split('T')[0] : '—';
+                                  final prevReason = attempt['previous_rejection_reason'] ?? 'Initial Application';
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 6),
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade50,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: Colors.grey.shade300),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue.shade100,
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text('Attempt #$num', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blue)),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text('Date: $date • Prev Issue: $prevReason', style: const TextStyle(fontSize: 12)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+
+                            if (!_record.isLoanSatisfied)
                               Padding(
-                                padding: const EdgeInsets.only(top: 6),
+                                padding: const EdgeInsets.only(top: 8),
                                 child: Text(
-                                  '⚠️ Note: Installation completion is blocked until Loan is Approved.',
+                                  '⚠️ Note: Installation stage remains LOCKED until 2nd Installment is completed.',
                                   style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.bold),
                                 ),
                               ),

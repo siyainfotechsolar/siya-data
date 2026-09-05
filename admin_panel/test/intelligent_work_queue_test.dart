@@ -37,16 +37,17 @@ void main() {
         loanRequired: 'Yes',
         loanStatus: 'Pending',
       );
-      expect(r2.actionRequired, equals('Loan'));
-      expect(r2.nextAction, equals('Follow Up Loan'));
+      expect(r2.actionRequired, equals('Loan Action Required'));
+      expect(r2.nextAction, equals('Prepare / Submit Loan File'));
 
-      // Loan approved, Installation pending -> Action Required = Installation, Next Action = Schedule Installation
+      // Loan completed, Installation pending -> Action Required = Installation, Next Action = Schedule Installation
       final r3 = ConsumerRecord(
         consumerNo: '1003',
         name: 'Test 3',
         agreementStatus: 'Verified',
         loanRequired: 'Yes',
-        loanStatus: 'Approved',
+        loanStatus: 'Completed',
+        loanSubStage: '2nd Installment Completed',
         installationStatus: 'Not Started',
       );
       expect(r3.actionRequired, equals('Installation'));

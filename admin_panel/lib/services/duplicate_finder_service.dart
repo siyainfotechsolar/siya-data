@@ -288,6 +288,31 @@ class DuplicateFinderService {
       final installerTeam = getNonEmpty((r) => r.installerTeam);
       if (installerTeam != null) mergedPayload['installer_team'] = installerTeam;
 
+      // Preserve Loan Rejection & Re-Apply History Data
+      final rejectionReason = getNonEmpty((r) => r.rejectionReason);
+      if (rejectionReason != null) mergedPayload['rejection_reason'] = rejectionReason;
+
+      final bankRemarks = getNonEmpty((r) => r.bankRemarks);
+      if (bankRemarks != null) mergedPayload['bank_remarks'] = bankRemarks;
+
+      final correctionReq = getNonEmpty((r) => r.correctionRequired);
+      if (correctionReq != null) mergedPayload['correction_required'] = correctionReq;
+
+      int maxReapplyCount = 0;
+      final combinedAttempts = <Map<String, dynamic>>[];
+      for (final r in g.records) {
+        if (r.loanReapplyCount > maxReapplyCount) maxReapplyCount = r.loanReapplyCount;
+        for (final att in r.loanAttempts) {
+          if (!combinedAttempts.any((existing) => existing['attempt_number'] == att['attempt_number'] && existing['reapply_date'] == att['reapply_date'])) {
+            combinedAttempts.add(att);
+          }
+        }
+      }
+      mergedPayload['loan_reapply_count'] = maxReapplyCount;
+      if (combinedAttempts.isNotEmpty) {
+        mergedPayload['loan_attempts'] = combinedAttempts;
+      }
+
       // Workflow Stages - Pick highest stage value
       mergedPayload['application_status'] = _pickHighestStage(g.records.map((r) => r.applicationStatus), ['Approved', 'Submitted', 'Pending']);
       mergedPayload['agreement_status'] = _pickHighestStage(g.records.map((r) => r.agreementStatus), ['Verified', 'Uploaded', 'Pending']);

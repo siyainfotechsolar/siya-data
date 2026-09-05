@@ -1,7 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
 import '../models/record_diff.dart';
-import '../utils/consumer_no_utils.dart';
 import 'supabase_service.dart';
 
 class DuplicateDetectionService {

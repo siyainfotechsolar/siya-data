@@ -4,6 +4,7 @@ import '../models/record_diff.dart';
 import '../models/import_log.dart';
 import 'audit_service.dart';
 import 'supabase_service.dart';
+import 'workflow_engine.dart';
 import '../utils/consumer_no_utils.dart';
 
 class PaginatedResult<T> {
@@ -32,18 +33,20 @@ class DashboardMetrics {
   final Map<String, int> statusCounts;
   final List<ConsumerRecord> recentRecords;
 
-  // Workflow Pending Queues
+  // Action Center Counts
   final int agreementPendingCount;
   final int loanPendingCount;
   final int installationPendingCount;
   final int rtsPendingCount;
   final int subsidyPendingCount;
+  final int completedCount;
 
-  // Application Days Based Priority Counts
-  final int criticalPriorityCount;
-  final int highPriorityCount;
-  final int mediumPriorityCount;
-  final int normalPriorityCount;
+  // Today's Work Counts
+  int get loanFollowupsCount => loanPendingCount;
+  int get installationsCount => installationPendingCount;
+  int get rtsWorkCount => rtsPendingCount;
+  int get agreementsCount => agreementPendingCount;
+  int get subsidyProcessingCount => subsidyPendingCount;
 
   DashboardMetrics({
     required this.totalRecords,
@@ -57,10 +60,7 @@ class DashboardMetrics {
     this.installationPendingCount = 0,
     this.rtsPendingCount = 0,
     this.subsidyPendingCount = 0,
-    this.criticalPriorityCount = 0,
-    this.highPriorityCount = 0,
-    this.mediumPriorityCount = 0,
-    this.normalPriorityCount = 0,
+    this.completedCount = 0,
   });
 }
 
@@ -661,75 +661,44 @@ class RecordService {
           .map((json) => ConsumerRecord.fromJson(json as Map<String, dynamic>))
           .toList();
 
-      // Workflow Queue Counts (independent queries with fallback)
+      // Action Center Counts (evaluated via WorkflowEngine)
       int agreementPending = 0;
       int loanPending = 0;
       int installationPending = 0;
       int rtsPending = 0;
       int subsidyPending = 0;
+      int completedCount = 0;
 
       try {
-        final agRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('is_merged', false).eq('agreement_status', 'Pending').count(CountOption.exact);
-        agreementPending = agRes.count;
-      } catch (_) {}
-
-      try {
-        final lnRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('is_merged', false).eq('loan_required', 'Yes').neq('loan_status', 'Approved').count(CountOption.exact);
-        loanPending = lnRes.count;
-      } catch (_) {}
-
-      try {
-        final inRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('is_merged', false).neq('installation_status', 'Installation Completed').count(CountOption.exact);
-        installationPending = inRes.count;
-      } catch (_) {}
-
-      try {
-        final rtsRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('is_merged', false).eq('installation_status', 'Installation Completed').neq('rts_status', 'Completed').count(CountOption.exact);
-        rtsPending = rtsRes.count;
-      } catch (_) {}
-
-      try {
-        final subRes = await _client.from('consumer_records').select('id').eq('deleted', false).eq('is_merged', false).eq('rts_status', 'Completed').neq('subsidy_status', 'Received').count(CountOption.exact);
-        subsidyPending = subRes.count;
-      } catch (_) {}
-
-      // Application Days Based Priority Counts
-      int criticalCount = 0;
-      int highCount = 0;
-      int mediumCount = 0;
-      int normalCount = 0;
-
-      try {
-        final activeRes = await _client
+        final allRes = await _client
             .from('consumer_records')
             .select('*')
             .eq('deleted', false)
-            .eq('is_merged', false)
-            .neq('customer_work_state', 'COMPLETED')
-            .not('status', 'ilike', 'completed')
-            .not('status', 'ilike', 'cancelled')
-            .not('application_status', 'ilike', 'completed')
-            .not('application_status', 'ilike', 'cancelled')
-            .not('subsidy_status', 'ilike', 'received')
-            .not('subsidy_status', 'ilike', 'completed');
-        final List<dynamic> activeData = activeRes as List<dynamic>;
-        for (final row in activeData) {
+            .eq('is_merged', false);
+        final List<dynamic> allData = allRes as List<dynamic>;
+        for (final row in allData) {
           final rec = ConsumerRecord.fromJson(row as Map<String, dynamic>);
-          switch (rec.priorityLevel) {
-            case PriorityLevel.critical:
-              criticalCount++;
-              break;
-            case PriorityLevel.high:
-              highCount++;
-              break;
-            case PriorityLevel.medium:
-              mediumCount++;
-              break;
-            case PriorityLevel.normal:
-              normalCount++;
-              break;
-            default:
-              break;
+          final stage = WorkflowEngine.getCurrentWorkStage(rec);
+          if (rec.customerWorkState.toUpperCase() == 'COMPLETED' || stage == 'Completed') {
+            completedCount++;
+          } else {
+            switch (stage) {
+              case 'Agreement':
+                agreementPending++;
+                break;
+              case 'Loan':
+                loanPending++;
+                break;
+              case 'Installation':
+                installationPending++;
+                break;
+              case 'RTS':
+                rtsPending++;
+                break;
+              case 'Subsidy':
+                subsidyPending++;
+                break;
+            }
           }
         }
       } catch (_) {}
@@ -766,10 +735,7 @@ class RecordService {
         installationPendingCount: installationPending,
         rtsPendingCount: rtsPending,
         subsidyPendingCount: subsidyPending,
-        criticalPriorityCount: criticalCount,
-        highPriorityCount: highCount,
-        mediumPriorityCount: mediumCount,
-        normalPriorityCount: normalCount,
+        completedCount: completedCount,
       );
     } catch (_) {
       return DashboardMetrics(
@@ -783,12 +749,11 @@ class RecordService {
     }
   }
 
-  /// Fetch active records for Priority List ordered strictly by Priority Rank & Application Days DESC
-  static Future<PaginatedResult<ConsumerRecord>> fetchPriorityRecords({
+  /// Fetch records for Smart Action Center module
+  static Future<PaginatedResult<ConsumerRecord>> fetchActionCenterRecords({
     int page = 1,
     int pageSize = 15,
-    String? priorityFilter, // 'ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'NORMAL'
-    String? applicationStatusFilter,
+    String? stageFilter, // 'ALL', 'Agreement Pending', 'Loan Pending', 'Installation Pending', 'RTS Pending', 'Subsidy Processing', 'Completed'
     String? assignedStaffFilter,
     String? searchQuery,
     DateTime? startDate,
@@ -801,21 +766,11 @@ class RecordService {
           .from('consumer_records')
           .select('*')
           .eq('deleted', false)
-          .eq('is_merged', false)
-          .neq('customer_work_state', 'COMPLETED')
-          .not('status', 'ilike', 'completed')
-          .not('status', 'ilike', 'cancelled')
-          .not('application_status', 'ilike', 'completed')
-          .not('application_status', 'ilike', 'cancelled')
-          .not('subsidy_status', 'ilike', 'received')
-          .not('subsidy_status', 'ilike', 'completed');
-
-      if (applicationStatusFilter != null && applicationStatusFilter.isNotEmpty && applicationStatusFilter != 'All') {
-        filterBuilder = filterBuilder.eq('application_status', applicationStatusFilter);
-      }
+          .eq('is_merged', false);
 
       if (assignedStaffFilter != null && assignedStaffFilter.isNotEmpty && assignedStaffFilter != 'All') {
-        filterBuilder = filterBuilder.eq('installer_team', assignedStaffFilter);
+        final st = assignedStaffFilter.trim();
+        filterBuilder = filterBuilder.or('assigned_staff.ilike.%$st%,installer_team.ilike.%$st%');
       }
 
       if (startDate != null) {
@@ -833,33 +788,30 @@ class RecordService {
         );
       }
 
-      // Query active records ordered by submit_date ascending (oldest first)
-      final response = await filterBuilder
-          .order('submit_date', ascending: true, nullsFirst: false)
-          .order('created_at', ascending: true);
-
+      final response = await filterBuilder;
       final List<dynamic> data = response as List<dynamic>;
       List<ConsumerRecord> records = data.map((j) => ConsumerRecord.fromJson(j as Map<String, dynamic>)).toList();
 
-      // Completed & Subsidy Received MUST NEVER be active priority
-      records = records.where((r) => r.priorityLevel != PriorityLevel.none).toList();
-
-      // Priority Filter
-      if (priorityFilter != null && priorityFilter.isNotEmpty && priorityFilter.toUpperCase() != 'ALL') {
-        records = records.where((r) => r.priority.toUpperCase() == priorityFilter.toUpperCase()).toList();
-      } else {
-        // Exclude Subsidy Processing cases from Critical/High/Medium/Normal active operational queue
-        records = records.where((r) => r.priorityLevel != PriorityLevel.processing).toList();
+      // Stage Filtering
+      if (stageFilter != null && stageFilter.isNotEmpty && stageFilter.toUpperCase() != 'ALL') {
+        final sf = stageFilter.trim().toLowerCase();
+        if (sf.contains('agreement')) {
+          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Agreement').toList();
+        } else if (sf.contains('loan')) {
+          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Loan').toList();
+        } else if (sf.contains('installation')) {
+          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Installation').toList();
+        } else if (sf.contains('rts')) {
+          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'RTS').toList();
+        } else if (sf.contains('subsidy')) {
+          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Subsidy').toList();
+        } else if (sf.contains('completed')) {
+          records = records.where((r) => r.customerWorkState.toUpperCase() == 'COMPLETED' || r.overallStage == 'Completed').toList();
+        }
       }
 
-      // Sort order:
-      // 1. Priority level rank (CRITICAL=1, HIGH=2, MEDIUM=3, NORMAL=4)
-      // 2. Application Days DESC (oldest application appears first)
-      records.sort((a, b) {
-        final rankCmp = a.priorityLevel.rank.compareTo(b.priorityLevel.rank);
-        if (rankCmp != 0) return rankCmp;
-        return b.applicationDays.compareTo(a.applicationDays);
-      });
+      // Sort Action Center: 1) Days in Stage DESC, 2) Application Days DESC, 3) Application Date ASC
+      WorkflowEngine.sortRecordsForActionCenter(records);
 
       final totalCount = records.length;
       final pagedItems = records.skip(from).take(pageSize).toList();
@@ -872,9 +824,31 @@ class RecordService {
       );
     } catch (e, stack) {
       // ignore: avoid_print
-      print('Error in RecordService.fetchPriorityRecords: $e\n$stack');
+      print('Error in RecordService.fetchActionCenterRecords: $e\n$stack');
       rethrow;
     }
+  }
+
+  /// Backward-compatible alias for fetchActionCenterRecords
+  static Future<PaginatedResult<ConsumerRecord>> fetchPriorityRecords({
+    int page = 1,
+    int pageSize = 15,
+    String? priorityFilter,
+    String? applicationStatusFilter,
+    String? assignedStaffFilter,
+    String? searchQuery,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    return fetchActionCenterRecords(
+      page: page,
+      pageSize: pageSize,
+      stageFilter: priorityFilter,
+      assignedStaffFilter: assignedStaffFilter,
+      searchQuery: searchQuery,
+      startDate: startDate,
+      endDate: endDate,
+    );
   }
 
   /// Mark customer work state as COMPLETED (removes from Priority List)
@@ -938,6 +912,108 @@ class RecordService {
         'field_name': 'customer_work_state',
         'old_value': 'COMPLETED',
         'new_value': 'ACTIVE',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Mark loan as Rejected with reason, bank remarks, correction required, and log audit entry
+  static Future<ConsumerRecord> markLoanRejected({
+    required String recordId,
+    required String rejectionReason,
+    String? bankRemarks,
+    required String correctionRequired,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('consumer_records')
+        .update({
+          'loan_status': 'Rejected',
+          'loan_sub_stage': 'Loan Rejected',
+          'rejection_reason': rejectionReason,
+          'bank_remarks': bankRemarks,
+          'correction_required': correctionRequired,
+          'rejection_date': nowIso,
+          'customer_work_state': 'ACTIVE',
+          'updated_at': nowIso,
+          'updated_by': user?.id,
+        })
+        .eq('id', recordId)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': recordId,
+        'consumer_no': updated.consumerNo,
+        'action': 'LOAN_REJECTED',
+        'field_name': 'loan_sub_stage',
+        'old_value': 'File at Bank',
+        'new_value': 'Loan Rejected',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Create new Loan Attempt, increment reapply count, set loan_sub_stage = 'Loan Applied', update history log
+  static Future<ConsumerRecord> reapplyLoan({
+    required ConsumerRecord currentRecord,
+    String? remarks,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final nextAttemptNo = currentRecord.loanReapplyCount + 1;
+    final newAttempt = {
+      'attempt_number': nextAttemptNo,
+      'reapply_date': nowIso,
+      'previous_rejection_reason': currentRecord.rejectionReason,
+      'previous_bank_remarks': currentRecord.bankRemarks,
+      'previous_rejection_date': currentRecord.rejectionDate?.toUtc().toIso8601String(),
+      'remarks': remarks ?? 'Re-applied by staff',
+    };
+
+    final updatedAttempts = List<Map<String, dynamic>>.from(currentRecord.loanAttempts)..add(newAttempt);
+
+    final response = await _client
+        .from('consumer_records')
+        .update({
+          'loan_status': 'Applied',
+          'loan_sub_stage': 'Loan Applied',
+          'loan_reapply_count': nextAttemptNo,
+          'last_reapply_date': nowIso,
+          'loan_applied_date': nowIso,
+          'loan_attempts': updatedAttempts,
+          'customer_work_state': 'ACTIVE',
+          'updated_at': nowIso,
+          'updated_by': user?.id,
+        })
+        .eq('id', currentRecord.id!)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': currentRecord.id!,
+        'consumer_no': updated.consumerNo,
+        'action': 'LOAN_REAPPLY',
+        'field_name': 'loan_sub_stage',
+        'old_value': currentRecord.loanSubStage,
+        'new_value': 'Loan Applied (Attempt #$nextAttemptNo)',
         'changed_by': user?.id,
         'source': 'Admin Web',
         'created_at': nowIso,

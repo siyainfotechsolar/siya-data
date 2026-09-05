@@ -74,11 +74,19 @@ class ConsumerRecord {
   final String? agreementDocUrl;
   final DateTime? agreementDate;
 
-  // --- Step 3: Loan Decision ---
+  // --- Step 3: Loan Decision & Smart Loan Re-Apply Workflow ---
   final String loanRequired; // 'Yes', 'No'
   final String loanStatus; // 'Not Required', 'Pending', 'Applied', 'Under Process', 'Approved', 'Rejected'
   final DateTime? loanAppliedDate;
   final DateTime? loanApprovedDate;
+  final String loanSubStage; // 'Loan Applied', 'Loan File Ready', 'File at Bank', 'Loan Rejected', 'Correction Required', 'Re-Apply Loan', 'Loan Approved', '1st Installment', '2nd Installment'
+  final int loanReapplyCount;
+  final String? rejectionReason;
+  final String? bankRemarks;
+  final String? correctionRequired;
+  final DateTime? rejectionDate;
+  final DateTime? lastReapplyDate;
+  final List<Map<String, dynamic>> loanAttempts;
 
   // --- Step 4: Installation ---
   final String installationStatus; // 'Not Started', 'Scheduled', 'Installation Pending', 'Structure Pending', 'Panel Pending', 'Wiring Pending', 'Installation Completed'
@@ -99,6 +107,7 @@ class ConsumerRecord {
   final DateTime? subsidyReceivedDate;
 
   final String customerWorkState; // 'ACTIVE', 'COMPLETED'
+  final String? assignedStaff;
 
   ConsumerRecord({
     this.id,
@@ -117,6 +126,7 @@ class ConsumerRecord {
     this.deletedAt,
     this.deletedBy,
     this.customerWorkState = 'ACTIVE',
+    this.assignedStaff,
     // Smart Merge
     this.isMerged = false,
     this.mergedIntoId,
@@ -136,6 +146,14 @@ class ConsumerRecord {
     this.loanStatus = 'Not Required',
     this.loanAppliedDate,
     this.loanApprovedDate,
+    this.loanSubStage = 'Loan Applied',
+    this.loanReapplyCount = 0,
+    this.rejectionReason,
+    this.bankRemarks,
+    this.correctionRequired,
+    this.rejectionDate,
+    this.lastReapplyDate,
+    this.loanAttempts = const [],
     // Step 4
     this.installationStatus = 'Not Started',
     this.installationDate,
@@ -238,6 +256,10 @@ class ConsumerRecord {
 
   String get overallStage => WorkflowEngine.getCurrentWorkStage(this);
 
+  String get currentStatus => WorkflowEngine.getCurrentWorkStatus(this);
+
+
+
   factory ConsumerRecord.fromJson(Map<String, dynamic> json) {
     return ConsumerRecord(
       id: json['id'] as String?,
@@ -274,6 +296,14 @@ class ConsumerRecord {
       loanStatus: json['loan_status'] as String? ?? 'Not Required',
       loanAppliedDate: json['loan_applied_date'] != null ? DateTime.tryParse(json['loan_applied_date']) : null,
       loanApprovedDate: json['loan_approved_date'] != null ? DateTime.tryParse(json['loan_approved_date']) : null,
+      loanSubStage: json['loan_sub_stage'] as String? ?? 'Loan Applied',
+      loanReapplyCount: json['loan_reapply_count'] as int? ?? 0,
+      rejectionReason: json['rejection_reason'] as String?,
+      bankRemarks: json['bank_remarks'] as String?,
+      correctionRequired: json['correction_required'] as String?,
+      rejectionDate: json['rejection_date'] != null ? DateTime.tryParse(json['rejection_date']) : null,
+      lastReapplyDate: json['last_reapply_date'] != null ? DateTime.tryParse(json['last_reapply_date']) : null,
+      loanAttempts: json['loan_attempts'] != null ? List<Map<String, dynamic>>.from(json['loan_attempts'] as List) : const [],
       // Step 4
       installationStatus: json['installation_status'] as String? ?? 'Not Started',
       installationDate: json['installation_date'] != null ? DateTime.tryParse(json['installation_date']) : null,
@@ -290,6 +320,7 @@ class ConsumerRecord {
       subsidyApprovedDate: json['subsidy_approved_date'] != null ? DateTime.tryParse(json['subsidy_approved_date']) : null,
       subsidyReceivedDate: json['subsidy_received_date'] != null ? DateTime.tryParse(json['subsidy_received_date']) : null,
       customerWorkState: json['customer_work_state'] as String? ?? 'ACTIVE',
+      assignedStaff: json['assigned_staff'] as String? ?? json['installer_team'] as String?,
     );
   }
 
@@ -304,12 +335,19 @@ class ConsumerRecord {
       'remarks': remarks?.trim(),
       'deleted': deleted,
       'customer_work_state': customerWorkState,
+      'assigned_staff': assignedStaff?.trim(),
       'application_status': applicationStatus,
       'agreement_required': agreementRequired,
       'agreement_status': agreementStatus,
       'agreement_doc_url': agreementDocUrl?.trim(),
       'loan_required': loanRequired,
       'loan_status': loanStatus,
+      'loan_sub_stage': loanSubStage,
+      'loan_reapply_count': loanReapplyCount,
+      'rejection_reason': rejectionReason?.trim(),
+      'bank_remarks': bankRemarks?.trim(),
+      'correction_required': correctionRequired?.trim(),
+      'loan_attempts': loanAttempts,
       'installation_status': installationStatus,
       'installer_team': installerTeam?.trim(),
       'installation_photos_url': installationPhotosUrl?.trim(),
@@ -323,6 +361,8 @@ class ConsumerRecord {
     if (agreementDate != null) map['agreement_date'] = agreementDate!.toUtc().toIso8601String();
     if (loanAppliedDate != null) map['loan_applied_date'] = loanAppliedDate!.toUtc().toIso8601String();
     if (loanApprovedDate != null) map['loan_approved_date'] = loanApprovedDate!.toUtc().toIso8601String();
+    if (rejectionDate != null) map['rejection_date'] = rejectionDate!.toUtc().toIso8601String();
+    if (lastReapplyDate != null) map['last_reapply_date'] = lastReapplyDate!.toUtc().toIso8601String();
     if (installationDate != null) map['installation_date'] = installationDate!.toUtc().toIso8601String();
     if (rtsDate != null) map['rts_date'] = rtsDate!.toUtc().toIso8601String();
     if (rtsCompletionDate != null) map['rts_completion_date'] = rtsCompletionDate!.toUtc().toIso8601String();
@@ -359,11 +399,13 @@ class ConsumerRecord {
     String? deletedBy,
     bool clearDeletedMetadata = false,
     String? customerWorkState,
+    String? assignedStaff,
     bool? isMerged,
     String? mergedIntoId,
     DateTime? mergedAt,
     String? mergedBy,
     String? applicationStatus,
+    DateTime? applicationDate,
     DateTime? submitDate,
     bool? agreementRequired,
     String? agreementStatus,
@@ -373,6 +415,14 @@ class ConsumerRecord {
     String? loanStatus,
     DateTime? loanAppliedDate,
     DateTime? loanApprovedDate,
+    String? loanSubStage,
+    int? loanReapplyCount,
+    String? rejectionReason,
+    String? bankRemarks,
+    String? correctionRequired,
+    DateTime? rejectionDate,
+    DateTime? lastReapplyDate,
+    List<Map<String, dynamic>>? loanAttempts,
     String? installationStatus,
     DateTime? installationDate,
     String? installerTeam,
@@ -403,11 +453,13 @@ class ConsumerRecord {
       deletedAt: clearDeletedMetadata ? null : (deletedAt ?? this.deletedAt),
       deletedBy: clearDeletedMetadata ? null : (deletedBy ?? this.deletedBy),
       customerWorkState: customerWorkState ?? this.customerWorkState,
+      assignedStaff: assignedStaff ?? this.assignedStaff,
       isMerged: isMerged ?? this.isMerged,
       mergedIntoId: mergedIntoId ?? this.mergedIntoId,
       mergedAt: mergedAt ?? this.mergedAt,
       mergedBy: mergedBy ?? this.mergedBy,
       applicationStatus: applicationStatus ?? this.applicationStatus,
+      applicationDate: applicationDate ?? this.applicationDate,
       submitDate: submitDate ?? this.submitDate,
       agreementRequired: agreementRequired ?? this.agreementRequired,
       agreementStatus: agreementStatus ?? this.agreementStatus,
@@ -417,6 +469,14 @@ class ConsumerRecord {
       loanStatus: loanStatus ?? this.loanStatus,
       loanAppliedDate: loanAppliedDate ?? this.loanAppliedDate,
       loanApprovedDate: loanApprovedDate ?? this.loanApprovedDate,
+      loanSubStage: loanSubStage ?? this.loanSubStage,
+      loanReapplyCount: loanReapplyCount ?? this.loanReapplyCount,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
+      bankRemarks: bankRemarks ?? this.bankRemarks,
+      correctionRequired: correctionRequired ?? this.correctionRequired,
+      rejectionDate: rejectionDate ?? this.rejectionDate,
+      lastReapplyDate: lastReapplyDate ?? this.lastReapplyDate,
+      loanAttempts: loanAttempts ?? this.loanAttempts,
       installationStatus: installationStatus ?? this.installationStatus,
       installationDate: installationDate ?? this.installationDate,
       installerTeam: installerTeam ?? this.installerTeam,

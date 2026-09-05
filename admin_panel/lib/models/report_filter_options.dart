@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 
 class ReportFilterOptions {
   final DateTime? applicationDateFrom;
@@ -9,6 +8,7 @@ class ReportFilterOptions {
   final String? status;
   final String? priority;
   final String? loanStatus;
+  final String? loanSubStage;
   final String? installationStatus;
   final String? rtsStatus;
   final String? subsidyStatus;
@@ -27,6 +27,7 @@ class ReportFilterOptions {
     this.status,
     this.priority,
     this.loanStatus,
+    this.loanSubStage,
     this.installationStatus,
     this.rtsStatus,
     this.subsidyStatus,
@@ -46,6 +47,7 @@ class ReportFilterOptions {
       (status != null && status!.isNotEmpty) ||
       (priority != null && priority!.isNotEmpty) ||
       (loanStatus != null && loanStatus!.isNotEmpty) ||
+      (loanSubStage != null && loanSubStage!.isNotEmpty) ||
       (installationStatus != null && installationStatus!.isNotEmpty) ||
       (rtsStatus != null && rtsStatus!.isNotEmpty) ||
       (subsidyStatus != null && subsidyStatus!.isNotEmpty) ||
@@ -61,6 +63,7 @@ class ReportFilterOptions {
     String? status,
     String? priority,
     String? loanStatus,
+    String? loanSubStage,
     String? installationStatus,
     String? rtsStatus,
     String? subsidyStatus,
@@ -75,6 +78,7 @@ class ReportFilterOptions {
     bool clearStatus = false,
     bool clearPriority = false,
     bool clearLoan = false,
+    bool clearLoanSubStage = false,
     bool clearInstallation = false,
     bool clearRts = false,
     bool clearSubsidy = false,
@@ -89,6 +93,7 @@ class ReportFilterOptions {
       status: clearStatus ? null : (status ?? this.status),
       priority: clearPriority ? null : (priority ?? this.priority),
       loanStatus: clearLoan ? null : (loanStatus ?? this.loanStatus),
+      loanSubStage: clearLoanSubStage ? null : (loanSubStage ?? this.loanSubStage),
       installationStatus: clearInstallation ? null : (installationStatus ?? this.installationStatus),
       rtsStatus: clearRts ? null : (rtsStatus ?? this.rtsStatus),
       subsidyStatus: clearSubsidy ? null : (subsidyStatus ?? this.subsidyStatus),

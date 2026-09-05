@@ -30,7 +30,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   final List<_NavDestination> _destinations = [
     _NavDestination('Dashboard', Icons.dashboard_outlined, Icons.dashboard),
-    _NavDestination('Priority List', Icons.priority_high_outlined, Icons.priority_high),
+    _NavDestination('Action Center', Icons.bolt_outlined, Icons.bolt),
     _NavDestination('Duplicate Finder', Icons.find_in_page_outlined, Icons.find_in_page),
     _NavDestination('Records', Icons.table_chart_outlined, Icons.table_chart),
     _NavDestination('Import Data', Icons.upload_file_outlined, Icons.upload_file),
@@ -315,68 +315,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
           const SizedBox(height: 28),
 
-          // Application Priority Summary (Application Days)
+          // ACTION CENTER SECTION
           Text(
-            'Application Priority Dashboard',
+            'ACTION CENTER',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: const Color(0xFF1E293B),
+              letterSpacing: 0.5,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Priority is calculated strictly from Application Days (Submit Date → Today). Click any card to view Priority List.',
-            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
-          ),
-          const SizedBox(height: 14),
-
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _buildQueueCard(
-                title: 'CRITICAL (31+ Days)',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.criticalPriorityCount ?? 0}',
-                icon: Icons.priority_high_rounded,
-                color: const Color(0xFFDC2626),
-                onTap: () => _openPriorityList('CRITICAL'),
-              ),
-              _buildQueueCard(
-                title: 'HIGH (16–30 Days)',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.highPriorityCount ?? 0}',
-                icon: Icons.error_outline_rounded,
-                color: const Color(0xFFEA580C),
-                onTap: () => _openPriorityList('HIGH'),
-              ),
-              _buildQueueCard(
-                title: 'MEDIUM (8–15 Days)',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.mediumPriorityCount ?? 0}',
-                icon: Icons.warning_amber_rounded,
-                color: const Color(0xFFD97706),
-                onTap: () => _openPriorityList('MEDIUM'),
-              ),
-              _buildQueueCard(
-                title: 'NORMAL (0–7 Days)',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.normalPriorityCount ?? 0}',
-                icon: Icons.check_circle_outline_rounded,
-                color: const Color(0xFF16A34A),
-                onTap: () => _openPriorityList('NORMAL'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
-
-          // Customer Workflow Pending Queues
-          Text(
-            'Customer Workflow Queues',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Click any pending queue to inspect and manage customers at that workflow stage',
+            'Operational queues for customers currently requiring action',
             style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
           ),
           const SizedBox(height: 14),
@@ -390,42 +340,125 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 count: _isLoadingMetrics ? '...' : '${_metrics?.agreementPendingCount ?? 0}',
                 icon: Icons.history_edu_rounded,
                 color: const Color(0xFF2563EB),
-                onTap: () => _openFilteredRecords('Agreement Pending'),
+                onTap: () => _openActionCenter('Agreement Pending'),
               ),
               _buildQueueCard(
                 title: 'Loan Pending',
                 count: _isLoadingMetrics ? '...' : '${_metrics?.loanPendingCount ?? 0}',
                 icon: Icons.account_balance_rounded,
                 color: const Color(0xFFD97706),
-                onTap: () => _openFilteredRecords('Loan Pending'),
+                onTap: () => _openActionCenter('Loan Pending'),
               ),
               _buildQueueCard(
                 title: 'Installation Pending',
                 count: _isLoadingMetrics ? '...' : '${_metrics?.installationPendingCount ?? 0}',
                 icon: Icons.build_circle_outlined,
                 color: const Color(0xFF0F766E),
-                onTap: () => _openFilteredRecords('Installation Pending'),
+                onTap: () => _openActionCenter('Installation Pending'),
               ),
               _buildQueueCard(
                 title: 'RTS Pending',
                 count: _isLoadingMetrics ? '...' : '${_metrics?.rtsPendingCount ?? 0}',
                 icon: Icons.electric_meter_rounded,
                 color: const Color(0xFF7C3AED),
-                onTap: () => _openFilteredRecords('RTS Pending'),
+                onTap: () => _openActionCenter('RTS Pending'),
               ),
               _buildQueueCard(
                 title: 'Subsidy Processing',
                 count: _isLoadingMetrics ? '...' : '${_metrics?.subsidyPendingCount ?? 0}',
                 icon: Icons.currency_rupee_rounded,
                 color: const Color(0xFF059669),
-                onTap: () => _openFilteredRecords('Subsidy Processing'),
+                onTap: () => _openActionCenter('Subsidy Processing'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+
+          // TODAY'S WORK SECTION
+          Text(
+            'TODAY\'S WORK',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1E293B),
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Summary of actionable work calculated automatically from current workflow state',
+            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+          ),
+          const SizedBox(height: 14),
+
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildQueueCard(
+                title: 'Loan Follow-ups',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.loanFollowupsCount ?? 0}',
+                icon: Icons.phone_callback_rounded,
+                color: const Color(0xFFD97706),
+                onTap: () => _openActionCenter('Loan Pending'),
               ),
               _buildQueueCard(
+                title: 'Installations',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.installationsCount ?? 0}',
+                icon: Icons.construction_rounded,
+                color: const Color(0xFF0F766E),
+                onTap: () => _openActionCenter('Installation Pending'),
+              ),
+              _buildQueueCard(
+                title: 'RTS Work',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.rtsWorkCount ?? 0}',
+                icon: Icons.bolt_rounded,
+                color: const Color(0xFF7C3AED),
+                onTap: () => _openActionCenter('RTS Pending'),
+              ),
+              _buildQueueCard(
+                title: 'Agreements',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.agreementsCount ?? 0}',
+                icon: Icons.draw_rounded,
+                color: const Color(0xFF2563EB),
+                onTap: () => _openActionCenter('Agreement Pending'),
+              ),
+              _buildQueueCard(
+                title: 'Subsidy Processing',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.subsidyProcessingCount ?? 0}',
+                icon: Icons.payments_rounded,
+                color: const Color(0xFF059669),
+                onTap: () => _openActionCenter('Subsidy Processing'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+
+          // COMPLETED SECTION
+          Text(
+            'COMPLETED',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1E293B),
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Fully completed customers (Subsidy Received or Mark as Complete)',
+            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+          ),
+          const SizedBox(height: 14),
+
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildQueueCard(
                 title: 'Completed',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.recentRecords.where((r) => r.isFullyCompleted).length ?? 0}',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.completedCount ?? 0}',
                 icon: Icons.verified_rounded,
                 color: Colors.green.shade800,
-                onTap: () => _openFilteredRecords('Completed'),
+                onTap: () => _openActionCenter('Completed'),
               ),
             ],
           ),
@@ -508,19 +541,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  void _openPriorityList(String priorityCode) {
+  void _openActionCenter(String stage) {
     setState(() {
-      _selectedPriorityFilter = priorityCode;
-      _selectedIndex = 1; // Switch to Priority List tab
+      _selectedPriorityFilter = stage;
+      _selectedIndex = 1; // Switch to Action Center tab
     });
   }
 
-  void _openFilteredRecords(String queueName) {
-    setState(() {
-      _selectedQueueFilter = queueName;
-      _selectedIndex = 3; // Switch to Records tab
-    });
-  }
 
   Widget _buildQueueCard({
     required String title,

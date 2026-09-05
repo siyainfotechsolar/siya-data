@@ -18,7 +18,10 @@ void main() {
       expect(recordPendingLoan.isLoanSatisfied, isFalse);
       expect(recordPendingLoan.canCompleteInstallation, isFalse);
 
-      final recordApprovedLoan = recordPendingLoan.copyWith(loanStatus: 'Approved');
+      final recordApprovedLoan = recordPendingLoan.copyWith(
+        loanStatus: 'Completed',
+        loanSubStage: '2nd Installment Completed',
+      );
       expect(recordApprovedLoan.isLoanSatisfied, isTrue);
       expect(recordApprovedLoan.canCompleteInstallation, isTrue);
     });
@@ -87,7 +90,8 @@ void main() {
 
       // Step 3: Loan Approved, Installation in progress
       record = record.copyWith(
-        loanStatus: 'Approved',
+        loanStatus: 'Completed',
+        loanSubStage: '2nd Installment Completed',
         installationStatus: 'Wiring Pending',
       );
       expect(record.overallStage, equals('Installation'));

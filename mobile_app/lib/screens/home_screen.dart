@@ -111,7 +111,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
       case 0:
         return 'Siya Solar';
       case 1:
-        return 'Priority List';
+        return 'Action Center';
       case 2:
         return 'Consumer Records';
       case 3:
@@ -131,7 +131,6 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
         if (didPop) return;
         final shouldPop = await _onWillPop();
         if (shouldPop && context.mounted) {
-          // Exit or logout to login screen
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const MobileLoginScreen()),
           );
@@ -165,41 +164,41 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           ],
         ),
         body: _buildBody(),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (idx) {
-          setState(() => _currentIndex = idx);
-          if (idx == 0) {
-            _loadSummary();
-          }
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.priority_high_outlined),
-            selectedIcon: Icon(Icons.priority_high),
-            label: 'Priority',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.assignment_outlined),
-            selectedIcon: Icon(Icons.assignment),
-            label: 'Records',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.search),
-            label: 'Search',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
-      ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (idx) {
+            setState(() => _currentIndex = idx);
+            if (idx == 0) {
+              _loadSummary();
+            }
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.bolt_outlined),
+              selectedIcon: Icon(Icons.bolt),
+              label: 'Action Center',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.assignment_outlined),
+              selectedIcon: Icon(Icons.assignment),
+              label: 'Records',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.search),
+              label: 'Search',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -209,7 +208,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
       case 0:
         return _buildHomeTab();
       case 1:
-        return const PriorityScreen();
+        return const ActionCenterScreen();
       case 2:
         return const ConsumerRecordsScreen();
       case 3:
@@ -229,6 +228,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Banner Card
           Card(
             color: theme.colorScheme.primaryContainer,
             child: Padding(
@@ -236,28 +236,29 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
               child: Row(
                 children: [
                   Icon(
-                    Icons.solar_power_rounded,
-                    size: 40,
+                    Icons.bolt_rounded,
+                    size: 38,
                     color: theme.colorScheme.onPrimaryContainer,
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Mobile Staff Portal',
+                          'ACTION CENTER MOBILE PORTAL',
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: theme.colorScheme.onPrimaryContainer,
+                            fontSize: 14,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
-                          'Connected to Supabase Backend',
+                          'What work do I need to do today?',
                           style: TextStyle(
-                            color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
-                            fontSize: 13,
+                            color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.85),
+                            fontSize: 12,
                           ),
                         ),
                       ],
@@ -269,81 +270,91 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Live Metrics Counters
-          Row(
-            children: [
-              Expanded(
-                child: _buildMetricCard(
-                  title: 'Total Active',
-                  value: _isLoadingSummary ? '...' : '${_summaryCounts?['total'] ?? 0}',
-                  color: Colors.blue,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricCard(
-                  title: 'In Progress',
-                  value: _isLoadingSummary ? '...' : '${_summaryCounts?['inProgress'] ?? 0}',
-                  color: Colors.orange,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricCard(
-                  title: 'Completed',
-                  value: _isLoadingSummary ? '...' : '${_summaryCounts?['completed'] ?? 0}',
-                  color: Colors.green,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
+          // TODAY'S WORK Summary Section Header
           Text(
-            'Quick Actions',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            'TODAY\'S WORK',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Actionable work required today across operational stages',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 12),
+
+          // Action Queues Summary Grid
           Row(
             children: [
               Expanded(
                 child: _buildActionTile(
-                  icon: Icons.list_alt,
-                  label: 'View Records',
-                  onTap: () => setState(() => _currentIndex = 1),
+                  icon: Icons.draw_rounded,
+                  label: 'My Agreement Work',
+                  onTap: () => _openActionCenterStage('Agreement Pending'),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildActionTile(
+                  icon: Icons.account_balance_rounded,
+                  label: 'My Loan Work',
+                  onTap: () => _openActionCenterStage('Loan Pending'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionTile(
+                  icon: Icons.construction_rounded,
+                  label: 'My Installation Work',
+                  onTap: () => _openActionCenterStage('Installation Pending'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildActionTile(
+                  icon: Icons.electric_meter_rounded,
+                  label: 'My RTS Work',
+                  onTap: () => _openActionCenterStage('RTS Pending'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionTile(
+                  icon: Icons.currency_rupee_rounded,
+                  label: 'My Subsidy Work',
+                  onTap: () => _openActionCenterStage('Subsidy Processing'),
+                ),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: _buildActionTile(
                   icon: Icons.search,
-                  label: 'Search Consumer',
-                  onTap: () => setState(() => _currentIndex = 2),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildActionTile(
-                  icon: Icons.person_outline,
-                  label: 'My Staff Profile',
+                  label: 'Search Consumers',
                   onTap: () => setState(() => _currentIndex = 3),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildActionTile(
-                  icon: Icons.sync,
-                  label: 'Refresh Data',
-                  onTap: _loadSummary,
                 ),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  void _openActionCenterStage(String stage) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ActionCenterScreen(initialStageFilter: stage),
       ),
     );
   }

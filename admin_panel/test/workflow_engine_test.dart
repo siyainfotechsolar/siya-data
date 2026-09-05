@@ -36,9 +36,10 @@ void main() {
       expect(states[WorkflowStage.installation]!.state, equals(StageState.locked));
       expect(states[WorkflowStage.installation]!.lockReason, contains('🔒 Get Loan Approved first'));
 
-      // Step 3: Loan Approved -> Installation unlocked
+      // Step 3: Loan Completed -> Installation unlocked
       rec = rec.copyWith(
-        loanStatus: 'Approved',
+        loanStatus: 'Completed',
+        loanSubStage: '2nd Installment Completed',
         installationStatus: 'Wiring Pending',
       );
       expect(WorkflowEngine.getCurrentWorkStage(rec), equals('Installation'));
@@ -131,6 +132,85 @@ void main() {
 
       final ownerStates = WorkflowEngine.getStageStates(rec, isOwnerOverride: true);
       expect(ownerStates[WorkflowStage.installation]!.isUnlocked, isTrue);
+    });
+
+    test('Smart Loan Sub-Stages & Bank Rejection Loop', () {
+      // 1. Agreement completed, Loan Applied
+      var rec = ConsumerRecord(
+        consumerNo: '1005',
+        name: 'Bank Loan Customer',
+        agreementStatus: 'Verified',
+        loanRequired: 'Yes',
+        loanSubStage: 'Loan Applied',
+      );
+
+      expect(WorkflowEngine.getCurrentWorkStage(rec), equals('Loan'));
+      expect(WorkflowEngine.getActionRequired(rec), equals('Loan Action Required'));
+      expect(WorkflowEngine.getNextAction(rec), equals('Prepare / Submit Loan File'));
+      expect(WorkflowEngine.isLoanCompleted(rec), isFalse);
+
+      // 2. File at Bank
+      rec = rec.copyWith(loanSubStage: 'File at Bank');
+      expect(WorkflowEngine.getActionRequired(rec), equals('Bank Follow-up'));
+      expect(WorkflowEngine.getNextAction(rec), equals('Check Bank Status'));
+      expect(WorkflowEngine.getStageStates(rec)[WorkflowStage.installation]!.isUnlocked, isFalse);
+
+      // 3. Bank Rejects Loan -> Stage: Loan Rejected
+      rec = rec.copyWith(
+        loanSubStage: 'Loan Rejected',
+        rejectionReason: 'Bank document issue',
+        bankRemarks: 'Invalid income certificate',
+        correctionRequired: 'Upload corrected document',
+      );
+      expect(WorkflowEngine.getCurrentWorkStage(rec), equals('Loan'));
+      expect(WorkflowEngine.getActionRequired(rec), equals('Loan Correction'));
+      expect(WorkflowEngine.getNextAction(rec), equals('Correct Issue'));
+      // Installation, RTS, Subsidy MUST remain LOCKED!
+      var states = WorkflowEngine.getStageStates(rec);
+      expect(states[WorkflowStage.installation]!.isUnlocked, isFalse);
+      expect(states[WorkflowStage.rts]!.isUnlocked, isFalse);
+      expect(states[WorkflowStage.subsidy]!.isUnlocked, isFalse);
+
+      // 4. Correction Required
+      rec = rec.copyWith(loanSubStage: 'Correction Required');
+      expect(WorkflowEngine.getActionRequired(rec), equals('Correct Loan File'));
+      expect(WorkflowEngine.getNextAction(rec), equals('Prepare Corrected File'));
+
+      // 5. Re-Apply Loan (Attempt #1)
+      rec = rec.copyWith(
+        loanSubStage: 'Loan Applied',
+        loanReapplyCount: 1,
+        loanAttempts: [
+          {
+            'attempt_number': 1,
+            'reapply_date': '2026-08-15T10:00:00Z',
+            'previous_rejection_reason': 'Bank document issue',
+          }
+        ],
+      );
+      expect(rec.loanReapplyCount, equals(1));
+      expect(rec.loanAttempts.length, equals(1));
+      expect(WorkflowEngine.getCurrentWorkStage(rec), equals('Loan'));
+
+      // 6. File at Bank again -> Loan Approved
+      rec = rec.copyWith(loanSubStage: 'Loan Approved');
+      expect(WorkflowEngine.getCurrentWorkStage(rec), equals('Loan'));
+      expect(WorkflowEngine.getActionRequired(rec), equals('1st Installment'));
+      expect(WorkflowEngine.getNextAction(rec), equals('Process 1st Installment'));
+
+      // 7. 1st Installment -> 2nd Installment
+      rec = rec.copyWith(loanSubStage: '1st Installment');
+      expect(WorkflowEngine.getActionRequired(rec), equals('1st Installment'));
+
+      rec = rec.copyWith(loanSubStage: '2nd Installment');
+      expect(WorkflowEngine.getActionRequired(rec), equals('2nd Installment'));
+
+      // 8. 2nd Installment Completed -> Installation Unlocked!
+      rec = rec.copyWith(loanSubStage: '2nd Installment Completed');
+      expect(WorkflowEngine.isLoanCompleted(rec), isTrue);
+      expect(WorkflowEngine.getCurrentWorkStage(rec), equals('Installation'));
+      states = WorkflowEngine.getStageStates(rec);
+      expect(states[WorkflowStage.installation]!.isUnlocked, isTrue);
     });
   });
 }

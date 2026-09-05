@@ -84,7 +84,7 @@ void main() {
 
     test('Workflow Summary calculates correct 6-stage record counts', () {
       final wf = ReportService.computeWorkflowMetrics([rec1, rec2, rec3]);
-      expect(wf.application, equals(1)); // rec1
+      expect(wf.agreement, equals(1)); // rec1
       expect(wf.loan, equals(1));        // rec2
       expect(wf.completed, equals(1));   // rec3
     });
@@ -93,8 +93,8 @@ void main() {
       final stageWise = ReportService.computeStageWisePending([rec1, rec2, rec3]);
       expect(stageWise.isNotEmpty, isTrue);
 
-      final appPending = stageWise.firstWhere((s) => s.stage == 'Application');
-      expect(appPending.count, equals(1));
+      final agreementPending = stageWise.firstWhere((s) => s.stage == 'Agreement');
+      expect(agreementPending.count, equals(1));
 
       final loanPending = stageWise.firstWhere((s) => s.stage == 'Loan');
       expect(loanPending.status, equals('Applied'));

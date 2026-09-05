@@ -21,6 +21,7 @@ class RecordDetailScreen extends StatefulWidget {
 class _RecordDetailScreenState extends State<RecordDetailScreen> {
   late ConsumerRecord _record;
   bool _hasChanged = false;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -129,6 +130,175 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     }
   }
 
+  String _safeValue(String value, List<String> allowed) {
+    if (allowed.contains(value)) return value;
+    return allowed.first;
+  }
+
+  void _showMarkLoanRejectedSheet() {
+    final reasonCtrl = TextEditingController();
+    final remarksCtrl = TextEditingController();
+    final correctionCtrl = TextEditingController();
+    bool isSaving = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Mark Loan Rejected',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.of(ctx).pop(),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 20),
+                    TextField(
+                      controller: reasonCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Rejection Reason *',
+                        hintText: 'e.g. Bank document issue, Low CIBIL score',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: remarksCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Bank Remarks',
+                        hintText: 'Additional comments from bank manager',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: correctionCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Correction Required *',
+                        hintText: 'e.g. Upload corrected IT Return document',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              if (reasonCtrl.text.trim().isEmpty || correctionCtrl.text.trim().isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Reason and Correction Required are mandatory'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+                              setSheetState(() => isSaving = true);
+                              try {
+                                final updated = await MobileRecordService.markLoanRejected(
+                                  recordId: _record.id!,
+                                  rejectionReason: reasonCtrl.text.trim(),
+                                  bankRemarks: remarksCtrl.text.trim().isEmpty ? null : remarksCtrl.text.trim(),
+                                  correctionRequired: correctionCtrl.text.trim(),
+                                );
+                                if (mounted) {
+                                  setState(() {
+                                    _record = updated;
+                                    _hasChanged = true;
+                                  });
+                                  Navigator.of(ctx).pop();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Loan marked as Rejected. Stage set to Correction Required.'),
+                                      backgroundColor: Colors.orange,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                setSheetState(() => isSaving = false);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                                  );
+                                }
+                              }
+                            },
+                      child: isSaving
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Text('Confirm Loan Rejection', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _handleReapplyLoan() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Re-Apply Loan?'),
+        content: Text('This will increment re-apply count to ${_record.loanReapplyCount + 1} and reset Loan Sub-Stage to "Loan Applied". History will be preserved.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Re-Apply Loan')),
+        ],
+      ),
+    );
+
+    if (confirmed == true && _record.id != null && mounted) {
+      try {
+        final updated = await MobileRecordService.reapplyLoan(currentRecord: _record);
+        if (mounted) {
+          setState(() {
+            _record = updated;
+            _hasChanged = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Loan Re-Applied! Attempt #${updated.loanReapplyCount} created.'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to re-apply: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   void _showWorkflowUpdateSheet() {
     showModalBottomSheet(
       context: context,
@@ -228,10 +398,37 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: _buildSheetDropdown(
-                              label: 'Loan Status',
-                              value: selectedLoanStatus,
-                              items: const ['Pending', 'Applied', 'Under Process', 'Approved', 'Rejected'],
-                              onChanged: (val) => setSheetState(() => selectedLoanStatus = val!),
+                              label: 'Loan Sub-Stage',
+                              value: _safeValue(selectedLoanStatus, const [
+                                'Loan Applied',
+                                'Loan File Ready',
+                                'File at Bank',
+                                'Loan Rejected',
+                                'Correction Required',
+                                'Re-Apply Loan',
+                                'Loan Approved',
+                                '1st Installment',
+                                '2nd Installment',
+                              ]),
+                              items: const [
+                                'Loan Applied',
+                                'Loan File Ready',
+                                'File at Bank',
+                                'Loan Rejected',
+                                'Correction Required',
+                                'Re-Apply Loan',
+                                'Loan Approved',
+                                '1st Installment',
+                                '2nd Installment',
+                              ],
+                              onChanged: (val) {
+                                if (val == 'Loan Rejected') {
+                                  Navigator.of(ctx).pop();
+                                  _showMarkLoanRejectedSheet();
+                                } else {
+                                  setSheetState(() => selectedLoanStatus = val!);
+                                }
+                              },
                               enabled: stageStates[WorkflowStage.loan]!.isUnlocked,
                               lockReason: stageStates[WorkflowStage.loan]!.lockReason,
                             ),
@@ -595,6 +792,134 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                 ),
               ),
 
+              if (_record.loanRequired.toLowerCase() == 'yes') ...[
+                const SizedBox(height: 16),
+                Card(
+                  elevation: 1,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Loan Workflow & History', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            Chip(
+                              label: Text('Re-Apply Count: ${_record.loanReapplyCount}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                              backgroundColor: Colors.blue.shade50,
+                              side: BorderSide(color: Colors.blue.shade200),
+                              padding: EdgeInsets.zero,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Sub-Stage: ${_record.loanSubStage}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E40AF))),
+                        const Divider(height: 20),
+
+                        // Rejection Details if present
+                        if (_record.rejectionReason != null && _record.rejectionReason!.isNotEmpty) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFFCA5A5)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 18),
+                                    SizedBox(width: 6),
+                                    Text('Bank Rejection Details', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFDC2626))),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text('Reason: ${_record.rejectionReason}', style: const TextStyle(fontSize: 13)),
+                                if (_record.bankRemarks != null) Text('Remarks: ${_record.bankRemarks}', style: const TextStyle(fontSize: 13)),
+                                if (_record.correctionRequired != null) Text('Correction: ${_record.correctionRequired}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF991B1B))),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+
+                        // Action Buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: _isSaving ? null : _handleReapplyLoan,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2563EB),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                icon: const Icon(Icons.replay_rounded, size: 18),
+                                label: const Text('RE-APPLY LOAN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _isSaving ? null : _showMarkLoanRejectedSheet,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFDC2626),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                icon: const Icon(Icons.gavel_rounded, size: 18),
+                                label: const Text('Mark Rejected', style: TextStyle(fontSize: 13)),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // Attempt History
+                        if (_record.loanAttempts.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          const Text('Loan Attempt History:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const SizedBox(height: 8),
+                          ..._record.loanAttempts.map((attempt) {
+                            final num = attempt['attempt_number'] ?? 1;
+                            final date = attempt['reapply_date'] != null ? attempt['reapply_date'].toString().split('T')[0] : '—';
+                            final prevReason = attempt['previous_rejection_reason'] ?? 'Initial Application';
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text('Attempt #$num', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                      Text('Re-Applied: $date', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                    ],
+                                  ),
+                                  if (prevReason.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text('Prior Issue: $prevReason', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                                  ],
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 16),
 
               // Contact & Details Card
@@ -667,12 +992,43 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                             : 'Not Set',
                       ),
 
-                      // Application Days & Priority
+                      // Action Center Info
+                      _buildInfoRow(
+                        icon: Icons.bolt_outlined,
+                        label: 'Current Work Stage',
+                        value: _record.overallStage,
+                      ),
+                      _buildInfoRow(
+                        icon: Icons.info_outline,
+                        label: 'Current Status',
+                        value: _record.currentStatus,
+                      ),
+                      _buildInfoRow(
+                        icon: Icons.check_circle_outline,
+                        label: 'Action Required',
+                        value: _record.actionRequired,
+                      ),
+                      _buildInfoRow(
+                        icon: Icons.arrow_forward_outlined,
+                        label: 'Next Action',
+                        value: _record.nextAction,
+                      ),
                       _buildInfoRow(
                         icon: Icons.timer_outlined,
-                        label: 'Application Days & Priority',
-                        value: '${_record.applicationDays} days elapsed (${_record.priority})',
+                        label: 'Days in Stage',
+                        value: '${_record.daysInCurrentStage} Days',
                       ),
+                      _buildInfoRow(
+                        icon: Icons.calendar_today_outlined,
+                        label: 'Application Days',
+                        value: '${_record.applicationDays} Days elapsed',
+                      ),
+                      if (_record.assignedStaff != null || _record.installerTeam != null)
+                        _buildInfoRow(
+                          icon: Icons.person_outline,
+                          label: 'Assigned Staff',
+                          value: _record.assignedStaff ?? _record.installerTeam!,
+                        ),
 
                       // Address
                       _buildInfoRow(

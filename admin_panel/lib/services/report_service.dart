@@ -141,9 +141,15 @@ class ReportService {
         }
       }
 
-      // 6. Loan Status Filter
+      // 6. Loan Status & Sub-Stage Filter
       if (options.loanStatus != null && options.loanStatus!.isNotEmpty) {
         if (r.loanStatus.toLowerCase() != options.loanStatus!.toLowerCase()) {
+          return false;
+        }
+      }
+      if (options.loanSubStage != null && options.loanSubStage!.isNotEmpty) {
+        if (r.loanSubStage.toLowerCase() != options.loanSubStage!.toLowerCase() &&
+            r.loanStatus.toLowerCase() != options.loanSubStage!.toLowerCase()) {
           return false;
         }
       }
