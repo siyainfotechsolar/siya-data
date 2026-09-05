@@ -284,7 +284,7 @@
     <h1 class="app-title">Siya Solar Staff</h1>
     <p class="app-subtitle">Official Android Application for Staff & Field Operations</p>
     <div class="badges">
-      <span class="badge badge-version" id="versionBadge">Version 1.0.7</span>
+      <span class="badge badge-version" id="versionBadge">Version 1.0.9</span>
       <span class="badge badge-status">● Production Release</span>
     </div>
   </div>
@@ -292,7 +292,7 @@
   <!-- Download & Details Card -->
   <div class="release-card">
     <!-- Primary APK Download -->
-    <a href="./siya-solar-v1.0.8.apk" download="siya-solar-v1.0.8.apk" class="btn-download-primary" id="primaryDownloadBtn">
+    <a href="./siya-solar-v1.0.9.apk" download="siya-solar-v1.0.9.apk" class="btn-download-primary" id="primaryDownloadBtn">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
@@ -317,7 +317,7 @@
     <div class="meta-grid">
       <div class="meta-box">
         <div class="meta-label">Version</div>
-        <div class="meta-value" id="metaVersion">1.0.8 (Build 9)</div>
+        <div class="meta-value" id="metaVersion">1.0.9 (Build 10)</div>
       </div>
       <div class="meta-box">
         <div class="meta-label">Release Date</div>
@@ -336,14 +336,14 @@
     <!-- What's New -->
     <div class="changelog-section">
       <div class="changelog-title">
-        <span>✨</span> Highlights in v1.0.8
+        <span>✨</span> Highlights in v1.0.9
       </div>
       <ul class="changelog-list" id="changelogList">
-        <li>Smart Action Center replacing legacy priority list with 6 operational work stages</li>
-        <li>Smart Loan Re-Apply Workflow with 9 bank sub-stages and complete rejection loop</li>
-        <li>Days in Stage and Application Days duration tracking with Next Action guidance</li>
-        <li>Tap-to-copy Consumer Number functionality across mobile app screens</li>
-        <li>Realtime WebSocket state sync for live updates between Admin Panel & Mobile App</li>
+        <li>10-Stage Sequential Loan Workflow (Loan Applied to Loan Completed)</li>
+        <li>Strict Installation Lock until Loan is marked "Loan Completed" (or Loan Required = No)</li>
+        <li>Clean Active Stage UI: Resolved premature "Skipped" lock label display on Mobile</li>
+        <li>Smart Action Center with automatic stage transitions and Next Action guidance</li>
+        <li>Realtime WebSocket synchronization across Admin Panel & Mobile App</li>
       </ul>
     </div>
 
@@ -361,15 +361,15 @@
 
   <script>
     const REPO = 'siyainfotechsolar/siya-data';
-    const DIRECT_APK = './siya-solar-v1.0.8.apk';
-    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.8.apk`;
+    const DIRECT_APK = './siya-solar-v1.0.9.apk';
+    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.9.apk`;
 
     const primaryBtn = document.getElementById('primaryDownloadBtn');
     const btnText = document.getElementById('btnText');
 
     // Default immediate direct link
     primaryBtn.href = DIRECT_APK;
-    primaryBtn.setAttribute('download', 'siya-solar-v1.0.8.apk');
+    primaryBtn.setAttribute('download', 'siya-solar-v1.0.9.apk');
 
     // Ensure fallback to raw GitHub if relative link is blocked
     primaryBtn.addEventListener('error', () => {

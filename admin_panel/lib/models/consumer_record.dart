@@ -125,7 +125,13 @@ class ConsumerRecord {
   final DateTime? subsidyApprovedDate;
   final DateTime? subsidyReceivedDate;
 
-  final String customerWorkState; // 'ACTIVE', 'COMPLETED'
+  final String customerWorkState; // 'ACTIVE', 'NO_ACTION_REQUIRED', 'COMPLETED'
+  final String? noActionReason;
+  final DateTime? noActionDate;
+  final String? noActionBy;
+  final String? noActionByName;
+  final String? holdReason;
+  final DateTime? holdDate;
   final String? assignedStaff;
 
   ConsumerRecord({
@@ -145,6 +151,12 @@ class ConsumerRecord {
     this.deletedAt,
     this.deletedBy,
     this.customerWorkState = 'ACTIVE',
+    this.noActionReason,
+    this.noActionDate,
+    this.noActionBy,
+    this.noActionByName,
+    this.holdReason,
+    this.holdDate,
     this.assignedStaff,
     // Smart Merge
     this.isMerged = false,
@@ -229,9 +241,14 @@ class ConsumerRecord {
     return sDate.isAfter(todayDate);
   }
 
+  /// State helpers for 3 operational states
+  bool get isNoActionRequired => customerWorkState.toUpperCase() == 'NO_ACTION_REQUIRED';
+  bool get isCompletedState => customerWorkState.toUpperCase() == 'COMPLETED';
+  bool get isActiveWorkState => customerWorkState.toUpperCase() == 'ACTIVE';
+
   /// Dynamic priority level derived from Workflow Stage/Status first, Application Days second
   PriorityLevel get priorityLevel {
-    if (customerWorkState.toUpperCase() == 'COMPLETED' || WorkflowEngine.isWorkCompleted(this) || overallStage == 'Completed') {
+    if (isCompletedState || isNoActionRequired || WorkflowEngine.isWorkCompleted(this) || overallStage == 'Completed') {
       return PriorityLevel.none;
     }
     final subSt = subsidyStatus.trim().toLowerCase();
@@ -245,7 +262,7 @@ class ConsumerRecord {
 
   /// Priority string label ('None', 'Processing', 'CRITICAL', 'HIGH', 'MEDIUM', 'NORMAL')
   String get priority {
-    if (customerWorkState.toUpperCase() == 'COMPLETED' || priorityLevel == PriorityLevel.none) return 'None';
+    if (isCompletedState || isNoActionRequired || priorityLevel == PriorityLevel.none) return 'None';
     if (priorityLevel == PriorityLevel.processing) return 'Processing';
     return priorityLevel.label;
   }
@@ -253,7 +270,7 @@ class ConsumerRecord {
   /// Returns true if record requires active operational work (excluding Completed, Subsidy Received, Cancelled, and Merged records)
   bool get isActiveApplication {
     if (deleted || isMerged) return false;
-    if (customerWorkState.toUpperCase() == 'COMPLETED' || WorkflowEngine.isWorkCompleted(this) || overallStage == 'Completed') return false;
+    if (isCompletedState || isNoActionRequired || WorkflowEngine.isWorkCompleted(this) || overallStage == 'Completed') return false;
     final st = status.trim().toLowerCase();
     final appSt = applicationStatus.trim().toLowerCase();
     final subSt = subsidyStatus.trim().toLowerCase();
@@ -345,6 +362,16 @@ class ConsumerRecord {
       subsidyApprovedDate: json['subsidy_approved_date'] != null ? DateTime.tryParse(json['subsidy_approved_date']) : null,
       subsidyReceivedDate: json['subsidy_received_date'] != null ? DateTime.tryParse(json['subsidy_received_date']) : null,
       customerWorkState: json['customer_work_state'] as String? ?? 'ACTIVE',
+      noActionReason: json['no_action_reason'] as String? ?? json['hold_reason'] as String?,
+      noActionDate: json['no_action_date'] != null
+          ? DateTime.tryParse(json['no_action_date'])
+          : (json['hold_date'] != null ? DateTime.tryParse(json['hold_date']) : null),
+      noActionBy: json['no_action_by'] as String?,
+      noActionByName: json['no_action_by_name'] as String?,
+      holdReason: json['hold_reason'] as String? ?? json['no_action_reason'] as String?,
+      holdDate: json['hold_date'] != null
+          ? DateTime.tryParse(json['hold_date'])
+          : (json['no_action_date'] != null ? DateTime.tryParse(json['no_action_date']) : null),
       assignedStaff: json['assigned_staff'] as String? ?? json['installer_team'] as String?,
     );
   }
@@ -360,6 +387,10 @@ class ConsumerRecord {
       'remarks': remarks?.trim(),
       'deleted': deleted,
       'customer_work_state': customerWorkState,
+      'no_action_reason': noActionReason?.trim(),
+      'no_action_by': noActionBy?.trim(),
+      'no_action_by_name': noActionByName?.trim(),
+      'hold_reason': (holdReason ?? noActionReason)?.trim(),
       'assigned_staff': assignedStaff?.trim(),
       'application_status': applicationStatus,
       'agreement_required': agreementRequired,
@@ -394,6 +425,13 @@ class ConsumerRecord {
     if (subsidyAppliedDate != null) map['subsidy_applied_date'] = subsidyAppliedDate!.toUtc().toIso8601String();
     if (subsidyApprovedDate != null) map['subsidy_approved_date'] = subsidyApprovedDate!.toUtc().toIso8601String();
     if (subsidyReceivedDate != null) map['subsidy_received_date'] = subsidyReceivedDate!.toUtc().toIso8601String();
+    if (noActionDate != null) {
+      map['no_action_date'] = noActionDate!.toUtc().toIso8601String();
+      map['hold_date'] = noActionDate!.toUtc().toIso8601String();
+    } else if (holdDate != null) {
+      map['no_action_date'] = holdDate!.toUtc().toIso8601String();
+      map['hold_date'] = holdDate!.toUtc().toIso8601String();
+    }
 
     map['is_merged'] = isMerged;
     if (mergedIntoId != null) map['merged_into_id'] = mergedIntoId;
@@ -424,6 +462,13 @@ class ConsumerRecord {
     String? deletedBy,
     bool clearDeletedMetadata = false,
     String? customerWorkState,
+    String? noActionReason,
+    DateTime? noActionDate,
+    String? noActionBy,
+    String? noActionByName,
+    String? holdReason,
+    DateTime? holdDate,
+    bool clearNoAction = false,
     String? assignedStaff,
     bool? isMerged,
     String? mergedIntoId,
@@ -478,6 +523,12 @@ class ConsumerRecord {
       deletedAt: clearDeletedMetadata ? null : (deletedAt ?? this.deletedAt),
       deletedBy: clearDeletedMetadata ? null : (deletedBy ?? this.deletedBy),
       customerWorkState: customerWorkState ?? this.customerWorkState,
+      noActionReason: clearNoAction ? null : (noActionReason ?? this.noActionReason),
+      noActionDate: clearNoAction ? null : (noActionDate ?? this.noActionDate),
+      noActionBy: clearNoAction ? null : (noActionBy ?? this.noActionBy),
+      noActionByName: clearNoAction ? null : (noActionByName ?? this.noActionByName),
+      holdReason: clearNoAction ? null : (holdReason ?? this.holdReason),
+      holdDate: clearNoAction ? null : (holdDate ?? this.holdDate),
       assignedStaff: assignedStaff ?? this.assignedStaff,
       isMerged: isMerged ?? this.isMerged,
       mergedIntoId: mergedIntoId ?? this.mergedIntoId,
