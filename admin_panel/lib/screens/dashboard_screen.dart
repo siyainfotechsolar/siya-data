@@ -12,6 +12,7 @@ import 'users_screen.dart';
 import 'priority_list_screen.dart';
 import 'duplicate_finder_screen.dart';
 import 'reports_screen.dart';
+import 'leads_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -31,6 +32,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final List<_NavDestination> _destinations = [
     _NavDestination('Dashboard', Icons.dashboard_outlined, Icons.dashboard),
     _NavDestination('Action Center', Icons.bolt_outlined, Icons.bolt),
+    _NavDestination('Leads', Icons.leaderboard_outlined, Icons.leaderboard),
     _NavDestination('Duplicate Finder', Icons.find_in_page_outlined, Icons.find_in_page),
     _NavDestination('Records', Icons.table_chart_outlined, Icons.table_chart),
     _NavDestination('Import Data', Icons.upload_file_outlined, Icons.upload_file),
@@ -180,23 +182,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           initialPriorityFilter: _selectedPriorityFilter,
         );
       case 2:
-        return const DuplicateFinderScreen();
+        return const LeadsScreen();
       case 3:
+        return const DuplicateFinderScreen();
+      case 4:
         return RecordsScreen(
           key: ValueKey(_selectedQueueFilter),
           initialWorkflowQueue: _selectedQueueFilter,
         );
-      case 4:
-        return _buildImportLandingView();
       case 5:
-        return const HistoryScreen();
+        return _buildImportLandingView();
       case 6:
-        return const RecycleBinScreen();
+        return const HistoryScreen();
       case 7:
-        return const UsersScreen();
+        return const RecycleBinScreen();
       case 8:
-        return const ReportsScreen();
+        return const UsersScreen();
       case 9:
+        return const ReportsScreen();
+      case 10:
         return _buildPlaceholderView('Settings', 'System Configuration');
       default:
         return _buildDashboardView();
@@ -312,6 +316,56 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Colors.purple,
               ),
             ],
+          ),
+          const SizedBox(height: 24),
+
+          // PROSPECTIVE LEADS SECTION
+          Card(
+            elevation: 0,
+            color: const Color(0xFFEFF6FF), // Soft sky blue
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: Color(0xFFBFDBFE)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: const Color(0xFF2563EB),
+                    child: const Icon(Icons.leaderboard_rounded, color: Colors.white),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'PROSPECTIVE LEADS & INQUIRIES',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Color(0xFF1E3A8A),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Manage pre-conversion customer inquiries, track follow-ups, and convert leads into applications.',
+                          style: TextStyle(fontSize: 12, color: Colors.blue.shade900.withValues(alpha: 0.8)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                    label: const Text('Go to Leads'),
+                    onPressed: () => setState(() => _selectedIndex = 2),
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 28),
 

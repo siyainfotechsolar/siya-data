@@ -35,7 +35,7 @@ class LeadService {
     String? scopeFilter, // 'all', 'today', 'overdue', 'upcoming'
   }) async {
     try {
-      var query = _client.from('leads').select().eq('deleted', false);
+      dynamic query = _client.from('leads').select().eq('deleted', false);
 
       if (statusFilter != null && statusFilter != 'All') {
         query = query.eq('lead_status', statusFilter);

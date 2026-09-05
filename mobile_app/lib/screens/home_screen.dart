@@ -9,6 +9,7 @@ import 'profile_screen.dart';
 import 'priority_screen.dart';
 import '../services/record_service.dart';
 import '../services/realtime_service.dart';
+import 'leads_screen.dart';
 
 class MobileHomeScreen extends StatefulWidget {
   const MobileHomeScreen({super.key});
@@ -265,6 +266,60 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // LEADS & PROSPECTS PORTAL
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MobileLeadsScreen()),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Card(
+              elevation: 0,
+              color: const Color(0xFFEFF6FF), // Soft sky blue
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Color(0xFFBFDBFE)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14.0),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: const Color(0xFF2563EB),
+                      child: const Icon(Icons.leaderboard_rounded, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'LEADS & PROSPECTS',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Color(0xFF1E3A8A),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Pre-application customer inquiries, follow-ups & conversion',
+                            style: TextStyle(fontSize: 11, color: Colors.blue.shade900.withValues(alpha: 0.8)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Color(0xFF2563EB)),
+                  ],
+                ),
               ),
             ),
           ),

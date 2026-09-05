@@ -115,6 +115,13 @@ For internal testing and GitHub release distribution, standard release signing i
 
 ## 📌 Release History
 
+### Release v1.0.10 (Build 11) - 2026-09-05
+- **Lead Management Module**: Full prospect management before customer application workflow with smart next action guidance, follow-up scheduling, and conversion with duplicate safety checking.
+- **Hold / No Action Required State**: Distinct non-destructive hold queue with reason tracking, separated from completed applications, with instant reopen workflow.
+- **Direct Calling & WhatsApp**: Fast communication buttons integrated into Mobile Lead and Customer views.
+- **10-Stage Sequential Loan Flow**: Strict installation locking until loan is marked completed or loan is marked not required.
+- **WebSocket Realtime Synchronization**: Live updates across Admin Web and Mobile App.
+
 ### Release v1.0.5 (Build 6) - 2026-09-04
 - **New Admin Reports Dashboard**: Comprehensive executive reporting screen with global filter bar, removable chips, 8 executive summary cards, 6-stage workflow breakdown, priority metrics, stage-wise status pending table, and custom column visibility grid.
 - **Export Engines**: Added Excel (`.xlsx`), CSV (`.csv`), and PDF (`.pdf`) report exporters with executive header, filters summary, and table layout.

@@ -26,7 +26,7 @@ class MobileLeadService {
     String? searchQuery,
   }) async {
     try {
-      var query = _client.from('leads').select().eq('deleted', false);
+      dynamic query = _client.from('leads').select().eq('deleted', false);
 
       final user = _client.auth.currentUser;
 
