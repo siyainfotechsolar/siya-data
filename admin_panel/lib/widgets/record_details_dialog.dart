@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
 import '../services/workflow_engine.dart';
+import 'no_action_reason_dialog.dart';
 
 class RecordDetailsDialog extends StatefulWidget {
   final ConsumerRecord record;
@@ -432,6 +433,40 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     }
   }
 
+  Future<void> _handleMarkAsNoActionRequired() async {
+    final result = await NoActionReasonDialog.show(context, customerName: _record.name);
+    if (result != null && _record.id != null && mounted) {
+      setState(() => _isSaving = true);
+      try {
+        final updated = await RecordService.markCustomerAsNoActionRequired(
+          recordId: _record.id!,
+          reason: result['reason'] ?? 'Hold',
+          freeTextDetails: result['details'],
+        );
+        if (mounted) {
+          setState(() {
+            _record = updated;
+            _isSaving = false;
+          });
+          widget.onRecordUpdated?.call();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Customer marked as No Action Required (Hold)! Removed from active queues.'),
+              backgroundColor: Color(0xFFD97706),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update state: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _handleReopen() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -540,6 +575,40 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (_record.isNoActionRequired)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFF59E0B)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.pause_circle_filled, color: Color(0xFFD97706), size: 24),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'WORK STATE: NO ACTION REQUIRED (HOLD)',
+                                    style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF92400E), fontSize: 13),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Reason: ${_record.noActionReason ?? _record.holdReason ?? "Hold"}' +
+                                        (_record.noActionByName != null ? ' • By: ${_record.noActionByName}' : '') +
+                                        (_record.noActionDate != null ? ' • Date: ${_formatDate(_record.noActionDate)}' : ''),
+                                    style: const TextStyle(color: Color(0xFFB45309), fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     // Visual Workflow Timeline Tracker
                     _buildVisualTimeline(),
                     const SizedBox(height: 20),
@@ -1001,18 +1070,32 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (_record.customerWorkState.toUpperCase() == 'COMPLETED')
+                if (_record.customerWorkState.toUpperCase() == 'COMPLETED' || _record.isNoActionRequired)
                   OutlinedButton.icon(
                     onPressed: _isSaving ? null : _handleReopen,
                     icon: const Icon(Icons.refresh, size: 18),
                     label: const Text('Reopen Customer'),
                   )
                 else
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
-                    onPressed: _isSaving ? null : _handleMarkAsComplete,
-                    icon: const Icon(Icons.check_circle_outline, size: 18),
-                    label: const Text('Mark as Complete'),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFD97706),
+                          side: const BorderSide(color: Color(0xFFD97706)),
+                        ),
+                        onPressed: _isSaving ? null : _handleMarkAsNoActionRequired,
+                        icon: const Icon(Icons.pause_circle_outline, size: 18),
+                        label: const Text('Mark as No Action Required'),
+                      ),
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+                        onPressed: _isSaving ? null : _handleMarkAsComplete,
+                        icon: const Icon(Icons.check_circle_outline, size: 18),
+                        label: const Text('Mark as Complete'),
+                      ),
+                    ],
                   ),
                 FilledButton(
                   onPressed: () => Navigator.of(context).pop(),

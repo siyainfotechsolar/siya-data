@@ -40,6 +40,7 @@ class DashboardMetrics {
   final int rtsPendingCount;
   final int subsidyPendingCount;
   final int completedCount;
+  final int noActionCount;
 
   // Today's Work Counts
   int get loanFollowupsCount => loanPendingCount;
@@ -61,6 +62,7 @@ class DashboardMetrics {
     this.rtsPendingCount = 0,
     this.subsidyPendingCount = 0,
     this.completedCount = 0,
+    this.noActionCount = 0,
   });
 }
 
@@ -125,10 +127,13 @@ class RecordService {
       if (workQueueScope == 'Active') {
         filterBuilder = filterBuilder
             .neq('customer_work_state', 'COMPLETED')
+            .neq('customer_work_state', 'NO_ACTION_REQUIRED')
             .neq('subsidy_status', 'Received')
             .neq('status', 'Completed');
       } else if (workQueueScope == 'Completed') {
         filterBuilder = filterBuilder.or('customer_work_state.eq.COMPLETED,subsidy_status.ilike.Received,status.ilike.Completed');
+      } else if (workQueueScope == 'No Action Required' || workQueueScope == 'Hold' || workQueueScope == 'No Action') {
+        filterBuilder = filterBuilder.eq('customer_work_state', 'NO_ACTION_REQUIRED');
       } else if (workQueueScope == 'Old Applications') {
         final sixtyDaysAgo = DateTime.now().subtract(const Duration(days: 60)).toIso8601String();
         filterBuilder = filterBuilder.lte('submit_date', sixtyDaysAgo);
@@ -142,23 +147,45 @@ class RecordService {
       if (workflowQueueFilter != null && workflowQueueFilter.isNotEmpty && workflowQueueFilter != 'All') {
         switch (workflowQueueFilter) {
           case 'Agreement Pending':
-            filterBuilder = filterBuilder.eq('agreement_status', 'Pending');
+            filterBuilder = filterBuilder
+                .neq('customer_work_state', 'NO_ACTION_REQUIRED')
+                .neq('customer_work_state', 'COMPLETED')
+                .eq('agreement_status', 'Pending');
             break;
           case 'Loan Pending':
-            filterBuilder = filterBuilder.eq('loan_required', 'Yes').neq('loan_status', 'Approved');
+            filterBuilder = filterBuilder
+                .neq('customer_work_state', 'NO_ACTION_REQUIRED')
+                .neq('customer_work_state', 'COMPLETED')
+                .eq('loan_required', 'Yes')
+                .neq('loan_status', 'Approved');
             break;
           case 'Installation Pending':
-            filterBuilder = filterBuilder.neq('installation_status', 'Installation Completed');
+            filterBuilder = filterBuilder
+                .neq('customer_work_state', 'NO_ACTION_REQUIRED')
+                .neq('customer_work_state', 'COMPLETED')
+                .neq('installation_status', 'Installation Completed');
             break;
           case 'RTS Pending':
-            filterBuilder = filterBuilder.eq('installation_status', 'Installation Completed').neq('rts_status', 'Completed');
+            filterBuilder = filterBuilder
+                .neq('customer_work_state', 'NO_ACTION_REQUIRED')
+                .neq('customer_work_state', 'COMPLETED')
+                .eq('installation_status', 'Installation Completed')
+                .neq('rts_status', 'Completed');
             break;
           case 'Subsidy Pending':
           case 'Subsidy Processing':
-            filterBuilder = filterBuilder.eq('rts_status', 'Completed').neq('subsidy_status', 'Received');
+            filterBuilder = filterBuilder
+                .neq('customer_work_state', 'NO_ACTION_REQUIRED')
+                .neq('customer_work_state', 'COMPLETED')
+                .eq('rts_status', 'Completed')
+                .neq('subsidy_status', 'Received');
+            break;
+          case 'No Action Required':
+          case 'Hold':
+            filterBuilder = filterBuilder.eq('customer_work_state', 'NO_ACTION_REQUIRED');
             break;
           case 'Completed':
-            filterBuilder = filterBuilder.or('subsidy_status.ilike.Received,status.ilike.Completed');
+            filterBuilder = filterBuilder.or('customer_work_state.eq.COMPLETED,subsidy_status.ilike.Received,status.ilike.Completed');
             break;
         }
       }
@@ -668,6 +695,7 @@ class RecordService {
       int rtsPending = 0;
       int subsidyPending = 0;
       int completedCount = 0;
+      int noActionCount = 0;
 
       try {
         final allRes = await _client
@@ -681,6 +709,8 @@ class RecordService {
           final stage = WorkflowEngine.getCurrentWorkStage(rec);
           if (rec.customerWorkState.toUpperCase() == 'COMPLETED' || stage == 'Completed') {
             completedCount++;
+          } else if (rec.customerWorkState.toUpperCase() == 'NO_ACTION_REQUIRED') {
+            noActionCount++;
           } else {
             switch (stage) {
               case 'Agreement':
@@ -736,6 +766,7 @@ class RecordService {
         rtsPendingCount: rtsPending,
         subsidyPendingCount: subsidyPending,
         completedCount: completedCount,
+        noActionCount: noActionCount,
       );
     } catch (_) {
       return DashboardMetrics(
@@ -796,18 +827,23 @@ class RecordService {
       if (stageFilter != null && stageFilter.isNotEmpty && stageFilter.toUpperCase() != 'ALL') {
         final sf = stageFilter.trim().toLowerCase();
         if (sf.contains('agreement')) {
-          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Agreement').toList();
+          records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage == 'Agreement').toList();
         } else if (sf.contains('loan')) {
-          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Loan').toList();
+          records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage == 'Loan').toList();
         } else if (sf.contains('installation')) {
-          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Installation').toList();
+          records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage == 'Installation').toList();
         } else if (sf.contains('rts')) {
-          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'RTS').toList();
+          records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage == 'RTS').toList();
         } else if (sf.contains('subsidy')) {
-          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Subsidy').toList();
+          records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage == 'Subsidy').toList();
         } else if (sf.contains('completed')) {
-          records = records.where((r) => r.customerWorkState.toUpperCase() == 'COMPLETED' || r.overallStage == 'Completed').toList();
+          records = records.where((r) => r.isCompletedState || r.overallStage == 'Completed').toList();
+        } else if (sf.contains('hold') || sf.contains('no action') || sf.contains('no_action')) {
+          records = records.where((r) => r.isNoActionRequired).toList();
         }
+      } else {
+        // By default, Action Center shows only active actionable records (excludes Completed & No Action Required)
+        records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage != 'Completed').toList();
       }
 
       // Sort Action Center: 1) Days in Stage DESC, 2) Application Days DESC, 3) Application Date ASC
@@ -886,15 +922,41 @@ class RecordService {
     return updated;
   }
 
-  /// Reopen customer work state back to ACTIVE (returns to priority list)
-  static Future<ConsumerRecord> reopenCustomer(String recordId) async {
+  /// Mark customer work state as NO_ACTION_REQUIRED (Hold / Paused) with mandatory reason
+  static Future<ConsumerRecord> markCustomerAsNoActionRequired({
+    required String recordId,
+    required String reason,
+    String? freeTextDetails,
+  }) async {
     final user = SupabaseService.currentUser;
     final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    String previousState = 'ACTIVE';
+    String? consumerNo;
+    try {
+      final prev = await _client.from('consumer_records').select('customer_work_state, consumer_no').eq('id', recordId).maybeSingle();
+      if (prev != null) {
+        previousState = prev['customer_work_state'] as String? ?? 'ACTIVE';
+        consumerNo = prev['consumer_no'] as String?;
+      }
+    } catch (_) {}
+
+    final effectiveReason = (freeTextDetails != null && freeTextDetails.trim().isNotEmpty)
+        ? (reason.toLowerCase() == 'other' ? freeTextDetails.trim() : '$reason: ${freeTextDetails.trim()}')
+        : reason.trim();
+
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Admin';
 
     final response = await _client
         .from('consumer_records')
         .update({
-          'customer_work_state': 'ACTIVE',
+          'customer_work_state': 'NO_ACTION_REQUIRED',
+          'no_action_reason': effectiveReason,
+          'no_action_date': nowIso,
+          'no_action_by': user?.id,
+          'no_action_by_name': userName,
+          'hold_reason': effectiveReason,
+          'hold_date': nowIso,
           'updated_at': nowIso,
           'updated_by': user?.id,
         })
@@ -907,10 +969,62 @@ class RecordService {
     try {
       await _client.from('audit_logs').insert({
         'record_id': recordId,
-        'consumer_no': updated.consumerNo,
+        'consumer_no': consumerNo ?? updated.consumerNo,
+        'action': 'MARK_AS_NO_ACTION_REQUIRED',
+        'field_name': 'customer_work_state',
+        'old_value': previousState,
+        'new_value': 'NO_ACTION_REQUIRED',
+        'reason': effectiveReason,
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Reopen customer work state back to ACTIVE (returns to action center & priority list)
+  static Future<ConsumerRecord> reopenCustomer(String recordId) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    String previousState = 'NO_ACTION_REQUIRED';
+    String? consumerNo;
+    try {
+      final prev = await _client.from('consumer_records').select('customer_work_state, consumer_no').eq('id', recordId).maybeSingle();
+      if (prev != null) {
+        previousState = prev['customer_work_state'] as String? ?? 'NO_ACTION_REQUIRED';
+        consumerNo = prev['consumer_no'] as String?;
+      }
+    } catch (_) {}
+
+    final response = await _client
+        .from('consumer_records')
+        .update({
+          'customer_work_state': 'ACTIVE',
+          'no_action_reason': null,
+          'no_action_date': null,
+          'no_action_by': null,
+          'no_action_by_name': null,
+          'hold_reason': null,
+          'hold_date': null,
+          'updated_at': nowIso,
+          'updated_by': user?.id,
+        })
+        .eq('id', recordId)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': recordId,
+        'consumer_no': consumerNo ?? updated.consumerNo,
         'action': 'REOPEN_CUSTOMER',
         'field_name': 'customer_work_state',
-        'old_value': 'COMPLETED',
+        'old_value': previousState,
         'new_value': 'ACTIVE',
         'changed_by': user?.id,
         'source': 'Admin Web',

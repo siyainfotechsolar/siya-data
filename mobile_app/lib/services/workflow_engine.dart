@@ -143,7 +143,7 @@ class WorkflowEngine {
 
   /// Calculate intelligent Action Required step
   static String getActionRequired(ConsumerRecord record) {
-    if (isWorkCompleted(record)) {
+    if (record.customerWorkState.toUpperCase() == 'NO_ACTION_REQUIRED' || isWorkCompleted(record)) {
       return 'None';
     }
     final stage = getCurrentWorkStage(record);
@@ -186,7 +186,7 @@ class WorkflowEngine {
 
   /// Calculate useful Next Action instruction for staff
   static String getNextAction(ConsumerRecord record) {
-    if (isWorkCompleted(record)) {
+    if (record.customerWorkState.toUpperCase() == 'NO_ACTION_REQUIRED' || isWorkCompleted(record)) {
       return 'None';
     }
     final stage = getCurrentWorkStage(record);

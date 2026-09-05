@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
 import '../services/realtime_service.dart';
+import '../widgets/no_action_reason_dialog.dart';
 import 'record_detail_screen.dart';
 
 class ActionCenterScreen extends StatefulWidget {
@@ -134,6 +135,85 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
     }
   }
 
+  Future<void> _confirmMarkAsNoActionRequired(ConsumerRecord record) async {
+    final result = await NoActionReasonDialog.show(
+      context,
+      customerName: record.name,
+    );
+
+    if (result != null && record.id != null && mounted) {
+      try {
+        await MobileRecordService.markCustomerAsNoActionRequired(
+          recordId: record.id!,
+          reason: result['reason'] ?? 'Hold',
+          freeTextDetails: result['details'],
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Customer ${record.name} marked as Hold / No Action Required.'),
+              backgroundColor: const Color(0xFFD97706),
+            ),
+          );
+          _loadActionCenterData();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to mark as Hold: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmReopen(ConsumerRecord record) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.refresh, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Reopen Customer'),
+          ],
+        ),
+        content: Text('Reopen customer ${record.name} and return to active work queues?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reopen'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && record.id != null && mounted) {
+      try {
+        await MobileRecordService.reopenCustomer(record.id!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Customer ${record.name} reopened and returned to active workflow.'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+          _loadActionCenterData();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to reopen customer: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -214,6 +294,20 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                               count: _summary['subsidyProcessing'] ?? 0,
                               color: const Color(0xFF059669),
                               filterKey: 'Subsidy Processing',
+                            ),
+                            const SizedBox(width: 8),
+                            _buildSummaryBox(
+                              title: 'Hold',
+                              count: _summary['noAction'] ?? 0,
+                              color: const Color(0xFFD97706),
+                              filterKey: 'Hold',
+                            ),
+                            const SizedBox(width: 8),
+                            _buildSummaryBox(
+                              title: 'Completed',
+                              count: _summary['completed'] ?? 0,
+                              color: Colors.grey.shade700,
+                              filterKey: 'Completed',
                             ),
                           ],
                         ),
@@ -336,6 +430,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
   Widget _buildMobileCustomerCard(ConsumerRecord record) {
     final theme = Theme.of(context);
     final isCompleted = record.customerWorkState.toUpperCase() == 'COMPLETED' || record.overallStage == 'Completed';
+    final isHold = record.isNoActionRequired;
 
     return Card(
       elevation: 2,
@@ -359,11 +454,33 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                     ),
                   ),
                 ),
-                if (!isCompleted)
-                  IconButton(
-                    icon: const Icon(Icons.check_circle_outline, color: Color(0xFF059669)),
-                    tooltip: 'Mark as Complete',
-                    onPressed: () => _confirmMarkAsComplete(record),
+                if (isHold)
+                  OutlinedButton.icon(
+                    onPressed: () => _confirmReopen(record),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF2563EB),
+                      side: const BorderSide(color: Color(0xFF2563EB)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    icon: const Icon(Icons.refresh, size: 14),
+                    label: const Text('Reopen', style: TextStyle(fontSize: 12)),
+                  )
+                else if (!isCompleted)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.pause_circle_outline, color: Color(0xFFD97706)),
+                        tooltip: 'Mark as Hold',
+                        onPressed: () => _confirmMarkAsNoActionRequired(record),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.check_circle_outline, color: Color(0xFF059669)),
+                        tooltip: 'Mark as Complete',
+                        onPressed: () => _confirmMarkAsComplete(record),
+                      ),
+                    ],
                   ),
               ],
             ),
@@ -371,6 +488,34 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
               Text(
                 'Consumer No: ${record.consumerNo}',
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            if (isHold)
+              Container(
+                margin: const EdgeInsets.only(top: 8, bottom: 4),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFF59E0B)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.pause_circle_filled, size: 16, color: Color(0xFFD97706)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        (record.noActionReason != null && record.noActionReason!.isNotEmpty)
+                            ? 'HOLD: ${record.noActionReason}'
+                            : 'WORK STATE: HOLD (NO ACTION REQUIRED)',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF92400E),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             const Divider(height: 16),
 

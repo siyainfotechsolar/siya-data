@@ -6,6 +6,7 @@ import '../services/record_service.dart';
 import '../services/realtime_service.dart';
 import '../widgets/record_details_dialog.dart';
 import '../widgets/record_form_dialog.dart';
+import '../widgets/no_action_reason_dialog.dart';
 
 class ActionCenterScreen extends StatefulWidget {
   final String? initialStageFilter;
@@ -172,6 +173,34 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
     }
   }
 
+  Future<void> _confirmMarkAsNoActionRequired(ConsumerRecord record) async {
+    final result = await NoActionReasonDialog.show(context, customerName: record.name);
+    if (result != null && record.id != null && mounted) {
+      try {
+        await RecordService.markCustomerAsNoActionRequired(
+          recordId: record.id!,
+          reason: result['reason'] ?? 'Hold',
+          freeTextDetails: result['details'],
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Customer ${record.name} marked as No Action Required (Hold).'),
+              backgroundColor: const Color(0xFFD97706),
+            ),
+          );
+          _loadActionCenterRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update work state: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _confirmReopen(ConsumerRecord record) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -302,6 +331,12 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                 icon: Icons.currency_rupee_rounded,
               ),
               _buildStageFilterCard(
+                title: 'Hold / No Action',
+                stageCode: 'Hold',
+                color: const Color(0xFFD97706),
+                icon: Icons.pause_circle_filled_rounded,
+              ),
+              _buildStageFilterCard(
                 title: 'Completed',
                 stageCode: 'Completed',
                 color: Colors.grey.shade700,
@@ -353,12 +388,13 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                       child: DropdownButton<String>(
                         value: _selectedStageFilter,
                         items: const [
-                          DropdownMenuItem(value: 'ALL', child: Text('Work Stage: All Stages')),
+                          DropdownMenuItem(value: 'ALL', child: Text('Work Stage: All Active Stages')),
                           DropdownMenuItem(value: 'Agreement Pending', child: Text('Agreement Pending')),
                           DropdownMenuItem(value: 'Loan Pending', child: Text('Loan Pending')),
                           DropdownMenuItem(value: 'Installation Pending', child: Text('Installation Pending')),
                           DropdownMenuItem(value: 'RTS Pending', child: Text('RTS Pending')),
                           DropdownMenuItem(value: 'Subsidy Processing', child: Text('Subsidy Processing')),
+                          DropdownMenuItem(value: 'Hold', child: Text('Hold / No Action Required')),
                           DropdownMenuItem(value: 'Completed', child: Text('Completed')),
                         ],
                         onChanged: (val) {
@@ -472,6 +508,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                       ],
                                       rows: _records.map((r) {
                                         final isCompleted = r.customerWorkState.toUpperCase() == 'COMPLETED' || r.overallStage == 'Completed';
+                                        final isNoAction = r.isNoActionRequired;
 
                                         return DataRow(
                                           cells: [
@@ -525,24 +562,30 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                               ),
                                             ),
                                             // Current Work Stage
-                                            DataCell(_buildStageBadge(r.overallStage)),
+                                            DataCell(_buildStageBadge(r.overallStage, isNoAction: isNoAction, holdReason: r.noActionReason ?? r.holdReason)),
                                             // Current Status
-                                            DataCell(Text(r.currentStatus, style: const TextStyle(fontSize: 13))),
+                                            DataCell(Text(isNoAction ? 'Hold' : r.currentStatus, style: const TextStyle(fontSize: 13))),
                                             // Action Required
                                             DataCell(
                                               Container(
                                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                                 decoration: BoxDecoration(
-                                                  color: isCompleted ? Colors.grey.shade200 : const Color(0xFFEFF6FF),
+                                                  color: isNoAction
+                                                      ? const Color(0xFFFFFBEB)
+                                                      : (isCompleted ? Colors.grey.shade200 : const Color(0xFFEFF6FF)),
                                                   borderRadius: BorderRadius.circular(4),
                                                   border: Border.all(
-                                                    color: isCompleted ? Colors.grey.shade400 : const Color(0xFF93C5FD),
+                                                    color: isNoAction
+                                                        ? const Color(0xFFFDE68A)
+                                                        : (isCompleted ? Colors.grey.shade400 : const Color(0xFF93C5FD)),
                                                   ),
                                                 ),
                                                 child: Text(
-                                                  r.actionRequired,
+                                                  isNoAction ? 'None (Hold)' : r.actionRequired,
                                                   style: TextStyle(
-                                                    color: isCompleted ? Colors.grey.shade700 : const Color(0xFF1E40AF),
+                                                    color: isNoAction
+                                                        ? const Color(0xFFB45309)
+                                                        : (isCompleted ? Colors.grey.shade700 : const Color(0xFF1E40AF)),
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 12,
                                                   ),
@@ -552,10 +595,10 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                             // Next Action
                                             DataCell(
                                               Text(
-                                                r.nextAction,
+                                                isNoAction ? 'None' : r.nextAction,
                                                 style: TextStyle(
-                                                  fontWeight: isCompleted ? FontWeight.normal : FontWeight.w600,
-                                                  color: isCompleted ? Colors.grey.shade600 : Colors.black87,
+                                                  fontWeight: (isCompleted || isNoAction) ? FontWeight.normal : FontWeight.w600,
+                                                  color: (isCompleted || isNoAction) ? Colors.grey.shade600 : Colors.black87,
                                                 ),
                                               ),
                                             ),
@@ -564,9 +607,11 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                               Container(
                                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                                 decoration: BoxDecoration(
-                                                  color: r.daysInCurrentStage >= 15
-                                                      ? const Color(0xFFFEF2F2)
-                                                      : (r.daysInCurrentStage >= 8 ? const Color(0xFFFFFBEB) : const Color(0xFFF0FDF4)),
+                                                  color: isNoAction
+                                                      ? Colors.grey.shade100
+                                                      : (r.daysInCurrentStage >= 15
+                                                          ? const Color(0xFFFEF2F2)
+                                                          : (r.daysInCurrentStage >= 8 ? const Color(0xFFFFFBEB) : const Color(0xFFF0FDF4))),
                                                   borderRadius: BorderRadius.circular(4),
                                                 ),
                                                 child: Text(
@@ -574,9 +619,11 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                                   style: TextStyle(
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 12,
-                                                    color: r.daysInCurrentStage >= 15
-                                                        ? const Color(0xFFDC2626)
-                                                        : (r.daysInCurrentStage >= 8 ? const Color(0xFFD97706) : const Color(0xFF16A34A)),
+                                                    color: isNoAction
+                                                        ? Colors.grey.shade700
+                                                        : (r.daysInCurrentStage >= 15
+                                                            ? const Color(0xFFDC2626)
+                                                            : (r.daysInCurrentStage >= 8 ? const Color(0xFFD97706) : const Color(0xFF16A34A))),
                                                   ),
                                                 ),
                                               ),
@@ -587,18 +634,24 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                             DataCell(
                                               Row(
                                                 children: [
-                                                  if (!isCompleted)
+                                                  if (!isCompleted && !isNoAction) ...[
+                                                    IconButton(
+                                                      icon: const Icon(Icons.pause_circle_outline, size: 20, color: Color(0xFFD97706)),
+                                                      tooltip: 'Mark as No Action Required (Hold)',
+                                                      onPressed: () => _confirmMarkAsNoActionRequired(r),
+                                                    ),
                                                     IconButton(
                                                       icon: const Icon(Icons.check_circle_outline, size: 20, color: Color(0xFF059669)),
                                                       tooltip: 'Mark as Complete',
                                                       onPressed: () => _confirmMarkAsComplete(r),
-                                                    )
-                                                  else
+                                                    ),
+                                                  ] else ...[
                                                     IconButton(
                                                       icon: const Icon(Icons.replay_rounded, size: 20, color: Color(0xFF2563EB)),
-                                                      tooltip: 'Reopen Customer',
+                                                      tooltip: 'Reopen Customer (Return to Active)',
                                                       onPressed: () => _confirmReopen(r),
                                                     ),
+                                                  ],
                                                   IconButton(
                                                     icon: const Icon(Icons.visibility_outlined, size: 20),
                                                     tooltip: 'View Customer Details',
@@ -734,7 +787,32 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
     );
   }
 
-  Widget _buildStageBadge(String stage) {
+  Widget _buildStageBadge(String stage, {bool isNoAction = false, String? holdReason}) {
+    if (isNoAction) {
+      return Tooltip(
+        message: holdReason != null ? 'Hold Reason: $holdReason' : 'No Action Required (Hold)',
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEF3C7),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFFF59E0B)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.pause_circle_filled, color: Color(0xFFD97706), size: 14),
+              SizedBox(width: 4),
+              Text(
+                'HOLD',
+                style: TextStyle(color: Color(0xFF92400E), fontWeight: FontWeight.bold, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     Color bg;
     Color fg;
 

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
 import '../services/workflow_engine.dart';
+import '../widgets/no_action_reason_dialog.dart';
 
 class RecordDetailScreen extends StatefulWidget {
   final ConsumerRecord record;
@@ -74,6 +75,41 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Failed to mark complete: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _handleMarkAsNoAction() async {
+    final result = await NoActionReasonDialog.show(
+      context,
+      customerName: _record.name,
+    );
+
+    if (result != null && _record.id != null && mounted) {
+      try {
+        final updated = await MobileRecordService.markCustomerAsNoActionRequired(
+          recordId: _record.id!,
+          reason: result['reason'] ?? 'Hold',
+          freeTextDetails: result['details'],
+        );
+        if (mounted) {
+          setState(() {
+            _record = updated;
+            _hasChanged = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Customer marked as Hold / No Action Required.'),
+              backgroundColor: Color(0xFFD97706),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to mark as Hold: $e'), backgroundColor: Colors.red),
           );
         }
       }
@@ -665,6 +701,42 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Hold / No Action Banner
+              if (_record.isNoActionRequired)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFF59E0B)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.pause_circle_filled, color: Color(0xFFD97706), size: 24),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'WORK STATE: HOLD / NO ACTION REQUIRED',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF92400E), fontSize: 13),
+                            ),
+                            if (_record.noActionReason != null && _record.noActionReason!.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                'Reason: ${_record.noActionReason}',
+                                style: const TextStyle(color: Color(0xFF78350F), fontSize: 12),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               // Header Card
               Card(
                 elevation: 2,
@@ -1063,7 +1135,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                 label: const Text('Update Workflow Stage', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(height: 12),
-              if (_record.customerWorkState.toUpperCase() == 'COMPLETED')
+              if (_record.isCompletedState || _record.isNoActionRequired)
                 OutlinedButton.icon(
                   onPressed: _handleReopen,
                   style: OutlinedButton.styleFrom(
@@ -1073,17 +1145,38 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                   icon: const Icon(Icons.refresh, size: 20),
                   label: const Text('Reopen Customer', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                 )
-              else
-                FilledButton.icon(
-                  onPressed: _handleMarkAsComplete,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF059669),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  icon: const Icon(Icons.check_circle_outline, size: 20),
-                  label: const Text('Mark as Complete', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              else ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _handleMarkAsNoAction,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFD97706),
+                          side: const BorderSide(color: Color(0xFFD97706)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.pause_circle_outline, size: 20),
+                        label: const Text('Mark as Hold', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _handleMarkAsComplete,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF059669),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.check_circle_outline, size: 20),
+                        label: const Text('Mark Complete', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
                 ),
+              ],
             ],
           ),
         ),

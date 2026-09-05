@@ -542,6 +542,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                         value: _workQueueScope,
                         items: const [
                           DropdownMenuItem(value: 'Active', child: Text('⚡ Active Customers', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DropdownMenuItem(value: 'No Action Required', child: Text('⏸️ Hold / No Action Required')),
                           DropdownMenuItem(value: 'Completed', child: Text('✅ Completed Customers')),
                           DropdownMenuItem(value: 'Old Applications', child: Text('⏳ Old Applications (≥60 Days)')),
                           DropdownMenuItem(value: 'All', child: Text('🌐 All Customers')),
@@ -988,6 +989,28 @@ class _RecordsScreenState extends State<RecordsScreen> {
   }
 
   Widget _buildWorkflowStageBadge(ConsumerRecord record) {
+    if (record.isNoActionRequired) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF3C7),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFF59E0B)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.pause_circle_filled, size: 14, color: Color(0xFFD97706)),
+            SizedBox(width: 4),
+            Text(
+              'HOLD',
+              style: TextStyle(color: Color(0xFF92400E), fontWeight: FontWeight.bold, fontSize: 11),
+            ),
+          ],
+        ),
+      );
+    }
+
     final stage = record.overallStage;
     Color bg;
     Color fg;

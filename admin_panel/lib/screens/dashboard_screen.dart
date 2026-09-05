@@ -370,6 +370,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 color: const Color(0xFF059669),
                 onTap: () => _openActionCenter('Subsidy Processing'),
               ),
+              _buildQueueCard(
+                title: 'Hold / No Action',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.noActionCount ?? 0}',
+                icon: Icons.pause_circle_filled_rounded,
+                color: const Color(0xFFD97706),
+                onTap: () => _openActionCenter('Hold'),
+              ),
             ],
           ),
           const SizedBox(height: 28),
@@ -433,9 +440,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
           const SizedBox(height: 28),
 
-          // COMPLETED SECTION
+          // INACTIVE QUEUES (HOLD & COMPLETED)
           Text(
-            'COMPLETED',
+            'INACTIVE QUEUES (HOLD & COMPLETED)',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: const Color(0xFF1E293B),
@@ -444,7 +451,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Fully completed customers (Subsidy Received or Mark as Complete)',
+            'Customers excluded from active queues (Hold / Paused or Fully Completed)',
             style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
           ),
           const SizedBox(height: 14),
@@ -453,6 +460,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             spacing: 12,
             runSpacing: 12,
             children: [
+              _buildQueueCard(
+                title: 'Hold / No Action',
+                count: _isLoadingMetrics ? '...' : '${_metrics?.noActionCount ?? 0}',
+                icon: Icons.pause_circle_filled_rounded,
+                color: const Color(0xFFD97706),
+                onTap: () => _openActionCenter('Hold'),
+              ),
               _buildQueueCard(
                 title: 'Completed',
                 count: _isLoadingMetrics ? '...' : '${_metrics?.completedCount ?? 0}',

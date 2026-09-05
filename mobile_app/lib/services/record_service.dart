@@ -302,13 +302,16 @@ class MobileRecordService {
       int rtsPending = 0;
       int subsidyProcessing = 0;
       int completed = 0;
+      int noAction = 0;
 
       for (final row in data) {
         final rec = ConsumerRecord.fromJson(row as Map<String, dynamic>);
-        final stage = WorkflowEngine.getCurrentWorkStage(rec);
-        if (rec.customerWorkState.toUpperCase() == 'COMPLETED' || stage == 'Completed') {
+        if (rec.isNoActionRequired) {
+          noAction++;
+        } else if (rec.isCompletedState || rec.overallStage == 'Completed') {
           completed++;
         } else {
+          final stage = WorkflowEngine.getCurrentWorkStage(rec);
           switch (stage) {
             case 'Agreement':
               agreementPending++;
@@ -336,6 +339,7 @@ class MobileRecordService {
         'rtsPending': rtsPending,
         'subsidyProcessing': subsidyProcessing,
         'completed': completed,
+        'noAction': noAction,
         'totalActive': agreementPending + loanPending + installationPending + rtsPending + subsidyProcessing,
       };
     } catch (_) {
@@ -346,6 +350,7 @@ class MobileRecordService {
         'rtsPending': 0,
         'subsidyProcessing': 0,
         'completed': 0,
+        'noAction': 0,
         'totalActive': 0,
       };
     }
@@ -387,18 +392,23 @@ class MobileRecordService {
       if (stageFilter != null && stageFilter.isNotEmpty && stageFilter.toUpperCase() != 'ALL') {
         final sf = stageFilter.trim().toLowerCase();
         if (sf.contains('agreement')) {
-          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Agreement').toList();
+          records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage == 'Agreement').toList();
         } else if (sf.contains('loan')) {
-          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Loan').toList();
+          records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage == 'Loan').toList();
         } else if (sf.contains('installation')) {
-          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Installation').toList();
+          records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage == 'Installation').toList();
         } else if (sf.contains('rts')) {
-          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'RTS').toList();
+          records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage == 'RTS').toList();
         } else if (sf.contains('subsidy')) {
-          records = records.where((r) => r.customerWorkState.toUpperCase() != 'COMPLETED' && r.overallStage == 'Subsidy').toList();
+          records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage == 'Subsidy').toList();
         } else if (sf.contains('completed')) {
-          records = records.where((r) => r.customerWorkState.toUpperCase() == 'COMPLETED' || r.overallStage == 'Completed').toList();
+          records = records.where((r) => r.isCompletedState || r.overallStage == 'Completed').toList();
+        } else if (sf.contains('hold') || sf.contains('no action') || sf.contains('no_action')) {
+          records = records.where((r) => r.isNoActionRequired).toList();
         }
+      } else {
+        // By default, Action Center shows only active actionable records (excludes Completed & No Action Required)
+        records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage != 'Completed').toList();
       }
 
       WorkflowEngine.sortRecordsForActionCenter(records);
@@ -452,15 +462,41 @@ class MobileRecordService {
     return updated;
   }
 
-  /// Reopen customer work state back to ACTIVE (returns to priority list)
-  static Future<ConsumerRecord> reopenCustomer(String recordId) async {
+  /// Mark customer work state as NO_ACTION_REQUIRED (Hold / Paused) with mandatory reason
+  static Future<ConsumerRecord> markCustomerAsNoActionRequired({
+    required String recordId,
+    required String reason,
+    String? freeTextDetails,
+  }) async {
     final user = SupabaseService.currentUser;
     final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    String previousState = 'ACTIVE';
+    String? consumerNo;
+    try {
+      final prev = await _client.from('consumer_records').select('customer_work_state, consumer_no').eq('id', recordId).maybeSingle();
+      if (prev != null) {
+        previousState = prev['customer_work_state'] as String? ?? 'ACTIVE';
+        consumerNo = prev['consumer_no'] as String?;
+      }
+    } catch (_) {}
+
+    final effectiveReason = (freeTextDetails != null && freeTextDetails.trim().isNotEmpty)
+        ? (reason.toLowerCase() == 'other' ? freeTextDetails.trim() : '$reason: ${freeTextDetails.trim()}')
+        : reason.trim();
+
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Mobile User';
 
     final response = await _client
         .from('consumer_records')
         .update({
-          'customer_work_state': 'ACTIVE',
+          'customer_work_state': 'NO_ACTION_REQUIRED',
+          'no_action_reason': effectiveReason,
+          'no_action_date': nowIso,
+          'no_action_by': user?.id,
+          'no_action_by_name': userName,
+          'hold_reason': effectiveReason,
+          'hold_date': nowIso,
           'updated_at': nowIso,
           'updated_by': user?.id,
         })
@@ -473,10 +509,62 @@ class MobileRecordService {
     try {
       await _client.from('audit_logs').insert({
         'record_id': recordId,
-        'consumer_no': updated.consumerNo,
+        'consumer_no': consumerNo ?? updated.consumerNo,
+        'action': 'MARK_AS_NO_ACTION_REQUIRED',
+        'field_name': 'customer_work_state',
+        'old_value': previousState,
+        'new_value': 'NO_ACTION_REQUIRED',
+        'reason': effectiveReason,
+        'changed_by': user?.id,
+        'source': 'Mobile App',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Reopen customer work state back to ACTIVE (returns to action center & priority list)
+  static Future<ConsumerRecord> reopenCustomer(String recordId) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    String previousState = 'NO_ACTION_REQUIRED';
+    String? consumerNo;
+    try {
+      final prev = await _client.from('consumer_records').select('customer_work_state, consumer_no').eq('id', recordId).maybeSingle();
+      if (prev != null) {
+        previousState = prev['customer_work_state'] as String? ?? 'NO_ACTION_REQUIRED';
+        consumerNo = prev['consumer_no'] as String?;
+      }
+    } catch (_) {}
+
+    final response = await _client
+        .from('consumer_records')
+        .update({
+          'customer_work_state': 'ACTIVE',
+          'no_action_reason': null,
+          'no_action_date': null,
+          'no_action_by': null,
+          'no_action_by_name': null,
+          'hold_reason': null,
+          'hold_date': null,
+          'updated_at': nowIso,
+          'updated_by': user?.id,
+        })
+        .eq('id', recordId)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': recordId,
+        'consumer_no': consumerNo ?? updated.consumerNo,
         'action': 'REOPEN_CUSTOMER',
         'field_name': 'customer_work_state',
-        'old_value': 'COMPLETED',
+        'old_value': previousState,
         'new_value': 'ACTIVE',
         'changed_by': user?.id,
         'source': 'Mobile App',
