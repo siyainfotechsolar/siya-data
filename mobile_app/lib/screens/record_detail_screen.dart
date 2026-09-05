@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
@@ -485,15 +486,38 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Consumer No: ${_record.consumerNo}',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurfaceVariant),
+                      InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: _record.consumerNo));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Consumer No. ${_record.consumerNo} copied to clipboard'),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Consumer No: ${_record.consumerNo}',
+                                style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurfaceVariant),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(
+                                Icons.copy_rounded,
+                                size: 14,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 10),

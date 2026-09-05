@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
 import 'record_detail_screen.dart';
@@ -175,18 +176,41 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
                                         Row(
                                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                           children: [
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                              decoration: BoxDecoration(
-                                                color: theme.colorScheme.surfaceContainerHighest,
-                                                borderRadius: BorderRadius.circular(6),
-                                              ),
-                                              child: Text(
-                                                'No: ${record.consumerNo}',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 12,
-                                                  color: theme.colorScheme.onSurfaceVariant,
+                                            InkWell(
+                                              onTap: () {
+                                                Clipboard.setData(ClipboardData(text: record.consumerNo));
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text('Consumer No. ${record.consumerNo} copied to clipboard'),
+                                                    duration: const Duration(seconds: 2),
+                                                  ),
+                                                );
+                                              },
+                                              borderRadius: BorderRadius.circular(6),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                decoration: BoxDecoration(
+                                                  color: theme.colorScheme.surfaceContainerHighest,
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      'No: ${record.consumerNo}',
+                                                      style: TextStyle(
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 12,
+                                                        color: theme.colorScheme.onSurfaceVariant,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Icon(
+                                                      Icons.copy_rounded,
+                                                      size: 13,
+                                                      color: theme.colorScheme.onSurfaceVariant,
+                                                    ),
+                                                  ],
                                                 ),
                                               ),
                                             ),

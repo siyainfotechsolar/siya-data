@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
 import '../services/realtime_service.dart';
@@ -418,9 +419,35 @@ class _PriorityScreenState extends State<PriorityScreen> {
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      'Consumer No: ${r.consumerNo}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                    InkWell(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: r.consumerNo));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Consumer No. ${r.consumerNo} copied to clipboard'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2.0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Consumer No: ${r.consumerNo}',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.copy_rounded,
+                              size: 13,
+                              color: Colors.grey.shade700,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Wrap(
