@@ -386,7 +386,7 @@ class WorkflowEngine {
         state: loanState,
         lockReason: loanLockReason,
         currentStatus: !loanReq ? 'Not Required' : record.loanStatus,
-        isUnlocked: (agreeDone && loanReq) || isOwnerOverride,
+        isUnlocked: agreeDone || isOwnerOverride,
       ),
       WorkflowStage.installation: WorkflowStageInfo(
         stage: WorkflowStage.installation,
