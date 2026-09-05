@@ -409,6 +409,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                                 'Loan Approved',
                                 '1st Installment',
                                 '2nd Installment',
+                                'Loan Completed',
                               ]),
                               items: const [
                                 'Loan Applied',
@@ -420,6 +421,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                                 'Loan Approved',
                                 '1st Installment',
                                 '2nd Installment',
+                                'Loan Completed',
                               ],
                               onChanged: (val) {
                                 if (val == 'Loan Rejected') {

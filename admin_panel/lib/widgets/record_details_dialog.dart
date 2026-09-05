@@ -738,6 +738,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                                     'Loan Approved',
                                     '1st Installment',
                                     '2nd Installment',
+                                    'Loan Completed',
                                   ]),
                                   isDense: true,
                                   items: const [
@@ -750,6 +751,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                                     DropdownMenuItem(value: 'Loan Approved', child: Text('🟢 7. Loan Approved')),
                                     DropdownMenuItem(value: '1st Installment', child: Text('8. 1st Installment')),
                                     DropdownMenuItem(value: '2nd Installment', child: Text('9. 2nd Installment')),
+                                    DropdownMenuItem(value: 'Loan Completed', child: Text('✅ 10. Loan Completed')),
                                   ],
                                   onChanged: (_isSaving || !stageStates[WorkflowStage.loan]!.isUnlocked)
                                       ? null

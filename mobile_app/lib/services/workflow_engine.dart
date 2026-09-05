@@ -65,9 +65,9 @@ class WorkflowEngine {
     if (!isLoanRequired(record)) return true; // Skipped = satisfied
     final subStage = record.loanSubStage.trim().toLowerCase();
     final st = record.loanStatus.trim().toLowerCase();
-    return subStage == '2nd installment completed' ||
+    return subStage == 'loan completed' ||
         subStage == 'completed' ||
-        st == '2nd installment completed' ||
+        st == 'loan completed' ||
         st == 'completed';
   }
 
@@ -162,10 +162,14 @@ class WorkflowEngine {
           return 'Bank Follow-up';
         } else if (subStage.contains('ready')) {
           return 'Loan File Action Required';
-        } else if (subStage.contains('approved') || subStage.contains('1st installment')) {
+        } else if (subStage == 'loan approved') {
           return '1st Installment';
-        } else if (subStage.contains('2nd installment')) {
+        } else if (subStage == '1st installment') {
           return '2nd Installment';
+        } else if (subStage == '2nd installment') {
+          return 'Mark Loan Completed';
+        } else if (subStage == 'loan completed') {
+          return 'Installation Ready';
         }
         return 'Loan Action Required';
       case 'Installation':
@@ -198,10 +202,14 @@ class WorkflowEngine {
         return 'Check Bank Status';
       } else if (subStage.contains('ready')) {
         return 'Submit to Bank';
-      } else if (subStage.contains('approved') || subStage.contains('1st installment')) {
+      } else if (subStage == 'loan approved') {
         return 'Process 1st Installment';
-      } else if (subStage.contains('2nd installment')) {
+      } else if (subStage == '1st installment') {
         return 'Process 2nd Installment';
+      } else if (subStage == '2nd installment') {
+        return 'Mark Loan Completed';
+      } else if (subStage == 'loan completed') {
+        return 'Schedule Installation';
       }
       return 'Prepare / Submit Loan File';
     }

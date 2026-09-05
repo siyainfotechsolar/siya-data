@@ -39,7 +39,7 @@ void main() {
       // Step 3: Loan Completed -> Installation unlocked
       rec = rec.copyWith(
         loanStatus: 'Completed',
-        loanSubStage: '2nd Installment Completed',
+        loanSubStage: 'Loan Completed',
         installationStatus: 'Wiring Pending',
       );
       expect(WorkflowEngine.getCurrentWorkStage(rec), equals('Installation'));
@@ -200,13 +200,13 @@ void main() {
 
       // 7. 1st Installment -> 2nd Installment
       rec = rec.copyWith(loanSubStage: '1st Installment');
-      expect(WorkflowEngine.getActionRequired(rec), equals('1st Installment'));
-
-      rec = rec.copyWith(loanSubStage: '2nd Installment');
       expect(WorkflowEngine.getActionRequired(rec), equals('2nd Installment'));
 
-      // 8. 2nd Installment Completed -> Installation Unlocked!
-      rec = rec.copyWith(loanSubStage: '2nd Installment Completed');
+      rec = rec.copyWith(loanSubStage: '2nd Installment');
+      expect(WorkflowEngine.getActionRequired(rec), equals('Mark Loan Completed'));
+
+      // 8. 2nd Installment -> Loan Completed -> Installation Unlocked!
+      rec = rec.copyWith(loanSubStage: 'Loan Completed');
       expect(WorkflowEngine.isLoanCompleted(rec), isTrue);
       expect(WorkflowEngine.getCurrentWorkStage(rec), equals('Installation'));
       states = WorkflowEngine.getStageStates(rec);
