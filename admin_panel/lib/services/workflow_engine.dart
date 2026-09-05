@@ -338,9 +338,9 @@ class WorkflowEngine {
         : (loanDone
             ? StageState.completed
             : (agreeDone || isOwnerOverride ? StageState.active : StageState.locked));
-    final loanLockReason = !loanReq
-        ? 'Skipped (Loan Required = NO)'
-        : (agreeDone || isOwnerOverride ? '' : '🔒 Complete Agreement first.');
+    final loanLockReason = (agreeDone || isOwnerOverride)
+        ? ''
+        : '🔒 Complete Agreement first.';
 
     // Installation: Unlocked if Agreement done AND Loan done (or Loan skipped)
     final installUnlocked = (agreeDone && loanDone) || isOwnerOverride;
