@@ -303,9 +303,22 @@ class MobileRecordService {
       int subsidyProcessing = 0;
       int completed = 0;
       int noAction = 0;
+      int todaysFollowup = 0;
+      int overdueFollowup = 0;
+      int upcomingFollowup = 0;
 
       for (final row in data) {
         final rec = ConsumerRecord.fromJson(row as Map<String, dynamic>);
+        if (rec.hasActiveFollowup) {
+          if (rec.isFollowupToday) {
+            todaysFollowup++;
+          } else if (rec.isFollowupOverdue) {
+            overdueFollowup++;
+          } else if (rec.isFollowupUpcoming) {
+            upcomingFollowup++;
+          }
+        }
+
         if (rec.isNoActionRequired) {
           noAction++;
         } else if (rec.isCompletedState || rec.overallStage == 'Completed') {
@@ -340,6 +353,9 @@ class MobileRecordService {
         'subsidyProcessing': subsidyProcessing,
         'completed': completed,
         'noAction': noAction,
+        'todaysFollowup': todaysFollowup,
+        'overdueFollowup': overdueFollowup,
+        'upcomingFollowup': upcomingFollowup,
         'totalActive': agreementPending + loanPending + installationPending + rtsPending + subsidyProcessing,
       };
     } catch (_) {
@@ -351,6 +367,9 @@ class MobileRecordService {
         'subsidyProcessing': 0,
         'completed': 0,
         'noAction': 0,
+        'todaysFollowup': 0,
+        'overdueFollowup': 0,
+        'upcomingFollowup': 0,
         'totalActive': 0,
       };
     }

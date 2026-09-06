@@ -7,6 +7,10 @@ import '../services/realtime_service.dart';
 import '../widgets/record_details_dialog.dart';
 import '../widgets/record_form_dialog.dart';
 import '../widgets/no_action_reason_dialog.dart';
+import '../widgets/hold_reason_dialog.dart';
+import '../widgets/followup_dialog.dart';
+import '../widgets/followup_done_dialog.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ActionCenterScreen extends StatefulWidget {
   final String? initialStageFilter;
@@ -173,19 +177,20 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
     }
   }
 
-  Future<void> _confirmMarkAsNoActionRequired(ConsumerRecord record) async {
-    final result = await NoActionReasonDialog.show(context, customerName: record.name);
+  Future<void> _confirmMarkAsHold(ConsumerRecord record) async {
+    final result = await HoldReasonDialog.show(context, customerName: record.name);
     if (result != null && record.id != null && mounted) {
       try {
-        await RecordService.markCustomerAsNoActionRequired(
+        await RecordService.markCustomerAsHold(
           recordId: record.id!,
-          reason: result['reason'] ?? 'Hold',
-          freeTextDetails: result['details'],
+          reason: result.reason,
+          remarks: result.remarks,
+          expectedFollowupDate: result.expectedFollowupDate,
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Customer ${record.name} marked as No Action Required (Hold).'),
+              content: Text('Customer ${record.name} marked as On Hold (${result.reason}).'),
               backgroundColor: const Color(0xFFD97706),
             ),
           );
@@ -194,9 +199,94 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to update work state: $e'), backgroundColor: Colors.red),
+            SnackBar(content: Text('Failed to update hold state: $e'), backgroundColor: Colors.red),
           );
         }
+      }
+    }
+  }
+
+  Future<void> _openFollowupDialog(ConsumerRecord record) async {
+    final result = await FollowupDialog.show(
+      context,
+      customerName: record.name,
+      initialDate: record.followupDate,
+      initialReason: record.followupReason,
+    );
+    if (result != null && record.id != null && mounted) {
+      try {
+        await RecordService.markCustomerFollowup(
+          recordId: record.id!,
+          followupDate: result.followupDate,
+          followupReason: result.followupReason,
+          remarks: result.remarks,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Follow-up scheduled for ${record.name} on ${result.followupDate.toLocal().toString().split(' ')[0]}.'),
+              backgroundColor: const Color(0xFF2563EB),
+            ),
+          );
+          _loadActionCenterRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to schedule follow-up: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _openFollowupDoneDialog(ConsumerRecord record) async {
+    final result = await FollowupDoneDialog.show(
+      context,
+      customerName: record.name,
+    );
+    if (result != null && record.id != null && mounted) {
+      try {
+        await RecordService.completeCustomerFollowup(
+          recordId: record.id!,
+          followupResult: result.followupResult,
+          remarks: result.remarks,
+          nextFollowupDate: result.nextFollowupDate,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Follow-up outcome recorded for ${record.name}.'),
+              backgroundColor: const Color(0xFF059669),
+            ),
+          );
+          _loadActionCenterRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to record follow-up: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _makePhoneCall(String? mobile) async {
+    if (mobile == null || mobile.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No phone number available for this customer.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+    final uri = Uri.parse('tel:${mobile.trim()}');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not launch dialer for $mobile'), backgroundColor: Colors.red),
+        );
       }
     }
   }
@@ -331,7 +421,25 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                 icon: Icons.currency_rupee_rounded,
               ),
               _buildStageFilterCard(
-                title: 'Hold / No Action',
+                title: "Today's Follow-up",
+                stageCode: "Today's Follow-up",
+                color: const Color(0xFF0284C7),
+                icon: Icons.phone_in_talk_rounded,
+              ),
+              _buildStageFilterCard(
+                title: "Overdue Follow-up",
+                stageCode: "Overdue Follow-up",
+                color: const Color(0xFFDC2626),
+                icon: Icons.phone_missed_rounded,
+              ),
+              _buildStageFilterCard(
+                title: "Upcoming Follow-up",
+                stageCode: "Upcoming Follow-up",
+                color: const Color(0xFF4F46E5),
+                icon: Icons.phone_callback_rounded,
+              ),
+              _buildStageFilterCard(
+                title: 'On Hold',
                 stageCode: 'Hold',
                 color: const Color(0xFFD97706),
                 icon: Icons.pause_circle_filled_rounded,
@@ -394,8 +502,11 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                           DropdownMenuItem(value: 'Installation Pending', child: Text('Installation Pending')),
                           DropdownMenuItem(value: 'RTS Pending', child: Text('RTS Pending')),
                           DropdownMenuItem(value: 'Subsidy Processing', child: Text('Subsidy Processing')),
-                          DropdownMenuItem(value: 'Hold', child: Text('Hold / No Action Required')),
-                          DropdownMenuItem(value: 'Completed', child: Text('Completed')),
+                          DropdownMenuItem(value: "Today's Follow-up", child: Text("📞 Today's Follow-up")),
+                          DropdownMenuItem(value: "Overdue Follow-up", child: Text("⚠️ Overdue Follow-up")),
+                          DropdownMenuItem(value: "Upcoming Follow-up", child: Text("📅 Upcoming Follow-up")),
+                          DropdownMenuItem(value: 'Hold', child: Text('⏸ On Hold')),
+                          DropdownMenuItem(value: 'Completed', child: Text('✓ Completed')),
                         ],
                         onChanged: (val) {
                           if (val != null) {
@@ -496,19 +607,17 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                       columns: const [
                                         DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
                                         DataColumn(label: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
-                                        DataColumn(label: Text('Application Date', style: TextStyle(fontWeight: FontWeight.bold))),
-                                        DataColumn(label: Text('Application Days', style: TextStyle(fontWeight: FontWeight.bold))),
                                         DataColumn(label: Text('Current Work Stage', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('Current Sub-Stage', style: TextStyle(fontWeight: FontWeight.bold))),
                                         DataColumn(label: Text('Current Status', style: TextStyle(fontWeight: FontWeight.bold))),
-                                        DataColumn(label: Text('Action Required', style: TextStyle(fontWeight: FontWeight.bold))),
-                                        DataColumn(label: Text('Next Action', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('Follow-up', style: TextStyle(fontWeight: FontWeight.bold))),
                                         DataColumn(label: Text('Days in Stage', style: TextStyle(fontWeight: FontWeight.bold))),
                                         DataColumn(label: Text('Assigned Staff', style: TextStyle(fontWeight: FontWeight.bold))),
-                                        DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('Quick Actions', style: TextStyle(fontWeight: FontWeight.bold))),
                                       ],
                                       rows: _records.map((r) {
-                                        final isCompleted = r.customerWorkState.toUpperCase() == 'COMPLETED' || r.overallStage == 'Completed';
-                                        final isNoAction = r.isNoActionRequired;
+                                        final isCompleted = r.isCompletedState;
+                                        final isHold = r.isHold;
 
                                         return DataRow(
                                           cells: [
@@ -516,9 +625,20 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                             DataCell(
                                               InkWell(
                                                 onTap: () => _openDetailsDialog(r),
-                                                child: Text(
-                                                  r.name,
-                                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Text(
+                                                      r.name,
+                                                      style: const TextStyle(fontWeight: FontWeight.w600),
+                                                    ),
+                                                    if (r.mobile != null && r.mobile!.isNotEmpty)
+                                                      Text(
+                                                        r.mobile!,
+                                                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                                      ),
+                                                  ],
                                                 ),
                                               ),
                                             ),
@@ -535,79 +655,38 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                                 ),
                                               ),
                                             ),
-                                            // Application Date
+                                            // Current Work Stage
+                                            DataCell(_buildStageBadge(r.overallStage, isHold: isHold, holdReason: r.holdReason ?? r.noActionReason)),
+                                            // Current Sub-Stage
                                             DataCell(
                                               Text(
-                                                r.applicationDate != null
-                                                    ? r.applicationDate!.toLocal().toString().split(' ')[0]
-                                                    : (r.submitDate != null
-                                                        ? r.submitDate!.toLocal().toString().split(' ')[0]
-                                                        : (r.createdAt != null
-                                                            ? r.createdAt!.toLocal().toString().split(' ')[0]
-                                                            : '—')),
+                                                r.currentSubStage,
+                                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                                               ),
                                             ),
-                                            // Application Days (Informational)
+                                            // Current Status
                                             DataCell(
                                               Container(
                                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                                 decoration: BoxDecoration(
                                                   color: Colors.grey.shade100,
                                                   borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(color: Colors.grey.shade300),
                                                 ),
                                                 child: Text(
-                                                  '${r.applicationDays} Days',
-                                                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+                                                  isHold ? 'On Hold' : (isCompleted ? 'Completed' : r.currentStatus),
+                                                  style: const TextStyle(fontSize: 12),
                                                 ),
                                               ),
                                             ),
-                                            // Current Work Stage
-                                            DataCell(_buildStageBadge(r.overallStage, isNoAction: isNoAction, holdReason: r.noActionReason ?? r.holdReason)),
-                                            // Current Status
-                                            DataCell(Text(isNoAction ? 'Hold' : r.currentStatus, style: const TextStyle(fontSize: 13))),
-                                            // Action Required
-                                            DataCell(
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                                decoration: BoxDecoration(
-                                                  color: isNoAction
-                                                      ? const Color(0xFFFFFBEB)
-                                                      : (isCompleted ? Colors.grey.shade200 : const Color(0xFFEFF6FF)),
-                                                  borderRadius: BorderRadius.circular(4),
-                                                  border: Border.all(
-                                                    color: isNoAction
-                                                        ? const Color(0xFFFDE68A)
-                                                        : (isCompleted ? Colors.grey.shade400 : const Color(0xFF93C5FD)),
-                                                  ),
-                                                ),
-                                                child: Text(
-                                                  isNoAction ? 'None (Hold)' : r.actionRequired,
-                                                  style: TextStyle(
-                                                    color: isNoAction
-                                                        ? const Color(0xFFB45309)
-                                                        : (isCompleted ? Colors.grey.shade700 : const Color(0xFF1E40AF)),
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            // Next Action
-                                            DataCell(
-                                              Text(
-                                                isNoAction ? 'None' : r.nextAction,
-                                                style: TextStyle(
-                                                  fontWeight: (isCompleted || isNoAction) ? FontWeight.normal : FontWeight.w600,
-                                                  color: (isCompleted || isNoAction) ? Colors.grey.shade600 : Colors.black87,
-                                                ),
-                                              ),
-                                            ),
+                                            // Follow-up
+                                            DataCell(_buildFollowupBadge(r)),
                                             // Days in Current Stage
                                             DataCell(
                                               Container(
                                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                                 decoration: BoxDecoration(
-                                                  color: isNoAction
+                                                  color: isHold
                                                       ? Colors.grey.shade100
                                                       : (r.daysInCurrentStage >= 15
                                                           ? const Color(0xFFFEF2F2)
@@ -619,7 +698,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                                   style: TextStyle(
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 12,
-                                                    color: isNoAction
+                                                    color: isHold
                                                         ? Colors.grey.shade700
                                                         : (r.daysInCurrentStage >= 15
                                                             ? const Color(0xFFDC2626)
@@ -630,36 +709,105 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                             ),
                                             // Assigned Staff
                                             DataCell(Text(r.assignedStaff ?? r.installerTeam ?? 'Unassigned')),
-                                            // Actions
+                                            // Quick Actions: [✓ Complete] [⏸ Hold] [📞 Follow-up]
                                             DataCell(
                                               Row(
+                                                mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  if (!isCompleted && !isNoAction) ...[
-                                                    IconButton(
-                                                      icon: const Icon(Icons.pause_circle_outline, size: 20, color: Color(0xFFD97706)),
-                                                      tooltip: 'Mark as No Action Required (Hold)',
-                                                      onPressed: () => _confirmMarkAsNoActionRequired(r),
-                                                    ),
-                                                    IconButton(
-                                                      icon: const Icon(Icons.check_circle_outline, size: 20, color: Color(0xFF059669)),
-                                                      tooltip: 'Mark as Complete',
+                                                  if (!isCompleted && !isHold) ...[
+                                                    // 1. [✓ Mark Complete]
+                                                    FilledButton.tonalIcon(
+                                                      icon: const Icon(Icons.check_circle_outline, size: 14, color: Color(0xFF059669)),
+                                                      label: const Text('Complete', style: TextStyle(fontSize: 12, color: Color(0xFF065F46), fontWeight: FontWeight.bold)),
+                                                      style: FilledButton.styleFrom(
+                                                        backgroundColor: const Color(0xFFECFDF5),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        visualDensity: VisualDensity.compact,
+                                                      ),
                                                       onPressed: () => _confirmMarkAsComplete(r),
                                                     ),
-                                                  ] else ...[
-                                                    IconButton(
-                                                      icon: const Icon(Icons.replay_rounded, size: 20, color: Color(0xFF2563EB)),
-                                                      tooltip: 'Reopen Customer (Return to Active)',
-                                                      onPressed: () => _confirmReopen(r),
+                                                    const SizedBox(width: 6),
+                                                    // 2. [⏸ Mark Hold]
+                                                    FilledButton.tonalIcon(
+                                                      icon: const Icon(Icons.pause_circle_outline, size: 14, color: Color(0xFFD97706)),
+                                                      label: const Text('Hold', style: TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.bold)),
+                                                      style: FilledButton.styleFrom(
+                                                        backgroundColor: const Color(0xFFFFFBEB),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        visualDensity: VisualDensity.compact,
+                                                      ),
+                                                      onPressed: () => _confirmMarkAsHold(r),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    // 3. [📞 Mark Follow-up]
+                                                    FilledButton.tonalIcon(
+                                                      icon: const Icon(Icons.phone_in_talk_rounded, size: 14, color: Color(0xFF2563EB)),
+                                                      label: const Text('Follow-up', style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF), fontWeight: FontWeight.bold)),
+                                                      style: FilledButton.styleFrom(
+                                                        backgroundColor: const Color(0xFFEFF6FF),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        visualDensity: VisualDensity.compact,
+                                                      ),
+                                                      onPressed: () => _openFollowupDialog(r),
                                                     ),
                                                   ],
+                                                  if (isHold) ...[
+                                                    // [Reopen]
+                                                    FilledButton.icon(
+                                                      icon: const Icon(Icons.replay_rounded, size: 14),
+                                                      label: const Text('Reopen', style: TextStyle(fontSize: 12)),
+                                                      style: FilledButton.styleFrom(
+                                                        backgroundColor: const Color(0xFF2563EB),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                        visualDensity: VisualDensity.compact,
+                                                      ),
+                                                      onPressed: () => _confirmReopen(r),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    FilledButton.tonalIcon(
+                                                      icon: const Icon(Icons.phone_in_talk_rounded, size: 14, color: Color(0xFF2563EB)),
+                                                      label: const Text('Follow-up', style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF), fontWeight: FontWeight.bold)),
+                                                      style: FilledButton.styleFrom(
+                                                        backgroundColor: const Color(0xFFEFF6FF),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        visualDensity: VisualDensity.compact,
+                                                      ),
+                                                      onPressed: () => _openFollowupDialog(r),
+                                                    ),
+                                                  ],
+                                                  if (r.hasActiveFollowup) ...[
+                                                    const SizedBox(width: 6),
+                                                    // [Call]
+                                                    IconButton.filledTonal(
+                                                      icon: const Icon(Icons.phone, size: 15, color: Color(0xFF0284C7)),
+                                                      tooltip: 'Call Customer: ${r.mobile ?? 'No phone'}',
+                                                      style: IconButton.styleFrom(visualDensity: VisualDensity.compact),
+                                                      onPressed: () => _makePhoneCall(r.mobile),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    // [Follow-up Done]
+                                                    FilledButton.tonalIcon(
+                                                      icon: const Icon(Icons.done_all_rounded, size: 14, color: Color(0xFF059669)),
+                                                      label: const Text('Follow-up Done', style: TextStyle(fontSize: 11, color: Color(0xFF065F46), fontWeight: FontWeight.bold)),
+                                                      style: FilledButton.styleFrom(
+                                                        backgroundColor: const Color(0xFFD1FAE5),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                                        visualDensity: VisualDensity.compact,
+                                                      ),
+                                                      onPressed: () => _openFollowupDoneDialog(r),
+                                                    ),
+                                                  ],
+                                                  const SizedBox(width: 4),
                                                   IconButton(
-                                                    icon: const Icon(Icons.visibility_outlined, size: 20),
+                                                    icon: const Icon(Icons.visibility_outlined, size: 18),
                                                     tooltip: 'View Customer Details',
+                                                    visualDensity: VisualDensity.compact,
                                                     onPressed: () => _openDetailsDialog(r),
                                                   ),
                                                   IconButton(
-                                                    icon: const Icon(Icons.edit_outlined, size: 20),
+                                                    icon: const Icon(Icons.edit_outlined, size: 18),
                                                     tooltip: 'Edit Customer',
+                                                    visualDensity: VisualDensity.compact,
                                                     onPressed: () => _openEditDialog(r),
                                                   ),
                                                 ],
@@ -787,10 +935,10 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
     );
   }
 
-  Widget _buildStageBadge(String stage, {bool isNoAction = false, String? holdReason}) {
-    if (isNoAction) {
+  Widget _buildStageBadge(String stage, {bool isHold = false, String? holdReason}) {
+    if (isHold) {
       return Tooltip(
-        message: holdReason != null ? 'Hold Reason: $holdReason' : 'No Action Required (Hold)',
+        message: holdReason != null ? 'Hold Reason: $holdReason' : 'On Hold (Action Center)',
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
@@ -856,6 +1004,86 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
         style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 12),
       ),
     );
+  }
+
+  Widget _buildFollowupBadge(ConsumerRecord r) {
+    if (!r.hasActiveFollowup || r.followupDate == null) {
+      return Text('—', style: TextStyle(color: Colors.grey.shade400));
+    }
+
+    final dateStr = r.followupDate!.toLocal().toString().split(' ')[0];
+    final reason = r.followupReason ?? 'Follow-up';
+
+    if (r.isFollowupOverdue) {
+      return Tooltip(
+        message: 'Overdue Follow-up ($reason): $dateStr\nRemarks: ${r.followupRemarks ?? 'None'}',
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEE2E2),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFFDC2626)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 13),
+              const SizedBox(width: 4),
+              Text(
+                'Overdue: $dateStr',
+                style: const TextStyle(color: Color(0xFF991B1B), fontWeight: FontWeight.bold, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else if (r.isFollowupToday) {
+      return Tooltip(
+        message: "Today's Follow-up ($reason)\nRemarks: ${r.followupRemarks ?? 'None'}",
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE0F2FE),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFF0284C7)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.phone_in_talk_rounded, color: Color(0xFF0284C7), size: 13),
+              SizedBox(width: 4),
+              Text(
+                'Today',
+                style: TextStyle(color: Color(0xFF0369A1), fontWeight: FontWeight.bold, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return Tooltip(
+        message: 'Upcoming Follow-up ($reason): $dateStr\nRemarks: ${r.followupRemarks ?? 'None'}',
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEEF2FF),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFF6366F1)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.calendar_today_rounded, color: Color(0xFF4F46E5), size: 12),
+              const SizedBox(width: 4),
+              Text(
+                dateStr,
+                style: const TextStyle(color: Color(0xFF3730A3), fontWeight: FontWeight.bold, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
   }
 }
 
