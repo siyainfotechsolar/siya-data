@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
 import '../services/workflow_engine.dart';
-import 'no_action_reason_dialog.dart';
+import 'hold_reason_dialog.dart';
+import 'followup_dialog.dart';
+import 'followup_done_dialog.dart';
 
 class RecordDetailsDialog extends StatefulWidget {
   final ConsumerRecord record;
@@ -433,15 +436,94 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     }
   }
 
-  Future<void> _handleMarkAsNoActionRequired() async {
-    final result = await NoActionReasonDialog.show(context, customerName: _record.name);
+  Future<void> _handleMarkAsHold() async {
+    final result = await HoldReasonDialog.show(context, customerName: _record.name);
     if (result != null && _record.id != null && mounted) {
       setState(() => _isSaving = true);
       try {
-        final updated = await RecordService.markCustomerAsNoActionRequired(
+        final updated = await RecordService.markCustomerAsHold(
           recordId: _record.id!,
-          reason: result['reason'] ?? 'Hold',
-          freeTextDetails: result['details'],
+          reason: result.reason,
+          remarks: result.remarks,
+          expectedFollowupDate: result.expectedFollowupDate,
+        );
+        if (mounted) {
+          setState(() {
+            _record = updated;
+            _isSaving = false;
+          });
+          widget.onRecordUpdated?.call();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Customer marked as On Hold (${result.reason})!'),
+              backgroundColor: const Color(0xFFD97706),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update hold state: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _handleMarkFollowup() async {
+    final result = await FollowupDialog.show(
+      context,
+      customerName: _record.name,
+      initialDate: _record.followupDate,
+      initialReason: _record.followupReason,
+    );
+    if (result != null && _record.id != null && mounted) {
+      setState(() => _isSaving = true);
+      try {
+        final updated = await RecordService.markCustomerFollowup(
+          recordId: _record.id!,
+          followupDate: result.followupDate,
+          followupReason: result.followupReason,
+          remarks: result.remarks,
+        );
+        if (mounted) {
+          setState(() {
+            _record = updated;
+            _isSaving = false;
+          });
+          widget.onRecordUpdated?.call();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Follow-up scheduled for ${_record.name} on ${result.followupDate.toLocal().toString().split(' ')[0]}.'),
+              backgroundColor: const Color(0xFF2563EB),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to schedule follow-up: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _handleFollowupDone() async {
+    final result = await FollowupDoneDialog.show(
+      context,
+      customerName: _record.name,
+    );
+    if (result != null && _record.id != null && mounted) {
+      setState(() => _isSaving = true);
+      try {
+        final updated = await RecordService.completeCustomerFollowup(
+          recordId: _record.id!,
+          followupResult: result.followupResult,
+          remarks: result.remarks,
+          nextFollowupDate: result.nextFollowupDate,
         );
         if (mounted) {
           setState(() {
@@ -451,8 +533,8 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
           widget.onRecordUpdated?.call();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Customer marked as No Action Required (Hold)! Removed from active queues.'),
-              backgroundColor: Color(0xFFD97706),
+              content: Text('Follow-up outcome recorded successfully!'),
+              backgroundColor: Color(0xFF059669),
             ),
           );
         }
@@ -460,9 +542,28 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
         if (mounted) {
           setState(() => _isSaving = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to update state: $e'), backgroundColor: Colors.red),
+            SnackBar(content: Text('Failed to record follow-up: $e'), backgroundColor: Colors.red),
           );
         }
+      }
+    }
+  }
+
+  Future<void> _makePhoneCall(String? mobile) async {
+    if (mobile == null || mobile.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No phone number available for this customer.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+    final uri = Uri.parse('tel:${mobile.trim()}');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not launch dialer for $mobile'), backgroundColor: Colors.red),
+        );
       }
     }
   }
@@ -605,6 +706,79 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                                   ),
                                 ],
                               ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (_record.hasActiveFollowup && _record.followupDate != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _record.isFollowupOverdue
+                              ? const Color(0xFFFEE2E2)
+                              : (_record.isFollowupToday ? const Color(0xFFE0F2FE) : const Color(0xFFEEF2FF)),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _record.isFollowupOverdue
+                                ? const Color(0xFFDC2626)
+                                : (_record.isFollowupToday ? const Color(0xFF0284C7) : const Color(0xFF6366F1)),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _record.isFollowupOverdue
+                                  ? Icons.warning_amber_rounded
+                                  : (_record.isFollowupToday ? Icons.phone_in_talk_rounded : Icons.calendar_today_rounded),
+                              color: _record.isFollowupOverdue
+                                  ? const Color(0xFFDC2626)
+                                  : (_record.isFollowupToday ? const Color(0xFF0284C7) : const Color(0xFF4F46E5)),
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'SCHEDULED FOLLOW-UP: ' +
+                                        (_record.isFollowupOverdue ? 'OVERDUE' : (_record.isFollowupToday ? 'TODAY' : 'UPCOMING')),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: _record.isFollowupOverdue
+                                          ? const Color(0xFF991B1B)
+                                          : (_record.isFollowupToday ? const Color(0xFF0369A1) : const Color(0xFF3730A3)),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Date: ${_record.followupDate!.toLocal().toString().split(' ')[0]} • Reason: ${_record.followupReason ?? 'General'}' +
+                                        (_record.followupRemarks != null && _record.followupRemarks!.isNotEmpty
+                                            ? ' • Remarks: ${_record.followupRemarks}'
+                                            : ''),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _record.isFollowupOverdue
+                                          ? const Color(0xFFB91C1C)
+                                          : (_record.isFollowupToday ? const Color(0xFF0284C7) : const Color(0xFF4338CA)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton.filledTonal(
+                              icon: const Icon(Icons.phone, size: 16, color: Color(0xFF0284C7)),
+                              tooltip: 'Call Customer: ${_record.mobile ?? 'No phone'}',
+                              onPressed: () => _makePhoneCall(_record.mobile),
+                            ),
+                            const SizedBox(width: 6),
+                            FilledButton.tonalIcon(
+                              icon: const Icon(Icons.done_all_rounded, size: 14, color: Color(0xFF059669)),
+                              label: const Text('Follow-up Done', style: TextStyle(fontSize: 12, color: Color(0xFF065F46), fontWeight: FontWeight.bold)),
+                              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD1FAE5)),
+                              onPressed: _isSaving ? null : _handleFollowupDone,
                             ),
                           ],
                         ),
@@ -1070,7 +1244,28 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (_record.customerWorkState.toUpperCase() == 'COMPLETED' || _record.isNoActionRequired)
+                if (_record.isHold)
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+                        onPressed: _isSaving ? null : _handleReopen,
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: const Text('Reopen Customer'),
+                      ),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF2563EB),
+                          side: const BorderSide(color: Color(0xFF2563EB)),
+                        ),
+                        onPressed: _isSaving ? null : _handleMarkFollowup,
+                        icon: const Icon(Icons.phone_in_talk_rounded, size: 18),
+                        label: const Text('Mark Follow-up'),
+                      ),
+                    ],
+                  )
+                else if (_record.isCompletedState)
                   OutlinedButton.icon(
                     onPressed: _isSaving ? null : _handleReopen,
                     icon: const Icon(Icons.refresh, size: 18),
@@ -1079,22 +1274,48 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                 else
                   Wrap(
                     spacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
+                      // 1. [✓ Mark Complete]
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+                        onPressed: _isSaving ? null : _handleMarkAsComplete,
+                        icon: const Icon(Icons.check_circle_outline, size: 18),
+                        label: const Text('Mark Complete'),
+                      ),
+                      // 2. [⏸ Mark Hold]
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFFD97706),
                           side: const BorderSide(color: Color(0xFFD97706)),
                         ),
-                        onPressed: _isSaving ? null : _handleMarkAsNoActionRequired,
+                        onPressed: _isSaving ? null : _handleMarkAsHold,
                         icon: const Icon(Icons.pause_circle_outline, size: 18),
-                        label: const Text('Mark as No Action Required'),
+                        label: const Text('Mark Hold'),
                       ),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
-                        onPressed: _isSaving ? null : _handleMarkAsComplete,
-                        icon: const Icon(Icons.check_circle_outline, size: 18),
-                        label: const Text('Mark as Complete'),
+                      // 3. [📞 Mark Follow-up]
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF2563EB),
+                          side: const BorderSide(color: Color(0xFF2563EB)),
+                        ),
+                        onPressed: _isSaving ? null : _handleMarkFollowup,
+                        icon: const Icon(Icons.phone_in_talk_rounded, size: 18),
+                        label: const Text('Mark Follow-up'),
                       ),
+                      if (_record.hasActiveFollowup) ...[
+                        IconButton.filledTonal(
+                          icon: const Icon(Icons.phone, size: 18, color: Color(0xFF0284C7)),
+                          tooltip: 'Call Customer: ${_record.mobile ?? 'No phone'}',
+                          onPressed: () => _makePhoneCall(_record.mobile),
+                        ),
+                        FilledButton.tonalIcon(
+                          icon: const Icon(Icons.done_all_rounded, size: 16, color: Color(0xFF059669)),
+                          label: const Text('Follow-up Done', style: TextStyle(color: Color(0xFF065F46), fontWeight: FontWeight.bold)),
+                          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD1FAE5)),
+                          onPressed: _isSaving ? null : _handleFollowupDone,
+                        ),
+                      ],
                     ],
                   ),
                 FilledButton(
