@@ -621,6 +621,97 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     }
   }
 
+  Future<void> _showEditNameDialog() async {
+    final nameCtrl = TextEditingController(text: _record.name);
+    final formKey = GlobalKey<FormState>();
+
+    final updatedName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.edit_note_rounded, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Edit Customer Name'),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Consumer No: ${_record.consumerNo}',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: nameCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Customer Name *',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Customer Name cannot be empty';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(ctx, nameCtrl.text.trim());
+              }
+            },
+            child: const Text('Save Name'),
+          ),
+        ],
+      ),
+    );
+
+    if (updatedName != null && updatedName != _record.name && _record.id != null && mounted) {
+      setState(() => _isSaving = true);
+      try {
+        final updated = await RecordService.updateCustomerName(
+          recordId: _record.id!,
+          newName: updatedName,
+        );
+        if (mounted) {
+          setState(() {
+            _record = updated;
+            _isSaving = false;
+          });
+          widget.onRecordUpdated?.call();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Customer Name updated to "$updatedName" successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update name: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -650,9 +741,21 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          _record.name,
-                          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        Row(
+                          children: [
+                            Text(
+                              _record.name,
+                              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(width: 6),
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, size: 18),
+                              tooltip: 'Edit Customer Name',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: _showEditNameDialog,
+                            ),
+                          ],
                         ),
                         Text(
                           'Consumer No: ${_record.consumerNo} • Stage: ${_record.overallStage}',
