@@ -601,6 +601,8 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                     controller: _horizontalScrollController,
                                     scrollDirection: Axis.horizontal,
                                     child: DataTable(
+                                      columnSpacing: 16,
+                                      horizontalMargin: 12,
                                       headingRowColor: WidgetStateProperty.all(
                                         theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
                                       ),
@@ -611,9 +613,9 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                         DataColumn(label: Text('Current Sub-Stage', style: TextStyle(fontWeight: FontWeight.bold))),
                                         DataColumn(label: Text('Current Status', style: TextStyle(fontWeight: FontWeight.bold))),
                                         DataColumn(label: Text('Follow-up', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('Quick Actions', style: TextStyle(fontWeight: FontWeight.bold))),
                                         DataColumn(label: Text('Days in Stage', style: TextStyle(fontWeight: FontWeight.bold))),
                                         DataColumn(label: Text('Assigned Staff', style: TextStyle(fontWeight: FontWeight.bold))),
-                                        DataColumn(label: Text('Quick Actions', style: TextStyle(fontWeight: FontWeight.bold))),
                                       ],
                                       rows: _records.map((r) {
                                         final isCompleted = r.isCompletedState;
@@ -681,34 +683,6 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                             ),
                                             // Follow-up
                                             DataCell(_buildFollowupBadge(r)),
-                                            // Days in Current Stage
-                                            DataCell(
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: isHold
-                                                      ? Colors.grey.shade100
-                                                      : (r.daysInCurrentStage >= 15
-                                                          ? const Color(0xFFFEF2F2)
-                                                          : (r.daysInCurrentStage >= 8 ? const Color(0xFFFFFBEB) : const Color(0xFFF0FDF4))),
-                                                  borderRadius: BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  '${r.daysInCurrentStage} Days',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 12,
-                                                    color: isHold
-                                                        ? Colors.grey.shade700
-                                                        : (r.daysInCurrentStage >= 15
-                                                            ? const Color(0xFFDC2626)
-                                                            : (r.daysInCurrentStage >= 8 ? const Color(0xFFD97706) : const Color(0xFF16A34A))),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            // Assigned Staff
-                                            DataCell(Text(r.assignedStaff ?? r.installerTeam ?? 'Unassigned')),
                                             // Quick Actions: [✓ Complete] [⏸ Hold] [📞 Follow-up]
                                             DataCell(
                                               Row(
@@ -813,6 +787,34 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                                 ],
                                               ),
                                             ),
+                                            // Days in Current Stage
+                                            DataCell(
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: isHold
+                                                      ? Colors.grey.shade100
+                                                      : (r.daysInCurrentStage >= 15
+                                                          ? const Color(0xFFFEF2F2)
+                                                          : (r.daysInCurrentStage >= 8 ? const Color(0xFFFFFBEB) : const Color(0xFFF0FDF4))),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  '${r.daysInCurrentStage} Days',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                    color: isHold
+                                                        ? Colors.grey.shade700
+                                                        : (r.daysInCurrentStage >= 15
+                                                            ? const Color(0xFFDC2626)
+                                                            : (r.daysInCurrentStage >= 8 ? const Color(0xFFD97706) : const Color(0xFF16A34A))),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            // Assigned Staff
+                                            DataCell(Text(r.assignedStaff ?? r.installerTeam ?? 'Unassigned')),
                                           ],
                                         );
                                       }).toList(),
