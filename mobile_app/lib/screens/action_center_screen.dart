@@ -4,9 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/consumer_record.dart';
 import '../models/customer_misc_action.dart';
+import '../models/customer_issue.dart';
+import '../models/customer_payment.dart';
 import '../services/record_service.dart';
 import '../services/realtime_service.dart';
-import '../widgets/no_action_reason_dialog.dart';
 import '../widgets/hold_reason_dialog.dart';
 import '../widgets/followup_dialog.dart';
 import '../widgets/followup_done_dialog.dart';
@@ -25,6 +26,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
   bool _isLoading = false;
   List<ConsumerRecord> _records = [];
   List<CustomerMiscAction> _miscActions = [];
+  List<CustomerIssue> _issues = [];
   Map<String, int> _summary = {
     'agreementPending': 0,
     'loanPending': 0,
@@ -37,6 +39,8 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
     'overdueFollowup': 0,
     'upcomingFollowup': 0,
     'misc': 0,
+    'issues': 0,
+    'payments': 0,
     'totalActive': 0,
   };
   String _selectedStageFilter = 'ALL';
@@ -86,6 +90,29 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
           setState(() {
             _summary = summary;
             _miscActions = miscList;
+            _isLoading = false;
+          });
+        }
+      } else if (_selectedStageFilter == 'General Issue') {
+        final issueList = await MobileRecordService.fetchIssues(
+          statusFilter: 'Active',
+          assignedStaffFilter: _selectedStaffFilter,
+        );
+        if (mounted) {
+          setState(() {
+            _summary = summary;
+            _issues = issueList;
+            _isLoading = false;
+          });
+        }
+      } else if (_selectedStageFilter == 'Payment Pending') {
+        final records = await MobileRecordService.fetchPaymentPendingRecords(
+          staffFilter: _selectedStaffFilter,
+        );
+        if (mounted) {
+          setState(() {
+            _summary = summary;
+            _records = records;
             _isLoading = false;
           });
         }
@@ -299,6 +326,333 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
         ),
       );
       _loadActionCenterData();
+    }
+  }
+
+  // ==========================================
+  // MOBILE GENERAL ISSUE & PAYMENT ACTIONS
+  // ==========================================
+
+  Future<void> _openCustomerForIssue(CustomerIssue issue) async {
+    final record = await MobileRecordService.getRecordById(issue.customerId);
+    if (record != null && mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RecordDetailScreen(record: record),
+        ),
+      );
+      _loadActionCenterData();
+    }
+  }
+
+  Future<void> _confirmResolveIssue(CustomerIssue issue) async {
+    final remarksCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Color(0xFF059669)),
+            SizedBox(width: 8),
+            Text('Resolve Issue'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Mark "${issue.title}" (${issue.issueType}) for ${issue.customerName} as Resolved?'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: remarksCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Resolution Remarks',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Resolve Issue'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && issue.id != null && mounted) {
+      try {
+        await MobileRecordService.resolveIssue(
+          issueId: issue.id!,
+          remarks: remarksCtrl.text.trim().isEmpty ? null : remarksCtrl.text.trim(),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Issue "${issue.title}" marked as Resolved.'),
+              backgroundColor: const Color(0xFF059669),
+            ),
+          );
+          _loadActionCenterData();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmHoldIssue(CustomerIssue issue) async {
+    final formKey = GlobalKey<FormState>();
+    final reasonCtrl = TextEditingController();
+    final remarksCtrl = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.pause_circle_outline, color: Color(0xFFD97706)),
+            SizedBox(width: 8),
+            Text('Hold Issue'),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Hold reason for "${issue.title}" (${issue.customerName}):'),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: reasonCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Hold Reason *',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: remarksCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Remarks',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 2,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD97706)),
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(ctx, true);
+              }
+            },
+            child: const Text('Hold Issue'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && issue.id != null && mounted) {
+      try {
+        await MobileRecordService.holdIssue(
+          issueId: issue.id!,
+          holdReason: reasonCtrl.text.trim(),
+          remarks: remarksCtrl.text.trim().isEmpty ? null : remarksCtrl.text.trim(),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Issue placed on Hold.'), backgroundColor: Color(0xFFD97706)),
+          );
+          _loadActionCenterData();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmFollowupIssue(CustomerIssue issue) async {
+    final result = await FollowupDialog.show(
+      context,
+      customerName: issue.customerName,
+      initialReason: 'Issue: ${issue.issueType} - ${issue.title}',
+    );
+    if (result != null && mounted) {
+      try {
+        await MobileRecordService.markCustomerFollowup(
+          recordId: issue.customerId,
+          followupDate: result.followupDate,
+          followupReason: result.followupReason,
+          remarks: result.remarks,
+          relatedType: 'Issue',
+          relatedId: issue.id,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Follow-up scheduled for ${issue.customerName}.'),
+              backgroundColor: const Color(0xFF2563EB),
+            ),
+          );
+          _loadActionCenterData();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _openAddPaymentDialog(ConsumerRecord record) async {
+    final amountCtrl = TextEditingController();
+    final refCtrl = TextEditingController();
+    final remarksCtrl = TextEditingController();
+    String paymentMode = 'UPI';
+    final DateTime paymentDate = DateTime.now();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.payment, color: Color(0xFF0D9488)),
+              SizedBox(width: 8),
+              Text('Add Payment'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  record.name,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                Text(
+                  'Pending: ₹${record.pendingAmount.toStringAsFixed(0)}',
+                  style: const TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold),
+                ),
+                const Divider(height: 20),
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Amount (₹) *',
+                    border: OutlineInputBorder(),
+                    prefixText: '₹ ',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: paymentMode,
+                  decoration: const InputDecoration(
+                    labelText: 'Payment Mode',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: ['UPI', 'Bank Transfer', 'Cash', 'Cheque', 'Other']
+                      .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setDlgState(() => paymentMode = v);
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: refCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Reference / UTR Number',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: remarksCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Remarks (Optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
+              onPressed: () {
+                final amt = double.tryParse(amountCtrl.text.trim()) ?? 0;
+                if (amt <= 0) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Please enter a valid amount'), backgroundColor: Colors.red),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('Save Payment'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true && record.id != null && mounted) {
+      final amt = double.tryParse(amountCtrl.text.trim()) ?? 0;
+      try {
+        final tx = PaymentTransaction(
+          customerId: record.id!,
+          consumerNo: record.consumerNo,
+          amount: amt,
+          paymentDate: paymentDate,
+          paymentMode: paymentMode,
+          referenceNumber: refCtrl.text.trim().isEmpty ? null : refCtrl.text.trim(),
+          remarks: remarksCtrl.text.trim().isEmpty ? null : remarksCtrl.text.trim(),
+        );
+        await MobileRecordService.addPaymentTransaction(tx);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Payment of ₹$amt recorded for ${record.name}.'),
+              backgroundColor: const Color(0xFF0D9488),
+            ),
+          );
+          _loadActionCenterData();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to record payment: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
     }
   }
 
@@ -640,6 +994,20 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                               color: const Color(0xFF6366F1),
                               filterKey: 'MISC',
                             ),
+                            const SizedBox(width: 8),
+                            _buildSummaryBox(
+                              title: 'General Issue',
+                              count: _summary['issues'] ?? 0,
+                              color: const Color(0xFFE11D48),
+                              filterKey: 'General Issue',
+                            ),
+                            const SizedBox(width: 8),
+                            _buildSummaryBox(
+                              title: 'Payment Pending',
+                              count: _summary['payments'] ?? 0,
+                              color: const Color(0xFF0D9488),
+                              filterKey: 'Payment Pending',
+                            ),
                           ],
                         ),
                       ),
@@ -698,6 +1066,30 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                         itemBuilder: (context, index) {
                           final action = _miscActions[index];
                           return _buildMobileMiscCard(action);
+                        },
+                      )
+              else if (_selectedStageFilter == 'General Issue')
+                _issues.isEmpty
+                    ? Card(
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: const Padding(
+                          padding: EdgeInsets.all(32.0),
+                          child: Center(
+                            child: Text(
+                              'No active general issues requiring attention.',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _issues.length,
+                        itemBuilder: (context, index) {
+                          final issue = _issues[index];
+                          return _buildMobileIssueCard(issue);
                         },
                       )
               else if (_records.isEmpty)
@@ -873,6 +1265,192 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                   icon: const Icon(Icons.phone_in_talk, size: 14),
                   label: const Text('Follow-up', style: TextStyle(fontSize: 12)),
                   onPressed: () => _confirmFollowupMiscAction(action),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileIssueCard(CustomerIssue issue) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: issue.priorityColor.withValues(alpha: 0.3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: Customer Name, Priority Badge
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    issue.customerName,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: issue.priorityColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: issue.priorityColor.withValues(alpha: 0.4)),
+                  ),
+                  child: Text(
+                    issue.priority.toUpperCase(),
+                    style: TextStyle(color: issue.priorityColor, fontWeight: FontWeight.bold, fontSize: 10),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Consumer No: ${issue.consumerNo} • ${issue.mobile ?? 'No phone'}',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 10),
+
+            // Issue Type & Status Badges
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: issue.typeColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: issue.typeColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    '⚠️ ${issue.issueType}',
+                    style: TextStyle(color: issue.typeColor, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: issue.statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: issue.statusColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    issue.status,
+                    style: TextStyle(color: issue.statusColor, fontWeight: FontWeight.w600, fontSize: 11),
+                  ),
+                ),
+                if (issue.isStuck) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.amber.shade700),
+                    ),
+                    child: const Text(
+                      '⚠️ Stuck Issue',
+                      style: TextStyle(color: Colors.brown, fontWeight: FontWeight.bold, fontSize: 10),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              issue.title,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            if (issue.description != null && issue.description!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                issue.description!,
+                style: const TextStyle(fontSize: 12, color: Colors.black87),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Assigned: ${issue.assignedStaff ?? 'Unassigned'}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                ),
+                if (issue.dueDate != null)
+                  Text(
+                    'Due: ${issue.dueDate!.day.toString().padLeft(2, '0')}/${issue.dueDate!.month.toString().padLeft(2, '0')}/${issue.dueDate!.year}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: issue.isOverdue ? Colors.red : Colors.grey.shade700,
+                    ),
+                  ),
+              ],
+            ),
+            const Divider(height: 20),
+
+            // Mobile Quick Actions: [Open] [Call] [Resolve] [Hold] [Follow-up]
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: () => _openCustomerForIssue(issue),
+                  child: const Text('Open Customer', style: TextStyle(fontSize: 12)),
+                ),
+                if (issue.mobile != null && issue.mobile!.isNotEmpty)
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    icon: const Icon(Icons.phone, size: 14),
+                    label: const Text('Call', style: TextStyle(fontSize: 12)),
+                    onPressed: () => _makePhoneCall(issue.mobile),
+                  ),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(Icons.check, size: 14),
+                  label: const Text('Resolve', style: TextStyle(fontSize: 12)),
+                  onPressed: () => _confirmResolveIssue(issue),
+                ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFD97706),
+                    side: const BorderSide(color: Color(0xFFD97706)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(Icons.pause, size: 14),
+                  label: const Text('Hold', style: TextStyle(fontSize: 12)),
+                  onPressed: () => _confirmHoldIssue(issue),
+                ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF2563EB),
+                    side: const BorderSide(color: Color(0xFF2563EB)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(Icons.phone_in_talk, size: 14),
+                  label: const Text('Follow-up', style: TextStyle(fontSize: 12)),
+                  onPressed: () => _confirmFollowupIssue(issue),
                 ),
               ],
             ),
@@ -1093,11 +1671,19 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
 
             // Days in Current Stage
             _buildDetailRow('Days in Current Stage:', '${record.daysInCurrentStage} Days'),
+            if (record.pendingAmount > 0) ...[
+              const SizedBox(height: 6),
+              _buildDetailRow(
+                'Payment Status:',
+                '${record.paymentStatus} (Pending ₹${record.pendingAmount.toStringAsFixed(0)})',
+                isHighlight: record.isPaymentOverdue,
+              ),
+            ],
             const SizedBox(height: 12),
 
             // ==========================================
             // 3 QUICK ACTIONS (Clearly visible on card)
-            // [✓ Complete] [⏸ Hold] [📞 Follow-up]
+            // [✓ Complete] [⏸ Hold] [📞 Follow-up] [+ Payment]
             // ==========================================
             Wrap(
               spacing: 8,
@@ -1137,6 +1723,18 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                     ),
                     onPressed: () => _openFollowupDialog(record),
                   ),
+                  // 4. [+ Payment]
+                  if (record.pendingAmount > 0)
+                    FilledButton.tonalIcon(
+                      icon: const Icon(Icons.payment_rounded, size: 15, color: Color(0xFF0D9488)),
+                      label: const Text('+ Payment', style: TextStyle(fontSize: 12, color: Color(0xFF0F766E), fontWeight: FontWeight.bold)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFF0FDFA),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () => _openAddPaymentDialog(record),
+                    ),
                 ],
                 if (isHold) ...[
                   // [Reopen]

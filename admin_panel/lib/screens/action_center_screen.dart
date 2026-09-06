@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../models/consumer_record.dart';
 import '../models/customer_misc_action.dart';
+import '../models/customer_issue.dart';
 import '../services/record_service.dart';
 import '../services/realtime_service.dart';
 import '../services/workflow_engine.dart';
@@ -13,6 +14,8 @@ import '../widgets/hold_reason_dialog.dart';
 import '../widgets/followup_dialog.dart';
 import '../widgets/followup_done_dialog.dart';
 import '../widgets/misc_action_dialog.dart';
+import '../widgets/issue_dialog.dart';
+import '../widgets/payment_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ActionCenterScreen extends StatefulWidget {
@@ -33,6 +36,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
   bool _isLoading = false;
   List<ConsumerRecord> _records = [];
   List<CustomerMiscAction> _miscActions = [];
+  List<CustomerIssue> _issues = [];
   int _totalCount = 0;
   int _currentPage = 1;
   final int _pageSize = 15;
@@ -106,6 +110,47 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
             _queueCounts = queueCounts;
             _miscActions = miscResult.items;
             _totalCount = miscResult.totalCount;
+            _isLoading = false;
+          });
+        }
+      } else if (_selectedStageFilter == 'General Issue') {
+        final issueFuture = RecordService.fetchIssues(
+          page: _currentPage,
+          pageSize: _pageSize,
+          statusFilter: 'Active',
+          assignedStaffFilter: _selectedStaffFilter,
+          searchQuery: _searchController.text,
+        );
+
+        final results = await Future.wait([countsFuture, issueFuture]);
+        final queueCounts = results[0] as Map<String, int>;
+        final issueResult = results[1] as PaginatedResult<CustomerIssue>;
+
+        if (mounted) {
+          setState(() {
+            _queueCounts = queueCounts;
+            _issues = issueResult.items;
+            _totalCount = issueResult.totalCount;
+            _isLoading = false;
+          });
+        }
+      } else if (_selectedStageFilter == 'Payment Pending') {
+        final paymentFuture = RecordService.fetchPaymentPendingRecords(
+          page: _currentPage,
+          pageSize: _pageSize,
+          assignedStaffFilter: _selectedStaffFilter,
+          searchQuery: _searchController.text,
+        );
+
+        final results = await Future.wait([countsFuture, paymentFuture]);
+        final queueCounts = results[0] as Map<String, int>;
+        final paymentResult = results[1] as PaginatedResult<ConsumerRecord>;
+
+        if (mounted) {
+          setState(() {
+            _queueCounts = queueCounts;
+            _records = paymentResult.items;
+            _totalCount = paymentResult.totalCount;
             _isLoading = false;
           });
         }
@@ -328,6 +373,417 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Follow-up scheduled for ${action.customerName} on ${result.followupDate.toLocal().toString().split(' ')[0]}.'),
+              backgroundColor: const Color(0xFF2563EB),
+            ),
+          );
+          _loadActionCenterRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to schedule follow-up: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  // ================= GENERAL ISSUE HELPERS =================
+
+  Future<void> _openReportIssueDialog([ConsumerRecord? customer]) async {
+    final saved = await IssueDialog.show(context, customerRecord: customer);
+    if (saved == true) {
+      _loadActionCenterRecords();
+    }
+  }
+
+  Future<void> _openEditIssueDialog(CustomerIssue issue) async {
+    final saved = await IssueDialog.show(context, existingIssue: issue);
+    if (saved == true) {
+      _loadActionCenterRecords();
+    }
+  }
+
+  Future<void> _confirmAssignIssue(CustomerIssue issue) async {
+    final staffCtrl = TextEditingController(text: issue.assignedStaff ?? '');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.person_add_rounded, color: Color(0xFF2563EB)),
+            SizedBox(width: 8),
+            Text('Assign Staff to Issue'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Issue: ${issue.title} (${issue.issueType})'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: staffCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Assign Staff Name *',
+                hintText: 'e.g. Rahul Sharma / Technical Team',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Assign'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && staffCtrl.text.trim().isNotEmpty && issue.id != null && mounted) {
+      try {
+        await RecordService.assignIssue(
+          issueId: issue.id!,
+          assignedStaff: staffCtrl.text.trim(),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Issue assigned to ${staffCtrl.text.trim()}.'), backgroundColor: const Color(0xFF2563EB)),
+          );
+          _loadActionCenterRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to assign issue: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmHoldIssue(CustomerIssue issue) async {
+    final remarksCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.pause_circle_outline, color: Color(0xFFD97706)),
+            SizedBox(width: 8),
+            Text('Put Issue On Hold'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Put issue "${issue.title}" on Hold?'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: remarksCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Hold Reason / Remarks *',
+                hintText: 'e.g. Waiting for spare part delivery from vendor',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD97706)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Put On Hold'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && issue.id != null && mounted) {
+      try {
+        await RecordService.holdIssue(
+          issueId: issue.id!,
+          remarks: remarksCtrl.text.trim().isEmpty ? null : remarksCtrl.text.trim(),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Issue placed on Hold.'), backgroundColor: Color(0xFFD97706)),
+          );
+          _loadActionCenterRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to hold issue: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmResolveIssue(CustomerIssue issue) async {
+    final remarksCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Color(0xFF059669)),
+            SizedBox(width: 8),
+            Text('Resolve Issue'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Mark issue "${issue.title}" as Resolved?'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: remarksCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Resolution Remarks',
+                hintText: 'e.g. Inverter firmware updated, working normally',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Mark Resolved'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && issue.id != null && mounted) {
+      try {
+        await RecordService.resolveIssue(
+          issueId: issue.id!,
+          remarks: remarksCtrl.text.trim().isEmpty ? null : remarksCtrl.text.trim(),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Issue marked as Resolved.'), backgroundColor: Color(0xFF059669)),
+          );
+          _loadActionCenterRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to resolve issue: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmCloseIssue(CustomerIssue issue) async {
+    final remarksCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.task_alt_rounded, color: Colors.grey),
+            SizedBox(width: 8),
+            Text('Close Issue'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Close issue "${issue.title}" permanently?'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: remarksCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Closing Remarks',
+                hintText: 'e.g. Customer satisfied with fix',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.grey.shade800),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Close Issue'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && issue.id != null && mounted) {
+      try {
+        await RecordService.closeIssue(
+          issueId: issue.id!,
+          remarks: remarksCtrl.text.trim().isEmpty ? null : remarksCtrl.text.trim(),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Issue closed.'), backgroundColor: Colors.grey),
+          );
+          _loadActionCenterRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to close issue: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmReopenIssue(CustomerIssue issue) async {
+    final remarksCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.replay_rounded, color: Color(0xFF2563EB)),
+            SizedBox(width: 8),
+            Text('Reopen Issue'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Reopen issue "${issue.title}" for customer ${issue.customerName}?'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: remarksCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Reason for Reopening *',
+                hintText: 'e.g. Problem reoccurred after 2 days',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reopen Issue'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && issue.id != null && mounted) {
+      try {
+        await RecordService.reopenIssue(
+          issueId: issue.id!,
+          remarks: remarksCtrl.text.trim().isEmpty ? null : remarksCtrl.text.trim(),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Issue reopened successfully.'), backgroundColor: Color(0xFF2563EB)),
+          );
+          _loadActionCenterRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to reopen issue: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmFollowupIssue(CustomerIssue issue) async {
+    final result = await FollowupDialog.show(
+      context,
+      customerName: issue.customerName,
+      initialReason: 'Issue: ${issue.issueType} - ${issue.title}',
+    );
+    if (result != null && mounted) {
+      try {
+        await RecordService.markCustomerFollowup(
+          recordId: issue.customerId,
+          followupDate: result.followupDate,
+          followupReason: result.followupReason,
+          remarks: result.remarks,
+          relatedType: 'Issue',
+          relatedId: issue.id,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Follow-up scheduled for ${issue.customerName} on ${result.followupDate.toLocal().toString().split(' ')[0]}.'),
+              backgroundColor: const Color(0xFF2563EB),
+            ),
+          );
+          _loadActionCenterRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to schedule follow-up: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  // ================= PAYMENT HELPERS =================
+
+  Future<void> _openAddPaymentDialog(ConsumerRecord customer) async {
+    final saved = await PaymentDialog.show(context, customerRecord: customer);
+    if (saved == true) {
+      _loadActionCenterRecords();
+    }
+  }
+
+  Future<void> _confirmFollowupPayment(ConsumerRecord record) async {
+    if (record.id == null) return;
+    final result = await FollowupDialog.show(
+      context,
+      customerName: record.name,
+      initialReason: 'Payment Pending: ₹${record.pendingAmount.toStringAsFixed(0)}',
+    );
+    if (result != null && mounted) {
+      try {
+        await RecordService.markCustomerFollowup(
+          recordId: record.id!,
+          followupDate: result.followupDate,
+          followupReason: result.followupReason,
+          remarks: result.remarks,
+          relatedType: 'Payment',
+          relatedId: record.id,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Payment follow-up scheduled for ${record.name} on ${result.followupDate.toLocal().toString().split(' ')[0]}.'),
               backgroundColor: const Color(0xFF2563EB),
             ),
           );
@@ -822,6 +1278,18 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                 color: const Color(0xFF6366F1),
                 icon: Icons.assignment_turned_in_rounded,
               ),
+              _buildStageFilterCard(
+                title: 'General Issue',
+                stageCode: 'General Issue',
+                color: const Color(0xFFDC2626),
+                icon: Icons.report_problem_rounded,
+              ),
+              _buildStageFilterCard(
+                title: 'Payment Pending',
+                stageCode: 'Payment Pending',
+                color: const Color(0xFFD97706),
+                icon: Icons.payments_rounded,
+              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -880,6 +1348,8 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                           DropdownMenuItem(value: 'Hold', child: Text('⏸ On Hold')),
                           DropdownMenuItem(value: 'Completed', child: Text('✓ Completed')),
                           DropdownMenuItem(value: 'MISC', child: Text('⚡ MISC Actions')),
+                          DropdownMenuItem(value: 'General Issue', child: Text('⚠️ General Issue')),
+                          DropdownMenuItem(value: 'Payment Pending', child: Text('💰 Payment Pending')),
                         ],
                         onChanged: (val) {
                           if (val != null) {
@@ -930,8 +1400,18 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                     icon: const Icon(Icons.add_task_rounded, size: 18),
-                    label: const Text('+ Add MISC Action'),
+                    label: const Text('+ Add MISC'),
                     onPressed: () => _openAddMiscDialog(),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                    icon: const Icon(Icons.report_problem_rounded, size: 18),
+                    label: const Text('+ Report Issue'),
+                    onPressed: () => _openReportIssueDialog(),
                   ),
                 ],
               ),
@@ -975,6 +1455,51 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                 ),
                               )
                             : _buildMiscDataTable(theme)
+                        : _selectedStageFilter == 'General Issue'
+                            ? _issues.isEmpty
+                                ? Padding(
+                                    padding: const EdgeInsets.all(40.0),
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.report_problem_outlined, size: 48, color: Colors.redAccent),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            'No active general customer issues requiring staff action.',
+                                            style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          FilledButton.icon(
+                                            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+                                            onPressed: () => _openReportIssueDialog(),
+                                            icon: const Icon(Icons.add, size: 16),
+                                            label: const Text('Report New Issue'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  )
+                                : _buildIssueDataTable(theme)
+                        : _selectedStageFilter == 'Payment Pending'
+                            ? _records.isEmpty
+                                ? Padding(
+                                    padding: const EdgeInsets.all(40.0),
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.payments_outlined, size: 48, color: Colors.amber),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            'No customers with pending payments found.',
+                                            style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  )
+                                : _buildPaymentDataTable(theme)
                         : _records.isEmpty
                             ? Padding(
                                 padding: const EdgeInsets.all(40.0),
@@ -1836,6 +2361,593 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
       );
     }
 
+    return Text(dateStr, style: const TextStyle(fontSize: 12));
+  }
+
+  // ================= GENERAL ISSUE DATA TABLE =================
+
+  Widget _buildIssueDataTable(ThemeData theme) {
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        dragDevices: {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.trackpad,
+          PointerDeviceKind.stylus,
+        },
+      ),
+      child: Scrollbar(
+        controller: _verticalScrollController,
+        thumbVisibility: true,
+        trackVisibility: true,
+        child: SingleChildScrollView(
+          controller: _verticalScrollController,
+          scrollDirection: Axis.vertical,
+          child: Scrollbar(
+            controller: _horizontalScrollController,
+            thumbVisibility: true,
+            trackVisibility: true,
+            child: SingleChildScrollView(
+              controller: _horizontalScrollController,
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 16,
+                horizontalMargin: 12,
+                headingRowColor: WidgetStateProperty.all(
+                  theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                ),
+                columns: const [
+                  DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Issue Type & Priority', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Title / Description', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Assigned Staff', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Due Date / Alert', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+                ],
+                rows: _issues.map((issue) {
+                  return DataRow(
+                    cells: [
+                      // Customer Name
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  issue.customerName,
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                if (issue.mobile != null && issue.mobile!.isNotEmpty)
+                                  Text(
+                                    issue.mobile!,
+                                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                  ),
+                              ],
+                            ),
+                            if (issue.mobile != null && issue.mobile!.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.phone, size: 14, color: Color(0xFF059669)),
+                                tooltip: 'Call ${issue.customerName}',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _makePhoneCall(issue.mobile),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      // Consumer No
+                      DataCell(
+                        InkWell(
+                          onTap: () async {
+                            final rec = await RecordService.fetchRecordById(issue.customerId);
+                            if (rec != null && mounted) _openDetailsDialog(rec);
+                          },
+                          child: Text(
+                            issue.consumerNo,
+                            style: const TextStyle(
+                              color: Color(0xFF2563EB),
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Issue Type & Priority
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: issue.typeColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: issue.typeColor.withValues(alpha: 0.4)),
+                              ),
+                              child: Text(
+                                issue.issueType,
+                                style: TextStyle(color: issue.typeColor, fontWeight: FontWeight.w600, fontSize: 12),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: issue.priorityColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: issue.priorityColor.withValues(alpha: 0.4)),
+                              ),
+                              child: Text(
+                                issue.priority.toUpperCase(),
+                                style: TextStyle(color: issue.priorityColor, fontWeight: FontWeight.bold, fontSize: 10),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Title & Description
+                      DataCell(
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 240),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                issue.title,
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (issue.description != null && issue.description!.isNotEmpty)
+                                Text(
+                                  issue.description!,
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Assigned Staff
+                      DataCell(
+                        InkWell(
+                          onTap: () => _confirmAssignIssue(issue),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.person, size: 14, color: issue.assignedStaff != null ? const Color(0xFF2563EB) : Colors.grey),
+                              const SizedBox(width: 4),
+                              Text(
+                                issue.assignedStaff ?? 'Unassigned (Tap)',
+                                style: TextStyle(
+                                  color: issue.assignedStaff != null ? Colors.black87 : Colors.grey.shade600,
+                                  fontSize: 12,
+                                  fontWeight: issue.assignedStaff != null ? FontWeight.w500 : FontWeight.normal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Due Date / Alert (Stuck Detection)
+                      DataCell(_buildIssueDueDateBadge(issue)),
+                      // Status
+                      DataCell(
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: issue.statusColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: issue.statusColor.withValues(alpha: 0.4)),
+                          ),
+                          child: Text(
+                            issue.status,
+                            style: TextStyle(color: issue.statusColor, fontWeight: FontWeight.bold, fontSize: 11),
+                          ),
+                        ),
+                      ),
+                      // Actions: [Open] [Assign] [Hold] [Resolve] [Close] [Follow-up]
+                      DataCell(
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 2,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            // [Open]
+                            OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: const Size(0, 28),
+                                visualDensity: VisualDensity.compact,
+                                side: BorderSide(color: theme.colorScheme.primary),
+                              ),
+                              onPressed: () => _openEditIssueDialog(issue),
+                              child: const Text('Open', style: TextStyle(fontSize: 11)),
+                            ),
+                            // [Assign]
+                            OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: const Size(0, 28),
+                                visualDensity: VisualDensity.compact,
+                                side: const BorderSide(color: Color(0xFF2563EB)),
+                                foregroundColor: const Color(0xFF2563EB),
+                              ),
+                              onPressed: () => _confirmAssignIssue(issue),
+                              child: const Text('Assign', style: TextStyle(fontSize: 11)),
+                            ),
+                            // [Hold]
+                            if (issue.status != 'Hold' && issue.status != 'Resolved' && issue.status != 'Closed')
+                              OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFD97706),
+                                  side: const BorderSide(color: Color(0xFFD97706)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  minimumSize: const Size(0, 28),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () => _confirmHoldIssue(issue),
+                                child: const Text('Hold', style: TextStyle(fontSize: 11)),
+                              ),
+                            // [Resolve]
+                            if (issue.status != 'Resolved' && issue.status != 'Closed')
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF059669),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  minimumSize: const Size(0, 28),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () => _confirmResolveIssue(issue),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.check, size: 12),
+                                    SizedBox(width: 2),
+                                    Text('Resolve', style: TextStyle(fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                            // [Close]
+                            if (issue.status == 'Resolved')
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.grey.shade800,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  minimumSize: const Size(0, 28),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () => _confirmCloseIssue(issue),
+                                child: const Text('Close', style: TextStyle(fontSize: 11)),
+                              ),
+                            // [Reopen]
+                            if (issue.status == 'Resolved' || issue.status == 'Closed' || issue.status == 'Cancelled')
+                              OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF2563EB),
+                                  side: const BorderSide(color: Color(0xFF2563EB)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  minimumSize: const Size(0, 28),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () => _confirmReopenIssue(issue),
+                                child: const Text('Reopen', style: TextStyle(fontSize: 11)),
+                              ),
+                            // [Follow-up]
+                            OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF2563EB),
+                                side: const BorderSide(color: Color(0xFF2563EB)),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: const Size(0, 28),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              onPressed: () => _confirmFollowupIssue(issue),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.phone, size: 12),
+                                  SizedBox(width: 2),
+                                  Text('Follow-up', style: TextStyle(fontSize: 11)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIssueDueDateBadge(CustomerIssue issue) {
+    if (issue.isStuck) {
+      return Tooltip(
+        message: 'Stuck Issue: In progress or assigned for over 7 days.',
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEF2F2),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: const Color(0xFFEF4444)),
+          ),
+          child: const Text('⚠️ Stuck Issue', style: TextStyle(color: Color(0xFFDC2626), fontSize: 11, fontWeight: FontWeight.bold)),
+        ),
+      );
+    }
+    if (issue.dueDate == null) {
+      return Text('Not Set', style: TextStyle(fontSize: 11, color: Colors.grey.shade500));
+    }
+    final dateStr = '${issue.dueDate!.day.toString().padLeft(2, '0')}/${issue.dueDate!.month.toString().padLeft(2, '0')}/${issue.dueDate!.year}';
+
+    if (issue.isOverdue) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEE2E2),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: const Color(0xFFEF4444)),
+        ),
+        child: Text('🔴 Overdue: $dateStr', style: const TextStyle(color: Color(0xFF991B1B), fontSize: 11, fontWeight: FontWeight.bold)),
+      );
+    }
+    if (issue.isDueToday) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF3C7),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: const Color(0xFFF59E0B)),
+        ),
+        child: const Text('⚠️ Due Today', style: TextStyle(color: Color(0xFF92400E), fontSize: 11, fontWeight: FontWeight.bold)),
+      );
+    }
+
+    return Text(dateStr, style: const TextStyle(fontSize: 12));
+  }
+
+  // ================= PAYMENT DATA TABLE =================
+
+  Widget _buildPaymentDataTable(ThemeData theme) {
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        dragDevices: {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.trackpad,
+          PointerDeviceKind.stylus,
+        },
+      ),
+      child: Scrollbar(
+        controller: _verticalScrollController,
+        thumbVisibility: true,
+        trackVisibility: true,
+        child: SingleChildScrollView(
+          controller: _verticalScrollController,
+          scrollDirection: Axis.vertical,
+          child: Scrollbar(
+            controller: _horizontalScrollController,
+            thumbVisibility: true,
+            trackVisibility: true,
+            child: SingleChildScrollView(
+              controller: _horizontalScrollController,
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 16,
+                horizontalMargin: 12,
+                headingRowColor: WidgetStateProperty.all(
+                  theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                ),
+                columns: const [
+                  DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Current Stage', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Total Amount', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Paid Amount', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Pending Amount', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Due Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Payment Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+                ],
+                rows: _records.map((r) {
+                  return DataRow(
+                    cells: [
+                      // Customer Name
+                      DataCell(
+                        InkWell(
+                          onTap: () => _openDetailsDialog(r),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                r.name,
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              if (r.mobile != null && r.mobile!.isNotEmpty)
+                                Text(
+                                  r.mobile!,
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Consumer No
+                      DataCell(
+                        InkWell(
+                          onTap: () => _openDetailsDialog(r),
+                          child: Text(
+                            r.consumerNo,
+                            style: const TextStyle(
+                              color: Color(0xFF2563EB),
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Current Stage
+                      DataCell(_buildStageBadge(r.overallStage, isHold: r.isHold, holdReason: r.holdReason ?? r.noActionReason)),
+                      // Total Amount
+                      DataCell(
+                        Text(
+                          '₹${r.totalAmount.toStringAsFixed(0)}',
+                          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                        ),
+                      ),
+                      // Paid Amount
+                      DataCell(
+                        Text(
+                          '₹${r.paidAmount.toStringAsFixed(0)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF059669), fontSize: 13),
+                        ),
+                      ),
+                      // Pending Amount
+                      DataCell(
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: r.pendingAmount > 0 ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: r.pendingAmount > 0 ? const Color(0xFFEF4444) : const Color(0xFF22C55E)),
+                          ),
+                          child: Text(
+                            '₹${r.pendingAmount.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              color: r.pendingAmount > 0 ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Due Date
+                      DataCell(_buildPaymentDueDateBadge(r)),
+                      // Payment Status
+                      DataCell(
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: r.paymentStatus == 'Paid'
+                                ? const Color(0xFFECFDF5)
+                                : (r.paymentStatus == 'Partially Paid' ? const Color(0xFFFFFBEB) : const Color(0xFFFEF2F2)),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: r.paymentStatus == 'Paid'
+                                  ? const Color(0xFF059669)
+                                  : (r.paymentStatus == 'Partially Paid' ? const Color(0xFFD97706) : const Color(0xFFDC2626)),
+                            ),
+                          ),
+                          child: Text(
+                            r.paymentStatus,
+                            style: TextStyle(
+                              color: r.paymentStatus == 'Paid'
+                                  ? const Color(0xFF059669)
+                                  : (r.paymentStatus == 'Partially Paid' ? const Color(0xFFB45309) : const Color(0xFFDC2626)),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Actions: [Open] [+ Add Payment] [📞 Follow-up] [Call]
+                      DataCell(
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 2,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: const Size(0, 28),
+                                visualDensity: VisualDensity.compact,
+                                side: BorderSide(color: theme.colorScheme.primary),
+                              ),
+                              onPressed: () => _openDetailsDialog(r),
+                              child: const Text('Open', style: TextStyle(fontSize: 11)),
+                            ),
+                            FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF059669),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: const Size(0, 28),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              icon: const Icon(Icons.add, size: 12),
+                              label: const Text('Add Payment', style: TextStyle(fontSize: 11)),
+                              onPressed: () => _openAddPaymentDialog(r),
+                            ),
+                            OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF2563EB),
+                                side: const BorderSide(color: Color(0xFF2563EB)),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: const Size(0, 28),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              onPressed: () => _confirmFollowupPayment(r),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.phone, size: 12),
+                                  SizedBox(width: 2),
+                                  Text('Follow-up', style: TextStyle(fontSize: 11)),
+                                ],
+                              ),
+                            ),
+                            if (r.mobile != null && r.mobile!.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.phone_in_talk, size: 16, color: Color(0xFF059669)),
+                                tooltip: 'Call ${r.name}',
+                                padding: const EdgeInsets.all(4),
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _makePhoneCall(r.mobile),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentDueDateBadge(ConsumerRecord r) {
+    if (r.paymentDueDate == null) {
+      return Text('—', style: TextStyle(fontSize: 12, color: Colors.grey.shade400));
+    }
+    final dateStr = '${r.paymentDueDate!.day.toString().padLeft(2, '0')}/${r.paymentDueDate!.month.toString().padLeft(2, '0')}/${r.paymentDueDate!.year}';
+    if (r.isPaymentOverdue) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEE2E2),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: const Color(0xFFEF4444)),
+        ),
+        child: Text('🔴 Overdue: $dateStr', style: const TextStyle(color: Color(0xFF991B1B), fontSize: 11, fontWeight: FontWeight.bold)),
+      );
+    }
     return Text(dateStr, style: const TextStyle(fontSize: 12));
   }
 }

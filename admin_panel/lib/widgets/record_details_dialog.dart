@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/consumer_record.dart';
+import '../models/customer_issue.dart';
+import '../models/customer_payment.dart';
 import '../services/record_service.dart';
 import '../services/workflow_engine.dart';
 import 'hold_reason_dialog.dart';
 import 'followup_dialog.dart';
 import 'followup_done_dialog.dart';
 import 'misc_action_dialog.dart';
+import 'issue_dialog.dart';
+import 'payment_dialog.dart';
 
 class RecordDetailsDialog extends StatefulWidget {
   final ConsumerRecord record;
@@ -24,10 +28,49 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
   bool _isOwnerOverride = false;
   String _overrideReason = '';
 
+  List<PaymentTransaction> _transactions = [];
+  List<CustomerIssue> _issues = [];
+  bool _isLoadingPayments = false;
+  bool _isLoadingIssues = false;
+
   @override
   void initState() {
     super.initState();
     _record = widget.record;
+    _loadPayments();
+    _loadIssues();
+  }
+
+  Future<void> _loadPayments() async {
+    if (_record.id == null) return;
+    setState(() => _isLoadingPayments = true);
+    try {
+      final txs = await RecordService.fetchPaymentTransactions(_record.id!);
+      if (mounted) {
+        setState(() {
+          _transactions = txs;
+          _isLoadingPayments = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingPayments = false);
+    }
+  }
+
+  Future<void> _loadIssues() async {
+    if (_record.id == null) return;
+    setState(() => _isLoadingIssues = true);
+    try {
+      final issues = await RecordService.fetchCustomerIssues(_record.id!);
+      if (mounted) {
+        setState(() {
+          _issues = issues;
+          _isLoadingIssues = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingIssues = false);
+    }
   }
 
   String _safeValue(String currentValue, List<String> allowedItems) {
@@ -1339,6 +1382,14 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                         ],
                       ),
                     ),
+
+                    const SizedBox(height: 14),
+                    // Module 7: Payment & Balance Tracking
+                    _buildPaymentCard(),
+
+                    const SizedBox(height: 14),
+                    // Module 6: General Issues & Complaints
+                    _buildIssuesCard(),
                   ],
                 ),
               ),
@@ -1460,6 +1511,41 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                               },
                         icon: const Icon(Icons.add_task_rounded, size: 18),
                         label: const Text('Add MISC'),
+                      ),
+                      // 5. [+ Add Payment]
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF059669),
+                          side: const BorderSide(color: Color(0xFF059669)),
+                        ),
+                        onPressed: _isSaving
+                            ? null
+                            : () async {
+                                final res = await PaymentDialog.show(context, customerRecord: _record);
+                                if (res == true) {
+                                  _loadPayments();
+                                  final updated = await RecordService.fetchRecordById(_record.id!);
+                                  if (updated != null && mounted) setState(() => _record = updated);
+                                  widget.onRecordUpdated?.call();
+                                }
+                              },
+                        icon: const Icon(Icons.payments_outlined, size: 18),
+                        label: const Text('Add Payment'),
+                      ),
+                      // 6. [! Report Issue]
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFDC2626),
+                          side: const BorderSide(color: Color(0xFFDC2626)),
+                        ),
+                        onPressed: _isSaving
+                            ? null
+                            : () async {
+                                final res = await IssueDialog.show(context, customerRecord: _record);
+                                if (res == true) _loadIssues();
+                              },
+                        icon: const Icon(Icons.report_problem_outlined, size: 18),
+                        label: const Text('Report Issue'),
                       ),
                       if (_record.hasActiveFollowup) ...[
                         IconButton.filledTonal(
@@ -1671,5 +1757,445 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
         ],
       ),
     );
+  }
+
+  Widget _buildPaymentCard() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.green.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Icon(Icons.payments_rounded, color: Color(0xFF059669), size: 20),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('Payment & Balance Tracking', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+                  onPressed: () async {
+                    final res = await PaymentDialog.show(context, customerRecord: _record);
+                    if (res == true) {
+                      _loadPayments();
+                      final updated = await RecordService.fetchRecordById(_record.id!);
+                      if (updated != null && mounted) setState(() => _record = updated);
+                      widget.onRecordUpdated?.call();
+                    }
+                  },
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Record Payment', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade100),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Total Amount', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                      Text('₹${_record.totalAmount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Paid Amount', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                      Text('₹${_record.paidAmount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF059669))),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Pending Balance', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                      Text(
+                        '₹${_record.pendingAmount.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: _record.pendingAmount > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Payment Status', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: PaymentStatus.statusColor(_record.paymentStatus).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: PaymentStatus.statusColor(_record.paymentStatus).withOpacity(0.3)),
+                        ),
+                        child: Text(
+                          _record.paymentStatus,
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: PaymentStatus.statusColor(_record.paymentStatus)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (_isLoadingPayments)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+              )
+            else if (_transactions.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(child: Text('No payment transactions recorded yet.', style: TextStyle(fontSize: 12, color: Colors.grey))),
+              )
+            else ...[
+              const SizedBox(height: 12),
+              const Text('Transaction History:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Table(
+                  border: TableBorder.all(color: Colors.grey.shade200),
+                  columnWidths: const {
+                    0: FlexColumnWidth(2),
+                    1: FlexColumnWidth(2),
+                    2: FlexColumnWidth(2),
+                    3: FlexColumnWidth(3),
+                    4: FlexColumnWidth(2),
+                    5: FlexColumnWidth(2),
+                  },
+                  children: [
+                    TableRow(
+                      decoration: BoxDecoration(color: Colors.grey.shade100),
+                      children: const [
+                        Padding(padding: EdgeInsets.all(6), child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        Padding(padding: EdgeInsets.all(6), child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        Padding(padding: EdgeInsets.all(6), child: Text('Mode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        Padding(padding: EdgeInsets.all(6), child: Text('Ref / UTR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        Padding(padding: EdgeInsets.all(6), child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        Padding(padding: EdgeInsets.all(6), child: Text('Action', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                      ],
+                    ),
+                    ..._transactions.map((tx) {
+                      return TableRow(
+                        children: [
+                          Padding(padding: const EdgeInsets.all(6), child: Text(tx.paymentDate.toIso8601String().split('T')[0], style: const TextStyle(fontSize: 11))),
+                          Padding(padding: const EdgeInsets.all(6), child: Text('₹${tx.amount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                          Padding(padding: const EdgeInsets.all(6), child: Text(tx.paymentMode, style: const TextStyle(fontSize: 11))),
+                          Padding(padding: const EdgeInsets.all(6), child: Text(tx.referenceNumber ?? '—', style: const TextStyle(fontSize: 11))),
+                          Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: Text(
+                              tx.status,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: tx.isValid ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: tx.isValid
+                                ? InkWell(
+                                    onTap: () => _confirmReversePayment(tx),
+                                    child: const Text('Reverse', style: TextStyle(fontSize: 11, color: Color(0xFFDC2626), decoration: TextDecoration.underline)),
+                                  )
+                                : const Text('—', style: TextStyle(fontSize: 11)),
+                          ),
+                        ],
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIssuesCard() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.red.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Icon(Icons.report_problem_rounded, color: Color(0xFFDC2626), size: 20),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('General Issues & Customer Complaints', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+                  onPressed: () async {
+                    final res = await IssueDialog.show(context, customerRecord: _record);
+                    if (res == true) {
+                      _loadIssues();
+                    }
+                  },
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Report Issue', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (_isLoadingIssues)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+              )
+            else if (_issues.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Center(child: Text('No issues reported for this customer.', style: TextStyle(fontSize: 12, color: Colors.grey))),
+              )
+            else
+              Column(
+                children: _issues.map((issue) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: issue.isActive ? const Color(0xFFFEF2F2) : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: issue.isActive ? const Color(0xFFFECACA) : Colors.grey.shade300),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(issue.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: issue.priorityColor.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(issue.priority, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: issue.priorityColor)),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: issue.statusColor.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(issue.status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: issue.statusColor)),
+                                  ),
+                                  if (issue.isStuck) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.shade100,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Text('⚠️ Stuck', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red)),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${issue.issueType}${issue.assignedStaff != null ? " • Assigned: ${issue.assignedStaff}" : ""}${issue.dueDate != null ? " • Due: ${issue.dueDate!.toIso8601String().split('T')[0]}" : ""}',
+                                style: const TextStyle(fontSize: 11, color: Colors.black54),
+                              ),
+                              if (issue.description != null && issue.description!.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(issue.description!, style: const TextStyle(fontSize: 11, color: Colors.black87)),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            if (issue.isActive) ...[
+                              TextButton(
+                                onPressed: () => _handleResolveIssue(issue),
+                                child: const Text('Resolve', style: TextStyle(fontSize: 11, color: Color(0xFF059669))),
+                              ),
+                            ],
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, size: 16),
+                              tooltip: 'Edit Issue',
+                              onPressed: () async {
+                                final res = await IssueDialog.show(context, existingIssue: issue);
+                                if (res == true) _loadIssues();
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmReversePayment(PaymentTransaction tx) async {
+    final reasonCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reverse Payment Transaction'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Are you sure you want to reverse payment of ₹${tx.amount.toStringAsFixed(0)}?'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Reversal Reason *',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm Reverse'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && tx.id != null && mounted) {
+      if (reasonCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reversal reason is required')),
+        );
+        return;
+      }
+      try {
+        await RecordService.reversePaymentTransaction(
+          transactionId: tx.id!,
+          reason: reasonCtrl.text.trim(),
+        );
+        _loadPayments();
+        final updated = await RecordService.fetchRecordById(_record.id!);
+        if (updated != null && mounted) setState(() => _record = updated);
+        widget.onRecordUpdated?.call();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      }
+    }
+  }
+
+  Future<void> _handleResolveIssue(CustomerIssue issue) async {
+    final remarksCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Resolve Issue'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Mark "${issue.title}" as Resolved?'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: remarksCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Resolution Remarks *',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Resolve'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && issue.id != null && mounted) {
+      if (remarksCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Resolution remarks are required')),
+        );
+        return;
+      }
+      try {
+        await RecordService.resolveIssue(
+          issueId: issue.id!,
+          resolutionRemarks: remarksCtrl.text.trim(),
+        );
+        _loadIssues();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      }
+    }
   }
 }

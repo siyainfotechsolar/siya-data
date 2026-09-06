@@ -141,6 +141,13 @@ class ConsumerRecord {
   final bool hasActiveFollowup;
   final String? assignedStaff;
 
+  // --- Step 7: Payment Tracking ---
+  final double totalAmount;
+  final double paidAmount;
+  final double pendingAmount;
+  final String paymentStatus; // 'Pending', 'Partially Paid', 'Paid', 'Overdue', 'Refunded', 'Cancelled'
+  final DateTime? paymentDueDate;
+
   ConsumerRecord({
     this.id,
     required this.consumerNo,
@@ -214,6 +221,12 @@ class ConsumerRecord {
     this.subsidyAppliedDate,
     this.subsidyApprovedDate,
     this.subsidyReceivedDate,
+    // Step 7: Payment Tracking
+    this.totalAmount = 0.0,
+    this.paidAmount = 0.0,
+    this.pendingAmount = 0.0,
+    this.paymentStatus = 'Pending',
+    this.paymentDueDate,
   });
 
   // --- Computed Normalized Keys & Priority Engine ---
@@ -305,6 +318,17 @@ class ConsumerRecord {
     final fDate = DateTime(followupDate!.year, followupDate!.month, followupDate!.day);
     return fDate.isAfter(today);
   }
+
+  // --- Payment status helpers ---
+  bool get isPaymentOverdue {
+    if (paymentDueDate == null || pendingAmount <= 0) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final due = DateTime(paymentDueDate!.year, paymentDueDate!.month, paymentDueDate!.day);
+    return due.isBefore(today);
+  }
+
+  bool get isPaymentPending => pendingAmount > 0;
 
   /// Dynamic priority level derived from Workflow Stage/Status first, Application Days second
   PriorityLevel get priorityLevel {
@@ -440,6 +464,20 @@ class ConsumerRecord {
       lastFollowupResult: json['last_followup_result'] as String?,
       hasActiveFollowup: json['has_active_followup'] as bool? ?? (json['followup_date'] != null),
       assignedStaff: json['assigned_staff'] as String? ?? json['installer_team'] as String?,
+      // Step 7: Payment Tracking
+      totalAmount: (json['total_amount'] is num)
+          ? (json['total_amount'] as num).toDouble()
+          : double.tryParse(json['total_amount']?.toString() ?? '0') ?? 0.0,
+      paidAmount: (json['paid_amount'] is num)
+          ? (json['paid_amount'] as num).toDouble()
+          : double.tryParse(json['paid_amount']?.toString() ?? '0') ?? 0.0,
+      pendingAmount: (json['pending_amount'] is num)
+          ? (json['pending_amount'] as num).toDouble()
+          : double.tryParse(json['pending_amount']?.toString() ?? '0') ?? 0.0,
+      paymentStatus: json['payment_status'] as String? ?? 'Pending',
+      paymentDueDate: json['payment_due_date'] != null
+          ? DateTime.tryParse(json['payment_due_date'].toString())
+          : null,
     );
   }
 
@@ -482,7 +520,14 @@ class ConsumerRecord {
       'rts_status': rtsStatus,
       'rts_application_id': rtsApplicationId?.trim(),
       'subsidy_status': subsidyStatus,
+      // Step 7: Payment Tracking
+      'total_amount': totalAmount,
+      'paid_amount': paidAmount,
+      'pending_amount': pendingAmount,
+      'payment_status': paymentStatus,
     };
+
+    if (paymentDueDate != null) map['payment_due_date'] = paymentDueDate!.toIso8601String().split('T')[0];
 
     if (applicationDate != null) map['application_date'] = applicationDate!.toUtc().toIso8601String();
     if (submitDate != null) map['submit_date'] = submitDate!.toUtc().toIso8601String();
@@ -587,6 +632,12 @@ class ConsumerRecord {
     DateTime? subsidyAppliedDate,
     DateTime? subsidyApprovedDate,
     DateTime? subsidyReceivedDate,
+    // Step 7: Payment Tracking
+    double? totalAmount,
+    double? paidAmount,
+    double? pendingAmount,
+    String? paymentStatus,
+    DateTime? paymentDueDate,
   }) {
     return ConsumerRecord(
       id: id ?? this.id,
@@ -654,6 +705,12 @@ class ConsumerRecord {
       subsidyAppliedDate: subsidyAppliedDate ?? this.subsidyAppliedDate,
       subsidyApprovedDate: subsidyApprovedDate ?? this.subsidyApprovedDate,
       subsidyReceivedDate: subsidyReceivedDate ?? this.subsidyReceivedDate,
+      // Step 7: Payment Tracking
+      totalAmount: totalAmount ?? this.totalAmount,
+      paidAmount: paidAmount ?? this.paidAmount,
+      pendingAmount: pendingAmount ?? this.pendingAmount,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      paymentDueDate: paymentDueDate ?? this.paymentDueDate,
     );
   }
 }

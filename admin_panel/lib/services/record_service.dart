@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
 import '../models/customer_misc_action.dart';
+import '../models/customer_issue.dart';
+import '../models/customer_payment.dart';
 import '../models/record_diff.dart';
 import '../models/import_log.dart';
 import 'audit_service.dart';
@@ -264,6 +266,19 @@ class RecordService {
       // ignore: avoid_print
       print('Error in RecordService.fetchDeletedRecords: $e\n$stack');
       rethrow;
+    }
+  }
+
+  /// Fetch a single consumer record by id
+  static Future<ConsumerRecord?> fetchRecordById(String id) async {
+    try {
+      final response = await _client.from('consumer_records').select().eq('id', id).maybeSingle();
+      if (response == null) return null;
+      return ConsumerRecord.fromJson(response);
+    } catch (e) {
+      // ignore: avoid_print
+      print('Error fetching record by id: $e');
+      return null;
     }
   }
 
@@ -1007,6 +1022,29 @@ class RecordService {
         miscCount = miscRes.count;
       } catch (_) {}
 
+      int issueCount = 0;
+      try {
+        final issueRes = await _client
+            .from('customer_issues')
+            .select('id')
+            .inFilter('status', ['New', 'Assigned', 'In Progress', 'Hold'])
+            .count(CountOption.exact);
+        issueCount = issueRes.count;
+      } catch (_) {}
+
+      int paymentPendingCount = 0;
+      try {
+        final payRes = await _client
+            .from('consumer_records')
+            .select('id')
+            .eq('deleted', false)
+            .eq('is_merged', false)
+            .not('customer_work_state', 'eq', 'ON_HOLD')
+            .gt('pending_amount', 0)
+            .count(CountOption.exact);
+        paymentPendingCount = payRes.count;
+      } catch (_) {}
+
       return {
         'Agreement Pending': agreementPending,
         'Loan Pending': loanPending,
@@ -1019,6 +1057,8 @@ class RecordService {
         'Hold': onHold,
         'Completed': completed,
         'MISC': miscCount,
+        'General Issue': issueCount,
+        'Payment Pending': paymentPendingCount,
       };
     } catch (e) {
       return {
@@ -1033,6 +1073,8 @@ class RecordService {
         'Hold': 0,
         'Completed': 0,
         'MISC': 0,
+        'General Issue': 0,
+        'Payment Pending': 0,
       };
     }
   }
@@ -1306,6 +1348,8 @@ class RecordService {
     required DateTime followupDate,
     required String followupReason,
     String? remarks,
+    String? relatedType,
+    String? relatedId,
   }) async {
     final user = SupabaseService.currentUser;
     final nowIso = DateTime.now().toUtc().toIso8601String();
@@ -1339,7 +1383,7 @@ class RecordService {
 
     // 2. Insert into customer_followups history table
     try {
-      await _client.from('customer_followups').insert({
+      final payload = <String, dynamic>{
         'record_id': recordId,
         'consumer_no': consumerNo ?? updated.consumerNo,
         'followup_date': dateStr,
@@ -1349,7 +1393,11 @@ class RecordService {
         'created_at': nowIso,
         'created_by': user?.id,
         'created_by_name': userName,
-      });
+      };
+      if (relatedType != null) payload['related_type'] = relatedType;
+      if (relatedId != null) payload['related_id'] = relatedId;
+
+      await _client.from('customer_followups').insert(payload);
     } catch (e) {
       // ignore: avoid_print
       print('Failed to insert customer_followups: $e');
@@ -1989,6 +2037,702 @@ class RecordService {
         'total_completed': 0,
         'hold': 0,
       };
+    }
+  }
+
+  // ============================================================================
+  // MODULE 6: GENERAL ISSUE SERVICE METHODS
+  // ============================================================================
+
+  /// Fetch paginated General Issues with smart filters
+  static Future<PaginatedResult<CustomerIssue>> fetchIssues({
+    int page = 1,
+    int pageSize = 25,
+    String? statusFilter,
+    String? typeFilter,
+    String? priorityFilter,
+    String? assignedStaffFilter,
+    String? searchQuery,
+    bool onlyStuck = false,
+  }) async {
+    try {
+      final from = (page - 1) * pageSize;
+      final to = from + pageSize - 1;
+
+      var query = _client.from('customer_issues').select();
+
+      if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {
+        if (statusFilter == 'Active') {
+          query = query.inFilter('status', ['New', 'Assigned', 'In Progress', 'Hold']);
+        } else if (statusFilter == 'Closed/Resolved') {
+          query = query.inFilter('status', ['Resolved', 'Closed', 'Cancelled']);
+        } else {
+          query = query.eq('status', statusFilter);
+        }
+      }
+
+      if (typeFilter != null && typeFilter.isNotEmpty && typeFilter != 'All') {
+        query = query.eq('issue_type', typeFilter);
+      }
+
+      if (priorityFilter != null && priorityFilter.isNotEmpty && priorityFilter != 'All') {
+        query = query.eq('priority', priorityFilter);
+      }
+
+      if (assignedStaffFilter != null && assignedStaffFilter.isNotEmpty && assignedStaffFilter != 'All') {
+        query = query.eq('assigned_staff', assignedStaffFilter);
+      }
+
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        final term = '%${searchQuery.trim()}%';
+        query = query.or('customer_name.ilike.$term,consumer_no.ilike.$term,title.ilike.$term,mobile_number.ilike.$term');
+      }
+
+      final response = await query.order('created_at', ascending: false).range(from, to);
+      final List<dynamic> data = response as List<dynamic>;
+      var items = data.map((json) => CustomerIssue.fromJson(json as Map<String, dynamic>)).toList();
+
+      if (onlyStuck) {
+        items = items.where((i) => i.isStuck).toList();
+      }
+
+      return PaginatedResult(
+        items: items,
+        totalCount: items.length < pageSize && page == 1 ? items.length : 100, // Approximate count for pagination
+        page: page,
+        pageSize: pageSize,
+      );
+    } catch (e) {
+      return PaginatedResult(items: [], totalCount: 0, page: page, pageSize: pageSize);
+    }
+  }
+
+  /// Fetch all issues for a specific customer
+  static Future<List<CustomerIssue>> fetchCustomerIssues(String customerId) async {
+    try {
+      final response = await _client
+          .from('customer_issues')
+          .select()
+          .eq('customer_id', customerId)
+          .order('created_at', ascending: false);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data.map((json) => CustomerIssue.fromJson(json as Map<String, dynamic>)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Check for an existing active duplicate issue for same customer + issue type
+  static Future<CustomerIssue?> checkDuplicateIssue({
+    required String customerId,
+    required String issueType,
+  }) async {
+    try {
+      final response = await _client
+          .from('customer_issues')
+          .select()
+          .eq('customer_id', customerId)
+          .eq('issue_type', issueType)
+          .inFilter('status', ['New', 'Assigned', 'In Progress', 'Hold'])
+          .maybeSingle();
+
+      if (response != null) {
+        return CustomerIssue.fromJson(response);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Create a new General Issue
+  static Future<CustomerIssue> createIssue(CustomerIssue issue) async {
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final payload = issue.toJson();
+    payload['created_by'] = user?.id;
+    payload['created_by_name'] = userName;
+    payload['created_at'] = nowIso;
+    payload['updated_at'] = nowIso;
+
+    final response = await _client.from('customer_issues').insert(payload).select().single();
+    final created = CustomerIssue.fromJson(response);
+
+    // Record in issue history
+    try {
+      await _client.from('customer_issue_history').insert({
+        'issue_id': created.id,
+        'action_type': 'CREATED',
+        'old_value': null,
+        'new_value': created.status,
+        'remarks': 'Issue reported: ${created.title}',
+        'changed_by': user?.id,
+        'changed_by_name': userName,
+        'created_at': nowIso,
+      });
+
+      await _client.from('audit_logs').insert({
+        'record_id': created.customerId,
+        'consumer_no': created.consumerNo,
+        'action': 'ISSUE_CREATED',
+        'field_name': 'issue',
+        'old_value': null,
+        'new_value': '${created.issueType}: ${created.title}',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return created;
+  }
+
+  /// Update an existing General Issue
+  static Future<CustomerIssue> updateIssue(CustomerIssue issue) async {
+    if (issue.id == null) throw Exception('Issue ID cannot be null for update');
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final payload = issue.toJson();
+    payload['updated_by'] = user?.id;
+    payload['updated_by_name'] = userName;
+    payload['updated_at'] = nowIso;
+
+    final response = await _client
+        .from('customer_issues')
+        .update(payload)
+        .eq('id', issue.id!)
+        .select()
+        .single();
+
+    final updated = CustomerIssue.fromJson(response);
+
+    try {
+      await _client.from('customer_issue_history').insert({
+        'issue_id': updated.id,
+        'action_type': 'UPDATE',
+        'remarks': 'Issue updated by $userName',
+        'changed_by': user?.id,
+        'changed_by_name': userName,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Assign or reassign an issue to staff
+  static Future<CustomerIssue> assignIssue({
+    required String issueId,
+    String? staffName,
+    String? assignedStaff,
+  }) async {
+    final staff = staffName ?? assignedStaff ?? '';
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final prev = await _client.from('customer_issues').select('assigned_staff, status').eq('id', issueId).single();
+    final oldStaff = prev['assigned_staff'] as String?;
+    final currentStatus = prev['status'] as String? ?? 'New';
+    final newStatus = currentStatus == 'New' ? 'Assigned' : currentStatus;
+
+    final response = await _client
+        .from('customer_issues')
+        .update({
+          'assigned_staff': staff,
+          'assigned_date': nowIso,
+          'status': newStatus,
+          'updated_by': user?.id,
+          'updated_by_name': userName,
+          'updated_at': nowIso,
+        })
+        .eq('id', issueId)
+        .select()
+        .single();
+
+    final updated = CustomerIssue.fromJson(response);
+
+    try {
+      await _client.from('customer_issue_history').insert({
+        'issue_id': issueId,
+        'action_type': oldStaff == null ? 'ASSIGNED' : 'REASSIGNED',
+        'old_value': oldStaff ?? 'None',
+        'new_value': staff,
+        'remarks': 'Assigned to $staff',
+        'changed_by': user?.id,
+        'changed_by_name': userName,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Mark issue On Hold
+  static Future<CustomerIssue> holdIssue({
+    required String issueId,
+    String? holdReason,
+    String? remarks,
+  }) async {
+    final reason = holdReason ?? remarks ?? 'On Hold';
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('customer_issues')
+        .update({
+          'status': 'Hold',
+          'hold_reason': reason.trim(),
+          'updated_by': user?.id,
+          'updated_by_name': userName,
+          'updated_at': nowIso,
+        })
+        .eq('id', issueId)
+        .select()
+        .single();
+
+    final updated = CustomerIssue.fromJson(response);
+
+    try {
+      await _client.from('customer_issue_history').insert({
+        'issue_id': issueId,
+        'action_type': 'HOLD',
+        'new_value': 'Hold: $reason',
+        'remarks': reason.trim(),
+        'changed_by': user?.id,
+        'changed_by_name': userName,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Resolve an issue
+  static Future<CustomerIssue> resolveIssue({
+    required String issueId,
+    String? resolutionRemarks,
+    String? remarks,
+  }) async {
+    final resRemarks = resolutionRemarks ?? remarks ?? 'Resolved';
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('customer_issues')
+        .update({
+          'status': 'Resolved',
+          'resolution_remarks': resRemarks.trim(),
+          'resolved_by': user?.id,
+          'resolved_by_name': userName,
+          'resolved_at': nowIso,
+          'updated_by': user?.id,
+          'updated_by_name': userName,
+          'updated_at': nowIso,
+        })
+        .eq('id', issueId)
+        .select()
+        .single();
+
+    final updated = CustomerIssue.fromJson(response);
+
+    try {
+      await _client.from('customer_issue_history').insert({
+        'issue_id': issueId,
+        'action_type': 'RESOLVED',
+        'new_value': 'Resolved',
+        'remarks': resRemarks.trim(),
+        'changed_by': user?.id,
+        'changed_by_name': userName,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Close an issue
+  static Future<CustomerIssue> closeIssue({
+    required String issueId,
+    String? remarks,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('customer_issues')
+        .update({
+          'status': 'Closed',
+          'remarks': remarks?.trim(),
+          'closed_by': user?.id,
+          'closed_by_name': userName,
+          'closed_at': nowIso,
+          'updated_by': user?.id,
+          'updated_by_name': userName,
+          'updated_at': nowIso,
+        })
+        .eq('id', issueId)
+        .select()
+        .single();
+
+    final updated = CustomerIssue.fromJson(response);
+
+    try {
+      await _client.from('customer_issue_history').insert({
+        'issue_id': issueId,
+        'action_type': 'CLOSED',
+        'new_value': 'Closed',
+        'remarks': remarks?.trim(),
+        'changed_by': user?.id,
+        'changed_by_name': userName,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Reopen an issue
+  static Future<CustomerIssue> reopenIssue({
+    required String issueId,
+    String? remarks,
+  }) async {
+    final targetId = issueId;
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('customer_issues')
+        .update({
+          'status': 'In Progress',
+          'hold_reason': null,
+          'resolution_remarks': null,
+          'resolved_at': null,
+          'resolved_by': null,
+          'closed_at': null,
+          'closed_by': null,
+          'updated_by': user?.id,
+          'updated_by_name': userName,
+          'updated_at': nowIso,
+        })
+        .eq('id', targetId)
+        .select()
+        .single();
+
+    final updated = CustomerIssue.fromJson(response);
+
+    try {
+      await _client.from('customer_issue_history').insert({
+        'issue_id': targetId,
+        'action_type': 'REOPENED',
+        'new_value': 'In Progress',
+        'remarks': remarks?.trim() ?? 'Issue reopened by $userName',
+        'changed_by': user?.id,
+        'changed_by_name': userName,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Fetch history for an issue
+  static Future<List<CustomerIssueHistory>> fetchIssueHistory(String issueId) async {
+    try {
+      final response = await _client
+          .from('customer_issue_history')
+          .select()
+          .eq('issue_id', issueId)
+          .order('created_at', ascending: false);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data.map((j) => CustomerIssueHistory.fromJson(j as Map<String, dynamic>)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // ============================================================================
+  // MODULE 7: PAYMENT SERVICE METHODS
+  // ============================================================================
+
+  /// Fetch all payment transactions for a customer
+  static Future<List<PaymentTransaction>> fetchPaymentTransactions(String customerId) async {
+    try {
+      final response = await _client
+          .from('customer_payment_transactions')
+          .select()
+          .eq('customer_id', customerId)
+          .order('payment_date', ascending: false);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data.map((json) => PaymentTransaction.fromJson(json as Map<String, dynamic>)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Check duplicate payment before submission
+  static Future<PaymentTransaction?> checkDuplicatePayment({
+    required String customerId,
+    required double amount,
+    required DateTime paymentDate,
+    String? referenceNumber,
+  }) async {
+    try {
+      final dateStr = paymentDate.toIso8601String().split('T')[0];
+      var query = _client
+          .from('customer_payment_transactions')
+          .select()
+          .eq('customer_id', customerId)
+          .eq('amount', amount)
+          .eq('payment_date', dateStr)
+          .eq('status', 'Valid');
+
+      if (referenceNumber != null && referenceNumber.trim().isNotEmpty) {
+        query = query.eq('reference_number', referenceNumber.trim());
+      }
+
+      final response = await query.maybeSingle();
+      if (response != null) {
+        return PaymentTransaction.fromJson(response);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Add a new payment transaction with live balance update
+  static Future<PaymentTransaction> addPaymentTransaction(
+    PaymentTransaction transaction, {
+    double? customerTotalAmount,
+    DateTime? paymentDueDate,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    // 1. If totalAmount or dueDate is passed and changed, update consumer_records first
+    if (customerTotalAmount != null || paymentDueDate != null) {
+      final updateMap = <String, dynamic>{};
+      if (customerTotalAmount != null) updateMap['total_amount'] = customerTotalAmount;
+      if (paymentDueDate != null) {
+        updateMap['payment_due_date'] = paymentDueDate.toIso8601String().split('T')[0];
+      }
+      if (updateMap.isNotEmpty) {
+        await _client.from('consumer_records').update(updateMap).eq('id', transaction.customerId);
+      }
+    }
+
+    // 2. Insert transaction (Trigger automatically recalculates paid_amount, pending_amount, payment_status)
+    final payload = transaction.toJson();
+    payload['created_by'] = user?.id;
+    payload['created_by_name'] = userName;
+    payload['created_at'] = nowIso;
+    payload['updated_at'] = nowIso;
+
+    final response = await _client
+        .from('customer_payment_transactions')
+        .insert(payload)
+        .select()
+        .single();
+
+    final created = PaymentTransaction.fromJson(response);
+
+    // 3. Audit log
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': created.customerId,
+        'consumer_no': created.consumerNo,
+        'action': 'PAYMENT_RECEIVED',
+        'field_name': 'paid_amount',
+        'old_value': null,
+        'new_value': '₹${created.amount} via ${created.paymentMode} (Ref: ${created.referenceNumber ?? "N/A"})',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return created;
+  }
+
+  /// Reverse a payment transaction
+  static Future<PaymentTransaction> reversePaymentTransaction({
+    required String transactionId,
+    required String reason,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('customer_payment_transactions')
+        .update({
+          'status': 'Reversed',
+          'reversal_reason': reason.trim(),
+          'updated_by': user?.id,
+          'updated_by_name': userName,
+          'updated_at': nowIso,
+        })
+        .eq('id', transactionId)
+        .select()
+        .single();
+
+    final reversed = PaymentTransaction.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': reversed.customerId,
+        'consumer_no': reversed.consumerNo,
+        'action': 'PAYMENT_REVERSED',
+        'field_name': 'payment_transaction',
+        'old_value': '₹${reversed.amount}',
+        'new_value': 'Reversed: $reason',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return reversed;
+  }
+
+  /// Update customer total contract amount & payment due date
+  static Future<void> updateCustomerPaymentProfile({
+    required String customerId,
+    required double totalAmount,
+    DateTime? paymentDueDate,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final updateMap = <String, dynamic>{
+      'total_amount': totalAmount,
+      'updated_at': nowIso,
+    };
+    if (paymentDueDate != null) {
+      updateMap['payment_due_date'] = paymentDueDate.toIso8601String().split('T')[0];
+    }
+
+    await _client.from('consumer_records').update(updateMap).eq('id', customerId);
+
+    // Trigger recalculation by touching any transaction or running update
+    try {
+      final txs = await fetchPaymentTransactions(customerId);
+      double validPaid = 0;
+      for (final tx in txs) {
+        if (tx.isValid) validPaid += tx.amount;
+      }
+      final pending = (totalAmount - validPaid).clamp(0.0, double.infinity);
+      String status;
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      if (totalAmount > 0 && validPaid >= totalAmount) {
+        status = 'Paid';
+      } else if (paymentDueDate != null &&
+          DateTime(paymentDueDate.year, paymentDueDate.month, paymentDueDate.day).isBefore(today) &&
+          pending > 0) {
+        status = 'Overdue';
+      } else if (validPaid > 0 && pending > 0) {
+        status = 'Partially Paid';
+      } else {
+        status = 'Pending';
+      }
+
+      await _client.from('consumer_records').update({
+        'paid_amount': validPaid,
+        'pending_amount': pending,
+        'payment_status': status,
+      }).eq('id', customerId);
+    } catch (_) {}
+  }
+
+  /// Fetch customers with pending payment for Action Center
+  static Future<PaginatedResult<ConsumerRecord>> fetchPaymentPendingRecords({
+    int page = 1,
+    int pageSize = 25,
+    String? statusFilter,
+    String? assignedStaffFilter,
+    String? searchQuery,
+    bool onlyOverdue = false,
+  }) async {
+    try {
+      final from = (page - 1) * pageSize;
+      final to = from + pageSize - 1;
+
+      var query = _client
+          .from('consumer_records')
+          .select()
+          .eq('deleted', false)
+          .eq('is_merged', false)
+          .not('customer_work_state', 'eq', 'ON_HOLD')
+          .gt('pending_amount', 0);
+
+      if (onlyOverdue) {
+        final todayStr = DateTime.now().toIso8601String().split('T')[0];
+        query = query.lt('payment_due_date', todayStr);
+      }
+
+      if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {
+        query = query.eq('payment_status', statusFilter);
+      }
+
+      if (assignedStaffFilter != null && assignedStaffFilter.isNotEmpty && assignedStaffFilter != 'All') {
+        query = query.eq('assigned_staff', assignedStaffFilter);
+      }
+
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        final term = '%${searchQuery.trim()}%';
+        query = query.or('name.ilike.$term,consumer_no.ilike.$term,mobile.ilike.$term');
+      }
+
+      final response = await query.order('pending_amount', ascending: false).range(from, to);
+      final List<dynamic> data = response as List<dynamic>;
+      final items = data.map((json) => ConsumerRecord.fromJson(json as Map<String, dynamic>)).toList();
+
+      return PaginatedResult(
+        items: items,
+        totalCount: items.length < pageSize && page == 1 ? items.length : 100,
+        page: page,
+        pageSize: pageSize,
+      );
+    } catch (e) {
+      return PaginatedResult(items: [], totalCount: 0, page: page, pageSize: pageSize);
+    }
+  }
+
+  /// Fetch today's collection total (for Daily Workbook)
+  static Future<double> fetchTodayCollection() async {
+    try {
+      final todayStr = DateTime.now().toIso8601String().split('T')[0];
+      final response = await _client
+          .from('customer_payment_transactions')
+          .select('amount')
+          .eq('payment_date', todayStr)
+          .eq('status', 'Valid');
+
+      final List<dynamic> data = response as List<dynamic>;
+      double total = 0;
+      for (final item in data) {
+        final amt = item['amount'];
+        if (amt is num) {
+          total += amt.toDouble();
+        }
+      }
+      return total;
+    } catch (e) {
+      return 0.0;
     }
   }
 }

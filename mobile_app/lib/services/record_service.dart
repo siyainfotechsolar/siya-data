@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
 import '../models/customer_misc_action.dart';
+import '../models/customer_issue.dart';
+import '../models/customer_payment.dart';
 import 'supabase_service.dart';
 import 'workflow_engine.dart';
 
@@ -356,6 +358,29 @@ class MobileRecordService {
         miscCount = miscRes.count;
       } catch (_) {}
 
+      int issueCount = 0;
+      try {
+        final issueRes = await _client
+            .from('customer_issues')
+            .select('id')
+            .inFilter('status', ['New', 'Assigned', 'In Progress', 'Hold'])
+            .count(CountOption.exact);
+        issueCount = issueRes.count;
+      } catch (_) {}
+
+      int paymentCount = 0;
+      try {
+        final payRes = await _client
+            .from('consumer_records')
+            .select('id')
+            .eq('deleted', false)
+            .eq('is_merged', false)
+            .not('customer_work_state', 'eq', 'ON_HOLD')
+            .gt('pending_amount', 0)
+            .count(CountOption.exact);
+        paymentCount = payRes.count;
+      } catch (_) {}
+
       return {
         'agreementPending': agreementPending,
         'loanPending': loanPending,
@@ -368,6 +393,8 @@ class MobileRecordService {
         'overdueFollowup': overdueFollowup,
         'upcomingFollowup': upcomingFollowup,
         'misc': miscCount,
+        'issues': issueCount,
+        'payments': paymentCount,
         'totalActive': agreementPending + loanPending + installationPending + rtsPending + subsidyProcessing,
       };
     } catch (_) {
@@ -383,6 +410,8 @@ class MobileRecordService {
         'overdueFollowup': 0,
         'upcomingFollowup': 0,
         'misc': 0,
+        'issues': 0,
+        'payments': 0,
         'totalActive': 0,
       };
     }
@@ -665,6 +694,8 @@ class MobileRecordService {
     required DateTime followupDate,
     required String followupReason,
     String? remarks,
+    String? relatedType,
+    String? relatedId,
   }) async {
     final user = SupabaseService.currentUser;
     final nowIso = DateTime.now().toUtc().toIso8601String();
@@ -698,7 +729,7 @@ class MobileRecordService {
 
     // 2. Insert into customer_followups history table
     try {
-      await _client.from('customer_followups').insert({
+      final payload = <String, dynamic>{
         'record_id': recordId,
         'consumer_no': consumerNo ?? updated.consumerNo,
         'followup_date': dateStr,
@@ -708,7 +739,11 @@ class MobileRecordService {
         'created_at': nowIso,
         'created_by': user?.id,
         'created_by_name': userName,
-      });
+      };
+      if (relatedType != null) payload['related_type'] = relatedType;
+      if (relatedId != null) payload['related_id'] = relatedId;
+
+      await _client.from('customer_followups').insert(payload);
     } catch (e) {
       // ignore: avoid_print
       print('Failed to insert customer_followups in mobile: $e');
@@ -1158,6 +1193,269 @@ class MobileRecordService {
     } catch (_) {}
 
     return onHold;
+  }
+
+  // ============================================================================
+  // MOBILE GENERAL ISSUE METHODS
+  // ============================================================================
+
+  /// Fetch active issues for mobile staff
+  static Future<List<CustomerIssue>> fetchIssues({
+    String? statusFilter,
+    String? assignedStaffFilter,
+    String? searchQuery,
+  }) async {
+    try {
+      var query = _client.from('customer_issues').select();
+
+      if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {
+        if (statusFilter == 'Active') {
+          query = query.inFilter('status', ['New', 'Assigned', 'In Progress', 'Hold']);
+        } else {
+          query = query.eq('status', statusFilter);
+        }
+      } else {
+        query = query.inFilter('status', ['New', 'Assigned', 'In Progress', 'Hold']);
+      }
+
+      if (assignedStaffFilter != null && assignedStaffFilter.isNotEmpty && assignedStaffFilter != 'All') {
+        query = query.eq('assigned_staff', assignedStaffFilter);
+      }
+
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        final term = '%${searchQuery.trim()}%';
+        query = query.or('customer_name.ilike.$term,consumer_no.ilike.$term,title.ilike.$term');
+      }
+
+      final response = await query.order('created_at', ascending: false).limit(50);
+      final List<dynamic> data = response as List<dynamic>;
+      return data.map((j) => CustomerIssue.fromJson(j as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Create issue from mobile
+  static Future<CustomerIssue> createIssue(CustomerIssue issue) async {
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Mobile Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final payload = issue.toJson();
+    payload['created_by'] = user?.id;
+    payload['created_by_name'] = userName;
+    payload['created_at'] = nowIso;
+    payload['updated_at'] = nowIso;
+
+    final response = await _client.from('customer_issues').insert(payload).select().single();
+    final created = CustomerIssue.fromJson(response);
+
+    try {
+      await _client.from('customer_issue_history').insert({
+        'issue_id': created.id,
+        'action_type': 'CREATED',
+        'new_value': created.status,
+        'remarks': 'Reported via Mobile: ${created.title}',
+        'changed_by': user?.id,
+        'changed_by_name': userName,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return created;
+  }
+
+  /// Resolve issue from mobile
+  static Future<CustomerIssue> resolveIssue({
+    required String issueId,
+    String? remarks,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Mobile Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('customer_issues')
+        .update({
+          'status': 'Resolved',
+          'resolution_remarks': remarks?.trim(),
+          'resolved_by': user?.id,
+          'resolved_by_name': userName,
+          'resolved_at': nowIso,
+          'updated_at': nowIso,
+        })
+        .eq('id', issueId)
+        .select()
+        .single();
+
+    final resolved = CustomerIssue.fromJson(response);
+
+    try {
+      await _client.from('customer_issue_history').insert({
+        'issue_id': issueId,
+        'action_type': 'RESOLVED',
+        'new_value': 'Resolved',
+        'remarks': remarks?.trim() ?? 'Resolved via Mobile',
+        'changed_by': user?.id,
+        'changed_by_name': userName,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return resolved;
+  }
+
+  /// Hold issue from mobile
+  static Future<CustomerIssue> holdIssue({
+    required String issueId,
+    required String holdReason,
+    String? remarks,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Mobile Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('customer_issues')
+        .update({
+          'status': 'Hold',
+          'hold_reason': holdReason.trim(),
+          'remarks': remarks?.trim(),
+          'updated_at': nowIso,
+        })
+        .eq('id', issueId)
+        .select()
+        .single();
+
+    final held = CustomerIssue.fromJson(response);
+
+    try {
+      await _client.from('customer_issue_history').insert({
+        'issue_id': issueId,
+        'action_type': 'HOLD',
+        'new_value': 'Hold: $holdReason',
+        'remarks': remarks?.trim() ?? holdReason.trim(),
+        'changed_by': user?.id,
+        'changed_by_name': userName,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return held;
+  }
+
+  /// Reopen issue from mobile
+  static Future<CustomerIssue> reopenIssue({
+    required String issueId,
+    String? remarks,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Mobile Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('customer_issues')
+        .update({
+          'status': 'In Progress',
+          'hold_reason': null,
+          'resolution_remarks': null,
+          'resolved_at': null,
+          'resolved_by': null,
+          'resolved_by_name': null,
+          'updated_by': user?.id,
+          'updated_at': nowIso,
+        })
+        .eq('id', issueId)
+        .select()
+        .single();
+
+    final reopened = CustomerIssue.fromJson(response);
+
+    try {
+      await _client.from('customer_issue_history').insert({
+        'issue_id': issueId,
+        'action_type': 'REOPENED',
+        'new_value': 'In Progress',
+        'remarks': remarks?.trim() ?? 'Reopened via Mobile',
+        'changed_by': user?.id,
+        'changed_by_name': userName,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return reopened;
+  }
+
+  // ============================================================================
+  // MOBILE PAYMENT METHODS
+  // ============================================================================
+
+  /// Fetch customers with pending payment for mobile
+  static Future<List<ConsumerRecord>> fetchPaymentPendingRecords({
+    String? searchQuery,
+    String? staffFilter,
+  }) async {
+    try {
+      var query = _client
+          .from('consumer_records')
+          .select()
+          .eq('deleted', false)
+          .eq('is_merged', false)
+          .not('customer_work_state', 'eq', 'ON_HOLD')
+          .gt('pending_amount', 0);
+
+      if (staffFilter != null && staffFilter.isNotEmpty && staffFilter != 'All') {
+        query = query.eq('assigned_staff', staffFilter);
+      }
+
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        final term = '%${searchQuery.trim()}%';
+        query = query.or('name.ilike.$term,consumer_no.ilike.$term,mobile.ilike.$term');
+      }
+
+      final response = await query.order('pending_amount', ascending: false).limit(50);
+      final List<dynamic> data = response as List<dynamic>;
+      return data.map((j) => ConsumerRecord.fromJson(j as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Add payment transaction from mobile
+  static Future<PaymentTransaction> addPaymentTransaction(PaymentTransaction transaction) async {
+    final user = SupabaseService.currentUser;
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Mobile Staff';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final payload = transaction.toJson();
+    payload['created_by'] = user?.id;
+    payload['created_by_name'] = userName;
+    payload['created_at'] = nowIso;
+    payload['updated_at'] = nowIso;
+
+    final response = await _client
+        .from('customer_payment_transactions')
+        .insert(payload)
+        .select()
+        .single();
+
+    final created = PaymentTransaction.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': created.customerId,
+        'consumer_no': created.consumerNo,
+        'action': 'PAYMENT_RECEIVED',
+        'field_name': 'paid_amount',
+        'old_value': null,
+        'new_value': '₹${created.amount} via ${created.paymentMode} (Mobile)',
+        'changed_by': user?.id,
+        'source': 'Mobile App',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return created;
   }
 }
 
