@@ -83,11 +83,16 @@ class WorkflowEngine {
     return st == 'completed';
   }
 
-  /// Check if Subsidy stage is completed (Subsidy Received = COMPLETED)
+  /// Check if Subsidy stage is completed (Subsidy Received / Disbursed = COMPLETED)
   static bool isSubsidyCompleted(ConsumerRecord record) {
     final st = record.subsidyStatus.trim().toLowerCase();
     final recSt = record.status.trim().toLowerCase();
-    return st == 'received' || st == 'completed' || recSt == 'completed';
+    return st == 'received' ||
+        st == 'completed' ||
+        st.contains('disbursed') ||
+        recSt == 'completed' ||
+        recSt.contains('subsidy disbursed') ||
+        recSt.contains('disbursed');
   }
 
   /// Returns true if customer work is 100% completed (Subsidy Received or Mark as Complete)
@@ -186,12 +191,22 @@ class WorkflowEngine {
 
   /// Calculate useful Next Action instruction for staff
   static String getNextAction(ConsumerRecord record) {
-    if (record.customerWorkState.toUpperCase() == 'NO_ACTION_REQUIRED' || isWorkCompleted(record)) {
+    if (record.customerWorkState.toUpperCase() == 'NO_ACTION_REQUIRED') {
       return 'None';
     }
+    final st = record.status.trim().toLowerCase();
+    final sub = record.subsidyStatus.trim().toLowerCase();
+    if (st.contains('disbursed') || sub.contains('disbursed')) {
+      return 'No operational action';
+    }
+    if (isWorkCompleted(record)) {
+      return 'None';
+    }
+
     final stage = getCurrentWorkStage(record);
     if (stage == 'Loan') {
-      final subStage = record.loanSubStage.trim().toLowerCase();
+      final rawSubStage = record.loanSubStage.isNotEmpty ? record.loanSubStage : record.status;
+      final subStage = rawSubStage.trim().toLowerCase();
       if (subStage.contains('rejected')) {
         return 'Correct Issue';
       } else if (subStage.contains('correction')) {
@@ -213,6 +228,7 @@ class WorkflowEngine {
       }
       return 'Prepare / Submit Loan File';
     }
+
     final action = getActionRequired(record);
     switch (action) {
       case 'Agreement':
@@ -222,6 +238,9 @@ class WorkflowEngine {
       case 'RTS':
         return 'Process RTS';
       case 'Subsidy':
+        if (st.contains('disbursed') || sub.contains('disbursed')) {
+          return 'No operational action';
+        }
         return 'Process Subsidy';
       case 'None':
       default:

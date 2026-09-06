@@ -940,6 +940,139 @@ class RecordService {
     }
   }
 
+  /// Fetch real database counts for all 10 Action Center operational queues
+  static Future<Map<String, int>> fetchActionCenterQueueCounts() async {
+    try {
+      final response = await _client
+          .from('consumer_records')
+          .select('id, name, customer_work_state, status, agreement_status, loan_status, loan_sub_stage, installation_status, rts_status, subsidy_status, loan_required, followup_date, has_active_followup')
+          .eq('deleted', false)
+          .eq('is_merged', false);
+
+      final List<dynamic> data = response as List<dynamic>;
+      final records = data.map((j) => ConsumerRecord.fromJson(j as Map<String, dynamic>)).toList();
+
+      int agreementPending = 0;
+      int loanPending = 0;
+      int installationPending = 0;
+      int rtsPending = 0;
+      int subsidyProcessing = 0;
+      int todayFollowup = 0;
+      int overdueFollowup = 0;
+      int upcomingFollowup = 0;
+      int onHold = 0;
+      int completed = 0;
+
+      for (final r in records) {
+        if (r.isCompletedState || r.overallStage == 'Completed') {
+          completed++;
+        } else if (r.isHold || r.isNoActionRequired) {
+          onHold++;
+        } else {
+          switch (r.overallStage) {
+            case 'Agreement':
+              agreementPending++;
+              break;
+            case 'Loan':
+              loanPending++;
+              break;
+            case 'Installation':
+              installationPending++;
+              break;
+            case 'RTS':
+              rtsPending++;
+              break;
+            case 'Subsidy':
+              subsidyProcessing++;
+              break;
+          }
+        }
+
+        // Follow-up views on active records
+        if (!r.isCompletedState) {
+          if (r.isFollowupToday) todayFollowup++;
+          if (r.isFollowupOverdue) overdueFollowup++;
+          if (r.isFollowupUpcoming) upcomingFollowup++;
+        }
+      }
+
+      return {
+        'Agreement Pending': agreementPending,
+        'Loan Pending': loanPending,
+        'Installation Pending': installationPending,
+        'RTS Pending': rtsPending,
+        'Subsidy Processing': subsidyProcessing,
+        "Today's Follow-up": todayFollowup,
+        "Overdue Follow-up": overdueFollowup,
+        "Upcoming Follow-up": upcomingFollowup,
+        'Hold': onHold,
+        'Completed': completed,
+      };
+    } catch (e) {
+      return {
+        'Agreement Pending': 0,
+        'Loan Pending': 0,
+        'Installation Pending': 0,
+        'RTS Pending': 0,
+        'Subsidy Processing': 0,
+        "Today's Follow-up": 0,
+        "Overdue Follow-up": 0,
+        "Upcoming Follow-up": 0,
+        'Hold': 0,
+        'Completed': 0,
+      };
+    }
+  }
+
+  /// Check whether customer has an active pending follow-up in customer_followups
+  static Future<Map<String, dynamic>?> getActiveFollowupForRecord(String recordId) async {
+    try {
+      final response = await _client
+          .from('customer_followups')
+          .select('*')
+          .eq('record_id', recordId)
+          .eq('status', 'PENDING')
+          .order('followup_date', ascending: true)
+          .limit(1)
+          .maybeSingle();
+      return response as Map<String, dynamic>?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Update an existing pending follow-up in customer_followups and sync consumer_records
+  static Future<ConsumerRecord> updateCustomerFollowup({
+    required String followupId,
+    required String recordId,
+    required DateTime followupDate,
+    required String followupReason,
+    String? remarks,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toIso8601String();
+    final dateStr = followupDate.toIso8601String().split('T')[0];
+
+    // 1. Update customer_followups
+    await _client.from('customer_followups').update({
+      'followup_date': dateStr,
+      'followup_reason': followupReason.trim(),
+      'remarks': remarks?.trim(),
+    }).eq('id', followupId);
+
+    // 2. Update consumer_records
+    final response = await _client.from('consumer_records').update({
+      'has_active_followup': true,
+      'followup_date': dateStr,
+      'followup_reason': followupReason.trim(),
+      'followup_remarks': remarks?.trim(),
+      'updated_at': nowIso,
+      'updated_by': user?.id,
+    }).eq('id', recordId).select().single();
+
+    return ConsumerRecord.fromJson(response);
+  }
+
   /// Backward-compatible alias for fetchActionCenterRecords
   static Future<PaginatedResult<ConsumerRecord>> fetchPriorityRecords({
     int page = 1,

@@ -33,6 +33,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
   int _currentPage = 1;
   final int _pageSize = 15;
 
+  Map<String, int> _queueCounts = {};
   String _selectedStageFilter = 'ALL';
   String _selectedStaffFilter = 'All';
 
@@ -81,7 +82,8 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final result = await RecordService.fetchActionCenterRecords(
+      final countsFuture = RecordService.fetchActionCenterQueueCounts();
+      final recordsFuture = RecordService.fetchActionCenterRecords(
         page: _currentPage,
         pageSize: _pageSize,
         stageFilter: _selectedStageFilter,
@@ -89,10 +91,15 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
         searchQuery: _searchController.text,
       );
 
+      final results = await Future.wait([countsFuture, recordsFuture]);
+      final queueCounts = results[0] as Map<String, int>;
+      final recordResult = results[1] as PaginatedResult<ConsumerRecord>;
+
       if (mounted) {
         setState(() {
-          _records = result.items;
-          _totalCount = result.totalCount;
+          _queueCounts = queueCounts;
+          _records = recordResult.items;
+          _totalCount = recordResult.totalCount;
           _isLoading = false;
         });
       }
@@ -207,6 +214,137 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
   }
 
   Future<void> _openFollowupDialog(ConsumerRecord record) async {
+    if (record.id == null) return;
+
+    // Check whether the customer already has an active Pending Follow-up
+    final existing = await RecordService.getActiveFollowupForRecord(record.id!);
+    if (existing != null && mounted) {
+      final existingDateStr = existing['followup_date']?.toString() ?? 'N/A';
+      final existingReason = existing['followup_reason']?.toString() ?? 'Follow-up';
+      final existingRemarks = existing['remarks']?.toString();
+
+      final chosenAction = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: const Row(
+            children: [
+              Icon(Icons.info_outline, color: Color(0xFF2563EB)),
+              SizedBox(width: 8),
+              Text('Active Follow-up Exists'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'An active pending follow-up is already scheduled for ${record.name}:',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('📅 Date: $existingDateStr', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E40AF))),
+                    const SizedBox(height: 4),
+                    Text('📌 Reason: $existingReason', style: const TextStyle(fontWeight: FontWeight.w500)),
+                    if (existingRemarks != null && existingRemarks.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text('💬 Remarks: $existingRemarks', style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'What would you like to do?',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'CANCEL'),
+              child: const Text('Cancel'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, 'UPDATE_EXISTING'),
+              child: const Text('Update Existing'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, 'CREATE_ANOTHER'),
+              child: const Text('Create Another'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'OPEN_EXISTING'),
+              child: const Text('Open Existing (Default)'),
+            ),
+          ],
+        ),
+      );
+
+      if (chosenAction == null || chosenAction == 'CANCEL' || !mounted) return;
+
+      if (chosenAction == 'OPEN_EXISTING') {
+        _openDetailsDialog(record);
+        return;
+      }
+
+      if (chosenAction == 'UPDATE_EXISTING') {
+        DateTime? initialDate;
+        try {
+          if (existing['followup_date'] != null) {
+            initialDate = DateTime.parse(existing['followup_date'].toString());
+          }
+        } catch (_) {}
+
+        final result = await FollowupDialog.show(
+          context,
+          customerName: record.name,
+          initialDate: initialDate ?? record.followupDate,
+          initialReason: existingReason,
+        );
+
+        if (result != null && mounted) {
+          try {
+            await RecordService.updateCustomerFollowup(
+              followupId: existing['id'].toString(),
+              recordId: record.id!,
+              followupDate: result.followupDate,
+              followupReason: result.followupReason,
+              remarks: result.remarks,
+            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Follow-up updated for ${record.name}.'),
+                  backgroundColor: const Color(0xFF059669),
+                ),
+              );
+              _loadActionCenterRecords();
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to update follow-up: $e'), backgroundColor: Colors.red),
+              );
+            }
+          }
+        }
+        return;
+      }
+      // If CREATE_ANOTHER, proceed below
+    }
+
     final result = await FollowupDialog.show(
       context,
       customerName: record.name,
@@ -613,9 +751,9 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                         DataColumn(label: Text('Current Sub-Stage', style: TextStyle(fontWeight: FontWeight.bold))),
                                         DataColumn(label: Text('Current Status', style: TextStyle(fontWeight: FontWeight.bold))),
                                         DataColumn(label: Text('Follow-up', style: TextStyle(fontWeight: FontWeight.bold))),
-                                        DataColumn(label: Text('Quick Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('Next Action', style: TextStyle(fontWeight: FontWeight.bold))),
                                         DataColumn(label: Text('Days in Stage', style: TextStyle(fontWeight: FontWeight.bold))),
-                                        DataColumn(label: Text('Assigned Staff', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
                                       ],
                                       rows: _records.map((r) {
                                         final isCompleted = r.isCompletedState;
@@ -683,110 +821,8 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                             ),
                                             // Follow-up
                                             DataCell(_buildFollowupBadge(r)),
-                                            // Quick Actions: [✓ Complete] [⏸ Hold] [📞 Follow-up]
-                                            DataCell(
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  if (!isCompleted && !isHold) ...[
-                                                    // 1. [✓ Mark Complete]
-                                                    FilledButton.tonalIcon(
-                                                      icon: const Icon(Icons.check_circle_outline, size: 14, color: Color(0xFF059669)),
-                                                      label: const Text('Complete', style: TextStyle(fontSize: 12, color: Color(0xFF065F46), fontWeight: FontWeight.bold)),
-                                                      style: FilledButton.styleFrom(
-                                                        backgroundColor: const Color(0xFFECFDF5),
-                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                        visualDensity: VisualDensity.compact,
-                                                      ),
-                                                      onPressed: () => _confirmMarkAsComplete(r),
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    // 2. [⏸ Mark Hold]
-                                                    FilledButton.tonalIcon(
-                                                      icon: const Icon(Icons.pause_circle_outline, size: 14, color: Color(0xFFD97706)),
-                                                      label: const Text('Hold', style: TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.bold)),
-                                                      style: FilledButton.styleFrom(
-                                                        backgroundColor: const Color(0xFFFFFBEB),
-                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                        visualDensity: VisualDensity.compact,
-                                                      ),
-                                                      onPressed: () => _confirmMarkAsHold(r),
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    // 3. [📞 Mark Follow-up]
-                                                    FilledButton.tonalIcon(
-                                                      icon: const Icon(Icons.phone_in_talk_rounded, size: 14, color: Color(0xFF2563EB)),
-                                                      label: const Text('Follow-up', style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF), fontWeight: FontWeight.bold)),
-                                                      style: FilledButton.styleFrom(
-                                                        backgroundColor: const Color(0xFFEFF6FF),
-                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                        visualDensity: VisualDensity.compact,
-                                                      ),
-                                                      onPressed: () => _openFollowupDialog(r),
-                                                    ),
-                                                  ],
-                                                  if (isHold) ...[
-                                                    // [Reopen]
-                                                    FilledButton.icon(
-                                                      icon: const Icon(Icons.replay_rounded, size: 14),
-                                                      label: const Text('Reopen', style: TextStyle(fontSize: 12)),
-                                                      style: FilledButton.styleFrom(
-                                                        backgroundColor: const Color(0xFF2563EB),
-                                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                                        visualDensity: VisualDensity.compact,
-                                                      ),
-                                                      onPressed: () => _confirmReopen(r),
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    FilledButton.tonalIcon(
-                                                      icon: const Icon(Icons.phone_in_talk_rounded, size: 14, color: Color(0xFF2563EB)),
-                                                      label: const Text('Follow-up', style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF), fontWeight: FontWeight.bold)),
-                                                      style: FilledButton.styleFrom(
-                                                        backgroundColor: const Color(0xFFEFF6FF),
-                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                        visualDensity: VisualDensity.compact,
-                                                      ),
-                                                      onPressed: () => _openFollowupDialog(r),
-                                                    ),
-                                                  ],
-                                                  if (r.hasActiveFollowup) ...[
-                                                    const SizedBox(width: 6),
-                                                    // [Call]
-                                                    IconButton.filledTonal(
-                                                      icon: const Icon(Icons.phone, size: 15, color: Color(0xFF0284C7)),
-                                                      tooltip: 'Call Customer: ${r.mobile ?? 'No phone'}',
-                                                      style: IconButton.styleFrom(visualDensity: VisualDensity.compact),
-                                                      onPressed: () => _makePhoneCall(r.mobile),
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    // [Follow-up Done]
-                                                    FilledButton.tonalIcon(
-                                                      icon: const Icon(Icons.done_all_rounded, size: 14, color: Color(0xFF059669)),
-                                                      label: const Text('Follow-up Done', style: TextStyle(fontSize: 11, color: Color(0xFF065F46), fontWeight: FontWeight.bold)),
-                                                      style: FilledButton.styleFrom(
-                                                        backgroundColor: const Color(0xFFD1FAE5),
-                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                                                        visualDensity: VisualDensity.compact,
-                                                      ),
-                                                      onPressed: () => _openFollowupDoneDialog(r),
-                                                    ),
-                                                  ],
-                                                  const SizedBox(width: 4),
-                                                  IconButton(
-                                                    icon: const Icon(Icons.visibility_outlined, size: 18),
-                                                    tooltip: 'View Customer Details',
-                                                    visualDensity: VisualDensity.compact,
-                                                    onPressed: () => _openDetailsDialog(r),
-                                                  ),
-                                                  IconButton(
-                                                    icon: const Icon(Icons.edit_outlined, size: 18),
-                                                    tooltip: 'Edit Customer',
-                                                    visualDensity: VisualDensity.compact,
-                                                    onPressed: () => _openEditDialog(r),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
+                                            // Next Action
+                                            DataCell(_buildNextActionBadge(r)),
                                             // Days in Current Stage
                                             DataCell(
                                               Container(
@@ -813,8 +849,112 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                                 ),
                                               ),
                                             ),
-                                            // Assigned Staff
-                                            DataCell(Text(r.assignedStaff ?? r.installerTeam ?? 'Unassigned')),
+                                            // Actions
+                                            DataCell(
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  // 1. [Open]
+                                                  IconButton.filledTonal(
+                                                    icon: const Icon(Icons.visibility_outlined, size: 14),
+                                                    tooltip: 'Open Customer Details',
+                                                    style: IconButton.styleFrom(
+                                                      visualDensity: VisualDensity.compact,
+                                                      padding: const EdgeInsets.all(4),
+                                                    ),
+                                                    onPressed: () => _openDetailsDialog(r),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  // 2. [Call]
+                                                  if (r.mobile != null && r.mobile!.isNotEmpty) ...[
+                                                    IconButton.filledTonal(
+                                                      icon: const Icon(Icons.phone, size: 14, color: Color(0xFF0284C7)),
+                                                      tooltip: 'Call Customer: ${r.mobile}',
+                                                      style: IconButton.styleFrom(
+                                                        backgroundColor: const Color(0xFFE0F2FE),
+                                                        visualDensity: VisualDensity.compact,
+                                                        padding: const EdgeInsets.all(4),
+                                                      ),
+                                                      onPressed: () => _makePhoneCall(r.mobile),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                  ],
+                                                  // 3. [Mark Complete]
+                                                  if (!isCompleted && !isHold) ...[
+                                                    FilledButton.tonalIcon(
+                                                      icon: const Icon(Icons.check_circle_outline, size: 14, color: Color(0xFF059669)),
+                                                      label: const Text('Complete', style: TextStyle(fontSize: 12, color: Color(0xFF065F46), fontWeight: FontWeight.bold)),
+                                                      style: FilledButton.styleFrom(
+                                                        backgroundColor: const Color(0xFFECFDF5),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        visualDensity: VisualDensity.compact,
+                                                      ),
+                                                      onPressed: () => _confirmMarkAsComplete(r),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    // 4. [Mark Hold]
+                                                    FilledButton.tonalIcon(
+                                                      icon: const Icon(Icons.pause_circle_outline, size: 14, color: Color(0xFFD97706)),
+                                                      label: const Text('Hold', style: TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.bold)),
+                                                      style: FilledButton.styleFrom(
+                                                        backgroundColor: const Color(0xFFFFFBEB),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        visualDensity: VisualDensity.compact,
+                                                      ),
+                                                      onPressed: () => _confirmMarkAsHold(r),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    // 5. [Follow-up]
+                                                    FilledButton.tonalIcon(
+                                                      icon: const Icon(Icons.phone_in_talk_rounded, size: 14, color: Color(0xFF2563EB)),
+                                                      label: const Text('Follow-up', style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF), fontWeight: FontWeight.bold)),
+                                                      style: FilledButton.styleFrom(
+                                                        backgroundColor: const Color(0xFFEFF6FF),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        visualDensity: VisualDensity.compact,
+                                                      ),
+                                                      onPressed: () => _openFollowupDialog(r),
+                                                    ),
+                                                  ],
+                                                  if (isHold) ...[
+                                                    FilledButton.icon(
+                                                      icon: const Icon(Icons.replay_rounded, size: 14),
+                                                      label: const Text('Reopen', style: TextStyle(fontSize: 12)),
+                                                      style: FilledButton.styleFrom(
+                                                        backgroundColor: const Color(0xFF2563EB),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                        visualDensity: VisualDensity.compact,
+                                                      ),
+                                                      onPressed: () => _confirmReopen(r),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    FilledButton.tonalIcon(
+                                                      icon: const Icon(Icons.phone_in_talk_rounded, size: 14, color: Color(0xFF2563EB)),
+                                                      label: const Text('Follow-up', style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF), fontWeight: FontWeight.bold)),
+                                                      style: FilledButton.styleFrom(
+                                                        backgroundColor: const Color(0xFFEFF6FF),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        visualDensity: VisualDensity.compact,
+                                                      ),
+                                                      onPressed: () => _openFollowupDialog(r),
+                                                    ),
+                                                  ],
+                                                  if (r.hasActiveFollowup) ...[
+                                                    const SizedBox(width: 4),
+                                                    FilledButton.tonalIcon(
+                                                      icon: const Icon(Icons.done_all_rounded, size: 14, color: Color(0xFF059669)),
+                                                      label: const Text('Follow-up Done', style: TextStyle(fontSize: 11, color: Color(0xFF065F46), fontWeight: FontWeight.bold)),
+                                                      style: FilledButton.styleFrom(
+                                                        backgroundColor: const Color(0xFFD1FAE5),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                                        visualDensity: VisualDensity.compact,
+                                                      ),
+                                                      onPressed: () => _openFollowupDoneDialog(r),
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+                                            ),
                                           ],
                                         );
                                       }).toList(),
@@ -876,6 +1016,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
     required Color color,
     required IconData icon,
   }) {
+    final count = _queueCounts[stageCode] ?? 0;
     final isSelected = _selectedStageFilter.toUpperCase() == stageCode.toUpperCase();
 
     return InkWell(
@@ -923,13 +1064,27 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            Text(
-              isSelected ? 'Selected ✓' : 'Filter Section ➔',
-              style: TextStyle(
-                color: isSelected ? color : Colors.grey.shade600,
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 22,
+                  ),
+                ),
+                Text(
+                  isSelected ? 'Selected ✓' : 'Filter Section ➔',
+                  style: TextStyle(
+                    color: isSelected ? color : Colors.grey.shade600,
+                    fontSize: 11,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -1010,7 +1165,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
 
   Widget _buildFollowupBadge(ConsumerRecord r) {
     if (!r.hasActiveFollowup || r.followupDate == null) {
-      return Text('—', style: TextStyle(color: Colors.grey.shade400));
+      return Text('—', style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.bold));
     }
 
     final dateStr = r.followupDate!.toLocal().toString().split(' ')[0];
@@ -1018,7 +1173,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
 
     if (r.isFollowupOverdue) {
       return Tooltip(
-        message: 'Overdue Follow-up ($reason): $dateStr\nRemarks: ${r.followupRemarks ?? 'None'}',
+        message: '🔴 Overdue Follow-up ($reason): $dateStr\nRemarks: ${r.followupRemarks ?? 'None'}',
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
@@ -1029,7 +1184,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 13),
+              const Text('🔴', style: TextStyle(fontSize: 10)),
               const SizedBox(width: 4),
               Text(
                 'Overdue: $dateStr',
@@ -1041,7 +1196,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
       );
     } else if (r.isFollowupToday) {
       return Tooltip(
-        message: "Today's Follow-up ($reason)\nRemarks: ${r.followupRemarks ?? 'None'}",
+        message: "📞 Today's Follow-up ($reason)\nRemarks: ${r.followupRemarks ?? 'None'}",
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
@@ -1052,7 +1207,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.phone_in_talk_rounded, color: Color(0xFF0284C7), size: 13),
+              Text('📞', style: TextStyle(fontSize: 10)),
               SizedBox(width: 4),
               Text(
                 'Today',
@@ -1064,28 +1219,84 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
       );
     } else {
       return Tooltip(
-        message: 'Upcoming Follow-up ($reason): $dateStr\nRemarks: ${r.followupRemarks ?? 'None'}',
+        message: '🟡 Upcoming Follow-up ($reason): $dateStr\nRemarks: ${r.followupRemarks ?? 'None'}',
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: const Color(0xFFEEF2FF),
+            color: const Color(0xFFFEF3C7),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: const Color(0xFF6366F1)),
+            border: Border.all(color: const Color(0xFFF59E0B)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.calendar_today_rounded, color: Color(0xFF4F46E5), size: 12),
+              const Text('🟡', style: TextStyle(fontSize: 10)),
               const SizedBox(width: 4),
               Text(
-                dateStr,
-                style: const TextStyle(color: Color(0xFF3730A3), fontWeight: FontWeight.bold, fontSize: 11),
+                'Upcoming: $dateStr',
+                style: const TextStyle(color: Color(0xFF92400E), fontWeight: FontWeight.bold, fontSize: 11),
               ),
             ],
           ),
         ),
       );
     }
+  }
+
+  Widget _buildNextActionBadge(ConsumerRecord r) {
+    final nextAction = WorkflowEngine.getNextAction(r);
+    if (nextAction == 'None' || nextAction == 'No operational action') {
+      return Text(
+        nextAction == 'No operational action' ? '✓ Disbursed' : '—',
+        style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+      );
+    }
+
+    Color badgeBg = const Color(0xFFEFF6FF);
+    Color badgeFg = const Color(0xFF1D4ED8);
+    IconData actionIcon = Icons.arrow_forward_rounded;
+
+    if (nextAction.contains('Bank')) {
+      badgeBg = const Color(0xFFFFFBEB);
+      badgeFg = const Color(0xFFB45309);
+      actionIcon = Icons.account_balance_outlined;
+    } else if (nextAction.contains('Agreement')) {
+      badgeBg = const Color(0xFFEFF6FF);
+      badgeFg = const Color(0xFF1D4ED8);
+      actionIcon = Icons.edit_document;
+    } else if (nextAction.contains('Installation')) {
+      badgeBg = const Color(0xFFF0FDF4);
+      badgeFg = const Color(0xFF15803D);
+      actionIcon = Icons.build_circle_outlined;
+    } else if (nextAction.contains('RTS')) {
+      badgeBg = const Color(0xFFFAF5FF);
+      badgeFg = const Color(0xFF7E22CE);
+      actionIcon = Icons.electric_meter_outlined;
+    } else if (nextAction.contains('Wait') || nextAction.contains('Monitor')) {
+      badgeBg = const Color(0xFFF1F5F9);
+      badgeFg = const Color(0xFF475569);
+      actionIcon = Icons.hourglass_empty_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: badgeBg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: badgeFg.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(actionIcon, size: 12, color: badgeFg),
+          const SizedBox(width: 4),
+          Text(
+            nextAction,
+            style: TextStyle(color: badgeFg, fontWeight: FontWeight.bold, fontSize: 11),
+          ),
+        ],
+      ),
+    );
   }
 }
 
