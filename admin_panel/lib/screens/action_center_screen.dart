@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../models/consumer_record.dart';
+import '../models/customer_misc_action.dart';
 import '../services/record_service.dart';
 import '../services/realtime_service.dart';
 import '../services/workflow_engine.dart';
@@ -11,6 +12,7 @@ import '../widgets/no_action_reason_dialog.dart';
 import '../widgets/hold_reason_dialog.dart';
 import '../widgets/followup_dialog.dart';
 import '../widgets/followup_done_dialog.dart';
+import '../widgets/misc_action_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ActionCenterScreen extends StatefulWidget {
@@ -30,6 +32,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
 
   bool _isLoading = false;
   List<ConsumerRecord> _records = [];
+  List<CustomerMiscAction> _miscActions = [];
   int _totalCount = 0;
   int _currentPage = 1;
   final int _pageSize = 15;
@@ -84,25 +87,49 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
 
     try {
       final countsFuture = RecordService.fetchActionCenterQueueCounts();
-      final recordsFuture = RecordService.fetchActionCenterRecords(
-        page: _currentPage,
-        pageSize: _pageSize,
-        stageFilter: _selectedStageFilter,
-        assignedStaffFilter: _selectedStaffFilter,
-        searchQuery: _searchController.text,
-      );
 
-      final results = await Future.wait([countsFuture, recordsFuture]);
-      final queueCounts = results[0] as Map<String, int>;
-      final recordResult = results[1] as PaginatedResult<ConsumerRecord>;
+      if (_selectedStageFilter == 'MISC') {
+        final miscFuture = RecordService.fetchMiscActions(
+          page: _currentPage,
+          pageSize: _pageSize,
+          statusFilter: 'Active',
+          assignedStaffFilter: _selectedStaffFilter,
+          searchQuery: _searchController.text,
+        );
 
-      if (mounted) {
-        setState(() {
-          _queueCounts = queueCounts;
-          _records = recordResult.items;
-          _totalCount = recordResult.totalCount;
-          _isLoading = false;
-        });
+        final results = await Future.wait([countsFuture, miscFuture]);
+        final queueCounts = results[0] as Map<String, int>;
+        final miscResult = results[1] as PaginatedResult<CustomerMiscAction>;
+
+        if (mounted) {
+          setState(() {
+            _queueCounts = queueCounts;
+            _miscActions = miscResult.items;
+            _totalCount = miscResult.totalCount;
+            _isLoading = false;
+          });
+        }
+      } else {
+        final recordsFuture = RecordService.fetchActionCenterRecords(
+          page: _currentPage,
+          pageSize: _pageSize,
+          stageFilter: _selectedStageFilter,
+          assignedStaffFilter: _selectedStaffFilter,
+          searchQuery: _searchController.text,
+        );
+
+        final results = await Future.wait([countsFuture, recordsFuture]);
+        final queueCounts = results[0] as Map<String, int>;
+        final recordResult = results[1] as PaginatedResult<ConsumerRecord>;
+
+        if (mounted) {
+          setState(() {
+            _queueCounts = queueCounts;
+            _records = recordResult.items;
+            _totalCount = recordResult.totalCount;
+            _isLoading = false;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -116,6 +143,206 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
       }
     }
   }
+
+  Future<void> _openAddMiscDialog([ConsumerRecord? customer]) async {
+    final saved = await MiscActionDialog.show(
+      context,
+      customerRecord: customer,
+    );
+    if (saved == true) {
+      _loadActionCenterRecords();
+    }
+  }
+
+  Future<void> _openEditMiscDialog(CustomerMiscAction action) async {
+    final saved = await MiscActionDialog.show(
+      context,
+      existingAction: action,
+    );
+    if (saved == true) {
+      _loadActionCenterRecords();
+    }
+  }
+
+  Future<void> _confirmCompleteMiscAction(CustomerMiscAction action) async {
+    final remarksCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Color(0xFF059669)),
+            SizedBox(width: 8),
+            Text('Complete MISC Action'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Mark action "${action.reason}" for ${action.customerName} as Complete?'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: remarksCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Completion Remarks (Optional)',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Complete Action'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && action.id != null && mounted) {
+      try {
+        await RecordService.completeMiscAction(
+          id: action.id!,
+          remarks: remarksCtrl.text.trim().isEmpty ? null : remarksCtrl.text.trim(),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('MISC action "${action.reason}" completed.'), backgroundColor: const Color(0xFF059669)),
+          );
+          _loadActionCenterRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to complete action: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmHoldMiscAction(CustomerMiscAction action) async {
+    final reasonCtrl = TextEditingController();
+    final remarksCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.pause_circle_outline, color: Color(0xFFD97706)),
+            SizedBox(width: 8),
+            Text('Hold MISC Action'),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Put action "${action.reason}" for ${action.customerName} on Hold:'),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: reasonCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Hold Reason *',
+                  hintText: 'e.g. Waiting for customer response',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Hold Reason is required' : null,
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: remarksCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Remarks (Optional)',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                maxLines: 2,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD97706)),
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(ctx, true);
+              }
+            },
+            child: const Text('Put on Hold'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && action.id != null && mounted) {
+      try {
+        await RecordService.holdMiscAction(
+          id: action.id!,
+          holdReason: reasonCtrl.text.trim(),
+          remarks: remarksCtrl.text.trim().isEmpty ? null : remarksCtrl.text.trim(),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('MISC action "${action.reason}" placed on hold.'), backgroundColor: const Color(0xFFD97706)),
+          );
+          _loadActionCenterRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to hold action: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmFollowupMiscAction(CustomerMiscAction action) async {
+    final result = await FollowupDialog.show(
+      context,
+      customerName: action.customerName,
+      initialReason: 'MISC: ${action.reason}',
+    );
+    if (result != null && mounted) {
+      try {
+        await RecordService.markCustomerFollowup(
+          recordId: action.recordId,
+          followupDate: result.followupDate,
+          followupReason: result.followupReason,
+          remarks: result.remarks,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Follow-up scheduled for ${action.customerName} on ${result.followupDate.toLocal().toString().split(' ')[0]}.'),
+              backgroundColor: const Color(0xFF2563EB),
+            ),
+          );
+          _loadActionCenterRecords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to schedule follow-up: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
 
   void _openDetailsDialog(ConsumerRecord record) {
     showDialog(
@@ -589,6 +816,12 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                 color: Colors.grey.shade700,
                 icon: Icons.check_circle_rounded,
               ),
+              _buildStageFilterCard(
+                title: 'MISC',
+                stageCode: 'MISC',
+                color: const Color(0xFF6366F1),
+                icon: Icons.assignment_turned_in_rounded,
+              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -646,6 +879,7 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                           DropdownMenuItem(value: "Upcoming Follow-up", child: Text("📅 Upcoming Follow-up")),
                           DropdownMenuItem(value: 'Hold', child: Text('⏸ On Hold')),
                           DropdownMenuItem(value: 'Completed', child: Text('✓ Completed')),
+                          DropdownMenuItem(value: 'MISC', child: Text('⚡ MISC Actions')),
                         ],
                         onChanged: (val) {
                           if (val != null) {
@@ -689,6 +923,16 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(width: 16),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF4F46E5),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                    icon: const Icon(Icons.add_task_rounded, size: 18),
+                    label: const Text('+ Add MISC Action'),
+                    onPressed: () => _openAddMiscDialog(),
+                  ),
                 ],
               ),
             ),
@@ -706,17 +950,42 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                         padding: EdgeInsets.all(40.0),
                         child: Center(child: CircularProgressIndicator()),
                       )
-                    : _records.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.all(40.0),
-                            child: Center(
-                              child: Text(
-                                'No customers requiring action for selected stage/filter.',
-                                style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-                              ),
-                            ),
-                          )
-                        : ScrollConfiguration(
+                    : _selectedStageFilter == 'MISC'
+                        ? _miscActions.isEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.all(40.0),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.assignment_turned_in_outlined, size: 48, color: Colors.grey),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'No active miscellaneous customer actions found.',
+                                        style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      FilledButton.icon(
+                                        onPressed: () => _openAddMiscDialog(),
+                                        icon: const Icon(Icons.add, size: 16),
+                                        label: const Text('Create First MISC Action'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : _buildMiscDataTable(theme)
+                        : _records.isEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.all(40.0),
+                                child: Center(
+                                  child: Text(
+                                    'No customers requiring action for selected stage/filter.',
+                                    style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                                  ),
+                                ),
+                              )
+                            : ScrollConfiguration(
                             behavior: ScrollConfiguration.of(context).copyWith(
                               dragDevices: {
                                 PointerDeviceKind.touch,
@@ -1298,6 +1567,276 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildMiscDataTable(ThemeData theme) {
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        dragDevices: {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.trackpad,
+          PointerDeviceKind.stylus,
+        },
+      ),
+      child: Scrollbar(
+        controller: _verticalScrollController,
+        thumbVisibility: true,
+        trackVisibility: true,
+        child: SingleChildScrollView(
+          controller: _verticalScrollController,
+          scrollDirection: Axis.vertical,
+          child: Scrollbar(
+            controller: _horizontalScrollController,
+            thumbVisibility: true,
+            trackVisibility: true,
+            child: SingleChildScrollView(
+              controller: _horizontalScrollController,
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 16,
+                horizontalMargin: 12,
+                headingRowColor: WidgetStateProperty.all(
+                  theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                ),
+                columns: const [
+                  DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Mobile', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('MISC Reason', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Assigned Staff', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Due Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+                ],
+                rows: _miscActions.map((action) {
+                  return DataRow(
+                    cells: [
+                      // Customer Name
+                      DataCell(
+                        InkWell(
+                          onTap: () => _openEditMiscDialog(action),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(action.customerName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              if (action.description != null && action.description!.isNotEmpty)
+                                SizedBox(
+                                  width: 140,
+                                  child: Text(
+                                    action.description!,
+                                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Consumer No
+                      DataCell(Text(action.consumerNo, style: const TextStyle(fontWeight: FontWeight.w500))),
+                      // Mobile
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(action.mobile ?? '—', style: TextStyle(color: action.mobile != null ? Colors.black87 : Colors.grey)),
+                            if (action.mobile != null && action.mobile!.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.phone, size: 14, color: Color(0xFF059669)),
+                                tooltip: 'Call ${action.customerName}',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _makePhoneCall(action.mobile),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      // MISC Reason + Priority
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEEF2FF),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
+                              ),
+                              child: Text(
+                                action.reason,
+                                style: const TextStyle(color: Color(0xFF4338CA), fontWeight: FontWeight.w600, fontSize: 12),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: action.priorityColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: action.priorityColor.withValues(alpha: 0.4)),
+                              ),
+                              child: Text(
+                                action.priority.toUpperCase(),
+                                style: TextStyle(color: action.priorityColor, fontWeight: FontWeight.bold, fontSize: 10),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Assigned Staff
+                      DataCell(Text(action.assignedStaffName ?? 'Unassigned', style: TextStyle(color: action.assignedStaffName != null ? Colors.black87 : Colors.grey))),
+                      // Due Date
+                      DataCell(_buildMiscDueDateBadge(action)),
+                      // Status
+                      DataCell(
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: action.statusColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: action.statusColor.withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            action.status,
+                            style: TextStyle(color: action.statusColor, fontWeight: FontWeight.bold, fontSize: 11),
+                          ),
+                        ),
+                      ),
+                      // Actions: [Open] [Call] [Complete] [Hold] [Follow-up]
+                      DataCell(
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 2,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            // [Open]
+                            OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: const Size(0, 28),
+                                visualDensity: VisualDensity.compact,
+                                side: BorderSide(color: theme.colorScheme.primary),
+                              ),
+                              onPressed: () => _openEditMiscDialog(action),
+                              child: const Text('Open', style: TextStyle(fontSize: 11)),
+                            ),
+                            // [Call]
+                            if (action.mobile != null && action.mobile!.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.phone_in_talk, size: 16, color: Color(0xFF059669)),
+                                tooltip: 'Call Customer (${action.mobile})',
+                                padding: const EdgeInsets.all(4),
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _makePhoneCall(action.mobile),
+                              ),
+                            // [✓ Complete]
+                            if (!action.isCompleted)
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF059669),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  minimumSize: const Size(0, 28),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () => _confirmCompleteMiscAction(action),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.check, size: 12),
+                                    SizedBox(width: 2),
+                                    Text('Complete', style: TextStyle(fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                            // [⏸ Hold]
+                            if (action.isActive)
+                              OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFD97706),
+                                  side: const BorderSide(color: Color(0xFFD97706)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  minimumSize: const Size(0, 28),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () => _confirmHoldMiscAction(action),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.pause, size: 12),
+                                    SizedBox(width: 2),
+                                    Text('Hold', style: TextStyle(fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                            // [📞 Follow-up]
+                            OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF2563EB),
+                                side: const BorderSide(color: Color(0xFF2563EB)),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: const Size(0, 28),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              onPressed: () => _confirmFollowupMiscAction(action),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.phone, size: 12),
+                                  SizedBox(width: 2),
+                                  Text('Follow-up', style: TextStyle(fontSize: 11)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiscDueDateBadge(CustomerMiscAction action) {
+    if (action.dueDate == null) {
+      return Text('Not Set', style: TextStyle(fontSize: 11, color: Colors.grey.shade500));
+    }
+    final dateStr = '${action.dueDate!.day.toString().padLeft(2, '0')}/${action.dueDate!.month.toString().padLeft(2, '0')}/${action.dueDate!.year}';
+
+    if (action.isOverdue) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEE2E2),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: const Color(0xFFEF4444)),
+        ),
+        child: Text('🔴 Overdue: $dateStr', style: const TextStyle(color: Color(0xFF991B1B), fontSize: 11, fontWeight: FontWeight.bold)),
+      );
+    }
+    if (action.isDueToday) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF3C7),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: const Color(0xFFF59E0B)),
+        ),
+        child: Text('⚠️ Due Today', style: const TextStyle(color: Color(0xFF92400E), fontSize: 11, fontWeight: FontWeight.bold)),
+      );
+    }
+
+    return Text(dateStr, style: const TextStyle(fontSize: 12));
   }
 }
 

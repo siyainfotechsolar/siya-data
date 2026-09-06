@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
+import '../models/customer_misc_action.dart';
 import '../models/record_diff.dart';
 import '../models/import_log.dart';
 import 'audit_service.dart';
@@ -996,6 +997,16 @@ class RecordService {
         }
       }
 
+      int miscCount = 0;
+      try {
+        final miscRes = await _client
+            .from('customer_misc_actions')
+            .select('id')
+            .inFilter('status', ['Pending', 'In Progress'])
+            .count(CountOption.exact);
+        miscCount = miscRes.count;
+      } catch (_) {}
+
       return {
         'Agreement Pending': agreementPending,
         'Loan Pending': loanPending,
@@ -1007,6 +1018,7 @@ class RecordService {
         "Upcoming Follow-up": upcomingFollowup,
         'Hold': onHold,
         'Completed': completed,
+        'MISC': miscCount,
       };
     } catch (e) {
       return {
@@ -1020,6 +1032,7 @@ class RecordService {
         "Upcoming Follow-up": 0,
         'Hold': 0,
         'Completed': 0,
+        'MISC': 0,
       };
     }
   }
@@ -1586,4 +1599,397 @@ class RecordService {
 
     return updated;
   }
+
+  // ===========================================================================
+  // MISC (MISCELLANEOUS CUSTOMER ACTIONS) SERVICES
+  // Architecture Rule: MISC is an action, NOT a workflow stage.
+  // ===========================================================================
+
+  /// Fetch paginated MISC actions with filtering and search
+  static Future<PaginatedResult<CustomerMiscAction>> fetchMiscActions({
+    int page = 1,
+    int pageSize = 15,
+    String? statusFilter, // 'Active' (default), 'All', 'Pending', 'In Progress', 'Hold', 'Completed', 'Cancelled'
+    String? assignedStaffFilter,
+    String? searchQuery,
+    String? priorityFilter,
+    String? reasonFilter,
+  }) async {
+    try {
+      final from = (page - 1) * pageSize;
+      final to = from + pageSize - 1;
+
+      var filterBuilder = _client.from('customer_misc_actions').select('*');
+
+      // Status filter
+      final s = statusFilter ?? 'Active';
+      if (s == 'Active') {
+        filterBuilder = filterBuilder.inFilter('status', ['Pending', 'In Progress']);
+      } else if (s != 'All' && s.isNotEmpty) {
+        filterBuilder = filterBuilder.eq('status', s);
+      }
+
+      // Staff filter
+      if (assignedStaffFilter != null && assignedStaffFilter != 'All' && assignedStaffFilter.isNotEmpty) {
+        filterBuilder = filterBuilder.eq('assigned_staff_name', assignedStaffFilter);
+      }
+
+      // Priority filter
+      if (priorityFilter != null && priorityFilter != 'All' && priorityFilter.isNotEmpty) {
+        filterBuilder = filterBuilder.eq('priority', priorityFilter);
+      }
+
+      // Reason filter
+      if (reasonFilter != null && reasonFilter != 'All' && reasonFilter.isNotEmpty) {
+        filterBuilder = filterBuilder.eq('reason', reasonFilter);
+      }
+
+      // Search Query
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        final term = '%${searchQuery.trim()}%';
+        filterBuilder = filterBuilder.or(
+          'customer_name.ilike.$term,consumer_no.ilike.$term,mobile.ilike.$term,reason.ilike.$term,description.ilike.$term',
+        );
+      }
+
+      final response = await filterBuilder
+          .order('created_at', ascending: false)
+          .range(from, to)
+          .count(CountOption.exact);
+
+      final List<dynamic> data = response.data;
+      final int totalCount = response.count;
+
+      final items = data
+          .map((json) => CustomerMiscAction.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      return PaginatedResult<CustomerMiscAction>(
+        items: items,
+        totalCount: totalCount,
+        page: page,
+        pageSize: pageSize,
+      );
+    } catch (e, stack) {
+      // ignore: avoid_print
+      print('RecordService.fetchMiscActions error: $e\n$stack');
+      rethrow;
+    }
+  }
+
+  /// Fetch all MISC actions for a specific customer record
+  static Future<List<CustomerMiscAction>> fetchMiscActionsForCustomer(String recordId) async {
+    try {
+      final response = await _client
+          .from('customer_misc_actions')
+          .select('*')
+          .eq('record_id', recordId)
+          .order('created_at', ascending: false);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data.map((j) => CustomerMiscAction.fromJson(j as Map<String, dynamic>)).toList();
+    } catch (e) {
+      // ignore: avoid_print
+      print('RecordService.fetchMiscActionsForCustomer error: $e');
+      return [];
+    }
+  }
+
+  /// Check whether an active MISC action already exists for this customer with the same reason
+  static Future<CustomerMiscAction?> checkDuplicateMiscAction({
+    required String recordId,
+    required String reason,
+  }) async {
+    try {
+      final response = await _client
+          .from('customer_misc_actions')
+          .select('*')
+          .eq('record_id', recordId)
+          .eq('reason', reason.trim())
+          .inFilter('status', ['Pending', 'In Progress'])
+          .maybeSingle();
+
+      if (response == null) return null;
+      return CustomerMiscAction.fromJson(response);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Create a new MISC action with duplicate protection audit logging
+  static Future<CustomerMiscAction> createMiscAction(CustomerMiscAction action) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final payload = action.toJson();
+    if (user != null) {
+      payload['created_by'] = user.id;
+      payload['created_by_name'] = user.email?.split('@')[0] ?? 'Staff';
+    }
+
+    final response = await _client
+        .from('customer_misc_actions')
+        .insert(payload)
+        .select()
+        .single();
+
+    final created = CustomerMiscAction.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': created.recordId,
+        'consumer_no': created.consumerNo,
+        'action': 'MISC_ACTION_CREATED',
+        'field_name': 'misc_reason',
+        'old_value': null,
+        'new_value': '${created.reason} (${created.priority})',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'remarks': created.description ?? created.remarks,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return created;
+  }
+
+  /// Update an existing MISC action
+  static Future<CustomerMiscAction> updateMiscAction(CustomerMiscAction action) async {
+    if (action.id == null) throw Exception('Cannot update MISC action without ID');
+
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final payload = action.toJson();
+
+    final response = await _client
+        .from('customer_misc_actions')
+        .update(payload)
+        .eq('id', action.id!)
+        .select()
+        .single();
+
+    final updated = CustomerMiscAction.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': updated.recordId,
+        'consumer_no': updated.consumerNo,
+        'action': 'MISC_ACTION_UPDATED',
+        'field_name': 'misc_action',
+        'old_value': null,
+        'new_value': '${updated.reason} - ${updated.status}',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Complete a MISC action: sets status='Completed', stamps completed_at and completed_by
+  /// Note: Does NOT modify the customer's workflow state or main customer record.
+  static Future<CustomerMiscAction> completeMiscAction({
+    required String id,
+    String? remarks,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final updatePayload = <String, dynamic>{
+      'status': 'Completed',
+      'completed_at': nowIso,
+      'completed_by': user?.id,
+      'completed_by_name': user?.email?.split('@')[0] ?? 'Staff',
+    };
+    if (remarks != null && remarks.trim().isNotEmpty) {
+      updatePayload['remarks'] = remarks.trim();
+    }
+
+    final response = await _client
+        .from('customer_misc_actions')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+    final completed = CustomerMiscAction.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': completed.recordId,
+        'consumer_no': completed.consumerNo,
+        'action': 'MISC_ACTION_COMPLETED',
+        'field_name': 'misc_status',
+        'old_value': 'Pending',
+        'new_value': 'Completed',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'remarks': remarks,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return completed;
+  }
+
+  /// Hold a MISC action: requires hold reason, sets status='Hold'
+  /// Note: Does NOT modify the customer's workflow state or main customer record.
+  static Future<CustomerMiscAction> holdMiscAction({
+    required String id,
+    required String holdReason,
+    String? remarks,
+  }) async {
+    final cleanReason = holdReason.trim();
+    if (cleanReason.isEmpty) {
+      throw Exception('Hold Reason is required to put a MISC action on hold.');
+    }
+
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final updatePayload = <String, dynamic>{
+      'status': 'Hold',
+      'hold_reason': cleanReason,
+    };
+    if (remarks != null && remarks.trim().isNotEmpty) {
+      updatePayload['remarks'] = remarks.trim();
+    }
+
+    final response = await _client
+        .from('customer_misc_actions')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+    final onHold = CustomerMiscAction.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': onHold.recordId,
+        'consumer_no': onHold.consumerNo,
+        'action': 'MISC_ACTION_HOLD',
+        'field_name': 'misc_status',
+        'old_value': 'Pending',
+        'new_value': 'Hold ($cleanReason)',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'remarks': remarks,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return onHold;
+  }
+
+  /// Reopen a held or completed MISC action: sets status='Pending'
+  static Future<CustomerMiscAction> reopenMiscAction(String id) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final response = await _client
+        .from('customer_misc_actions')
+        .update({
+          'status': 'Pending',
+          'hold_reason': null,
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    final reopened = CustomerMiscAction.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': reopened.recordId,
+        'consumer_no': reopened.consumerNo,
+        'action': 'MISC_ACTION_REOPENED',
+        'field_name': 'misc_status',
+        'old_value': 'Hold',
+        'new_value': 'Pending',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return reopened;
+  }
+
+  /// Fetch metrics summary for MISC actions (Daily Workbook & Reports)
+  static Future<Map<String, int>> fetchMiscMetrics() async {
+    try {
+      final response = await _client
+          .from('customer_misc_actions')
+          .select('id, status, due_date, completed_at');
+
+      final List<dynamic> data = response as List<dynamic>;
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+
+      int active = 0;
+      int todaysDue = 0;
+      int overdue = 0;
+      int completedToday = 0;
+      int totalCompleted = 0;
+      int onHold = 0;
+
+      for (final item in data) {
+        final status = item['status'] as String? ?? 'Pending';
+        final dueDateStr = item['due_date'] as String?;
+        final completedAtStr = item['completed_at'] as String?;
+
+        final isPendingOrInProg = status == 'Pending' || status == 'In Progress';
+
+        if (isPendingOrInProg) {
+          active++;
+          if (dueDateStr != null) {
+            final d = DateTime.tryParse(dueDateStr);
+            if (d != null) {
+              final due = DateTime(d.year, d.month, d.day);
+              if (due.isAtSameMomentAs(today)) {
+                todaysDue++;
+              } else if (due.isBefore(today)) {
+                overdue++;
+              }
+            }
+          }
+        } else if (status == 'Hold') {
+          onHold++;
+        } else if (status == 'Completed') {
+          totalCompleted++;
+          if (completedAtStr != null) {
+            final c = DateTime.tryParse(completedAtStr);
+            if (c != null) {
+              final compDate = DateTime(c.year, c.month, c.day);
+              if (compDate.isAtSameMomentAs(today)) {
+                completedToday++;
+              }
+            }
+          }
+        }
+      }
+
+      return {
+        'active': active,
+        'today': todaysDue,
+        'overdue': overdue,
+        'completed_today': completedToday,
+        'total_completed': totalCompleted,
+        'hold': onHold,
+      };
+    } catch (e) {
+      return {
+        'active': 0,
+        'today': 0,
+        'overdue': 0,
+        'completed_today': 0,
+        'total_completed': 0,
+        'hold': 0,
+      };
+    }
+  }
 }
+

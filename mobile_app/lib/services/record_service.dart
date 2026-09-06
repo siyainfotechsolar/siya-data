@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
+import '../models/customer_misc_action.dart';
 import 'supabase_service.dart';
 import 'workflow_engine.dart';
 
@@ -345,6 +346,16 @@ class MobileRecordService {
         }
       }
 
+      int miscCount = 0;
+      try {
+        final miscRes = await _client
+            .from('customer_misc_actions')
+            .select('id')
+            .inFilter('status', ['Pending', 'In Progress'])
+            .count(CountOption.exact);
+        miscCount = miscRes.count;
+      } catch (_) {}
+
       return {
         'agreementPending': agreementPending,
         'loanPending': loanPending,
@@ -356,6 +367,7 @@ class MobileRecordService {
         'todaysFollowup': todaysFollowup,
         'overdueFollowup': overdueFollowup,
         'upcomingFollowup': upcomingFollowup,
+        'misc': miscCount,
         'totalActive': agreementPending + loanPending + installationPending + rtsPending + subsidyProcessing,
       };
     } catch (_) {
@@ -370,6 +382,7 @@ class MobileRecordService {
         'todaysFollowup': 0,
         'overdueFollowup': 0,
         'upcomingFollowup': 0,
+        'misc': 0,
         'totalActive': 0,
       };
     }
@@ -945,4 +958,206 @@ class MobileRecordService {
 
     return updated;
   }
+
+  // ===========================================================================
+  // MISC (MISCELLANEOUS CUSTOMER ACTIONS) SERVICES - MOBILE
+  // ===========================================================================
+
+  /// Fetch MISC actions for mobile queue
+  static Future<List<CustomerMiscAction>> fetchMiscActions({
+    String? statusFilter,
+    String? staffFilter,
+  }) async {
+    try {
+      var query = _client.from('customer_misc_actions').select('*');
+
+      final s = statusFilter ?? 'Active';
+      if (s == 'Active') {
+        query = query.inFilter('status', ['Pending', 'In Progress']);
+      } else if (s != 'All' && s.isNotEmpty) {
+        query = query.eq('status', s);
+      }
+
+      if (staffFilter != null && staffFilter.trim().isNotEmpty && staffFilter.trim().toLowerCase() != 'all') {
+        query = query.ilike('assigned_staff_name', '%${staffFilter.trim()}%');
+      }
+
+      final response = await query.order('created_at', ascending: false);
+      final List<dynamic> data = response as List<dynamic>;
+      return data.map((j) => CustomerMiscAction.fromJson(j as Map<String, dynamic>)).toList();
+    } catch (e) {
+      // ignore: avoid_print
+      print('MobileRecordService.fetchMiscActions error: $e');
+      return [];
+    }
+  }
+
+  /// Fetch MISC actions for a specific customer
+  static Future<List<CustomerMiscAction>> fetchMiscActionsForCustomer(String recordId) async {
+    try {
+      final response = await _client
+          .from('customer_misc_actions')
+          .select('*')
+          .eq('record_id', recordId)
+          .order('created_at', ascending: false);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data.map((j) => CustomerMiscAction.fromJson(j as Map<String, dynamic>)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Check active duplicate
+  static Future<CustomerMiscAction?> checkDuplicateMiscAction({
+    required String recordId,
+    required String reason,
+  }) async {
+    try {
+      final response = await _client
+          .from('customer_misc_actions')
+          .select('*')
+          .eq('record_id', recordId)
+          .eq('reason', reason.trim())
+          .inFilter('status', ['Pending', 'In Progress'])
+          .maybeSingle();
+
+      if (response == null) return null;
+      return CustomerMiscAction.fromJson(response);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Create MISC action from Mobile
+  static Future<CustomerMiscAction> createMiscAction(CustomerMiscAction action) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final payload = action.toJson();
+    if (user != null) {
+      payload['created_by'] = user.id;
+      payload['created_by_name'] = user.email?.split('@')[0] ?? 'Staff';
+    }
+
+    final response = await _client
+        .from('customer_misc_actions')
+        .insert(payload)
+        .select()
+        .single();
+
+    final created = CustomerMiscAction.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': created.recordId,
+        'consumer_no': created.consumerNo,
+        'action': 'MISC_ACTION_CREATED',
+        'field_name': 'misc_reason',
+        'old_value': null,
+        'new_value': '${created.reason} (${created.priority})',
+        'changed_by': user?.id,
+        'source': 'Mobile App',
+        'remarks': created.description ?? created.remarks,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return created;
+  }
+
+  /// Complete MISC action
+  static Future<CustomerMiscAction> completeMiscAction({
+    required String id,
+    String? remarks,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final updatePayload = <String, dynamic>{
+      'status': 'Completed',
+      'completed_at': nowIso,
+      'completed_by': user?.id,
+      'completed_by_name': user?.email?.split('@')[0] ?? 'Staff',
+    };
+    if (remarks != null && remarks.trim().isNotEmpty) {
+      updatePayload['remarks'] = remarks.trim();
+    }
+
+    final response = await _client
+        .from('customer_misc_actions')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+    final completed = CustomerMiscAction.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': completed.recordId,
+        'consumer_no': completed.consumerNo,
+        'action': 'MISC_ACTION_COMPLETED',
+        'field_name': 'misc_status',
+        'old_value': 'Pending',
+        'new_value': 'Completed',
+        'changed_by': user?.id,
+        'source': 'Mobile App',
+        'remarks': remarks,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return completed;
+  }
+
+  /// Hold MISC action
+  static Future<CustomerMiscAction> holdMiscAction({
+    required String id,
+    required String holdReason,
+    String? remarks,
+  }) async {
+    final cleanReason = holdReason.trim();
+    if (cleanReason.isEmpty) {
+      throw Exception('Hold Reason is required');
+    }
+
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final updatePayload = <String, dynamic>{
+      'status': 'Hold',
+      'hold_reason': cleanReason,
+    };
+    if (remarks != null && remarks.trim().isNotEmpty) {
+      updatePayload['remarks'] = remarks.trim();
+    }
+
+    final response = await _client
+        .from('customer_misc_actions')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+    final onHold = CustomerMiscAction.fromJson(response);
+
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': onHold.recordId,
+        'consumer_no': onHold.consumerNo,
+        'action': 'MISC_ACTION_HOLD',
+        'field_name': 'misc_status',
+        'old_value': 'Pending',
+        'new_value': 'Hold ($cleanReason)',
+        'changed_by': user?.id,
+        'source': 'Mobile App',
+        'remarks': remarks,
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return onHold;
+  }
 }
+

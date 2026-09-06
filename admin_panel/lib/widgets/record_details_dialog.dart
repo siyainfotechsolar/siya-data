@@ -6,6 +6,7 @@ import '../services/workflow_engine.dart';
 import 'hold_reason_dialog.dart';
 import 'followup_dialog.dart';
 import 'followup_done_dialog.dart';
+import 'misc_action_dialog.dart';
 
 class RecordDetailsDialog extends StatefulWidget {
   final ConsumerRecord record;
@@ -1366,13 +1367,50 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                         icon: const Icon(Icons.phone_in_talk_rounded, size: 18),
                         label: const Text('Mark Follow-up'),
                       ),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF6366F1),
+                          side: const BorderSide(color: Color(0xFF6366F1)),
+                        ),
+                        onPressed: _isSaving
+                            ? null
+                            : () async {
+                                final res = await MiscActionDialog.show(context, customerRecord: _record);
+                                if (res == true) {
+                                  widget.onRecordUpdated?.call();
+                                }
+                              },
+                        icon: const Icon(Icons.add_task_rounded, size: 18),
+                        label: const Text('Add MISC'),
+                      ),
                     ],
                   )
                 else if (_record.isCompletedState)
-                  OutlinedButton.icon(
-                    onPressed: _isSaving ? null : _handleReopen,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Reopen Customer'),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _isSaving ? null : _handleReopen,
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: const Text('Reopen Customer'),
+                      ),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF6366F1),
+                          side: const BorderSide(color: Color(0xFF6366F1)),
+                        ),
+                        onPressed: _isSaving
+                            ? null
+                            : () async {
+                                final res = await MiscActionDialog.show(context, customerRecord: _record);
+                                if (res == true) {
+                                  widget.onRecordUpdated?.call();
+                                }
+                              },
+                        icon: const Icon(Icons.add_task_rounded, size: 18),
+                        label: const Text('Add MISC'),
+                      ),
+                    ],
                   )
                 else
                   Wrap(
@@ -1405,6 +1443,23 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                         onPressed: _isSaving ? null : _handleMarkFollowup,
                         icon: const Icon(Icons.phone_in_talk_rounded, size: 18),
                         label: const Text('Mark Follow-up'),
+                      ),
+                      // 4. [⚡ Add MISC Action]
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF6366F1),
+                          side: const BorderSide(color: Color(0xFF6366F1)),
+                        ),
+                        onPressed: _isSaving
+                            ? null
+                            : () async {
+                                final res = await MiscActionDialog.show(context, customerRecord: _record);
+                                if (res == true) {
+                                  widget.onRecordUpdated?.call();
+                                }
+                              },
+                        icon: const Icon(Icons.add_task_rounded, size: 18),
+                        label: const Text('Add MISC'),
                       ),
                       if (_record.hasActiveFollowup) ...[
                         IconButton.filledTonal(
