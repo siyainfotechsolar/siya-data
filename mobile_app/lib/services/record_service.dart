@@ -391,7 +391,15 @@ class MobileRecordService {
 
       if (stageFilter != null && stageFilter.isNotEmpty && stageFilter.toUpperCase() != 'ALL') {
         final sf = stageFilter.trim().toLowerCase();
-        if (sf.contains('agreement')) {
+        if (sf == 'today_followup' || sf == "today's follow-up" || sf.contains('today')) {
+          records = records.where((r) => r.isFollowupToday).toList();
+        } else if (sf == 'overdue_followup' || sf == 'overdue follow-up' || sf.contains('overdue')) {
+          records = records.where((r) => r.isFollowupOverdue).toList();
+        } else if (sf == 'upcoming_followup' || sf == 'upcoming follow-up' || sf.contains('upcoming')) {
+          records = records.where((r) => r.isFollowupUpcoming).toList();
+        } else if (sf == 'follow-up' || sf == 'followup' || sf == 'follow up') {
+          records = records.where((r) => r.hasActiveFollowup).toList();
+        } else if (sf.contains('agreement')) {
           records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage == 'Agreement').toList();
         } else if (sf.contains('loan')) {
           records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage == 'Loan').toList();
@@ -407,7 +415,7 @@ class MobileRecordService {
           records = records.where((r) => r.isNoActionRequired).toList();
         }
       } else {
-        // By default, Action Center shows only active actionable records (excludes Completed & No Action Required)
+        // By default, Action Center shows only active actionable records (excludes Completed & Hold)
         records = records.where((r) => !r.isCompletedState && !r.isNoActionRequired && r.overallStage != 'Completed').toList();
       }
 
@@ -427,10 +435,26 @@ class MobileRecordService {
     return fetchActionCenterRecords(stageFilter: priorityFilter);
   }
 
-  /// Mark customer work state as COMPLETED (removes from Priority List)
+  // ==========================================================================
+  // ACTION CENTER: 3 QUICK ACTIONS (MARK COMPLETE, MARK HOLD, MARK FOLLOW-UP)
+  // ==========================================================================
+
+  /// 1. MARK COMPLETE
+  /// customer_work_state = COMPLETED
+  /// Removes immediately from active Action Center. Kept available in Completed, History, Reports, Search.
   static Future<ConsumerRecord> markCustomerAsComplete(String recordId) async {
     final user = SupabaseService.currentUser;
     final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    String previousState = 'ACTIVE';
+    String? consumerNo;
+    try {
+      final prev = await _client.from('consumer_records').select('customer_work_state, consumer_no').eq('id', recordId).maybeSingle();
+      if (prev != null) {
+        previousState = prev['customer_work_state'] as String? ?? 'ACTIVE';
+        consumerNo = prev['consumer_no'] as String?;
+      }
+    } catch (_) {}
 
     final response = await _client
         .from('consumer_records')
@@ -448,11 +472,12 @@ class MobileRecordService {
     try {
       await _client.from('audit_logs').insert({
         'record_id': recordId,
-        'consumer_no': updated.consumerNo,
-        'action': 'MARK_AS_COMPLETE',
+        'consumer_no': consumerNo ?? updated.consumerNo,
+        'action': 'MARK_COMPLETE',
         'field_name': 'customer_work_state',
-        'old_value': 'ACTIVE',
+        'old_value': previousState,
         'new_value': 'COMPLETED',
+        'remarks': 'Marked Complete',
         'changed_by': user?.id,
         'source': 'Mobile App',
         'created_at': nowIso,
@@ -462,11 +487,15 @@ class MobileRecordService {
     return updated;
   }
 
-  /// Mark customer work state as NO_ACTION_REQUIRED (Hold / Paused) with mandatory reason
-  static Future<ConsumerRecord> markCustomerAsNoActionRequired({
+  /// 2. MARK HOLD
+  /// customer_work_state = ON_HOLD
+  /// Requires Hold Reason. Optional: Hold Remarks, Expected Follow-up Date.
+  /// Removes immediately from active Action Center. Kept available in On Hold, History, Reports, Search.
+  static Future<ConsumerRecord> markCustomerAsHold({
     required String recordId,
     required String reason,
-    String? freeTextDetails,
+    String? remarks,
+    DateTime? expectedFollowupDate,
   }) async {
     final user = SupabaseService.currentUser;
     final nowIso = DateTime.now().toUtc().toIso8601String();
@@ -481,22 +510,21 @@ class MobileRecordService {
       }
     } catch (_) {}
 
-    final effectiveReason = (freeTextDetails != null && freeTextDetails.trim().isNotEmpty)
-        ? (reason.toLowerCase() == 'other' ? freeTextDetails.trim() : '$reason: ${freeTextDetails.trim()}')
-        : reason.trim();
-
-    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Mobile User';
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Mobile Staff';
+    final expectedDateStr = expectedFollowupDate?.toIso8601String().split('T')[0];
 
     final response = await _client
         .from('consumer_records')
         .update({
-          'customer_work_state': 'NO_ACTION_REQUIRED',
-          'no_action_reason': effectiveReason,
+          'customer_work_state': 'ON_HOLD',
+          'hold_reason': reason.trim(),
+          'hold_remarks': remarks?.trim(),
+          'expected_followup_date': expectedDateStr,
+          'hold_date': nowIso,
+          'no_action_reason': reason.trim(),
           'no_action_date': nowIso,
           'no_action_by': user?.id,
           'no_action_by_name': userName,
-          'hold_reason': effectiveReason,
-          'hold_date': nowIso,
           'updated_at': nowIso,
           'updated_by': user?.id,
         })
@@ -510,11 +538,15 @@ class MobileRecordService {
       await _client.from('audit_logs').insert({
         'record_id': recordId,
         'consumer_no': consumerNo ?? updated.consumerNo,
-        'action': 'MARK_AS_NO_ACTION_REQUIRED',
+        'action': 'MARK_HOLD',
         'field_name': 'customer_work_state',
         'old_value': previousState,
-        'new_value': 'NO_ACTION_REQUIRED',
-        'reason': effectiveReason,
+        'new_value': 'ON_HOLD',
+        'reason': reason.trim(),
+        'remarks': remarks?.trim(),
+        'metadata': {
+          if (expectedDateStr != null) 'expected_followup_date': expectedDateStr,
+        },
         'changed_by': user?.id,
         'source': 'Mobile App',
         'created_at': nowIso,
@@ -524,17 +556,32 @@ class MobileRecordService {
     return updated;
   }
 
-  /// Reopen customer work state back to ACTIVE (returns to action center & priority list)
+  /// Backward-compatible alias for markCustomerAsHold
+  static Future<ConsumerRecord> markCustomerAsNoActionRequired({
+    required String recordId,
+    required String reason,
+    String? freeTextDetails,
+  }) async {
+    return markCustomerAsHold(
+      recordId: recordId,
+      reason: reason,
+      remarks: freeTextDetails,
+    );
+  }
+
+  /// REOPEN CUSTOMER
+  /// customer_work_state = ACTIVE
+  /// Recalculates current stage and returns customer to correct Action Center queue.
   static Future<ConsumerRecord> reopenCustomer(String recordId) async {
     final user = SupabaseService.currentUser;
     final nowIso = DateTime.now().toUtc().toIso8601String();
 
-    String previousState = 'NO_ACTION_REQUIRED';
+    String previousState = 'ON_HOLD';
     String? consumerNo;
     try {
       final prev = await _client.from('consumer_records').select('customer_work_state, consumer_no').eq('id', recordId).maybeSingle();
       if (prev != null) {
-        previousState = prev['customer_work_state'] as String? ?? 'NO_ACTION_REQUIRED';
+        previousState = prev['customer_work_state'] as String? ?? 'ON_HOLD';
         consumerNo = prev['consumer_no'] as String?;
       }
     } catch (_) {}
@@ -549,6 +596,8 @@ class MobileRecordService {
           'no_action_by_name': null,
           'hold_reason': null,
           'hold_date': null,
+          'hold_remarks': null,
+          'expected_followup_date': null,
           'updated_at': nowIso,
           'updated_by': user?.id,
         })
@@ -566,6 +615,7 @@ class MobileRecordService {
         'field_name': 'customer_work_state',
         'old_value': previousState,
         'new_value': 'ACTIVE',
+        'remarks': 'Reopened and returned to active Action Center',
         'changed_by': user?.id,
         'source': 'Mobile App',
         'created_at': nowIso,
@@ -573,6 +623,206 @@ class MobileRecordService {
     } catch (_) {}
 
     return updated;
+  }
+
+  /// 3. MARK FOLLOW-UP
+  /// Schedules follow-up: Follow-up Date, Follow-up Reason, Remarks.
+  /// Categorized as: Today's Follow-up, Overdue Follow-up, Upcoming Follow-up.
+  static Future<ConsumerRecord> markCustomerFollowup({
+    required String recordId,
+    required DateTime followupDate,
+    required String followupReason,
+    String? remarks,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final dateStr = followupDate.toIso8601String().split('T')[0];
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Mobile Staff';
+
+    String? consumerNo;
+    try {
+      final prev = await _client.from('consumer_records').select('consumer_no').eq('id', recordId).maybeSingle();
+      if (prev != null) {
+        consumerNo = prev['consumer_no'] as String?;
+      }
+    } catch (_) {}
+
+    // 1. Update consumer_records with current active follow-up
+    final response = await _client
+        .from('consumer_records')
+        .update({
+          'has_active_followup': true,
+          'followup_date': dateStr,
+          'followup_reason': followupReason.trim(),
+          'followup_remarks': remarks?.trim(),
+          'updated_at': nowIso,
+          'updated_by': user?.id,
+        })
+        .eq('id', recordId)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    // 2. Insert into customer_followups history table
+    try {
+      await _client.from('customer_followups').insert({
+        'record_id': recordId,
+        'consumer_no': consumerNo ?? updated.consumerNo,
+        'followup_date': dateStr,
+        'followup_reason': followupReason.trim(),
+        'remarks': remarks?.trim(),
+        'status': 'PENDING',
+        'created_at': nowIso,
+        'created_by': user?.id,
+        'created_by_name': userName,
+      });
+    } catch (e) {
+      // ignore: avoid_print
+      print('Failed to insert customer_followups in mobile: $e');
+    }
+
+    // 3. Write to audit_logs
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': recordId,
+        'consumer_no': consumerNo ?? updated.consumerNo,
+        'action': 'MARK_FOLLOWUP',
+        'field_name': 'has_active_followup',
+        'old_value': 'false',
+        'new_value': 'true',
+        'reason': followupReason.trim(),
+        'remarks': remarks?.trim(),
+        'metadata': {
+          'followup_date': dateStr,
+          'followup_reason': followupReason.trim(),
+        },
+        'changed_by': user?.id,
+        'source': 'Mobile App',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// FOLLOW-UP DONE
+  /// Records Follow-up Result, Remarks, and Optional Next Follow-up Date.
+  /// Saves every follow-up in history. Does NOT automatically change Work Stage or Sub-Stage.
+  static Future<ConsumerRecord> completeCustomerFollowup({
+    required String recordId,
+    required String followupResult,
+    String? remarks,
+    DateTime? nextFollowupDate,
+  }) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final nextDateStr = nextFollowupDate?.toIso8601String().split('T')[0];
+    final userName = user?.userMetadata?['name'] as String? ?? user?.email ?? 'Mobile Staff';
+
+    String? consumerNo;
+    try {
+      final prev = await _client.from('consumer_records').select('consumer_no').eq('id', recordId).maybeSingle();
+      if (prev != null) {
+        consumerNo = prev['consumer_no'] as String?;
+      }
+    } catch (_) {}
+
+    // 1. Mark pending followup in customer_followups as COMPLETED
+    try {
+      await _client
+          .from('customer_followups')
+          .update({
+            'status': 'COMPLETED',
+            'followup_result': followupResult.trim(),
+            'result_remarks': remarks?.trim(),
+            'next_followup_date': nextDateStr,
+            'completed_at': nowIso,
+            'completed_by': user?.id,
+            'completed_by_name': userName,
+          })
+          .eq('record_id', recordId)
+          .eq('status', 'PENDING');
+    } catch (e) {
+      // ignore: avoid_print
+      print('Failed to complete pending customer_followup in mobile: $e');
+    }
+
+    // 2. If nextFollowupDate is given, create new pending follow-up and keep active
+    final updatePayload = <String, dynamic>{
+      'last_followup_result': followupResult.trim(),
+      'updated_at': nowIso,
+      'updated_by': user?.id,
+    };
+
+    if (nextFollowupDate != null) {
+      updatePayload['has_active_followup'] = true;
+      updatePayload['followup_date'] = nextDateStr;
+      updatePayload['followup_reason'] = 'Follow-up Call';
+      updatePayload['followup_remarks'] = remarks?.trim();
+
+      try {
+        await _client.from('customer_followups').insert({
+          'record_id': recordId,
+          'consumer_no': consumerNo ?? '',
+          'followup_date': nextDateStr,
+          'followup_reason': 'Follow-up Call',
+          'remarks': remarks?.trim(),
+          'status': 'PENDING',
+          'created_at': nowIso,
+          'created_by': user?.id,
+          'created_by_name': userName,
+        });
+      } catch (_) {}
+    } else {
+      updatePayload['has_active_followup'] = false;
+    }
+
+    final response = await _client
+        .from('consumer_records')
+        .update(updatePayload)
+        .eq('id', recordId)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    // 3. Write to audit_logs
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': recordId,
+        'consumer_no': consumerNo ?? updated.consumerNo,
+        'action': 'FOLLOWUP_DONE',
+        'field_name': 'followup_result',
+        'old_value': 'PENDING',
+        'new_value': followupResult.trim(),
+        'reason': followupResult.trim(),
+        'remarks': remarks?.trim(),
+        'metadata': {
+          'followup_result': followupResult.trim(),
+          if (nextDateStr != null) 'next_followup_date': nextDateStr,
+        },
+        'changed_by': user?.id,
+        'source': 'Mobile App',
+        'created_at': nowIso,
+      });
+    } catch (_) {}
+
+    return updated;
+  }
+
+  /// Fetch follow-up history for a customer
+  static Future<List<Map<String, dynamic>>> fetchCustomerFollowupHistory(String recordId) async {
+    try {
+      final res = await _client
+          .from('customer_followups')
+          .select('*')
+          .eq('record_id', recordId)
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(res as List);
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Mark loan as Rejected with reason, bank remarks, correction required, and log audit entry

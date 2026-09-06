@@ -125,13 +125,20 @@ class ConsumerRecord {
   final DateTime? subsidyApprovedDate;
   final DateTime? subsidyReceivedDate;
 
-  final String customerWorkState; // 'ACTIVE', 'NO_ACTION_REQUIRED', 'COMPLETED'
+  final String customerWorkState; // 'ACTIVE', 'ON_HOLD', 'NO_ACTION_REQUIRED', 'COMPLETED'
   final String? noActionReason;
   final DateTime? noActionDate;
   final String? noActionBy;
   final String? noActionByName;
   final String? holdReason;
   final DateTime? holdDate;
+  final String? holdRemarks;
+  final DateTime? expectedFollowupDate;
+  final DateTime? followupDate;
+  final String? followupReason;
+  final String? followupRemarks;
+  final String? lastFollowupResult;
+  final bool hasActiveFollowup;
   final String? assignedStaff;
 
   ConsumerRecord({
@@ -157,6 +164,13 @@ class ConsumerRecord {
     this.noActionByName,
     this.holdReason,
     this.holdDate,
+    this.holdRemarks,
+    this.expectedFollowupDate,
+    this.followupDate,
+    this.followupReason,
+    this.followupRemarks,
+    this.lastFollowupResult,
+    this.hasActiveFollowup = false,
     this.assignedStaff,
     // Smart Merge
     this.isMerged = false,
@@ -242,9 +256,55 @@ class ConsumerRecord {
   }
 
   /// State helpers for 3 operational states
-  bool get isNoActionRequired => customerWorkState.toUpperCase() == 'NO_ACTION_REQUIRED';
-  bool get isCompletedState => customerWorkState.toUpperCase() == 'COMPLETED';
-  bool get isActiveWorkState => customerWorkState.toUpperCase() == 'ACTIVE';
+  bool get isNoActionRequired => customerWorkState.toUpperCase() == 'NO_ACTION_REQUIRED' || customerWorkState.toUpperCase() == 'ON_HOLD';
+  bool get isHold => isNoActionRequired;
+  bool get isCompletedState => customerWorkState.toUpperCase() == 'COMPLETED' || overallStage == 'Completed';
+  bool get isActiveWorkState => !isHold && !isCompletedState;
+
+  /// Explicit Current Sub-Stage (Agreement status, Loan sub-stage, Installation status, RTS status, Subsidy status, or Completed)
+  String get currentSubStage {
+    final stage = overallStage;
+    switch (stage) {
+      case 'Agreement':
+        return agreementStatus;
+      case 'Loan':
+        return loanSubStage.isNotEmpty ? loanSubStage : loanStatus;
+      case 'Installation':
+        return installationStatus;
+      case 'RTS':
+        return rtsStatus;
+      case 'Subsidy':
+        return subsidyStatus;
+      case 'Completed':
+      default:
+        return 'Completed';
+    }
+  }
+
+  /// Follow-up timing classification helpers
+  bool get isFollowupToday {
+    if (followupDate == null || !hasActiveFollowup) return false;
+    final now = DateTime.now();
+    return followupDate!.year == now.year &&
+        followupDate!.month == now.month &&
+        followupDate!.day == now.day;
+  }
+
+  bool get isFollowupOverdue {
+    if (followupDate == null || !hasActiveFollowup) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final fDate = DateTime(followupDate!.year, followupDate!.month, followupDate!.day);
+    return fDate.isBefore(today);
+  }
+
+  bool get isFollowupUpcoming {
+    if (followupDate == null || !hasActiveFollowup) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final fDate = DateTime(followupDate!.year, followupDate!.month, followupDate!.day);
+    return fDate.isAfter(today);
+  }
 
   /// Dynamic priority level derived from Workflow Stage/Status first, Application Days second
   PriorityLevel get priorityLevel {
@@ -372,6 +432,13 @@ class ConsumerRecord {
       holdDate: json['hold_date'] != null
           ? DateTime.tryParse(json['hold_date'])
           : (json['no_action_date'] != null ? DateTime.tryParse(json['no_action_date']) : null),
+      holdRemarks: json['hold_remarks'] as String?,
+      expectedFollowupDate: json['expected_followup_date'] != null ? DateTime.tryParse(json['expected_followup_date']) : null,
+      followupDate: json['followup_date'] != null ? DateTime.tryParse(json['followup_date']) : null,
+      followupReason: json['followup_reason'] as String?,
+      followupRemarks: json['followup_remarks'] as String?,
+      lastFollowupResult: json['last_followup_result'] as String?,
+      hasActiveFollowup: json['has_active_followup'] as bool? ?? (json['followup_date'] != null),
       assignedStaff: json['assigned_staff'] as String? ?? json['installer_team'] as String?,
     );
   }
@@ -391,6 +458,11 @@ class ConsumerRecord {
       'no_action_by': noActionBy?.trim(),
       'no_action_by_name': noActionByName?.trim(),
       'hold_reason': (holdReason ?? noActionReason)?.trim(),
+      'hold_remarks': holdRemarks?.trim(),
+      'followup_reason': followupReason?.trim(),
+      'followup_remarks': followupRemarks?.trim(),
+      'last_followup_result': lastFollowupResult?.trim(),
+      'has_active_followup': hasActiveFollowup,
       'assigned_staff': assignedStaff?.trim(),
       'application_status': applicationStatus,
       'agreement_required': agreementRequired,
@@ -425,6 +497,8 @@ class ConsumerRecord {
     if (subsidyAppliedDate != null) map['subsidy_applied_date'] = subsidyAppliedDate!.toUtc().toIso8601String();
     if (subsidyApprovedDate != null) map['subsidy_approved_date'] = subsidyApprovedDate!.toUtc().toIso8601String();
     if (subsidyReceivedDate != null) map['subsidy_received_date'] = subsidyReceivedDate!.toUtc().toIso8601String();
+    if (expectedFollowupDate != null) map['expected_followup_date'] = expectedFollowupDate!.toIso8601String().split('T')[0];
+    if (followupDate != null) map['followup_date'] = followupDate!.toIso8601String().split('T')[0];
     if (noActionDate != null) {
       map['no_action_date'] = noActionDate!.toUtc().toIso8601String();
       map['hold_date'] = noActionDate!.toUtc().toIso8601String();
@@ -468,7 +542,15 @@ class ConsumerRecord {
     String? noActionByName,
     String? holdReason,
     DateTime? holdDate,
+    String? holdRemarks,
+    DateTime? expectedFollowupDate,
+    DateTime? followupDate,
+    String? followupReason,
+    String? followupRemarks,
+    String? lastFollowupResult,
+    bool? hasActiveFollowup,
     bool clearNoAction = false,
+    bool clearFollowup = false,
     String? assignedStaff,
     bool? isMerged,
     String? mergedIntoId,
@@ -529,6 +611,13 @@ class ConsumerRecord {
       noActionByName: clearNoAction ? null : (noActionByName ?? this.noActionByName),
       holdReason: clearNoAction ? null : (holdReason ?? this.holdReason),
       holdDate: clearNoAction ? null : (holdDate ?? this.holdDate),
+      holdRemarks: clearNoAction ? null : (holdRemarks ?? this.holdRemarks),
+      expectedFollowupDate: clearNoAction ? null : (expectedFollowupDate ?? this.expectedFollowupDate),
+      followupDate: clearFollowup ? null : (followupDate ?? this.followupDate),
+      followupReason: clearFollowup ? null : (followupReason ?? this.followupReason),
+      followupRemarks: clearFollowup ? null : (followupRemarks ?? this.followupRemarks),
+      lastFollowupResult: clearFollowup ? null : (lastFollowupResult ?? this.lastFollowupResult),
+      hasActiveFollowup: clearFollowup ? false : (hasActiveFollowup ?? this.hasActiveFollowup),
       assignedStaff: assignedStaff ?? this.assignedStaff,
       isMerged: isMerged ?? this.isMerged,
       mergedIntoId: mergedIntoId ?? this.mergedIntoId,
