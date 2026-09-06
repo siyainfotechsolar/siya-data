@@ -306,6 +306,66 @@ class RecordService {
     return ConsumerRecord.fromJson(response);
   }
 
+  /// Admin Customer Name correction (Prompt Requirement 12 & Test 6)
+  /// Updates name on the SAME Customer ID and logs to audit_logs
+  static Future<ConsumerRecord> updateCustomerName({
+    required String recordId,
+    required String newName,
+  }) async {
+    final cleanNewName = newName.trim();
+    if (cleanNewName.isEmpty) {
+      throw Exception('Customer Name cannot be empty.');
+    }
+
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    // 1. Fetch existing record to verify and read old name
+    final existingData = await _client
+        .from('consumer_records')
+        .select('id, name, consumer_no')
+        .eq('id', recordId)
+        .single();
+
+    final oldName = existingData['name'] as String? ?? '';
+    final consumerNo = existingData['consumer_no'] as String? ?? '';
+
+    // 2. Update the SAME customer record
+    final updatePayload = <String, dynamic>{
+      'name': cleanNewName,
+      'updated_at': nowIso,
+    };
+    if (user != null) {
+      updatePayload['updated_by'] = user.id;
+    }
+
+    final response = await _client
+        .from('consumer_records')
+        .update(updatePayload)
+        .eq('id', recordId)
+        .select()
+        .single();
+
+    // 3. Record in audit_logs: Old Name, New Name, Changed By, Date/Time
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': recordId,
+        'consumer_no': consumerNo,
+        'action': 'NAME_CORRECTION',
+        'field_name': 'Customer Name',
+        'old_value': oldName,
+        'new_value': cleanNewName,
+        'changed_by': user?.id,
+        'source': 'Admin Name Correction',
+        'created_at': nowIso,
+      });
+    } catch (_) {
+      // Non-blocking audit log
+    }
+
+    return ConsumerRecord.fromJson(response);
+  }
+
   /// Soft delete a single record
   static Future<void> deleteRecord(String id, {String? consumerNo}) async {
     await softDeleteMultipleRecords([id]);
@@ -579,10 +639,17 @@ class RecordService {
       sparsePayload['updated_at'] = DateTime.now().toUtc().toIso8601String();
 
       try {
-        await _client
-            .from('consumer_records')
-            .update(sparsePayload)
-            .eq('consumer_no', diff.existingRecord.consumerNo);
+        if (diff.existingRecord.id != null) {
+          await _client
+              .from('consumer_records')
+              .update(sparsePayload)
+              .eq('id', diff.existingRecord.id!);
+        } else {
+          await _client
+              .from('consumer_records')
+              .update(sparsePayload)
+              .eq('consumer_no', diff.existingRecord.consumerNo);
+        }
         updatedCount++;
 
         // Prepare audit log entries ONLY for fields that were actually updated in DB

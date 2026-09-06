@@ -5,6 +5,8 @@ import '../models/record_diff.dart';
 import '../services/import_parser_service.dart';
 import '../services/record_service.dart';
 import '../services/duplicate_detection_service.dart';
+import '../services/workflow_engine.dart';
+import '../utils/file_download_utils.dart';
 import 'diff_review_view.dart';
 
 enum ImportStep {
@@ -430,17 +432,49 @@ class _ImportDialogState extends State<ImportDialog> {
               style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
             ),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _pickFile,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD97706),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.folder_open_rounded, size: 20),
-              label: Text('Browse File', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _pickFile,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD97706),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.folder_open_rounded, size: 20),
+                  label: Text('Browse File', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 14),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final csv = ImportParserService.generateImportTemplateCsv();
+                    await FileDownloadUtils.downloadCsv(
+                      fileName: 'solar_consumer_import_template.csv',
+                      csvContent: csv,
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Import template downloaded successfully!'),
+                          backgroundColor: Color(0xFF0F766E),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0F766E),
+                    side: const BorderSide(color: Color(0xFF0F766E)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.download_rounded, size: 20),
+                  label: Text('Download Template (.csv)', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             Row(
@@ -574,11 +608,7 @@ class _ImportDialogState extends State<ImportDialog> {
         Expanded(
           child: ListView(
             children: [
-              _buildMappingRow('Consumer No *', 'Unique identifier (CA No, K No, Connection ID)', _mapping.consumerNoIndex, headers, (idx) {
-                setState(() => _mapping.consumerNoIndex = idx);
-                _revalidate();
-              }, isRequired: true, isUniqueKey: true),
-              _buildMappingRow('Consumer Name *', 'Full name of applicant or beneficiary', _mapping.nameIndex, headers, (idx) {
+              _buildMappingRow('Customer Name *', 'Full name of applicant or beneficiary', _mapping.nameIndex, headers, (idx) {
                 setState(() => _mapping.nameIndex = idx);
                 _revalidate();
               }, isRequired: true),
@@ -586,28 +616,56 @@ class _ImportDialogState extends State<ImportDialog> {
                 setState(() => _mapping.mobileIndex = idx);
                 _revalidate();
               }),
-              _buildMappingRow('Full Address', 'Village, taluka, district, or premise location', _mapping.addressIndex, headers, (idx) {
-                setState(() => _mapping.addressIndex = idx);
+              _buildMappingRow('Consumer No *', 'Unique identifier (CA No, K No, Connection ID)', _mapping.consumerNoIndex, headers, (idx) {
+                setState(() => _mapping.consumerNoIndex = idx);
                 _revalidate();
-              }),
-              _buildMappingRow('Application ID', 'Portal registration / acknowledgment number', _mapping.applicationIdIndex, headers, (idx) {
-                setState(() => _mapping.applicationIdIndex = idx);
-                _revalidate();
-              }),
-              _buildMappingRow('Installation Status', 'Pending, Approved, In Progress, Installed, Rejected', _mapping.statusIndex, headers, (idx) {
-                setState(() => _mapping.statusIndex = idx);
-                _revalidate();
-              }),
-              _buildMappingRow('Remarks / Notes', 'Vendor notes or solar capacity remarks', _mapping.remarksIndex, headers, (idx) {
-                setState(() => _mapping.remarksIndex = idx);
-                _revalidate();
-              }),
-              _buildMappingRow('Application Date', 'Historical application date for reporting (Optional)', _mapping.applicationDateIndex, headers, (idx) {
+              }, isRequired: true, isUniqueKey: true),
+              _buildMappingRow('Application Date', 'Portal registration / applied date', _mapping.applicationDateIndex, headers, (idx) {
                 setState(() => _mapping.applicationDateIndex = idx);
                 _revalidate();
               }),
               _buildMappingRow('Submit Date', 'Date used to calculate Application Days & Priority', _mapping.submitDateIndex, headers, (idx) {
                 setState(() => _mapping.submitDateIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('Status', 'Overall customer/lead workflow status', _mapping.statusIndex, headers, (idx) {
+                setState(() => _mapping.statusIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('Work Stage', 'Main Stage (Application, Agreement, Loan, Installation, RTS, Subsidy)', _mapping.workStageIndex, headers, (idx) {
+                setState(() => _mapping.workStageIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('Sub Stage', 'Sub Stage (e.g. Loan Applied, File at Bank, Structure Pending)', _mapping.subStageIndex, headers, (idx) {
+                setState(() => _mapping.subStageIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('Loan Status', 'Loan workflow state (Pending, Applied, Approved, Rejected)', _mapping.loanStatusIndex, headers, (idx) {
+                setState(() => _mapping.loanStatusIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('Installation Status', 'Pending, Scheduled, Structure Pending, Completed', _mapping.installationStatusIndex, headers, (idx) {
+                setState(() => _mapping.installationStatusIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('RTS Status', 'Meter Pending, Inspection Pending, RTS Completed', _mapping.rtsStatusIndex, headers, (idx) {
+                setState(() => _mapping.rtsStatusIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('Subsidy Status', 'Applied, Under Process, Approved, Received', _mapping.subsidyStatusIndex, headers, (idx) {
+                setState(() => _mapping.subsidyStatusIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('Remarks / Notes', 'Capacity details, vendor comments, or special notes', _mapping.remarksIndex, headers, (idx) {
+                setState(() => _mapping.remarksIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('Full Address', 'Village, taluka, district, or premise location', _mapping.addressIndex, headers, (idx) {
+                setState(() => _mapping.addressIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('Application ID', 'Online portal acknowledgement or token number', _mapping.applicationIdIndex, headers, (idx) {
+                setState(() => _mapping.applicationIdIndex = idx);
                 _revalidate();
               }),
 
@@ -784,13 +842,51 @@ class _ImportDialogState extends State<ImportDialog> {
         Row(
           children: [
             _buildStatBadge('Total Rows', report.totalRows.toString(), const Color(0xFF64748B), Colors.grey.shade100),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             _buildStatBadge('Valid Rows', report.validRowsCount.toString(), const Color(0xFF0F766E), const Color(0xFFCCFBF1)),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             _buildStatBadge('Invalid Rows', report.invalidRowsCount.toString(), Colors.red.shade700, Colors.red.shade50),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             _buildStatBadge('In-File Duplicates', report.duplicateCount.toString(), const Color(0xFFD97706), const Color(0xFFFEF3C7)),
+            if (report.unmappedStatusCount > 0) ...[
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: _showUnmappedStatusDialog,
+                borderRadius: BorderRadius.circular(8),
+                child: _buildStatBadge('⚠️ Unmapped Statuses', '${report.unmappedStatusCount} (Map now)', Colors.amber.shade900, Colors.amber.shade100),
+              ),
+            ],
             const Spacer(),
+            if (report.invalidRowsCount > 0) ...[
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final csv = ImportParserService.generateErrorReportCsv(
+                    report.rows.where((r) => !r.isValid).toList(),
+                  );
+                  await FileDownloadUtils.downloadCsv(
+                    fileName: 'import_error_report.csv',
+                    csvContent: csv,
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Error report CSV downloaded!'),
+                        backgroundColor: Color(0xFFDC2626),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.download_rounded, size: 16),
+                label: const Text('Export Error Report (.csv)'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red.shade700,
+                  side: BorderSide(color: Colors.red.shade300),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
             FilterChip(
               label: Text('Show Invalid Only (${report.invalidRowsCount})'),
               selected: _showOnlyInvalid,
@@ -910,7 +1006,21 @@ class _ImportDialogState extends State<ImportDialog> {
                               ),
                             ),
                           ),
-                          DataCell(Text(row.status)),
+                          DataCell(
+                            row.isUnmappedStatus
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.amber),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${row.status} ⚠️',
+                                        style: TextStyle(color: Colors.amber.shade900, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  )
+                                : Text(row.status),
+                          ),
                           DataCell(
                             row.errors.isEmpty
                                 ? const Text('None', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12))
@@ -929,6 +1039,111 @@ class _ImportDialogState extends State<ImportDialog> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showUnmappedStatusDialog() {
+    if (_validationReport == null || _validationReport!.unmappedStatuses.isEmpty) return;
+
+    final unmapped = _validationReport!.unmappedStatuses;
+    final mappings = <String, String>{};
+    for (final s in unmapped) {
+      mappings[s] = WorkflowEngine.canonicalWorkflowStatuses.first;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.amber),
+              const SizedBox(width: 8),
+              Text('Map Unknown Statuses', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: SizedBox(
+            width: 500,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'The following status values were found in your import file that do not match canonical stages. Map them to standard workflow stages below:',
+                  style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 16),
+                ...unmapped.map((status) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 4,
+                          child: Text(
+                            status,
+                            style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF1E293B)),
+                          ),
+                        ),
+                        const Icon(Icons.arrow_forward, size: 16, color: Color(0xFF94A3B8)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 6,
+                          child: DropdownButtonFormField<String>(
+                            isDense: true,
+                            initialValue: mappings[status],
+                            decoration: InputDecoration(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                            items: WorkflowEngine.canonicalWorkflowStatuses.map((s) {
+                              return DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 12)));
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setDialogState(() => mappings[status] = val);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                for (final entry in mappings.entries) {
+                  WorkflowEngine.registerCustomStatusMapping(entry.key, entry.value);
+                }
+                Navigator.of(ctx).pop();
+                _revalidate();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Status mappings applied! Centralized Workflow will recognize these statuses.'),
+                    backgroundColor: Color(0xFF0F766E),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F766E), foregroundColor: Colors.white),
+              child: const Text('Save & Apply Mappings'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

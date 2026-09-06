@@ -4,6 +4,7 @@ import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
 import '../models/consumer_record.dart';
 import '../utils/consumer_no_utils.dart';
+import 'workflow_engine.dart';
 
 /// Holds the raw tabular data parsed from an uploaded file
 class RawImportData {
@@ -34,6 +35,14 @@ class ImportColumnMapping {
   int? applicationDateIndex;
   int? submitDateIndex;
 
+  // Full workflow & stage fields
+  int? workStageIndex;
+  int? subStageIndex;
+  int? loanStatusIndex;
+  int? installationStatusIndex;
+  int? rtsStatusIndex;
+  int? subsidyStatusIndex;
+
   /// If true, blank values in imported columns will not overwrite existing database values
   bool ignoreBlankValues;
 
@@ -47,6 +56,12 @@ class ImportColumnMapping {
     this.remarksIndex,
     this.applicationDateIndex,
     this.submitDateIndex,
+    this.workStageIndex,
+    this.subStageIndex,
+    this.loanStatusIndex,
+    this.installationStatusIndex,
+    this.rtsStatusIndex,
+    this.subsidyStatusIndex,
     this.ignoreBlankValues = true,
   });
 
@@ -64,6 +79,12 @@ class ImportColumnMapping {
     if (remarksIndex != null) keys.add('remarks');
     if (applicationDateIndex != null) keys.add('application_date');
     if (submitDateIndex != null) keys.add('submit_date');
+    if (workStageIndex != null) keys.add('work_stage');
+    if (subStageIndex != null) keys.add('loan_sub_stage');
+    if (loanStatusIndex != null) keys.add('loan_status');
+    if (installationStatusIndex != null) keys.add('installation_status');
+    if (rtsStatusIndex != null) keys.add('rts_status');
+    if (subsidyStatusIndex != null) keys.add('subsidy_status');
     return keys;
   }
 
@@ -83,8 +104,16 @@ class ValidatedImportRow {
   final String? remarks;
   final DateTime? applicationDate;
   final DateTime? submitDate;
+  final String? workStage;
+  final String? subStage;
+  final String? loanStatus;
+  final String? installationStatus;
+  final String? rtsStatus;
+  final String? subsidyStatus;
   final List<String> errors;
   final bool isDuplicateInFile;
+  final bool isUnmappedStatus;
+  final String? unmappedStatusValue;
 
   ValidatedImportRow({
     required this.rowNumber,
@@ -97,17 +126,25 @@ class ValidatedImportRow {
     this.remarks,
     this.applicationDate,
     this.submitDate,
+    this.workStage,
+    this.subStage,
+    this.loanStatus,
+    this.installationStatus,
+    this.rtsStatus,
+    this.subsidyStatus,
     this.errors = const [],
     this.isDuplicateInFile = false,
+    this.isUnmappedStatus = false,
+    this.unmappedStatusValue,
   });
 
   bool get isValid => errors.isEmpty && !isDuplicateInFile;
 
-  /// System calculated Application Days = Today - Submit Date
+  /// System calculated Application Days = Today - Application Date (or Submit Date)
   int get calculatedApplicationDays {
     final now = DateTime.now();
     final todayDate = DateTime(now.year, now.month, now.day);
-    final start = submitDate ?? now;
+    final start = applicationDate ?? submitDate ?? now;
     final startDate = DateTime(start.year, start.month, start.day);
 
     if (startDate.isAfter(todayDate)) {
@@ -120,16 +157,38 @@ class ValidatedImportRow {
   String get calculatedPriority => PriorityLevel.fromDays(calculatedApplicationDays).label;
 
   ConsumerRecord toConsumerRecord() {
+    // Preserve status and integrate with centralized workflow
+    final resolvedStatus = WorkflowEngine.resolveMappedStatus(status);
+    final effectiveStatus = status.isNotEmpty ? status : 'Pending';
+
+    final isLoan = WorkflowEngine.isLoanStatusOrSubStage(resolvedStatus) ||
+        (workStage != null && workStage!.trim().toLowerCase() == 'loan') ||
+        (subStage != null && WorkflowEngine.isLoanStatusOrSubStage(subStage!));
+
+    final effectiveLoanSubStage = subStage?.isNotEmpty == true
+        ? subStage!
+        : (WorkflowEngine.isLoanStatusOrSubStage(resolvedStatus) ? resolvedStatus : 'Loan Applied');
+
+    final effectiveLoanReq = isLoan ? 'Yes' : 'No';
+    final effectiveAgreeStatus = isLoan ? 'Verified' : 'Pending';
+
     return ConsumerRecord(
       consumerNo: consumerNo,
       name: name,
       mobile: mobile,
       address: address,
       applicationId: applicationId,
-      status: status.isEmpty ? 'Pending' : status,
+      status: effectiveStatus,
       remarks: remarks,
       applicationDate: applicationDate,
-      submitDate: submitDate,
+      submitDate: submitDate ?? applicationDate,
+      loanRequired: effectiveLoanReq,
+      loanStatus: loanStatus ?? (isLoan ? 'Applied' : 'Not Required'),
+      loanSubStage: effectiveLoanSubStage,
+      agreementStatus: effectiveAgreeStatus,
+      installationStatus: installationStatus ?? 'Not Started',
+      rtsStatus: rtsStatus ?? 'Not Started',
+      subsidyStatus: subsidyStatus ?? 'Not Applied',
     );
   }
 }
@@ -141,6 +200,8 @@ class ImportValidationReport {
   final int validRowsCount;
   final int invalidRowsCount;
   final int duplicateCount;
+  final int unmappedStatusCount;
+  final List<String> unmappedStatuses;
 
   ImportValidationReport({
     required this.rows,
@@ -148,6 +209,8 @@ class ImportValidationReport {
     required this.validRowsCount,
     required this.invalidRowsCount,
     required this.duplicateCount,
+    this.unmappedStatusCount = 0,
+    this.unmappedStatuses = const [],
   });
 }
 
@@ -348,6 +411,30 @@ class ImportParserService {
       else if (mapping.submitDateIndex == null && _matches(h, _submitDateAliases)) {
         mapping.submitDateIndex = i;
       }
+      // Work Stage
+      else if (mapping.workStageIndex == null && _matches(h, _workStageAliases)) {
+        mapping.workStageIndex = i;
+      }
+      // Sub Stage
+      else if (mapping.subStageIndex == null && _matches(h, _subStageAliases)) {
+        mapping.subStageIndex = i;
+      }
+      // Loan Status
+      else if (mapping.loanStatusIndex == null && _matches(h, _loanStatusAliases)) {
+        mapping.loanStatusIndex = i;
+      }
+      // Installation Status
+      else if (mapping.installationStatusIndex == null && _matches(h, _installationStatusAliases)) {
+        mapping.installationStatusIndex = i;
+      }
+      // RTS Status
+      else if (mapping.rtsStatusIndex == null && _matches(h, _rtsStatusAliases)) {
+        mapping.rtsStatusIndex = i;
+      }
+      // Subsidy Status
+      else if (mapping.subsidyStatusIndex == null && _matches(h, _subsidyStatusAliases)) {
+        mapping.subsidyStatusIndex = i;
+      }
     }
 
     return mapping;
@@ -372,10 +459,31 @@ class ImportParserService {
       final appDateStr = _getCellValue(row, mapping.applicationDateIndex);
       final subDateStr = _getCellValue(row, mapping.submitDateIndex);
 
-      final applicationDate = _parseDateCell(appDateStr);
-      final submitDate = _parseDateCell(subDateStr);
+      final workStage = _getCellValue(row, mapping.workStageIndex);
+      final subStage = _getCellValue(row, mapping.subStageIndex);
+      final loanStatus = _getCellValue(row, mapping.loanStatusIndex);
+      final installationStatus = _getCellValue(row, mapping.installationStatusIndex);
+      final rtsStatus = _getCellValue(row, mapping.rtsStatusIndex);
+      final subsidyStatus = _getCellValue(row, mapping.subsidyStatusIndex);
 
       final errors = <String>[];
+
+      // Strict Date Validation (Prompt Requirement 3: If date is invalid: Do NOT silently change it. Show: Invalid Date)
+      DateTime? applicationDate;
+      if (appDateStr.isNotEmpty) {
+        applicationDate = _parseDateCell(appDateStr);
+        if (applicationDate == null) {
+          errors.add("Invalid Date: '$appDateStr' in Application Date at Row $rowNumber");
+        }
+      }
+
+      DateTime? submitDate;
+      if (subDateStr.isNotEmpty) {
+        submitDate = _parseDateCell(subDateStr);
+        if (submitDate == null) {
+          errors.add("Invalid Date: '$subDateStr' in Submit Date at Row $rowNumber");
+        }
+      }
 
       if (consumerNo.isEmpty) {
         errors.add('Missing Consumer No');
@@ -396,6 +504,14 @@ class ImportParserService {
         }
       }
 
+      // Check for unmapped status (Prompt Requirement 15: If Status does not exist in centralized workflow mapping -> show ⚠️ Unmapped Status)
+      bool isUnmappedStatus = false;
+      String? unmappedStatusValue;
+      if (status.isNotEmpty && !WorkflowEngine.isRecognizedStatus(status)) {
+        isUnmappedStatus = true;
+        unmappedStatusValue = status;
+      }
+
       validatedRows.add(ValidatedImportRow(
         rowNumber: rowNumber,
         consumerNo: consumerNo,
@@ -407,8 +523,16 @@ class ImportParserService {
         remarks: remarks.isEmpty ? null : remarks,
         applicationDate: applicationDate,
         submitDate: submitDate,
+        workStage: workStage.isEmpty ? null : workStage,
+        subStage: subStage.isEmpty ? null : subStage,
+        loanStatus: loanStatus.isEmpty ? null : loanStatus,
+        installationStatus: installationStatus.isEmpty ? null : installationStatus,
+        rtsStatus: rtsStatus.isEmpty ? null : rtsStatus,
+        subsidyStatus: subsidyStatus.isEmpty ? null : subsidyStatus,
         errors: errors,
         isDuplicateInFile: isDuplicateInFile,
+        isUnmappedStatus: isUnmappedStatus,
+        unmappedStatusValue: unmappedStatusValue,
       ));
     }
 
@@ -416,13 +540,111 @@ class ImportParserService {
     final duplicateCount = validatedRows.where((r) => r.isDuplicateInFile).length;
     final invalidCount = validatedRows.length - validCount;
 
+    final unmappedRows = validatedRows.where((r) => r.isUnmappedStatus).toList();
+    final unmappedSet = unmappedRows.map((r) => r.unmappedStatusValue!).toSet().toList();
+
     return ImportValidationReport(
       rows: validatedRows,
       totalRows: validatedRows.length,
       validRowsCount: validCount,
       invalidRowsCount: invalidCount,
       duplicateCount: duplicateCount,
+      unmappedStatusCount: unmappedSet.length,
+      unmappedStatuses: unmappedSet,
     );
+  }
+
+  /// Generate standard CSV template containing all supported columns and clear required indicators
+  static String generateImportTemplateCsv() {
+    final headers = [
+      'Customer Name *',
+      'Mobile',
+      'Consumer No *',
+      'Application Date',
+      'Submit Date',
+      'Status',
+      'Work Stage',
+      'Sub Stage',
+      'Loan Status',
+      'Installation Status',
+      'RTS Status',
+      'Subsidy Status',
+      'Remarks',
+    ];
+
+    final sampleRow = [
+      'Raj Patil',
+      '9876543210',
+      '123456789012',
+      '05/09/2026',
+      '05/09/2026',
+      'Loan Applied',
+      'Loan',
+      'Loan Applied',
+      'Applied',
+      'Not Started',
+      'Not Started',
+      'Not Applied',
+      'Solar 3kW Rooftop System',
+    ];
+
+    return const ListToCsvConverter().convert([headers, sampleRow]);
+  }
+
+  /// Generate template CSV as Uint8List for downloading
+  static Uint8List generateImportTemplateBytes() {
+    return Uint8List.fromList(utf8.encode(generateImportTemplateCsv()));
+  }
+
+  /// Generate downloadable error report CSV for all failed / invalid rows
+  static String generateErrorReportCsv(List<ValidatedImportRow> invalidRows) {
+    final headers = [
+      'Row Number',
+      'Consumer No',
+      'Customer Name',
+      'Field',
+      'Value',
+      'Error Reason',
+    ];
+
+    final rows = <List<String>>[headers];
+    for (final row in invalidRows) {
+      for (final err in row.errors) {
+        String field = 'Unknown';
+        String value = '';
+        if (err.contains('Consumer No')) {
+          field = 'Consumer No';
+          value = row.consumerNo;
+        } else if (err.contains('Name')) {
+          field = 'Customer Name';
+          value = row.name;
+        } else if (err.contains('Application Date')) {
+          field = 'Application Date';
+          final match = RegExp(r"'([^']*)'").firstMatch(err);
+          value = match?.group(1) ?? '';
+        } else if (err.contains('Submit Date')) {
+          field = 'Submit Date';
+          final match = RegExp(r"'([^']*)'").firstMatch(err);
+          value = match?.group(1) ?? '';
+        }
+
+        rows.add([
+          row.rowNumber.toString(),
+          row.consumerNo,
+          row.name,
+          field,
+          value,
+          err,
+        ]);
+      }
+    }
+
+    return const ListToCsvConverter().convert(rows);
+  }
+
+  /// Generate error report CSV as Uint8List for downloading
+  static Uint8List generateErrorReportBytes(List<ValidatedImportRow> invalidRows) {
+    return Uint8List.fromList(utf8.encode(generateErrorReportCsv(invalidRows)));
   }
 
   static const _monthNames = {
@@ -645,10 +867,48 @@ class ImportParserService {
   ];
 
   static const _statusAliases = [
-    'installationstatus',
     'currentstatus',
-    'stage',
     'status',
+  ];
+
+  static const _workStageAliases = [
+    'workstage',
+    'work_stage',
+    'stage',
+    'currentstage',
+    'mainstage',
+  ];
+
+  static const _subStageAliases = [
+    'substage',
+    'sub_stage',
+    'loansubstage',
+    'currentsubstage',
+  ];
+
+  static const _loanStatusAliases = [
+    'loanstatus',
+    'loan_status',
+    'loanstate',
+  ];
+
+  static const _installationStatusAliases = [
+    'installationstatus',
+    'installstatus',
+    'installation_status',
+  ];
+
+  static const _rtsStatusAliases = [
+    'rtsstatus',
+    'rts_status',
+    'netmeterstatus',
+    'meterstatus',
+  ];
+
+  static const _subsidyStatusAliases = [
+    'subsidystatus',
+    'subsidy_status',
+    'dbtstatus',
   ];
 
   static const _remarksAliases = [

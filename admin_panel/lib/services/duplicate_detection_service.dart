@@ -20,15 +20,22 @@ class DuplicateDetectionService {
       );
     }
 
-    // 1. Gather all unique normalized consumer numbers
+    // 1. Gather all unique normalized consumer numbers and cleaned mobile numbers
     final normalizedNos = incomingRecords
         .map((r) => r.normalizedConsumerNo)
         .where((no) => no.isNotEmpty)
         .toSet()
         .toList();
 
+    final mobileSet = incomingRecords
+        .map((r) => r.mobile?.replaceAll(RegExp(r'[^0-9]'), '') ?? '')
+        .where((m) => m.length >= 10)
+        .toSet()
+        .toList();
+
     // 2. Fetch existing records using RPC with fallback
     final existingRecordsMap = <String, ConsumerRecord>{};
+    final existingMobilesMap = <String, ConsumerRecord>{};
     const chunkSize = 100;
 
     for (int i = 0; i < normalizedNos.length; i += chunkSize) {
@@ -46,6 +53,10 @@ class DuplicateDetectionService {
         for (final item in data) {
           final record = ConsumerRecord.fromJson(item as Map<String, dynamic>);
           existingRecordsMap[record.normalizedConsumerNo] = record;
+          final cleanM = record.mobile?.replaceAll(RegExp(r'[^0-9]'), '') ?? '';
+          if (cleanM.length >= 10) {
+            existingMobilesMap[cleanM] = record;
+          }
         }
       } catch (_) {
         // Fallback strategy: Query by raw values and index by normalizedConsumerNo locally
@@ -59,23 +70,50 @@ class DuplicateDetectionService {
           for (final item in data) {
             final record = ConsumerRecord.fromJson(item as Map<String, dynamic>);
             existingRecordsMap[record.normalizedConsumerNo] = record;
+            final cleanM = record.mobile?.replaceAll(RegExp(r'[^0-9]'), '') ?? '';
+            if (cleanM.length >= 10) {
+              existingMobilesMap[cleanM] = record;
+            }
           }
         } catch (_) {}
       }
     }
 
-    // 3. Classify records using normalized Consumer No matching
+    // Secondary mobile query if needed for mobiles not already found
+    if (mobileSet.isNotEmpty) {
+      final missingMobiles = mobileSet.where((m) => !existingMobilesMap.containsKey(m)).toList();
+      if (missingMobiles.isNotEmpty) {
+        try {
+          final mobRes = await _client
+              .from('consumer_records')
+              .select('*')
+              .eq('deleted', false)
+              .inFilter('mobile', missingMobiles);
+          final List<dynamic> mobData = mobRes as List<dynamic>;
+          for (final item in mobData) {
+            final record = ConsumerRecord.fromJson(item as Map<String, dynamic>);
+            final cleanM = record.mobile?.replaceAll(RegExp(r'[^0-9]'), '') ?? '';
+            if (cleanM.length >= 10) {
+              existingMobilesMap[cleanM] = record;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 3. Classify records: Primary (Consumer No), Secondary (Mobile / Name+Mobile), New
     final newRecords = <ConsumerRecord>[];
     final identicalRecords = <ConsumerRecord>[];
     final conflictRecords = <RecordDiff>[];
+    final possibleDuplicateRecords = <RecordDiff>[];
 
     for (final incoming in incomingRecords) {
       final normNo = incoming.normalizedConsumerNo;
+      final cleanMobile = incoming.mobile?.replaceAll(RegExp(r'[^0-9]'), '') ?? '';
       final existing = normNo.isEmpty ? null : existingRecordsMap[normNo];
 
-      if (existing == null) {
-        newRecords.add(incoming);
-      } else {
+      if (existing != null) {
+        // Primary Match: Same Consumer Number
         final diffs = computeFieldDiffs(
           existing,
           incoming,
@@ -84,9 +122,10 @@ class DuplicateDetectionService {
         );
 
         if (diffs.isEmpty) {
-          // EXACT DUPLICATE: Differences in skipped columns do not trigger conflict/update!
+          // DUPLICATE: Exactly identical data in database
           identicalRecords.add(existing);
         } else {
+          // MATCHED: Existing record with modified/updated fields
           conflictRecords.add(
             RecordDiff(
               existingRecord: existing,
@@ -96,6 +135,27 @@ class DuplicateDetectionService {
             ),
           );
         }
+      } else if (cleanMobile.length >= 10 && existingMobilesMap.containsKey(cleanMobile)) {
+        // Secondary Match: Different Consumer No, but same Mobile / Customer Name match
+        final mobileMatch = existingMobilesMap[cleanMobile]!;
+        final diffs = computeFieldDiffs(
+          mobileMatch,
+          incoming,
+          allowedFieldKeys: allowedFieldKeys,
+          ignoreBlankValues: ignoreBlankValues,
+        );
+
+        possibleDuplicateRecords.add(
+          RecordDiff(
+            existingRecord: mobileMatch,
+            incomingRecord: incoming,
+            changedFields: diffs,
+            shouldUpdate: false, // Safe default: do not auto-overwrite
+          ),
+        );
+      } else {
+        // NEW Record
+        newRecords.add(incoming);
       }
     }
 
@@ -103,6 +163,7 @@ class DuplicateDetectionService {
       newRecords: newRecords,
       identicalRecords: identicalRecords,
       conflictRecords: conflictRecords,
+      possibleDuplicateRecords: possibleDuplicateRecords,
     );
   }
 
@@ -124,6 +185,11 @@ class DuplicateDetectionService {
       'remarks',
       'application_date',
       'submit_date',
+      'loan_status',
+      'loan_sub_stage',
+      'installation_status',
+      'rts_status',
+      'subsidy_status',
     };
 
     void check(String key, String label, String? oldVal, String? newVal) {
@@ -193,6 +259,7 @@ class DuplicateDetectionService {
     check('agreement_status', 'Agreement Status', existing.agreementStatus, incoming.agreementStatus);
     check('loan_required', 'Loan Required', existing.loanRequired, incoming.loanRequired);
     check('loan_status', 'Loan Status', existing.loanStatus, incoming.loanStatus);
+    check('loan_sub_stage', 'Loan Sub-Stage', existing.loanSubStage, incoming.loanSubStage);
     check('installation_status', 'Installation Status', existing.installationStatus, incoming.installationStatus);
     check('installer_team', 'Installer Team', existing.installerTeam, incoming.installerTeam);
     check('rts_status', 'RTS Status', existing.rtsStatus, incoming.rtsStatus);

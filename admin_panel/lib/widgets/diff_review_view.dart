@@ -152,6 +152,16 @@ class _DiffReviewViewState extends State<DiffReviewView> {
             const Color(0xFFFEF3C7),
             Icons.compare_arrows_rounded,
           ),
+          if (widget.analysis.possibleDuplicateCount > 0) ...[
+            const SizedBox(width: 12),
+            _buildBadge(
+              'Possible Duplicates',
+              widget.analysis.possibleDuplicateCount.toString(),
+              const Color(0xFFDC2626),
+              const Color(0xFFFEE2E2),
+              Icons.warning_amber_rounded,
+            ),
+          ],
         ],
       ),
     );

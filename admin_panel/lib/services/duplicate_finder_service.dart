@@ -174,6 +174,14 @@ class DuplicateFinderService {
               'merged_at': nowIso,
               'merged_by': user?.id,
             }).eq('id', dupId);
+
+            // Safe Merge: Repoint child records (follow-ups) to Master ID to prevent orphans
+            try {
+              await _client
+                  .from('customer_followups')
+                  .update({'record_id': masterId})
+                  .eq('record_id', dupId);
+            } catch (_) {}
           }
         }
 

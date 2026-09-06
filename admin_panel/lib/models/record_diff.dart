@@ -116,6 +116,7 @@ class RecordDiff {
     checkAndAdd('agreement_status', existingRecord.agreementStatus, incomingRecord.agreementStatus);
     checkAndAdd('loan_required', existingRecord.loanRequired, incomingRecord.loanRequired);
     checkAndAdd('loan_status', existingRecord.loanStatus, incomingRecord.loanStatus);
+    checkAndAdd('loan_sub_stage', existingRecord.loanSubStage, incomingRecord.loanSubStage);
     checkAndAdd('installation_status', existingRecord.installationStatus, incomingRecord.installationStatus);
     checkAndAdd('installer_team', existingRecord.installerTeam, incomingRecord.installerTeam);
     checkAndAdd('rts_status', existingRecord.rtsStatus, incomingRecord.rtsStatus);
@@ -172,6 +173,7 @@ class RecordDiff {
       agreementDate: existingRecord.agreementDate,
       loanRequired: payload.containsKey('loan_required') ? (payload['loan_required'] as String? ?? existingRecord.loanRequired) : existingRecord.loanRequired,
       loanStatus: payload.containsKey('loan_status') ? (payload['loan_status'] as String? ?? existingRecord.loanStatus) : existingRecord.loanStatus,
+      loanSubStage: payload.containsKey('loan_sub_stage') ? (payload['loan_sub_stage'] as String? ?? existingRecord.loanSubStage) : existingRecord.loanSubStage,
       loanAppliedDate: existingRecord.loanAppliedDate,
       loanApprovedDate: existingRecord.loanApprovedDate,
       installationStatus: payload.containsKey('installation_status') ? (payload['installation_status'] as String? ?? existingRecord.installationStatus) : existingRecord.installationStatus,
@@ -190,16 +192,32 @@ class RecordDiff {
   }
 }
 
+enum RecordMatchClassification {
+  newRecord,
+  matched,
+  possibleDuplicate,
+  duplicate,
+  invalid,
+}
+
 class DuplicateAnalysisResult {
   final List<ConsumerRecord> newRecords;
   final List<ConsumerRecord> identicalRecords;
   final List<RecordDiff> conflictRecords;
+  final List<RecordDiff> possibleDuplicateRecords;
 
   DuplicateAnalysisResult({
     required this.newRecords,
     required this.identicalRecords,
     required this.conflictRecords,
+    this.possibleDuplicateRecords = const [],
   });
 
-  int get totalIncoming => newRecords.length + identicalRecords.length + conflictRecords.length;
+  int get totalIncoming =>
+      newRecords.length + identicalRecords.length + conflictRecords.length + possibleDuplicateRecords.length;
+
+  int get newCount => newRecords.length;
+  int get updatesCount => conflictRecords.length;
+  int get duplicateCount => identicalRecords.length;
+  int get possibleDuplicateCount => possibleDuplicateRecords.length;
 }

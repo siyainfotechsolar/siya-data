@@ -90,6 +90,98 @@ class WorkflowEngine {
     return st == 'received' || st == 'completed' || recSt == 'completed';
   }
 
+  /// Known canonical workflow statuses across all 6 stages
+  static const List<String> canonicalWorkflowStatuses = [
+    'Pending',
+    'Submitted',
+    'Application Verified',
+    'Application Completed',
+    'Agreement Pending',
+    'Agreement Uploaded',
+    'Agreement Verified',
+    'Uploaded',
+    'Verified',
+    'Loan Applied',
+    'Loan File Ready',
+    'File at Bank',
+    'Bank Follow-up',
+    'Loan Rejected',
+    'Correction Required',
+    'Re-Apply Loan',
+    'Loan Approved',
+    '1st Installment',
+    '2nd Installment',
+    'Loan Completed',
+    'Not Started',
+    'Scheduled',
+    'Installation Pending',
+    'Structure Pending',
+    'Panel Pending',
+    'Wiring Pending',
+    'Installation Completed',
+    'Installed',
+    'RTS Not Started',
+    'Application Pending',
+    'RTS Applied',
+    'Meter Pending',
+    'Inspection Pending',
+    'RTS Completed',
+    'Not Applied',
+    'Subsidy Applied',
+    'Subsidy Under Process',
+    'Subsidy Pending',
+    'Subsidy Approved',
+    'Subsidy Received',
+    'Received',
+    'Completed',
+    'Active',
+    'On Hold',
+    'Cancelled',
+    'No Action Required',
+  ];
+
+  static final Map<String, String> _customStatusMappings = {};
+
+  static Map<String, String> get customStatusMappings => Map.unmodifiable(_customStatusMappings);
+
+  /// Register custom status mapping (e.g. 'Bank Verification' -> 'File at Bank')
+  static void registerCustomStatusMapping(String unmappedStatus, String canonicalStatus) {
+    _customStatusMappings[unmappedStatus.trim().toLowerCase()] = canonicalStatus.trim();
+  }
+
+  /// Resolve status through custom mapping if defined
+  static String resolveMappedStatus(String status) {
+    final lower = status.trim().toLowerCase();
+    if (_customStatusMappings.containsKey(lower)) {
+      return _customStatusMappings[lower]!;
+    }
+    return status;
+  }
+
+  /// Check if a status string matches canonical workflow statuses or registered mappings
+  static bool isRecognizedStatus(String status) {
+    if (status.trim().isEmpty) return true;
+    final lower = status.trim().toLowerCase();
+    if (_customStatusMappings.containsKey(lower)) return true;
+    return canonicalWorkflowStatuses.any((s) => s.toLowerCase() == lower);
+  }
+
+  /// Helper to check if a status or sub-stage represents a Loan stage action
+  static bool isLoanStatusOrSubStage(String s) {
+    final lower = s.trim().toLowerCase();
+    return lower == 'loan applied' ||
+        lower == 'file at bank' ||
+        lower == 'bank follow-up' ||
+        lower == 'loan file ready' ||
+        lower == 'loan rejected' ||
+        lower == 'correction required' ||
+        lower == 're-apply loan' ||
+        lower == 'reapply loan' ||
+        lower == 'loan approved' ||
+        lower == '1st installment' ||
+        lower == '2nd installment';
+  }
+
   /// Returns true if customer work is 100% completed (Subsidy Received or Mark as Complete)
   static bool isWorkCompleted(ConsumerRecord record) {
     if (record.customerWorkState.toUpperCase() == 'COMPLETED') return true;
@@ -107,6 +199,13 @@ class WorkflowEngine {
     if (isInstallationCompleted(record)) {
       return 'RTS';
     }
+
+    // Direct inference if record status specifies Loan
+    final effectiveStatus = resolveMappedStatus(record.status);
+    if (isLoanStatusOrSubStage(effectiveStatus) && !isLoanCompleted(record)) {
+      return 'Loan';
+    }
+
     final agreeDone = isAgreementCompleted(record);
     final loanReq = isLoanRequired(record);
     final loanDone = isLoanCompleted(record);
@@ -134,7 +233,9 @@ class WorkflowEngine {
       case 'Installation':
         return record.installationStatus;
       case 'Loan':
-        return record.loanSubStage.isNotEmpty ? record.loanSubStage : record.loanStatus;
+        if (record.loanSubStage.isNotEmpty) return record.loanSubStage;
+        if (isLoanStatusOrSubStage(record.status)) return record.status;
+        return record.loanStatus;
       case 'Agreement':
       default:
         return record.agreementStatus;
@@ -151,7 +252,8 @@ class WorkflowEngine {
       case 'Agreement':
         return 'Agreement';
       case 'Loan':
-        final subStage = record.loanSubStage.trim().toLowerCase();
+        final rawSubStage = record.loanSubStage.isNotEmpty ? record.loanSubStage : record.status;
+        final subStage = resolveMappedStatus(rawSubStage).trim().toLowerCase();
         if (subStage.contains('rejected')) {
           return 'Loan Correction';
         } else if (subStage.contains('correction')) {
