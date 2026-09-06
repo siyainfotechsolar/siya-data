@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
 import '../services/realtime_service.dart';
+import '../services/workflow_engine.dart';
 import '../widgets/record_details_dialog.dart';
 import '../widgets/record_form_dialog.dart';
 import '../widgets/no_action_reason_dialog.dart';
