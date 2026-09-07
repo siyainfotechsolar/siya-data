@@ -28,6 +28,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
   void initState() {
     super.initState();
     _loadSummary();
+    _loadUserProfile();
     _initMetricsRealtime();
   }
 
@@ -221,8 +222,50 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     }
   }
 
+  Map<String, dynamic>? _userProfile;
+
+  Future<void> _loadUserProfile() async {
+    final profile = await MobileRecordService.getCurrentStaffProfile();
+    if (mounted) {
+      setState(() => _userProfile = profile);
+    }
+  }
+
+  bool _canAccessModule(String module) {
+    if (_userProfile == null) return true; // Fallback while loading
+    final role = (_userProfile?['role'] as String? ?? 'staff').toLowerCase();
+    if (role == 'admin' || role == 'super_admin' || role == 'owner') return true;
+
+    final permissions = _userProfile?['permissions'];
+    if (permissions != null && permissions is Map) {
+      final modActions = permissions[module.toLowerCase()];
+      if (modActions is List && modActions.isNotEmpty) return true;
+    }
+
+    // Role-specific defaults
+    switch (role) {
+      case 'installation_staff':
+        return module == 'installation' || module == 'customer';
+      case 'loan_staff':
+        return module == 'loan' || module == 'customer' || module == 'followup';
+      case 'sales':
+        return module == 'leads' || module == 'customer' || module == 'followup';
+      case 'accounts':
+        return module == 'payment' || module == 'subsidy' || module == 'customer';
+      default:
+        return true;
+    }
+  }
+
   Widget _buildHomeTab() {
     final theme = Theme.of(context);
+
+    final showLeads = _canAccessModule('leads');
+    final showAgreement = _canAccessModule('customer');
+    final showLoan = _canAccessModule('loan');
+    final showInstallation = _canAccessModule('installation');
+    final showRts = _canAccessModule('rts');
+    final showSubsidy = _canAccessModule('subsidy');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -272,58 +315,60 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           const SizedBox(height: 14),
 
           // LEADS & PROSPECTS PORTAL
-          InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const MobileLeadsScreen()),
-              );
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Card(
-              elevation: 0,
-              color: const Color(0xFFEFF6FF), // Soft sky blue
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: Color(0xFFBFDBFE)),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(14.0),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: const Color(0xFF2563EB),
-                      child: const Icon(Icons.leaderboard_rounded, color: Colors.white, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'LEADS & PROSPECTS',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Color(0xFF1E3A8A),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Pre-application customer inquiries, follow-ups & conversion',
-                            style: TextStyle(fontSize: 11, color: Colors.blue.shade900.withValues(alpha: 0.8)),
-                          ),
-                        ],
+          if (showLeads) ...[
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MobileLeadsScreen()),
+                );
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Card(
+                elevation: 0,
+                color: const Color(0xFFEFF6FF), // Soft sky blue
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: Color(0xFFBFDBFE)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(14.0),
+                  child: Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Color(0xFF2563EB),
+                        child: Icon(Icons.leaderboard_rounded, color: Colors.white, size: 20),
                       ),
-                    ),
-                    const Icon(Icons.chevron_right, color: Color(0xFF2563EB)),
-                  ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'LEADS & PROSPECTS',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Color(0xFF1E3A8A),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Pre-application customer inquiries, follow-ups & conversion',
+                              style: TextStyle(fontSize: 11, color: Colors.blue.shade900.withValues(alpha: 0.8)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: Color(0xFF2563EB)),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
+          ],
 
           // TODAY'S WORK Summary Section Header
           Text(
@@ -340,58 +385,58 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Action Queues Summary Grid
-          Row(
+          // Action Queues Summary Grid (Dynamically filtered by staff permissions)
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              Expanded(
-                child: _buildActionTile(
-                  icon: Icons.draw_rounded,
-                  label: 'My Agreement Work',
-                  onTap: () => _openActionCenterStage('Agreement Pending'),
+              if (showAgreement)
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 42) / 2,
+                  child: _buildActionTile(
+                    icon: Icons.draw_rounded,
+                    label: 'My Agreement Work',
+                    onTap: () => _openActionCenterStage('Agreement Pending'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildActionTile(
-                  icon: Icons.account_balance_rounded,
-                  label: 'My Loan Work',
-                  onTap: () => _openActionCenterStage('Loan Pending'),
+              if (showLoan)
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 42) / 2,
+                  child: _buildActionTile(
+                    icon: Icons.account_balance_rounded,
+                    label: 'My Loan Work',
+                    onTap: () => _openActionCenterStage('Loan Pending'),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _buildActionTile(
-                  icon: Icons.construction_rounded,
-                  label: 'My Installation Work',
-                  onTap: () => _openActionCenterStage('Installation Pending'),
+              if (showInstallation)
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 42) / 2,
+                  child: _buildActionTile(
+                    icon: Icons.construction_rounded,
+                    label: 'My Installation Work',
+                    onTap: () => _openActionCenterStage('Installation Pending'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildActionTile(
-                  icon: Icons.electric_meter_rounded,
-                  label: 'My RTS Work',
-                  onTap: () => _openActionCenterStage('RTS Pending'),
+              if (showRts)
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 42) / 2,
+                  child: _buildActionTile(
+                    icon: Icons.electric_meter_rounded,
+                    label: 'My RTS Work',
+                    onTap: () => _openActionCenterStage('RTS Pending'),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _buildActionTile(
-                  icon: Icons.currency_rupee_rounded,
-                  label: 'My Subsidy Work',
-                  onTap: () => _openActionCenterStage('Subsidy Processing'),
+              if (showSubsidy)
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 42) / 2,
+                  child: _buildActionTile(
+                    icon: Icons.currency_rupee_rounded,
+                    label: 'My Subsidy Work',
+                    onTap: () => _openActionCenterStage('Subsidy Processing'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
+              SizedBox(
+                width: (MediaQuery.of(context).size.width - 42) / 2,
                 child: _buildActionTile(
                   icon: Icons.search,
                   label: 'Search Consumers',
