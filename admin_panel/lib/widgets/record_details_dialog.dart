@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/consumer_record.dart';
 import '../models/customer_issue.dart';
@@ -801,9 +802,23 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                             ),
                           ],
                         ),
-                        Text(
-                          'Consumer No: ${_record.consumerNo} • Stage: ${_record.overallStage}',
-                          style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+                        Row(
+                          children: [
+                            Text(
+                              'Consumer No: ${_record.consumerNo} • Stage: ${_record.overallStage}',
+                              style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+                            ),
+                            if (_record.consumerNo.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              InkWell(
+                                onTap: () => _copyToClipboard(_record.consumerNo, 'Consumer No'),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  child: Icon(Icons.copy_rounded, size: 14, color: theme.colorScheme.primary),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -1777,7 +1792,24 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  void _copyToClipboard(String text, String label) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label copied to clipboard!'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {bool copyable = false}) {
+    final isCopyable = copyable ||
+        label.toLowerCase().contains('mobile') ||
+        label.toLowerCase().contains('id') ||
+        label.toLowerCase().contains('consumer');
+    final canCopy = isCopyable && value.isNotEmpty && value != '—';
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
@@ -1787,8 +1819,20 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
             child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.grey, fontSize: 13)),
           ),
           Expanded(
-            child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+            child: SelectableText(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+            ),
           ),
+          if (canCopy)
+            InkWell(
+              onTap: () => _copyToClipboard(value, label),
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                child: Icon(Icons.copy_rounded, size: 15, color: Colors.blue.shade700),
+              ),
+            ),
         ],
       ),
     );
