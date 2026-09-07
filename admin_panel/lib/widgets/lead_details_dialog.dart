@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/lead_record.dart';
 import '../services/lead_service.dart';
 import 'lead_form_dialog.dart';
+import 'global_whatsapp_button.dart';
 
 class LeadDetailsDialog extends StatefulWidget {
   final LeadRecord lead;
@@ -601,6 +602,14 @@ class _LeadDetailsDialogState extends State<LeadDetailsDialog> with SingleTicker
                       ],
                     ),
                   ),
+                  GlobalWhatsAppButton.outlined(
+                    phoneNumber: _lead.whatsappNo ?? _lead.mobileNo,
+                    customerName: _lead.customerName,
+                    consumerNo: _lead.consumerNo,
+                    currentStage: _lead.leadStatus,
+                    label: 'WhatsApp',
+                  ),
+                  const SizedBox(width: 4),
                   IconButton(
                     icon: const Icon(Icons.edit_outlined),
                     tooltip: 'Edit Lead',

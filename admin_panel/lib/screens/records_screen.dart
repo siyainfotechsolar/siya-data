@@ -7,6 +7,9 @@ import '../services/realtime_service.dart';
 import '../widgets/record_form_dialog.dart';
 import '../widgets/record_details_dialog.dart';
 import '../widgets/import_dialog.dart';
+import '../widgets/export_excel_button.dart';
+import '../widgets/global_whatsapp_button.dart';
+import '../services/excel_export_service.dart';
 
 class RecordsScreen extends StatefulWidget {
   final String? initialWorkflowQueue;
@@ -428,6 +431,43 @@ class _RecordsScreenState extends State<RecordsScreen> {
     );
   }
 
+  Future<List<ConsumerRecord>> _fetchFilteredRecordsForExport() async {
+    final result = await RecordService.fetchRecords(
+      page: 1,
+      pageSize: 10000,
+      searchQuery: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+      statusFilter: _selectedStatus == 'All' ? null : _selectedStatus,
+      workflowQueueFilter: _selectedWorkflowQueue == 'All' ? null : _selectedWorkflowQueue,
+      workQueueScope: _workQueueScope,
+      sortBy: _sortBy,
+      ascending: _sortAscending,
+    );
+    return result.items;
+  }
+
+  static final List<ExcelColumnDef<ConsumerRecord>> _consumerExcelColumns = [
+    ExcelColumnDef(header: 'Consumer No', valueExtractor: (r) => r.consumerNo),
+    ExcelColumnDef(header: 'Customer Name', valueExtractor: (r) => r.name),
+    ExcelColumnDef(header: 'Mobile No', valueExtractor: (r) => r.mobile ?? '—'),
+    ExcelColumnDef(header: 'Application ID', valueExtractor: (r) => r.applicationId ?? '—'),
+    ExcelColumnDef(header: 'Overall Stage', valueExtractor: (r) => r.overallStage),
+    ExcelColumnDef(header: 'Application Status', valueExtractor: (r) => r.status),
+    ExcelColumnDef(header: 'Agreement Status', valueExtractor: (r) => r.agreementStatus),
+    ExcelColumnDef(header: 'Loan Required', valueExtractor: (r) => r.loanRequired),
+    ExcelColumnDef(header: 'Loan Status', valueExtractor: (r) => r.loanStatus),
+    ExcelColumnDef(header: 'Installation Status', valueExtractor: (r) => r.installationStatus),
+    ExcelColumnDef(header: 'RTS Status', valueExtractor: (r) => r.rtsStatus),
+    ExcelColumnDef(header: 'Subsidy Status', valueExtractor: (r) => r.subsidyStatus),
+    ExcelColumnDef(header: 'Work State', valueExtractor: (r) => r.customerWorkState),
+    ExcelColumnDef(header: 'Application Date', valueExtractor: (r) => r.applicationDate),
+    ExcelColumnDef(header: 'Submit Date', valueExtractor: (r) => r.submitDate),
+    ExcelColumnDef(header: 'Days in Stage', valueExtractor: (r) => r.daysInCurrentStage),
+    ExcelColumnDef(header: 'Priority', valueExtractor: (r) => r.priorityCategory),
+    ExcelColumnDef(header: 'Assigned Staff', valueExtractor: (r) => r.createdBy ?? '—'),
+    ExcelColumnDef(header: 'Village / Address', valueExtractor: (r) => r.address ?? '—'),
+    ExcelColumnDef(header: 'Remarks', valueExtractor: (r) => r.remarks ?? '—'),
+  ];
+
   void _openImportDialog() {
     showDialog(
       context: context,
@@ -474,6 +514,13 @@ class _RecordsScreenState extends State<RecordsScreen> {
               ),
               Row(
                 children: [
+                  ExportExcelButton<ConsumerRecord>(
+                    filePrefix: 'Solar_Consumers',
+                    sheetName: 'Consumer Records',
+                    columns: _consumerExcelColumns,
+                    onFetchFullDataset: _fetchFilteredRecordsForExport,
+                  ),
+                  const SizedBox(width: 12),
                   OutlinedButton.icon(
                     onPressed: _openImportDialog,
                     style: OutlinedButton.styleFrom(
@@ -863,12 +910,19 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                               ),
                                             ),
                                           ),
-                                          DataCell(_buildPriorityCategoryBadge(r.priorityCategory)),
+                          DataCell(_buildPriorityCategoryBadge(r.priorityCategory)),
                                           DataCell(Text(r.createdBy ?? 'Unassigned')),
                                           DataCell(
                                             Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
+                                                GlobalWhatsAppButton(
+                                                  phoneNumber: r.mobile,
+                                                  customerName: r.name,
+                                                  consumerNo: r.consumerNo,
+                                                  currentStage: r.overallStage,
+                                                  iconSize: 20,
+                                                ),
                                                 IconButton(
                                                   icon: const Icon(Icons.timeline_rounded, size: 20, color: Color(0xFFD97706)),
                                                   tooltip: 'Workflow Timeline',

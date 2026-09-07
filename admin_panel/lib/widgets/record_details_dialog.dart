@@ -12,6 +12,7 @@ import 'followup_done_dialog.dart';
 import 'misc_action_dialog.dart';
 import 'issue_dialog.dart';
 import 'payment_dialog.dart';
+import 'global_whatsapp_button.dart';
 
 class RecordDetailsDialog extends StatefulWidget {
   final ConsumerRecord record;
@@ -824,9 +825,22 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                     ),
                   ],
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GlobalWhatsAppButton.outlined(
+                      phoneNumber: _record.mobile,
+                      customerName: _record.name,
+                      consumerNo: _record.consumerNo,
+                      currentStage: _record.overallStage,
+                      label: 'WhatsApp',
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1525,6 +1539,14 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                               } else if (val == 'issue') {
                                 final res = await IssueDialog.show(context, customerRecord: _record);
                                 if (res == true) _loadIssues();
+                              } else if (val == 'whatsapp') {
+                                GlobalWhatsAppButton.openChat(
+                                  context,
+                                  phoneNumber: _record.mobile,
+                                  customerName: _record.name,
+                                  consumerNo: _record.consumerNo,
+                                  currentStage: _record.overallStage,
+                                );
                               } else if (val == 'call' && _record.mobile != null) {
                                 _makePhoneCall(_record.mobile);
                               } else if (val == 'followup_done') {
@@ -1532,6 +1554,16 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                               }
                             },
                             itemBuilder: (ctx) => [
+                              const PopupMenuItem(
+                                value: 'whatsapp',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.chat_rounded, size: 18, color: Color(0xFF25D366)),
+                                    SizedBox(width: 10),
+                                    Text('WhatsApp Message'),
+                                  ],
+                                ),
+                              ),
                               const PopupMenuItem(
                                 value: 'misc',
                                 child: Row(

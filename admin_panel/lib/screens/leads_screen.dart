@@ -5,6 +5,9 @@ import '../models/lead_record.dart';
 import '../services/lead_service.dart';
 import '../widgets/lead_form_dialog.dart';
 import '../widgets/lead_details_dialog.dart';
+import '../widgets/export_excel_button.dart';
+import '../widgets/global_whatsapp_button.dart';
+import '../services/excel_export_service.dart';
 
 class LeadsScreen extends StatefulWidget {
   final String? initialScope;
@@ -95,19 +98,40 @@ class _LeadsScreenState extends State<LeadsScreen> {
     );
   }
 
+  Future<List<LeadRecord>> _fetchFilteredLeadsForExport() async {
+    return LeadService.fetchLeads(
+      scopeFilter: _selectedScope,
+      statusFilter: _selectedStatus == 'All' ? null : _selectedStatus,
+      searchQuery: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+    );
+  }
+
+  static final List<ExcelColumnDef<LeadRecord>> _leadExcelColumns = [
+    ExcelColumnDef(header: 'Customer Name', valueExtractor: (l) => l.customerName),
+    ExcelColumnDef(header: 'Mobile No', valueExtractor: (l) => l.mobileNo),
+    ExcelColumnDef(header: 'WhatsApp No', valueExtractor: (l) => l.whatsappNo ?? l.mobileNo),
+    ExcelColumnDef(header: 'Consumer No', valueExtractor: (l) => l.consumerNo ?? '—'),
+    ExcelColumnDef(header: 'Village', valueExtractor: (l) => l.village ?? '—'),
+    ExcelColumnDef(header: 'Taluka', valueExtractor: (l) => l.taluka ?? '—'),
+    ExcelColumnDef(header: 'District', valueExtractor: (l) => l.district ?? '—'),
+    ExcelColumnDef(header: 'Lead Source', valueExtractor: (l) => l.leadSource),
+    ExcelColumnDef(header: 'Interested In / Product', valueExtractor: (l) => l.interestedIn),
+    ExcelColumnDef(header: 'System Size', valueExtractor: (l) => l.approxSystemSize ?? '—'),
+    ExcelColumnDef(header: 'Estimated Budget', valueExtractor: (l) => l.estimatedBudget ?? '—'),
+    ExcelColumnDef(header: 'Monthly Bill', valueExtractor: (l) => l.monthlyElectricityBill ?? '—'),
+    ExcelColumnDef(header: 'Lead Stage', valueExtractor: (l) => l.leadStatus),
+    ExcelColumnDef(header: 'Next Follow-up Date', valueExtractor: (l) => l.nextFollowupDate),
+    ExcelColumnDef(header: 'Smart Next Action', valueExtractor: (l) => l.smartNextAction),
+    ExcelColumnDef(header: 'Assigned Staff', valueExtractor: (l) => l.assignedStaffName ?? 'Unassigned'),
+    ExcelColumnDef(header: 'Lost / Hold Reason', valueExtractor: (l) => l.lostReason ?? l.noActionReason ?? '—'),
+    ExcelColumnDef(header: 'Remarks', valueExtractor: (l) => l.remarks ?? '—'),
+    ExcelColumnDef(header: 'Created Date', valueExtractor: (l) => l.createdAt),
+  ];
+
   Future<void> _handleCall(String mobile) async {
     final uri = Uri.parse('tel:$mobile');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
-    }
-  }
-
-  Future<void> _handleWhatsApp(String mobile) async {
-    final clean = mobile.replaceAll(RegExp(r'\D'), '');
-    final phone = clean.startsWith('91') ? clean : '91$clean';
-    final uri = Uri.parse('https://wa.me/$phone');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -146,6 +170,13 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   ],
                 ),
                 const Spacer(),
+                ExportExcelButton<LeadRecord>(
+                  filePrefix: 'Solar_Leads',
+                  sheetName: 'Leads',
+                  columns: _leadExcelColumns,
+                  onFetchFullDataset: _fetchFilteredLeadsForExport,
+                ),
+                const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   tooltip: 'Refresh Leads',
@@ -477,10 +508,12 @@ class _LeadsScreenState extends State<LeadsScreen> {
                           tooltip: 'Call',
                           onPressed: () => _handleCall(l.mobileNo),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.chat, size: 18, color: Colors.green),
-                          tooltip: 'WhatsApp',
-                          onPressed: () => _handleWhatsApp(l.whatsappNo ?? l.mobileNo),
+                        GlobalWhatsAppButton(
+                          phoneNumber: l.whatsappNo ?? l.mobileNo,
+                          customerName: l.customerName,
+                          consumerNo: l.consumerNo,
+                          currentStage: l.leadStatus,
+                          iconSize: 18,
                         ),
                         IconButton(
                           icon: const Icon(Icons.open_in_new, size: 18),
