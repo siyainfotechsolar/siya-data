@@ -1492,75 +1492,105 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                             label: const Text('Mark Follow-up'),
                           ),
                           const SizedBox(width: 8),
-                          // 4. [⚡ Add MISC Action]
-                          OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF6366F1),
-                              side: const BorderSide(color: Color(0xFF6366F1)),
+                          // 4. [More Actions ⋮]
+                          PopupMenuButton<String>(
+                            tooltip: 'More Actions',
+                            onSelected: (val) async {
+                              if (val == 'misc') {
+                                final res = await MiscActionDialog.show(context, customerRecord: _record);
+                                if (res == true) widget.onRecordUpdated?.call();
+                              } else if (val == 'payment') {
+                                final res = await PaymentDialog.show(context, customerRecord: _record);
+                                if (res == true) {
+                                  _loadPayments();
+                                  final updated = await RecordService.fetchRecordById(_record.id!);
+                                  if (updated != null && mounted) setState(() => _record = updated);
+                                  widget.onRecordUpdated?.call();
+                                }
+                              } else if (val == 'issue') {
+                                final res = await IssueDialog.show(context, customerRecord: _record);
+                                if (res == true) _loadIssues();
+                              } else if (val == 'call' && _record.mobile != null) {
+                                _makePhoneCall(_record.mobile);
+                              } else if (val == 'followup_done') {
+                                _handleFollowupDone();
+                              }
+                            },
+                            itemBuilder: (ctx) => [
+                              const PopupMenuItem(
+                                value: 'misc',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.add_task_rounded, size: 18, color: Color(0xFF6366F1)),
+                                    SizedBox(width: 10),
+                                    Text('Add MISC Action'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'payment',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.payments_outlined, size: 18, color: Color(0xFF059669)),
+                                    SizedBox(width: 10),
+                                    Text('Record Payment'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'issue',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.report_problem_outlined, size: 18, color: Color(0xFFDC2626)),
+                                    SizedBox(width: 10),
+                                    Text('Report Issue / Complaint'),
+                                  ],
+                                ),
+                              ),
+                              if (_record.hasActiveFollowup) ...[
+                                const PopupMenuDivider(),
+                                if (_record.mobile != null && _record.mobile!.isNotEmpty)
+                                  PopupMenuItem(
+                                    value: 'call',
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.phone, size: 18, color: Color(0xFF0284C7)),
+                                        const SizedBox(width: 10),
+                                        Text('Call: ${_record.mobile}'),
+                                      ],
+                                    ),
+                                  ),
+                                const PopupMenuItem(
+                                  value: 'followup_done',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.done_all_rounded, size: 18, color: Color(0xFF059669)),
+                                      SizedBox(width: 10),
+                                      Text('Mark Follow-up Done'),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.grey.shade400),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'More',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+                                  ),
+                                  SizedBox(width: 2),
+                                  Icon(Icons.more_vert, size: 18, color: Colors.black87),
+                                ],
+                              ),
                             ),
-                            onPressed: _isSaving
-                                ? null
-                                : () async {
-                                    final res = await MiscActionDialog.show(context, customerRecord: _record);
-                                    if (res == true) {
-                                      widget.onRecordUpdated?.call();
-                                    }
-                                  },
-                            icon: const Icon(Icons.add_task_rounded, size: 18),
-                            label: const Text('Add MISC'),
                           ),
-                          const SizedBox(width: 8),
-                          // 5. [+ Add Payment]
-                          OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF059669),
-                              side: const BorderSide(color: Color(0xFF059669)),
-                            ),
-                            onPressed: _isSaving
-                                ? null
-                                : () async {
-                                    final res = await PaymentDialog.show(context, customerRecord: _record);
-                                    if (res == true) {
-                                      _loadPayments();
-                                      final updated = await RecordService.fetchRecordById(_record.id!);
-                                      if (updated != null && mounted) setState(() => _record = updated);
-                                      widget.onRecordUpdated?.call();
-                                    }
-                                  },
-                            icon: const Icon(Icons.payments_outlined, size: 18),
-                            label: const Text('Add Payment'),
-                          ),
-                          const SizedBox(width: 8),
-                          // 6. [! Report Issue]
-                          OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFFDC2626),
-                              side: const BorderSide(color: Color(0xFFDC2626)),
-                            ),
-                            onPressed: _isSaving
-                                ? null
-                                : () async {
-                                    final res = await IssueDialog.show(context, customerRecord: _record);
-                                    if (res == true) _loadIssues();
-                                  },
-                            icon: const Icon(Icons.report_problem_outlined, size: 18),
-                            label: const Text('Report Issue'),
-                          ),
-                          if (_record.hasActiveFollowup) ...[
-                            const SizedBox(width: 8),
-                            IconButton.filledTonal(
-                              icon: const Icon(Icons.phone, size: 18, color: Color(0xFF0284C7)),
-                              tooltip: 'Call Customer: ${_record.mobile ?? 'No phone'}',
-                              onPressed: () => _makePhoneCall(_record.mobile),
-                            ),
-                            const SizedBox(width: 6),
-                            FilledButton.tonalIcon(
-                              icon: const Icon(Icons.done_all_rounded, size: 16, color: Color(0xFF059669)),
-                              label: const Text('Follow-up Done', style: TextStyle(color: Color(0xFF065F46), fontWeight: FontWeight.bold)),
-                              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD1FAE5)),
-                              onPressed: _isSaving ? null : _handleFollowupDone,
-                            ),
-                          ],
                         ],
                       ],
                     ),
