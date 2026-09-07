@@ -43,20 +43,24 @@ class UserManagementService {
           ? temporaryPassword.trim()
           : 'Siya@${mobile.length >= 4 ? mobile.substring(mobile.length - 4) : "2026"}';
 
-      // 1. Sign up user using Supabase Auth
+      // 1. Sign up user using Supabase Auth.
+      // Note: Pass legacy role ('admin' or 'staff') in data metadata to ensure
+      // compatibility with existing handle_new_user() triggers that cast to app_role enum.
+      final legacyRole = (role == 'admin' || role == 'super_admin' || role == 'owner') ? 'admin' : 'staff';
+
       final authResponse = await _client.auth.signUp(
         email: email.trim(),
         password: effectivePassword,
         data: {
           'full_name': fullName.trim(),
-          'role': role,
+          'role': legacyRole,
           'mobile': mobile.trim(),
         },
       );
 
       final newUserId = authResponse.user?.id;
       if (newUserId != null) {
-        // 2. Upsert profile with full metadata
+        // 2. Upsert profile with full metadata and the exact granular role
         final perms = permissions ?? UserRole.defaultPermissions(role);
         await _client.from('profiles').upsert({
           'id': newUserId,
