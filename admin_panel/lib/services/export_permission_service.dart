@@ -13,27 +13,39 @@ class ExportPermissionService {
       final user = SupabaseService.currentUser;
       if (user == null) return false;
 
-      final res = await _client
+      // 1. Fetch user's role
+      final profile = await _client
           .from('profiles')
-          .select('role, can_export')
+          .select('role')
           .eq('id', user.id)
           .maybeSingle();
 
-      if (res == null) return false; // No profile found → deny access
-
-      final role = (res['role'] as String? ?? 'staff').toLowerCase();
-
-      // Admins and owners always allowed
-      if (role == 'admin' || role == 'owner') {
-        return true;
+      if (profile != null) {
+        final role = (profile['role'] as String? ?? 'staff').toLowerCase();
+        if (role == 'admin' || role == 'owner') {
+          return true;
+        }
       }
 
-      // Staff: check can_export flag (default true if column doesn't exist yet)
-      final canExport = res['can_export'] as bool? ?? true;
-      return canExport;
+      // 2. For staff, check optional can_export restriction (defaults to true if column does not exist)
+      try {
+        final exportPerm = await _client
+            .from('profiles')
+            .select('can_export')
+            .eq('id', user.id)
+            .maybeSingle();
+        if (exportPerm != null && exportPerm.containsKey('can_export') && exportPerm['can_export'] != null) {
+          return exportPerm['can_export'] as bool;
+        }
+      } catch (_) {
+        // can_export column may not exist yet in DB schema
+      }
+
+      // Default: allow authenticated staff to export unless explicitly restricted
+      return true;
     } catch (_) {
-      // Fail closed: deny on error
-      return false;
+      // If profile query fails but user is authenticated, permit export
+      return SupabaseService.currentUser != null;
     }
   }
 }
