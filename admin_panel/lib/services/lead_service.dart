@@ -35,42 +35,43 @@ class LeadService {
     String? scopeFilter, // 'all', 'today', 'overdue', 'upcoming'
   }) async {
     try {
-      PostgrestFilterBuilder<List<Map<String, dynamic>>> query =
+      PostgrestFilterBuilder<List<Map<String, dynamic>>> filterBuilder =
           _client.from('leads').select().eq('deleted', false);
 
       if (statusFilter != null && statusFilter != 'All') {
-        query = query.eq('lead_status', statusFilter);
+        filterBuilder = filterBuilder.eq('lead_status', statusFilter);
       }
 
       if (staffFilter != null && staffFilter.isNotEmpty) {
-        query = query.eq('assigned_staff_id', staffFilter);
+        filterBuilder = filterBuilder.eq('assigned_staff_id', staffFilter);
       }
 
       final now = DateTime.now();
       final todayStr = DateTime(now.year, now.month, now.day).toIso8601String().split('T')[0];
 
       if (scopeFilter == 'today') {
-        query = query
+        filterBuilder = filterBuilder
             .eq('next_followup_date', todayStr)
             .not('lead_status', 'in', '("Converted","Lost","No Action Required")');
       } else if (scopeFilter == 'overdue') {
-        query = query
+        filterBuilder = filterBuilder
             .lt('next_followup_date', todayStr)
             .not('lead_status', 'in', '("Converted","Lost","No Action Required")');
       } else if (scopeFilter == 'upcoming') {
-        query = query
+        filterBuilder = filterBuilder
             .gt('next_followup_date', todayStr)
             .not('lead_status', 'in', '("Converted","Lost","No Action Required")');
       }
 
       if (searchQuery != null && searchQuery.trim().isNotEmpty) {
         final q = searchQuery.trim();
-        query = query.or('customer_name.ilike.%$q%,mobile_no.ilike.%$q%,consumer_no.ilike.%$q%,village.ilike.%$q%');
+        filterBuilder = filterBuilder.or('customer_name.ilike.%$q%,mobile_no.ilike.%$q%,consumer_no.ilike.%$q%,village.ilike.%$q%');
       }
 
-      query = query.order('next_followup_date', ascending: true, nullsFirst: false).order('updated_at', ascending: false);
+      final res = await filterBuilder
+          .order('next_followup_date', ascending: true, nullsFirst: false)
+          .order('updated_at', ascending: false);
 
-      final res = await query;
       final list = (res as List).map((json) => LeadRecord.fromJson(json)).toList();
       return list;
     } catch (e) {
