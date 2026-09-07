@@ -18,16 +18,24 @@ class ConsumerRecordChangeEvent {
     required this.rawPayload,
   });
 }
-
 class RealtimeSyncService {
   static SupabaseClient get _client => SupabaseService.client;
   static RealtimeChannel? _channel;
-  static final _eventController = StreamController<ConsumerRecordChangeEvent>.broadcast();
+  static StreamController<ConsumerRecordChangeEvent> _eventController =
+      StreamController<ConsumerRecordChangeEvent>.broadcast();
 
-  static Stream<ConsumerRecordChangeEvent> get recordEvents => _eventController.stream;
+  static Stream<ConsumerRecordChangeEvent> get recordEvents {
+    if (_eventController.isClosed) {
+      _eventController = StreamController<ConsumerRecordChangeEvent>.broadcast();
+    }
+    return _eventController.stream;
+  }
 
   /// Start listening to changes on public.consumer_records
   static void initialize() {
+    if (_eventController.isClosed) {
+      _eventController = StreamController<ConsumerRecordChangeEvent>.broadcast();
+    }
     if (_channel != null) return;
 
     _channel = _client
@@ -87,6 +95,9 @@ class RealtimeSyncService {
     if (_channel != null) {
       _client.removeChannel(_channel!);
       _channel = null;
+    }
+    if (!_eventController.isClosed) {
+      _eventController.close();
     }
   }
 }

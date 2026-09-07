@@ -4,6 +4,8 @@ import '../config/app_config.dart';
 class SupabaseService {
   static SupabaseClient get client => Supabase.instance.client;
 
+  static Object? initError;
+
   static Future<void> initialize() async {
     // Only initialize if not already initialized
     try {
@@ -11,7 +13,9 @@ class SupabaseService {
         url: AppConfig.supabaseUrl,
         anonKey: AppConfig.supabaseAnonKey,
       );
+      initError = null;
     } catch (e) {
+      initError = e;
       // Allow app to run in offline/placeholder mode during dev
     }
   }

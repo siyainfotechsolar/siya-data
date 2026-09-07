@@ -308,9 +308,20 @@ class RecordService {
 
     final user = SupabaseService.currentUser;
     final payload = record.toJson();
+
+    // BUG-8 fix: Ensure updated_at is always set to current time
+    payload['updated_at'] = DateTime.now().toUtc().toIso8601String();
+
     if (user != null) {
       payload['updated_by'] = user.id;
     }
+
+    // BUG-11 fix: Remove trigger-managed / computed fields that should not
+    // be overwritten by a generic update (these are managed by DB triggers
+    // or dedicated service methods)
+    payload.remove('paid_amount');
+    payload.remove('pending_amount');
+    payload.remove('payment_status');
 
     final response = await _client
         .from('consumer_records')
@@ -556,7 +567,9 @@ class RecordService {
         successCount += batch.length;
       } catch (e) {
         firstError ??= e;
-        // Fallback: try individual inserts in this batch to maximize successful imports
+        // Batch failed — fallback to individual inserts.
+        // Do NOT add batch.length to successCount here; only count
+        // individual successes to avoid double-counting on partial failures.
         for (final payload in payloads) {
           try {
             await _client
@@ -771,7 +784,9 @@ class RecordService {
           .map((json) => ConsumerRecord.fromJson(json as Map<String, dynamic>))
           .toList();
 
-      // Action Center Counts (evaluated via WorkflowEngine)
+      // BUG-1 fix: Use server-side count queries instead of loading ALL records.
+      // Use fetchActionCenterQueueCounts() which already computes per-stage counts
+      // (BUG-3 is fixed separately below to make that method efficient too).
       int agreementPending = 0;
       int loanPending = 0;
       int installationPending = 0;
@@ -781,41 +796,66 @@ class RecordService {
       int noActionCount = 0;
 
       try {
-        final allRes = await _client
+        // Completed count: customer_work_state = COMPLETED OR subsidy_status = Received OR status = Completed
+        final completedRes = await _client
             .from('consumer_records')
-            .select('*')
+            .select('id')
             .eq('deleted', false)
-            .eq('is_merged', false);
-        final List<dynamic> allData = allRes as List<dynamic>;
-        for (final row in allData) {
+            .eq('is_merged', false)
+            .or('customer_work_state.eq.COMPLETED,subsidy_status.ilike.Received,status.ilike.Completed')
+            .count(CountOption.exact);
+        completedCount = completedRes.count;
+
+        // On Hold / No Action count
+        final holdRes = await _client
+            .from('consumer_records')
+            .select('id')
+            .eq('deleted', false)
+            .eq('is_merged', false)
+            .inFilter('customer_work_state', ['NO_ACTION_REQUIRED', 'ON_HOLD'])
+            .count(CountOption.exact);
+        noActionCount = holdRes.count;
+
+        // Active records (not completed, not hold) — fetch minimal fields for stage classification
+        final activeRes = await _client
+            .from('consumer_records')
+            .select('id, application_status, application_id, agreement_status, loan_required, loan_status, loan_sub_stage, installation_status, rts_status, subsidy_status, status, customer_work_state')
+            .eq('deleted', false)
+            .eq('is_merged', false)
+            .neq('customer_work_state', 'COMPLETED')
+            .neq('customer_work_state', 'NO_ACTION_REQUIRED')
+            .neq('customer_work_state', 'ON_HOLD')
+            .neq('subsidy_status', 'Received')
+            .neq('status', 'Completed');
+
+        final List<dynamic> activeData = activeRes as List<dynamic>;
+        for (final row in activeData) {
           final rec = ConsumerRecord.fromJson(row as Map<String, dynamic>);
           final stage = WorkflowEngine.getCurrentWorkStage(rec);
-          if (rec.customerWorkState.toUpperCase() == 'COMPLETED' || stage == 'Completed') {
-            completedCount++;
-          } else if (rec.customerWorkState.toUpperCase() == 'NO_ACTION_REQUIRED') {
-            noActionCount++;
-          } else {
-            switch (stage) {
-              case 'Agreement':
-                agreementPending++;
-                break;
-              case 'Loan':
-                loanPending++;
-                break;
-              case 'Installation':
-                installationPending++;
-                break;
-              case 'RTS':
-                rtsPending++;
-                break;
-              case 'Subsidy':
-                subsidyPending++;
-                break;
-            }
+          switch (stage) {
+            case 'Agreement':
+              agreementPending++;
+              break;
+            case 'Loan':
+              loanPending++;
+              break;
+            case 'Installation':
+              installationPending++;
+              break;
+            case 'RTS':
+              rtsPending++;
+              break;
+            case 'Subsidy':
+              subsidyPending++;
+              break;
+            case 'Completed':
+              completedCount++;
+              break;
           }
         }
       } catch (_) {}
 
+      // Status counts using server-side count queries per status
       final statusCounts = <String, int>{
         'Pending': 0,
         'Approved': 0,
@@ -825,14 +865,15 @@ class RecordService {
       };
 
       try {
-        final statusRes = await _client
-            .from('consumer_records')
-            .select('status')
-            .eq('deleted', false)
-            .eq('is_merged', false);
-        for (final row in (statusRes as List<dynamic>)) {
-          final s = row['status'] as String? ?? 'Pending';
-          statusCounts[s] = (statusCounts[s] ?? 0) + 1;
+        for (final statusKey in statusCounts.keys.toList()) {
+          final sRes = await _client
+              .from('consumer_records')
+              .select('id')
+              .eq('deleted', false)
+              .eq('is_merged', false)
+              .eq('status', statusKey)
+              .count(CountOption.exact);
+          statusCounts[statusKey] = sRes.count;
         }
       } catch (_) {}
 
@@ -1449,21 +1490,31 @@ class RecordService {
       }
     } catch (_) {}
 
-    // 1. Mark pending followup in customer_followups as COMPLETED
+    // 1. Find the single most recent pending followup and mark only that one as COMPLETED
     try {
-      await _client
+      final pendingFollowup = await _client
           .from('customer_followups')
-          .update({
-            'status': 'COMPLETED',
-            'followup_result': followupResult.trim(),
-            'result_remarks': remarks?.trim(),
-            'next_followup_date': nextDateStr,
-            'completed_at': nowIso,
-            'completed_by': user?.id,
-            'completed_by_name': userName,
-          })
+          .select('id')
           .eq('record_id', recordId)
-          .eq('status', 'PENDING');
+          .eq('status', 'PENDING')
+          .order('followup_date', ascending: true)
+          .limit(1)
+          .maybeSingle();
+
+      if (pendingFollowup != null) {
+        await _client
+            .from('customer_followups')
+            .update({
+              'status': 'COMPLETED',
+              'followup_result': followupResult.trim(),
+              'result_remarks': remarks?.trim(),
+              'next_followup_date': nextDateStr,
+              'completed_at': nowIso,
+              'completed_by': user?.id,
+              'completed_by_name': userName,
+            })
+            .eq('id', pendingFollowup['id']);
+      }
     } catch (e) {
       // ignore: avoid_print
       print('Failed to complete pending customer_followup: $e');
@@ -2088,8 +2139,13 @@ class RecordService {
         query = query.or('customer_name.ilike.$term,consumer_no.ilike.$term,title.ilike.$term,mobile_number.ilike.$term');
       }
 
-      final response = await query.order('created_at', ascending: false).range(from, to);
-      final List<dynamic> data = response as List<dynamic>;
+      final response = await query
+          .order('created_at', ascending: false)
+          .range(from, to)
+          .count(CountOption.exact);
+
+      final List<dynamic> data = response.data;
+      final int totalCount = response.count;
       var items = data.map((json) => CustomerIssue.fromJson(json as Map<String, dynamic>)).toList();
 
       if (onlyStuck) {
@@ -2098,7 +2154,7 @@ class RecordService {
 
       return PaginatedResult(
         items: items,
-        totalCount: items.length < pageSize && page == 1 ? items.length : 100, // Approximate count for pagination
+        totalCount: onlyStuck ? items.length : totalCount,
         page: page,
         pageSize: pageSize,
       );
@@ -2697,13 +2753,18 @@ class RecordService {
         query = query.or('name.ilike.$term,consumer_no.ilike.$term,mobile.ilike.$term');
       }
 
-      final response = await query.order('pending_amount', ascending: false).range(from, to);
-      final List<dynamic> data = response as List<dynamic>;
+      final response = await query
+          .order('pending_amount', ascending: false)
+          .range(from, to)
+          .count(CountOption.exact);
+
+      final List<dynamic> data = response.data;
+      final int totalCount = response.count;
       final items = data.map((json) => ConsumerRecord.fromJson(json as Map<String, dynamic>)).toList();
 
       return PaginatedResult(
         items: items,
-        totalCount: items.length < pageSize && page == 1 ? items.length : 100,
+        totalCount: totalCount,
         page: page,
         pageSize: pageSize,
       );

@@ -298,9 +298,9 @@ class ConsumerRecord {
   bool get isFollowupToday {
     if (followupDate == null || !hasActiveFollowup) return false;
     final now = DateTime.now();
-    return followupDate!.year == now.year &&
-        followupDate!.month == now.month &&
-        followupDate!.day == now.day;
+    final today = DateTime(now.year, now.month, now.day);
+    final fDate = DateTime(followupDate!.year, followupDate!.month, followupDate!.day);
+    return fDate.isAtSameMomentAs(today);
   }
 
   bool get isFollowupOverdue {
