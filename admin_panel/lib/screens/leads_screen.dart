@@ -8,6 +8,7 @@ import '../widgets/lead_details_dialog.dart';
 import '../widgets/export_excel_button.dart';
 import '../widgets/global_whatsapp_button.dart';
 import '../services/excel_export_service.dart';
+import '../services/export_definitions.dart';
 
 class LeadsScreen extends StatefulWidget {
   final String? initialScope;
@@ -173,7 +174,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 ExportExcelButton<LeadRecord>(
                   filePrefix: 'Solar_Leads',
                   sheetName: 'Leads',
-                  columns: _leadExcelColumns,
+                  reportTitle: 'Solar Leads & Inquiries Report',
+                  filterSummary: 'Scope: $_selectedScope, Status: $_selectedStatus${_searchController.text.trim().isNotEmpty ? ', Search: "${_searchController.text.trim()}"' : ''}',
+                  columns: ExportDefinitions.leadRecordColumns,
                   onFetchFullDataset: _fetchFilteredLeadsForExport,
                 ),
                 const SizedBox(width: 8),

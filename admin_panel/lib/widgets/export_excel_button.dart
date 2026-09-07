@@ -7,6 +7,9 @@ class ExportExcelButton<T> extends StatefulWidget {
   final String sheetName;
   final List<ExcelColumnDef<T>> columns;
   final Future<List<T>> Function() onFetchFullDataset;
+  final Future<List<T>> Function()? onFetchAllDataset;
+  final String? reportTitle;
+  final String? filterSummary;
   final String label;
   final IconData icon;
   final bool isOutlined;
@@ -17,6 +20,9 @@ class ExportExcelButton<T> extends StatefulWidget {
     required this.sheetName,
     required this.columns,
     required this.onFetchFullDataset,
+    this.onFetchAllDataset,
+    this.reportTitle,
+    this.filterSummary,
     this.label = 'Export Excel',
     this.icon = Icons.file_download_outlined,
     this.isOutlined = true,
@@ -66,6 +72,8 @@ class _ExportExcelButtonState<T> extends State<ExportExcelButton<T>> {
         sheetName: widget.sheetName,
         columns: widget.columns,
         items: items,
+        reportTitle: widget.reportTitle,
+        filterSummary: widget.filterSummary,
       );
 
       if (saved && mounted) {

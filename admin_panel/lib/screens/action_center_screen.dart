@@ -16,6 +16,9 @@ import '../widgets/followup_done_dialog.dart';
 import '../widgets/misc_action_dialog.dart';
 import '../widgets/issue_dialog.dart';
 import '../widgets/payment_dialog.dart';
+import '../widgets/export_excel_button.dart';
+import '../services/excel_export_service.dart';
+import '../services/export_definitions.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ActionCenterScreen extends StatefulWidget {
@@ -186,6 +189,107 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _handleActionCenterExport() async {
+    final filterDesc = 'Queue: $_selectedStageFilter, Staff: $_selectedStaffFilter${_searchController.text.trim().isNotEmpty ? ', Search: "${_searchController.text.trim()}"' : ''}';
+
+    if (_selectedStageFilter == 'MISC') {
+      final res = await RecordService.fetchMiscActions(
+        page: 1,
+        pageSize: 5000,
+        statusFilter: 'Active',
+        assignedStaffFilter: _selectedStaffFilter,
+        searchQuery: _searchController.text,
+      );
+      if (res.items.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No MISC action records found to export.'), backgroundColor: Colors.amber),
+          );
+        }
+        return;
+      }
+      await ExcelExportService.exportAndSave<CustomerMiscAction>(
+        filePrefix: 'Action_Center_MISC',
+        sheetName: 'MISC Actions',
+        reportTitle: 'Action Center — MISC Actions Queue',
+        filterSummary: filterDesc,
+        columns: ExportDefinitions.miscActionColumns,
+        items: res.items,
+      );
+    } else if (_selectedStageFilter == 'General Issue') {
+      final res = await RecordService.fetchIssues(
+        page: 1,
+        pageSize: 5000,
+        statusFilter: 'Active',
+        assignedStaffFilter: _selectedStaffFilter,
+        searchQuery: _searchController.text,
+      );
+      if (res.items.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No general issues found to export.'), backgroundColor: Colors.amber),
+          );
+        }
+        return;
+      }
+      await ExcelExportService.exportAndSave<CustomerIssue>(
+        filePrefix: 'Action_Center_Issues',
+        sheetName: 'Issues',
+        reportTitle: 'Action Center — General Issues Queue',
+        filterSummary: filterDesc,
+        columns: ExportDefinitions.issueColumns,
+        items: res.items,
+      );
+    } else if (_selectedStageFilter == 'Payment Pending') {
+      final res = await RecordService.fetchPaymentPendingRecords(
+        page: 1,
+        pageSize: 5000,
+        assignedStaffFilter: _selectedStaffFilter,
+        searchQuery: _searchController.text,
+      );
+      if (res.items.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No payment pending records found to export.'), backgroundColor: Colors.amber),
+          );
+        }
+        return;
+      }
+      await ExcelExportService.exportAndSave<ConsumerRecord>(
+        filePrefix: 'Action_Center_Payments',
+        sheetName: 'Payment Pending',
+        reportTitle: 'Action Center — Payment Pending Queue',
+        filterSummary: filterDesc,
+        columns: ExportDefinitions.paymentRecordColumns,
+        items: res.items,
+      );
+    } else {
+      final res = await RecordService.fetchActionCenterRecords(
+        page: 1,
+        pageSize: 5000,
+        stageFilter: _selectedStageFilter,
+        assignedStaffFilter: _selectedStaffFilter,
+        searchQuery: _searchController.text,
+      );
+      if (res.items.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No active records found in queue to export.'), backgroundColor: Colors.amber),
+          );
+        }
+        return;
+      }
+      await ExcelExportService.exportAndSave<ConsumerRecord>(
+        filePrefix: 'Action_Center_${_selectedStageFilter.replaceAll(' ', '_')}',
+        sheetName: 'Action Center',
+        reportTitle: 'Action Center — $_selectedStageFilter Queue',
+        filterSummary: filterDesc,
+        columns: ExportDefinitions.actionCenterColumns,
+        items: res.items,
+      );
     }
   }
 
@@ -1198,10 +1302,25 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                   ),
                 ],
               ),
-              IconButton.outlined(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh Action Center',
-                onPressed: _loadActionCenterRecords,
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF0F766E),
+                      side: const BorderSide(color: Color(0xFF14B8A6)),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                    icon: const Icon(Icons.file_download_outlined, size: 18),
+                    label: const Text('Export Excel', style: TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: _handleActionCenterExport,
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.outlined(
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'Refresh Action Center',
+                    onPressed: _loadActionCenterRecords,
+                  ),
+                ],
               ),
             ],
           ),

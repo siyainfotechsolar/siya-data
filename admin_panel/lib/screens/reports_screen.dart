@@ -8,6 +8,7 @@ import '../models/consumer_record.dart';
 import '../models/report_filter_options.dart';
 import '../services/report_service.dart';
 import '../services/export_service.dart';
+import '../services/excel_export_service.dart';
 import '../services/realtime_service.dart';
 import '../widgets/record_details_dialog.dart';
 
@@ -191,24 +192,40 @@ class _ReportsScreenState extends State<ReportsScreen> {
   // --- Export Actions ---
 
   Future<void> _exportExcel() async {
-    try {
-      final bytes = ExportService.generateExcel(
-        records: _filteredRecords,
-        visibleColumns: _visibleColumns.toList(),
+    if (_filteredRecords.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No records found to export under current filters.'), backgroundColor: Colors.amber),
       );
-      final fileName = 'siya_solar_report_${DateTime.now().millisecondsSinceEpoch}.xlsx';
-      
-      final result = await FilePicker.platform.saveFile(
-        dialogTitle: 'Export Report as Excel',
-        fileName: fileName,
-        bytes: Uint8List.fromList(bytes),
-        type: FileType.custom,
-        allowedExtensions: ['xlsx'],
+      return;
+    }
+
+    try {
+      final columns = _visibleColumns.map((colName) {
+        final isCur = colName.toLowerCase().contains('amount') || colName.toLowerCase().contains('cost');
+        return ExcelColumnDef<ConsumerRecord>(
+          header: colName,
+          isCurrency: isCur,
+          valueExtractor: (r) => ExportService.getColumnValue(r, colName),
+        );
+      }).toList();
+
+      final filterSummary = 'Stage: ${_filters.workStage ?? 'All'}, Status: ${_filters.status ?? 'All'}, Priority: ${_filters.priority ?? 'All'}${_searchController.text.trim().isNotEmpty ? ', Search: "${_searchController.text.trim()}"' : ''}';
+
+      final saved = await ExcelExportService.exportAndSave<ConsumerRecord>(
+        filePrefix: 'Siya_Solar_Report',
+        sheetName: 'Reports',
+        reportTitle: 'Siya Solar — Pipeline Executive Report',
+        filterSummary: filterSummary,
+        columns: columns,
+        items: _filteredRecords,
       );
 
-      if (result != null && mounted) {
+      if (saved && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Report exported to Excel successfully!')),
+          const SnackBar(
+            content: Text('Report exported to Excel successfully!'),
+            backgroundColor: Color(0xFF059669),
+          ),
         );
       }
     } catch (e) {

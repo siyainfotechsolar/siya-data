@@ -10,6 +10,7 @@ import '../widgets/import_dialog.dart';
 import '../widgets/export_excel_button.dart';
 import '../widgets/global_whatsapp_button.dart';
 import '../services/excel_export_service.dart';
+import '../services/export_definitions.dart';
 
 class RecordsScreen extends StatefulWidget {
   final String? initialWorkflowQueue;
@@ -517,7 +518,9 @@ class _RecordsScreenState extends State<RecordsScreen> {
                   ExportExcelButton<ConsumerRecord>(
                     filePrefix: 'Solar_Consumers',
                     sheetName: 'Consumer Records',
-                    columns: _consumerExcelColumns,
+                    reportTitle: 'Consumer Master Records',
+                    filterSummary: 'Scope: $_workQueueScope, Queue: $_selectedWorkflowQueue, Status: $_selectedStatus${_searchController.text.trim().isNotEmpty ? ', Search: "${_searchController.text.trim()}"' : ''}',
+                    columns: ExportDefinitions.consumerRecordColumns,
                     onFetchFullDataset: _fetchFilteredRecordsForExport,
                   ),
                   const SizedBox(width: 12),

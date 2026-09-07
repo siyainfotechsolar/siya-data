@@ -104,4 +104,24 @@ class AuditService {
       // Non-blocking log insert
     }
   }
+
+  /// Record an Excel export operation in audit_logs
+  static Future<void> logExportRun({
+    required String module,
+    required int recordCount,
+    String? filterSummary,
+  }) async {
+    try {
+      final user = SupabaseService.currentUser;
+      await _client.from('audit_logs').insert({
+        'action': 'EXPORT',
+        'field_name': module,
+        'new_value': 'Exported $recordCount records${filterSummary != null && filterSummary.isNotEmpty ? ' ($filterSummary)' : ''}',
+        'changed_by': user?.id,
+        'source': 'Admin Web',
+      });
+    } catch (_) {
+      // Non-blocking audit log
+    }
+  }
 }
