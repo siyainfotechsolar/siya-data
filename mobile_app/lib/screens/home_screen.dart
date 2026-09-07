@@ -314,6 +314,42 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           ),
           const SizedBox(height: 14),
 
+          // Quick Metrics Row
+          if (_isLoadingSummary)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: LinearProgressIndicator(),
+            )
+          else if (_summaryCounts != null)
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMetricCard(
+                    title: 'Total Active',
+                    value: '${_summaryCounts!['total'] ?? 0}',
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildMetricCard(
+                    title: 'Pending Action',
+                    value: '${_summaryCounts!['pending'] ?? 0}',
+                    color: Colors.orange.shade800,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildMetricCard(
+                    title: 'Action Center',
+                    value: '${_summaryCounts!['action_center'] ?? 0}',
+                    color: Colors.blue.shade800,
+                  ),
+                ),
+              ],
+            ),
+          const SizedBox(height: 14),
+
           // LEADS & PROSPECTS PORTAL
           if (showLeads) ...[
             InkWell(
