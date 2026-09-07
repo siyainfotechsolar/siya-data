@@ -1397,171 +1397,176 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
 
             const SizedBox(height: 16),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (_record.isHold)
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
-                        onPressed: _isSaving ? null : _handleReopen,
-                        icon: const Icon(Icons.refresh, size: 18),
-                        label: const Text('Reopen Customer'),
-                      ),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF2563EB),
-                          side: const BorderSide(color: Color(0xFF2563EB)),
-                        ),
-                        onPressed: _isSaving ? null : _handleMarkFollowup,
-                        icon: const Icon(Icons.phone_in_talk_rounded, size: 18),
-                        label: const Text('Mark Follow-up'),
-                      ),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF6366F1),
-                          side: const BorderSide(color: Color(0xFF6366F1)),
-                        ),
-                        onPressed: _isSaving
-                            ? null
-                            : () async {
-                                final res = await MiscActionDialog.show(context, customerRecord: _record);
-                                if (res == true) {
-                                  widget.onRecordUpdated?.call();
-                                }
-                              },
-                        icon: const Icon(Icons.add_task_rounded, size: 18),
-                        label: const Text('Add MISC'),
-                      ),
-                    ],
-                  )
-                else if (_record.isCompletedState)
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _isSaving ? null : _handleReopen,
-                        icon: const Icon(Icons.refresh, size: 18),
-                        label: const Text('Reopen Customer'),
-                      ),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF6366F1),
-                          side: const BorderSide(color: Color(0xFF6366F1)),
-                        ),
-                        onPressed: _isSaving
-                            ? null
-                            : () async {
-                                final res = await MiscActionDialog.show(context, customerRecord: _record);
-                                if (res == true) {
-                                  widget.onRecordUpdated?.call();
-                                }
-                              },
-                        icon: const Icon(Icons.add_task_rounded, size: 18),
-                        label: const Text('Add MISC'),
-                      ),
-                    ],
-                  )
-                else
-                  Wrap(
-                    spacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      // 1. [✓ Mark Complete]
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
-                        onPressed: _isSaving ? null : _handleMarkAsComplete,
-                        icon: const Icon(Icons.check_circle_outline, size: 18),
-                        label: const Text('Mark Complete'),
-                      ),
-                      // 2. [⏸ Mark Hold]
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFD97706),
-                          side: const BorderSide(color: Color(0xFFD97706)),
-                        ),
-                        onPressed: _isSaving ? null : _handleMarkAsHold,
-                        icon: const Icon(Icons.pause_circle_outline, size: 18),
-                        label: const Text('Mark Hold'),
-                      ),
-                      // 3. [📞 Mark Follow-up]
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF2563EB),
-                          side: const BorderSide(color: Color(0xFF2563EB)),
-                        ),
-                        onPressed: _isSaving ? null : _handleMarkFollowup,
-                        icon: const Icon(Icons.phone_in_talk_rounded, size: 18),
-                        label: const Text('Mark Follow-up'),
-                      ),
-                      // 4. [⚡ Add MISC Action]
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF6366F1),
-                          side: const BorderSide(color: Color(0xFF6366F1)),
-                        ),
-                        onPressed: _isSaving
-                            ? null
-                            : () async {
-                                final res = await MiscActionDialog.show(context, customerRecord: _record);
-                                if (res == true) {
-                                  widget.onRecordUpdated?.call();
-                                }
-                              },
-                        icon: const Icon(Icons.add_task_rounded, size: 18),
-                        label: const Text('Add MISC'),
-                      ),
-                      // 5. [+ Add Payment]
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF059669),
-                          side: const BorderSide(color: Color(0xFF059669)),
-                        ),
-                        onPressed: _isSaving
-                            ? null
-                            : () async {
-                                final res = await PaymentDialog.show(context, customerRecord: _record);
-                                if (res == true) {
-                                  _loadPayments();
-                                  final updated = await RecordService.fetchRecordById(_record.id!);
-                                  if (updated != null && mounted) setState(() => _record = updated);
-                                  widget.onRecordUpdated?.call();
-                                }
-                              },
-                        icon: const Icon(Icons.payments_outlined, size: 18),
-                        label: const Text('Add Payment'),
-                      ),
-                      // 6. [! Report Issue]
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFDC2626),
-                          side: const BorderSide(color: Color(0xFFDC2626)),
-                        ),
-                        onPressed: _isSaving
-                            ? null
-                            : () async {
-                                final res = await IssueDialog.show(context, customerRecord: _record);
-                                if (res == true) _loadIssues();
-                              },
-                        icon: const Icon(Icons.report_problem_outlined, size: 18),
-                        label: const Text('Report Issue'),
-                      ),
-                      if (_record.hasActiveFollowup) ...[
-                        IconButton.filledTonal(
-                          icon: const Icon(Icons.phone, size: 18, color: Color(0xFF0284C7)),
-                          tooltip: 'Call Customer: ${_record.mobile ?? 'No phone'}',
-                          onPressed: () => _makePhoneCall(_record.mobile),
-                        ),
-                        FilledButton.tonalIcon(
-                          icon: const Icon(Icons.done_all_rounded, size: 16, color: Color(0xFF059669)),
-                          label: const Text('Follow-up Done', style: TextStyle(color: Color(0xFF065F46), fontWeight: FontWeight.bold)),
-                          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD1FAE5)),
-                          onPressed: _isSaving ? null : _handleFollowupDone,
-                        ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_record.isHold) ...[
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+                            onPressed: _isSaving ? null : _handleReopen,
+                            icon: const Icon(Icons.refresh, size: 18),
+                            label: const Text('Reopen Customer'),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF2563EB),
+                              side: const BorderSide(color: Color(0xFF2563EB)),
+                            ),
+                            onPressed: _isSaving ? null : _handleMarkFollowup,
+                            icon: const Icon(Icons.phone_in_talk_rounded, size: 18),
+                            label: const Text('Mark Follow-up'),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF6366F1),
+                              side: const BorderSide(color: Color(0xFF6366F1)),
+                            ),
+                            onPressed: _isSaving
+                                ? null
+                                : () async {
+                                    final res = await MiscActionDialog.show(context, customerRecord: _record);
+                                    if (res == true) {
+                                      widget.onRecordUpdated?.call();
+                                    }
+                                  },
+                            icon: const Icon(Icons.add_task_rounded, size: 18),
+                            label: const Text('Add MISC'),
+                          ),
+                        ] else if (_record.isCompletedState) ...[
+                          OutlinedButton.icon(
+                            onPressed: _isSaving ? null : _handleReopen,
+                            icon: const Icon(Icons.refresh, size: 18),
+                            label: const Text('Reopen Customer'),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF6366F1),
+                              side: const BorderSide(color: Color(0xFF6366F1)),
+                            ),
+                            onPressed: _isSaving
+                                ? null
+                                : () async {
+                                    final res = await MiscActionDialog.show(context, customerRecord: _record);
+                                    if (res == true) {
+                                      widget.onRecordUpdated?.call();
+                                    }
+                                  },
+                            icon: const Icon(Icons.add_task_rounded, size: 18),
+                            label: const Text('Add MISC'),
+                          ),
+                        ] else ...[
+                          // 1. [✓ Mark Complete]
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+                            onPressed: _isSaving ? null : _handleMarkAsComplete,
+                            icon: const Icon(Icons.check_circle_outline, size: 18),
+                            label: const Text('Mark Complete'),
+                          ),
+                          const SizedBox(width: 8),
+                          // 2. [⏸ Mark Hold]
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFFD97706),
+                              side: const BorderSide(color: Color(0xFFD97706)),
+                            ),
+                            onPressed: _isSaving ? null : _handleMarkAsHold,
+                            icon: const Icon(Icons.pause_circle_outline, size: 18),
+                            label: const Text('Mark Hold'),
+                          ),
+                          const SizedBox(width: 8),
+                          // 3. [📞 Mark Follow-up]
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF2563EB),
+                              side: const BorderSide(color: Color(0xFF2563EB)),
+                            ),
+                            onPressed: _isSaving ? null : _handleMarkFollowup,
+                            icon: const Icon(Icons.phone_in_talk_rounded, size: 18),
+                            label: const Text('Mark Follow-up'),
+                          ),
+                          const SizedBox(width: 8),
+                          // 4. [⚡ Add MISC Action]
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF6366F1),
+                              side: const BorderSide(color: Color(0xFF6366F1)),
+                            ),
+                            onPressed: _isSaving
+                                ? null
+                                : () async {
+                                    final res = await MiscActionDialog.show(context, customerRecord: _record);
+                                    if (res == true) {
+                                      widget.onRecordUpdated?.call();
+                                    }
+                                  },
+                            icon: const Icon(Icons.add_task_rounded, size: 18),
+                            label: const Text('Add MISC'),
+                          ),
+                          const SizedBox(width: 8),
+                          // 5. [+ Add Payment]
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF059669),
+                              side: const BorderSide(color: Color(0xFF059669)),
+                            ),
+                            onPressed: _isSaving
+                                ? null
+                                : () async {
+                                    final res = await PaymentDialog.show(context, customerRecord: _record);
+                                    if (res == true) {
+                                      _loadPayments();
+                                      final updated = await RecordService.fetchRecordById(_record.id!);
+                                      if (updated != null && mounted) setState(() => _record = updated);
+                                      widget.onRecordUpdated?.call();
+                                    }
+                                  },
+                            icon: const Icon(Icons.payments_outlined, size: 18),
+                            label: const Text('Add Payment'),
+                          ),
+                          const SizedBox(width: 8),
+                          // 6. [! Report Issue]
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFFDC2626),
+                              side: const BorderSide(color: Color(0xFFDC2626)),
+                            ),
+                            onPressed: _isSaving
+                                ? null
+                                : () async {
+                                    final res = await IssueDialog.show(context, customerRecord: _record);
+                                    if (res == true) _loadIssues();
+                                  },
+                            icon: const Icon(Icons.report_problem_outlined, size: 18),
+                            label: const Text('Report Issue'),
+                          ),
+                          if (_record.hasActiveFollowup) ...[
+                            const SizedBox(width: 8),
+                            IconButton.filledTonal(
+                              icon: const Icon(Icons.phone, size: 18, color: Color(0xFF0284C7)),
+                              tooltip: 'Call Customer: ${_record.mobile ?? 'No phone'}',
+                              onPressed: () => _makePhoneCall(_record.mobile),
+                            ),
+                            const SizedBox(width: 6),
+                            FilledButton.tonalIcon(
+                              icon: const Icon(Icons.done_all_rounded, size: 16, color: Color(0xFF059669)),
+                              label: const Text('Follow-up Done', style: TextStyle(color: Color(0xFF065F46), fontWeight: FontWeight.bold)),
+                              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD1FAE5)),
+                              onPressed: _isSaving ? null : _handleFollowupDone,
+                            ),
+                          ],
+                        ],
                       ],
-                    ],
+                    ),
                   ),
+                ),
+                const SizedBox(width: 12),
                 FilledButton(
                   onPressed: () => Navigator.of(context).pop(),
                   child: const Text('Done'),
