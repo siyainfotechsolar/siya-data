@@ -284,7 +284,7 @@
     <h1 class="app-title">Siya Solar Staff</h1>
     <p class="app-subtitle">Official Android Application for Staff & Field Operations</p>
     <div class="badges">
-      <span class="badge badge-version" id="versionBadge">Version 1.0.12</span>
+      <span class="badge badge-version" id="versionBadge">Version 1.0.13</span>
       <span class="badge badge-status">● Production Release</span>
     </div>
   </div>
@@ -292,7 +292,7 @@
   <!-- Download & Details Card -->
   <div class="release-card">
     <!-- Primary APK Download -->
-    <a href="./siya-solar-v1.0.12.apk" download="siya-solar-v1.0.12.apk" class="btn-download-primary" id="primaryDownloadBtn">
+    <a href="./siya-solar-v1.0.13.apk" download="siya-solar-v1.0.13.apk" class="btn-download-primary" id="primaryDownloadBtn">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
@@ -317,11 +317,11 @@
     <div class="meta-grid">
       <div class="meta-box">
         <div class="meta-label">Version</div>
-        <div class="meta-value" id="metaVersion">1.0.12 (Build 13)</div>
+        <div class="meta-value" id="metaVersion">1.0.13 (Build 14)</div>
       </div>
       <div class="meta-box">
         <div class="meta-label">Release Date</div>
-        <div class="meta-value" id="metaDate">2026-09-07</div>
+        <div class="meta-value" id="metaDate">2026-09-14</div>
       </div>
       <div class="meta-box">
         <div class="meta-label">Target OS</div>
@@ -336,16 +336,15 @@
     <!-- What's New -->
     <div class="changelog-section">
       <div class="changelog-title">
-        <span>✨</span> Highlights in v1.0.12
+        <span>✨</span> Highlights in v1.0.13
       </div>
       <ul class="changelog-list" id="changelogList">
-        <li>1-Click Clipboard Copying — Instant copy for Mobile numbers, Consumer numbers &amp; Application IDs with toast notifications</li>
-        <li>Action Center &amp; Details Dialog Enhancements — Clean "More ⋮" popup menu preventing button collisions</li>
-        <li>General Issue Module — 14 issue types with priority, status tracking &amp; history</li>
-        <li>Payment Module — Transaction tracking with Postgres trigger-based balance calculation</li>
-        <li>Overpayment protection — blocks excess payments beyond total agreed amount</li>
-        <li>MISC Tab &amp; Centralized Follow-Up System</li>
-        <li>All 10-Stage Workflow, Lead Management &amp; Realtime Sync features</li>
+        <li>App Parameters &amp; System Information in Settings — Live latency (ms), database status, realtime connection &amp; safe mobile device telemetry</li>
+        <li>Centralized "Who Worked Log" / Activity History — Complete customer journey answering Who worked, What changed, When, and Next action</li>
+        <li>Customer Journey Timeline inside Customer Details screen</li>
+        <li>Admin "WHO WORKED TODAY" operational report and Excel Export</li>
+        <li>Staff Profile Work Summary counters (Today's Actions, Weekly, Completed, Pending, Follow-ups)</li>
+        <li>Security Hardened Diagnostics — Zero passwords, auth tokens, or hardware IMEI exposed</li>
       </ul>
     </div>
 
@@ -358,20 +357,20 @@
 
   <!-- Footer -->
   <footer>
-    <p>© 2026 Siya Infotech & Solar Energy • <a href="https://github.com/siyainfotechsolar/siya-data" target="_blank">GitHub Repository</a></p>
+    <p>© 2026 Siya Infotech &amp; Solar Energy • <a href="https://github.com/siyainfotechsolar/siya-data" target="_blank">GitHub Repository</a></p>
   </footer>
 
   <script>
     const REPO = 'siyainfotechsolar/siya-data';
-    const DIRECT_APK = './siya-solar-v1.0.12.apk';
-    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.12.apk`;
+    const DIRECT_APK = './siya-solar-v1.0.13.apk';
+    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.13.apk`;
 
     const primaryBtn = document.getElementById('primaryDownloadBtn');
     const btnText = document.getElementById('btnText');
 
     // Default immediate direct link
     primaryBtn.href = DIRECT_APK;
-    primaryBtn.setAttribute('download', 'siya-solar-v1.0.12.apk');
+    primaryBtn.setAttribute('download', 'siya-solar-v1.0.13.apk');
 
     // Ensure fallback to raw GitHub if relative link is blocked
     primaryBtn.addEventListener('error', () => {
