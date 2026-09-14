@@ -10,6 +10,7 @@ import 'priority_screen.dart';
 import '../services/record_service.dart';
 import '../services/realtime_service.dart';
 import 'leads_screen.dart';
+import 'settings_screen.dart';
 
 class MobileHomeScreen extends StatefulWidget {
   const MobileHomeScreen({super.key});
@@ -158,6 +159,16 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                   setState(() {});
                 },
               ),
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Settings & App Info',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MobileSettingsScreen()),
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Logout / Exit',

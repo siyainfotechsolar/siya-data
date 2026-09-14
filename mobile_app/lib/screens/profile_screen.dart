@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import '../services/record_service.dart';
 import 'login_screen.dart';
+import 'app_information_screen.dart';
+import 'settings_screen.dart';
+import '../services/activity_log_service.dart';
 
 class StaffProfileScreen extends StatefulWidget {
   const StaffProfileScreen({super.key});
@@ -13,6 +16,15 @@ class StaffProfileScreen extends StatefulWidget {
 class _StaffProfileScreenState extends State<StaffProfileScreen> {
   bool _isLoading = true;
   Map<String, dynamic>? _profile;
+  Map<String, int> _workStats = {
+    'today': 0,
+    'weekly': 0,
+    'completed': 0,
+    'pending': 0,
+    'followups': 0,
+    'installations': 0,
+    'payments': 0,
+  };
 
   @override
   void initState() {
@@ -23,12 +35,69 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
   Future<void> _loadProfile() async {
     setState(() => _isLoading = true);
     final data = await MobileRecordService.getCurrentStaffProfile();
+    await _loadStaffWorkStats(data);
     if (mounted) {
       setState(() {
         _profile = data;
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadStaffWorkStats(Map<String, dynamic>? profile) async {
+    try {
+      final user = SupabaseService.currentUser;
+      final staffName = profile?['full_name'] ?? user?.email?.split('@').first;
+      if (staffName == null) return;
+
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final weekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+
+      final todayRes = await ActivityLogService.fetchActivityLogs(
+        pageSize: 100,
+        startDate: todayStart,
+        staffFilter: staffName,
+      );
+
+      final weekRes = await ActivityLogService.fetchActivityLogs(
+        pageSize: 200,
+        startDate: weekStart,
+        staffFilter: staffName,
+      );
+
+      int completed = 0;
+      int pending = 0;
+      int followups = 0;
+      int installations = 0;
+      int payments = 0;
+
+      for (final item in weekRes.items) {
+        final act = item.action.toLowerCase();
+        final mod = item.module.toLowerCase();
+        final newVal = (item.newValue ?? '').toLowerCase();
+
+        if (act.contains('complete') || newVal.contains('complete') || newVal.contains('done')) {
+          completed++;
+        } else if (act.contains('pending') || newVal.contains('pending') || newVal.contains('hold')) {
+          pending++;
+        }
+
+        if (mod.contains('follow') || act.contains('follow')) followups++;
+        if (mod.contains('install') || act.contains('install')) installations++;
+        if (mod.contains('payment') || act.contains('payment')) payments++;
+      }
+
+      _workStats = {
+        'today': todayRes.totalCount,
+        'weekly': weekRes.totalCount,
+        'completed': completed,
+        'pending': pending,
+        'followups': followups,
+        'installations': installations,
+        'payments': payments,
+      };
+    } catch (_) {}
   }
 
   Future<void> _handleSignOut() async {
@@ -103,6 +172,52 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
 
                   const SizedBox(height: 16),
 
+                  // Today's & Weekly Work Summary (Who Worked Log Integration)
+                  Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.work_history_rounded, color: theme.colorScheme.primary, size: 20),
+                              const SizedBox(width: 8),
+                              Text('My Activity & Work Summary', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          const Divider(height: 18),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildWorkCounter('Today\'s Actions', '${_workStats['today'] ?? 0}', const Color(0xFF059669)),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _buildWorkCounter('Weekly Actions', '${_workStats['weekly'] ?? 0}', Colors.blue.shade700),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              _buildMiniStat('Completed', '${_workStats['completed'] ?? 0}', Colors.green.shade700),
+                              _buildMiniStat('Pending', '${_workStats['pending'] ?? 0}', Colors.orange.shade800),
+                              _buildMiniStat('Follow-ups', '${_workStats['followups'] ?? 0}', Colors.indigo.shade700),
+                              _buildMiniStat('Installations', '${_workStats['installations'] ?? 0}', Colors.teal.shade700),
+                              _buildMiniStat('Payments', '${_workStats['payments'] ?? 0}', Colors.purple.shade700),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
                   // Permissions Card
                   Card(
                     elevation: 1,
@@ -133,6 +248,65 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
                                 ? 'Permission granted by Administrator'
                                 : 'Restricted to Admin / Permitted Staff',
                             isAllowed: canDelete,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Settings & System Information Card
+                  Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('System & Diagnostics', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                          const Divider(height: 18),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(Icons.info_outline_rounded, color: theme.colorScheme.primary, size: 20),
+                            ),
+                            title: const Text('App Information', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            subtitle: const Text('Server parameters, device info & health', style: TextStyle(fontSize: 11)),
+                            trailing: const Icon(Icons.chevron_right, size: 20),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const AppInformationScreen()),
+                              );
+                            },
+                          ),
+                          const Divider(height: 1),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.settings_outlined, color: Colors.blue, size: 20),
+                            ),
+                            title: const Text('Application Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            subtitle: const Text('Preferences, offline sync & policies', style: TextStyle(fontSize: 11)),
+                            trailing: const Icon(Icons.chevron_right, size: 20),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const MobileSettingsScreen()),
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -187,6 +361,47 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildWorkCounter(String label, String count, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            count,
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStat(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: Colors.grey),
+        ),
+      ],
     );
   }
 }

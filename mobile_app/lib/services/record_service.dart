@@ -5,6 +5,7 @@ import '../models/customer_issue.dart';
 import '../models/customer_payment.dart';
 import 'supabase_service.dart';
 import 'workflow_engine.dart';
+import 'activity_log_service.dart';
 
 
 class PaginatedResult<T> {
@@ -219,6 +220,52 @@ class MobileRecordService {
         'source': 'Mobile App',
         'created_at': nowIso,
       });
+
+      String module = 'Workflow';
+      String action = 'Stage Changed';
+      String? oldVal = record.overallStage;
+      String? newVal = updated.overallStage;
+
+      if (installationStatus != null && installationStatus != record.installationStatus) {
+        module = 'Installation';
+        action = 'Installation Updated';
+        oldVal = record.installationStatus;
+        newVal = installationStatus;
+      } else if (loanStatus != null && loanStatus != record.loanStatus) {
+        module = 'Loan';
+        action = 'Loan Updated';
+        oldVal = record.loanStatus;
+        newVal = loanStatus;
+      } else if (agreementStatus != null && agreementStatus != record.agreementStatus) {
+        module = 'Customer';
+        action = 'Agreement Updated';
+        oldVal = record.agreementStatus;
+        newVal = agreementStatus;
+      } else if (rtsStatus != null && rtsStatus != record.rtsStatus) {
+        module = 'RTS';
+        action = 'RTS Updated';
+        oldVal = record.rtsStatus;
+        newVal = rtsStatus;
+      } else if (subsidyStatus != null && subsidyStatus != record.subsidyStatus) {
+        module = 'Subsidy';
+        action = 'Subsidy Updated';
+        oldVal = record.subsidyStatus;
+        newVal = subsidyStatus;
+      }
+
+      await ActivityLogService.logActivity(
+        recordId: record.id,
+        consumerNo: record.consumerNo,
+        customerName: record.name,
+        village: record.address ?? '-',
+        module: module,
+        action: action,
+        oldValue: oldVal,
+        newValue: newVal,
+        nextAction: updated.actionRequired,
+        remarks: remarks,
+        source: 'Mobile App',
+      );
     } catch (_) {}
 
     return updated;

@@ -5,6 +5,7 @@ import '../models/consumer_record.dart';
 import '../services/record_service.dart';
 import '../services/workflow_engine.dart';
 import '../widgets/no_action_reason_dialog.dart';
+import '../widgets/customer_timeline_widget.dart';
 
 class RecordDetailScreen extends StatefulWidget {
   final ConsumerRecord record;
@@ -1118,6 +1119,22 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         value: _record.remarks ?? 'No notes available',
                       ),
                     ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Activity History (Who Worked Log Timeline)
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: CustomerTimelineWidget(
+                    recordId: _record.id,
+                    consumerNo: _record.consumerNo,
+                    customerName: _record.name,
                   ),
                 ),
               ),

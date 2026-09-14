@@ -6,6 +6,7 @@ import '../models/customer_payment.dart';
 import '../models/record_diff.dart';
 import '../models/import_log.dart';
 import 'audit_service.dart';
+import 'activity_log_service.dart';
 import 'supabase_service.dart';
 import 'workflow_engine.dart';
 import '../utils/consumer_no_utils.dart';
@@ -386,6 +387,18 @@ class RecordService {
         'source': 'Admin Name Correction',
         'created_at': nowIso,
       });
+
+      await ActivityLogService.logActivity(
+        recordId: recordId,
+        consumerNo: consumerNo,
+        customerName: cleanNewName,
+        module: 'Customer',
+        action: 'Customer Edited',
+        oldValue: oldName,
+        newValue: cleanNewName,
+        remarks: 'Manual Customer Name Edit by Admin',
+        source: 'Admin Web',
+      );
     } catch (_) {
       // Non-blocking audit log
     }
@@ -1463,6 +1476,19 @@ class RecordService {
         'source': 'Admin Web',
         'created_at': nowIso,
       });
+
+      await ActivityLogService.logActivity(
+        recordId: recordId,
+        consumerNo: consumerNo ?? updated.consumerNo,
+        customerName: updated.name,
+        village: updated.address ?? '-',
+        module: 'Follow-up',
+        action: 'Follow-up Created',
+        oldValue: 'None',
+        newValue: followupReason.trim(),
+        remarks: remarks?.trim(),
+        source: 'Admin Web',
+      );
     } catch (_) {}
 
     return updated;
@@ -1578,6 +1604,20 @@ class RecordService {
         'source': 'Admin Web',
         'created_at': nowIso,
       });
+
+      await ActivityLogService.logActivity(
+        recordId: recordId,
+        consumerNo: consumerNo ?? updated.consumerNo,
+        customerName: updated.name,
+        village: updated.address ?? '-',
+        module: 'Follow-up',
+        action: 'Follow-up Completed',
+        oldValue: 'PENDING',
+        newValue: followupResult.trim(),
+        nextAction: nextDateStr != null ? 'Next Follow-up: $nextDateStr' : null,
+        remarks: remarks?.trim(),
+        source: 'Admin Web',
+      );
     } catch (_) {}
 
     return updated;
