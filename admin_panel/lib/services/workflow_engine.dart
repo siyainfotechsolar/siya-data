@@ -87,7 +87,8 @@ class WorkflowEngine {
   static bool isSubsidyCompleted(ConsumerRecord record) {
     final st = record.subsidyStatus.trim().toLowerCase();
     final recSt = record.status.trim().toLowerCase();
-    return st == 'received' ||
+    return st == 'done' ||
+        st == 'received' ||
         st == 'completed' ||
         st.contains('disbursed') ||
         recSt == 'completed' ||
@@ -137,6 +138,10 @@ class WorkflowEngine {
     'Subsidy Pending',
     'Subsidy Approved',
     'Subsidy Received',
+    'DCR Created',
+    'PM Surya Ghar Updated',
+    'Install Ack',
+    'Done',
     'Received',
     'Completed',
     'Active',
@@ -409,8 +414,20 @@ class WorkflowEngine {
     }
 
     final subSt = record.subsidyStatus.trim().toLowerCase();
-    // If RTS is done and subsidy is submitted/under process/approved -> Processing (not critical active work)
-    if (isRtsCompleted(record) && (subSt == 'applied' || subSt == 'under process' || subSt == 'approved' || subSt == 'subsidy request' || subSt == 'pending')) {
+    // If RTS is done and subsidy is in-progress -> Processing (not critical active work)
+    if (isRtsCompleted(record) &&
+        (subSt == 'applied' ||
+         subSt == 'under process' ||
+         subSt == 'approved' ||
+         subSt == 'subsidy request' ||
+         subSt == 'pending' ||
+         subSt == 'dcr created' ||
+         subSt == 'pm surya ghar updated' ||
+         subSt == 'pm suryghar updated' ||
+         subSt == 'install ack' ||
+         subSt == 'installation ack') &&
+        subSt != 'done' &&
+        subSt != 'received') {
       return 'Processing';
     }
 
@@ -614,8 +631,10 @@ class WorkflowEngine {
       }
     }
 
-    // If attempting to set Subsidy status beyond Not Applied
-    if (newSubsidyStatus != null && newSubsidyStatus.toLowerCase() != 'not applied') {
+    // If attempting to set Subsidy status beyond Not Applied / Pending
+    if (newSubsidyStatus != null &&
+        newSubsidyStatus.toLowerCase() != 'not applied' &&
+        newSubsidyStatus.toLowerCase() != 'pending') {
       final rtsDone = newRtsStatus != null
           ? (newRtsStatus.toLowerCase() == 'completed')
           : isRtsCompleted(existing);

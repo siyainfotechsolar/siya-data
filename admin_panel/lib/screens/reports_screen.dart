@@ -576,7 +576,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 _buildDropdown(
                   label: 'Subsidy Status',
                   value: _tempSubsidyStatus,
-                  items: const ['Not Applied', 'Applied', 'Under Process', 'Pending', 'Approved', 'Received', 'Rejected'],
+                  items: const [
+                    'Pending',
+                    'DCR Created',
+                    'PM Surya Ghar Updated',
+                    'Install Ack',
+                    'Done',
+                    'Not Applied',
+                    'Applied',
+                    'Under Process',
+                    'Approved',
+                    'Received',
+                    'Rejected',
+                  ],
                   onChanged: (val) => setState(() => _tempSubsidyStatus = val),
                 ),
 

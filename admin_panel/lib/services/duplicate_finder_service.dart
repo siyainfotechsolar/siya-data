@@ -327,7 +327,7 @@ class DuplicateFinderService {
       mergedPayload['loan_status'] = _pickHighestStage(g.records.map((r) => r.loanStatus), ['Approved', 'Applied', 'Under Process', 'Pending', 'Not Required']);
       mergedPayload['installation_status'] = _pickHighestStage(g.records.map((r) => r.installationStatus), ['Completed', 'Installed', 'In Progress', 'Approved', 'Not Started']);
       mergedPayload['rts_status'] = _pickHighestStage(g.records.map((r) => r.rtsStatus), ['Completed', 'Applied', 'Pending', 'Not Started']);
-      mergedPayload['subsidy_status'] = _pickHighestStage(g.records.map((r) => r.subsidyStatus), ['Received', 'Approved', 'Applied', 'Under Process', 'Not Applied']);
+      mergedPayload['subsidy_status'] = _pickHighestStage(g.records.map((r) => r.subsidyStatus), ['Done', 'Received', 'Install Ack', 'PM Surya Ghar Updated', 'DCR Created', 'Approved', 'Applied', 'Under Process', 'Pending', 'Not Applied']);
 
       // 3. Execute smart merge for this group
       final duplicateIds = g.records.where((r) => r.id != master.id).map((r) => r.id ?? '').where((id) => id.isNotEmpty).toList();

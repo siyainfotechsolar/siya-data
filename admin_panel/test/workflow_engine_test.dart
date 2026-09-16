@@ -80,6 +80,46 @@ void main() {
       expect(states[WorkflowStage.completed]!.state, equals(StageState.completed));
     });
 
+    test('PM Surya Ghar Subsidy Sub-Stages Progression: Pending -> DCR Created -> PM Surya Ghar Updated -> Install Ack -> Done', () {
+      var rec = ConsumerRecord(
+        consumerNo: 'SURYA-001',
+        name: 'Rooftop Beneficiary',
+        agreementStatus: 'Verified',
+        loanRequired: 'No',
+        installationStatus: 'Completed',
+        rtsStatus: 'Completed',
+        subsidyStatus: 'Pending',
+      );
+
+      // 1. Pending (unlocked after RTS)
+      expect(WorkflowEngine.getCurrentWorkStage(rec), equals('Subsidy'));
+      var states = WorkflowEngine.getStageStates(rec);
+      expect(states[WorkflowStage.subsidy]!.state, equals(StageState.active));
+      expect(WorkflowEngine.isSubsidyCompleted(rec), isFalse);
+
+      // 2. DCR Created
+      rec = rec.copyWith(subsidyStatus: 'DCR Created');
+      expect(WorkflowEngine.getCurrentWorkStage(rec), equals('Subsidy'));
+      expect(WorkflowEngine.isSubsidyCompleted(rec), isFalse);
+
+      // 3. PM Surya Ghar Updated
+      rec = rec.copyWith(subsidyStatus: 'PM Surya Ghar Updated');
+      expect(WorkflowEngine.getCurrentWorkStage(rec), equals('Subsidy'));
+      expect(WorkflowEngine.isSubsidyCompleted(rec), isFalse);
+
+      // 4. Install Ack
+      rec = rec.copyWith(subsidyStatus: 'Install Ack');
+      expect(WorkflowEngine.getCurrentWorkStage(rec), equals('Subsidy'));
+      expect(WorkflowEngine.isSubsidyCompleted(rec), isFalse);
+
+      // 5. Done -> 100% Completed!
+      rec = rec.copyWith(subsidyStatus: 'Done');
+      expect(WorkflowEngine.getCurrentWorkStage(rec), equals('Completed'));
+      expect(WorkflowEngine.isSubsidyCompleted(rec), isTrue);
+      expect(rec.isFullyCompleted, isTrue);
+      expect(rec.isActiveApplication, isFalse);
+    });
+
     test('Loan Required = NO Exception: Bypasses Loan and unlocks Installation after Agreement', () {
       var rec = ConsumerRecord(
         consumerNo: '1002',

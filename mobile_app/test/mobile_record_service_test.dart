@@ -88,5 +88,19 @@ void main() {
       expect(json['name'], 'Rameshwar Patil');
       expect(json['consumer_no'], 'CONS-999');
     });
+
+    test('Mobile ConsumerRecord subsidy Done marks record completed and not active', () {
+      final record = ConsumerRecord(
+        consumerNo: 'MOB-SURYA-1',
+        name: 'Sunil Gavaskar',
+        status: 'In Progress',
+        installationStatus: 'Completed',
+        rtsStatus: 'Completed',
+        subsidyStatus: 'Done',
+      );
+
+      expect(record.isFullyCompleted, isTrue);
+      expect(record.isActiveApplication, isFalse);
+    });
   });
 }

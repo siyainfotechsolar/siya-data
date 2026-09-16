@@ -317,8 +317,18 @@ class ConsumerRecord {
     }
     final subSt = subsidyStatus.trim().toLowerCase();
     if (WorkflowEngine.isRtsCompleted(this) &&
-        (subSt == 'applied' || subSt == 'under process' || subSt == 'approved' || subSt == 'subsidy request' || subSt == 'pending') &&
-        subSt != 'received') {
+        (subSt == 'applied' ||
+         subSt == 'under process' ||
+         subSt == 'approved' ||
+         subSt == 'subsidy request' ||
+         subSt == 'pending' ||
+         subSt == 'dcr created' ||
+         subSt == 'pm surya ghar updated' ||
+         subSt == 'pm suryghar updated' ||
+         subSt == 'install ack' ||
+         subSt == 'installation ack') &&
+        subSt != 'received' &&
+        subSt != 'done') {
       return PriorityLevel.processing;
     }
     return PriorityLevel.fromDays(applicationDays);
@@ -338,7 +348,13 @@ class ConsumerRecord {
     final st = status.trim().toLowerCase();
     final appSt = applicationStatus.trim().toLowerCase();
     final subSt = subsidyStatus.trim().toLowerCase();
-    return st != 'completed' && st != 'cancelled' && appSt != 'completed' && appSt != 'cancelled' && subSt != 'received' && subSt != 'completed';
+    return st != 'completed' &&
+        st != 'cancelled' &&
+        appSt != 'completed' &&
+        appSt != 'cancelled' &&
+        subSt != 'received' &&
+        subSt != 'completed' &&
+        subSt != 'done';
   }
 
   bool get isActiveWork => isActiveApplication;
