@@ -66,5 +66,27 @@ void main() {
       expect(updated.remarks, 'Meter connected and verified');
       expect(updated.consumerNo, 'MOB-1003');
     });
+
+    test('Mobile ConsumerRecord name update via copyWith maintains record ID and consumer number', () {
+      final record = ConsumerRecord(
+        id: 'rec-test-name-1',
+        consumerNo: 'CONS-999',
+        name: 'Ramesh Patil',
+        status: 'In Progress',
+      );
+
+      final updated = record.copyWith(
+        name: 'Rameshwar Patil',
+      );
+
+      expect(updated.id, 'rec-test-name-1');
+      expect(updated.consumerNo, 'CONS-999');
+      expect(updated.name, 'Rameshwar Patil');
+      expect(updated.status, 'In Progress');
+
+      final json = updated.toJson(includeId: true);
+      expect(json['name'], 'Rameshwar Patil');
+      expect(json['consumer_no'], 'CONS-999');
+    });
   });
 }

@@ -31,6 +31,106 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     _record = widget.record;
   }
 
+  Future<void> _showEditConsumerNameDialog() async {
+    final nameCtrl = TextEditingController(text: _record.name);
+    final formKey = GlobalKey<FormState>();
+
+    final updatedName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.edit_note_rounded, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('Edit Consumer Name', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Consumer No: ${_record.consumerNo}',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: nameCtrl,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  labelText: 'Consumer Name *',
+                  hintText: 'Enter full consumer name',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  isDense: true,
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Consumer Name cannot be empty';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+            ),
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(ctx, nameCtrl.text.trim());
+              }
+            },
+            child: const Text('Save Name'),
+          ),
+        ],
+      ),
+    );
+
+    if (updatedName != null && updatedName != _record.name && _record.id != null && mounted) {
+      setState(() => _isSaving = true);
+      try {
+        final updated = await MobileRecordService.updateCustomerName(
+          recordId: _record.id!,
+          newName: updatedName,
+        );
+        if (mounted) {
+          setState(() {
+            _record = updated;
+            _hasChanged = true;
+            _isSaving = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Consumer name updated to "$updatedName" successfully!'),
+              backgroundColor: const Color(0xFF059669),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to update consumer name: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _handleMarkAsComplete() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -687,8 +787,11 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     final theme = Theme.of(context);
 
     return PopScope(
-      canPop: true,
-      onPopInvokedWithResult: (didPop, result) {},
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.of(context).pop(_hasChanged);
+      },
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Consumer Details'),
@@ -752,10 +855,24 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         child: Icon(Icons.solar_power_rounded, size: 34, color: theme.colorScheme.primary),
                       ),
                       const SizedBox(height: 10),
-                      Text(
-                        _record.name,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _record.name,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, size: 20),
+                            tooltip: 'Edit Consumer Name',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: _isSaving ? null : _showEditConsumerNameDialog,
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 6),
                       InkWell(

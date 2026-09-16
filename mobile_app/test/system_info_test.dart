@@ -6,8 +6,8 @@ void main() {
     test('SystemDiagnosticsData correctly models safe system parameters', () {
       final data = SystemDiagnosticsData(
         appName: 'Siya Solar Connect',
-        version: '1.0.13',
-        buildNumber: '14',
+        version: '1.0.14',
+        buildNumber: '15',
         environment: 'Development',
         serverReachability: 'Online',
         databaseStatus: 'Connected',
@@ -45,8 +45,8 @@ void main() {
       );
 
       expect(data.appName, equals('Siya Solar Connect'));
-      expect(data.version, equals('1.0.13'));
-      expect(data.buildNumber, equals('14'));
+      expect(data.version, equals('1.0.14'));
+      expect(data.buildNumber, equals('15'));
       expect(data.serverReachability, equals('Online'));
       expect(data.databaseStatus, equals('Connected'));
       expect(data.realtimeStatus, equals('Connected'));

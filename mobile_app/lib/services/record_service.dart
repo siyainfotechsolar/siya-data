@@ -271,6 +271,79 @@ class MobileRecordService {
     return updated;
   }
 
+  /// Consumer Name correction via Mobile App
+  /// Updates name on the SAME Customer ID and logs to audit_logs and activity_logs
+  static Future<ConsumerRecord> updateCustomerName({
+    required String recordId,
+    required String newName,
+  }) async {
+    final cleanNewName = newName.trim();
+    if (cleanNewName.isEmpty) {
+      throw Exception('Consumer Name cannot be empty.');
+    }
+
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    // 1. Fetch existing record to verify and read old name & consumer_no
+    final existingData = await _client
+        .from('consumer_records')
+        .select('id, name, consumer_no')
+        .eq('id', recordId)
+        .single();
+
+    final oldName = existingData['name'] as String? ?? '';
+    final consumerNo = existingData['consumer_no'] as String? ?? '';
+
+    // 2. Update the SAME customer record
+    final updatePayload = <String, dynamic>{
+      'name': cleanNewName,
+      'updated_at': nowIso,
+    };
+    if (user != null) {
+      updatePayload['updated_by'] = user.id;
+    }
+
+    final response = await _client
+        .from('consumer_records')
+        .update(updatePayload)
+        .eq('id', recordId)
+        .select()
+        .single();
+
+    final updated = ConsumerRecord.fromJson(response);
+
+    // 3. Record in audit_logs: Old Name, New Name, Changed By, Date/Time
+    try {
+      await _client.from('audit_logs').insert({
+        'record_id': recordId,
+        'consumer_no': consumerNo,
+        'action': 'NAME_CORRECTION',
+        'field_name': 'Customer Name',
+        'old_value': oldName,
+        'new_value': cleanNewName,
+        'changed_by': user?.id,
+        'source': 'Mobile Name Correction',
+        'created_at': nowIso,
+      });
+
+      await ActivityLogService.logActivity(
+        recordId: recordId,
+        consumerNo: consumerNo,
+        customerName: cleanNewName,
+        module: 'Customer',
+        action: 'Customer Name Correction',
+        oldValue: oldName,
+        newValue: cleanNewName,
+        remarks: 'Consumer name changed via Android mobile app',
+      );
+    } catch (_) {
+      // Audit log failures should not block successful record update
+    }
+
+    return updated;
+  }
+
   /// Fetch current staff profile details
   static Future<Map<String, dynamic>?> getCurrentStaffProfile() async {
     try {

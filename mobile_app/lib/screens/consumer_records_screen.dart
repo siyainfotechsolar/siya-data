@@ -101,6 +101,105 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
 
   String? _errorMessage;
 
+  Future<void> _showEditConsumerNameDialog(ConsumerRecord record) async {
+    final nameCtrl = TextEditingController(text: record.name);
+    final formKey = GlobalKey<FormState>();
+
+    final updatedName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.edit_note_rounded, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('Edit Consumer Name', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Consumer No: ${record.consumerNo}',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: nameCtrl,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  labelText: 'Consumer Name *',
+                  hintText: 'Enter full consumer name',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  isDense: true,
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Consumer Name cannot be empty';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+            ),
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(ctx, nameCtrl.text.trim());
+              }
+            },
+            child: const Text('Save Name'),
+          ),
+        ],
+      ),
+    );
+
+    if (updatedName != null && updatedName != record.name && record.id != null && mounted) {
+      try {
+        final updated = await MobileRecordService.updateCustomerName(
+          recordId: record.id!,
+          newName: updatedName,
+        );
+        if (mounted) {
+          setState(() {
+            final idx = _records.indexWhere((r) => r.id == record.id);
+            if (idx != -1) {
+              _records[idx] = updated;
+            }
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Consumer name updated to "$updatedName" successfully!'),
+              backgroundColor: const Color(0xFF059669),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to update consumer name: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _loadRecords() async {
     setState(() {
       _isLoading = true;
@@ -406,10 +505,24 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
               ),
               const SizedBox(height: 8),
 
-              // Consumer Name
-              Text(
-                record.name,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              // Consumer Name & Edit
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      record.name,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    tooltip: 'Edit Consumer Name',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _showEditConsumerNameDialog(record),
+                  ),
+                ],
               ),
               const SizedBox(height: 6),
 

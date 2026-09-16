@@ -165,7 +165,7 @@ class MobileSettingsScreen extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   subtitle: const Text(
-                    'Version 1.0.13 (Build 14) • Production Ready',
+                    'Version 1.0.14 (Build 15) • Production Ready',
                     style: TextStyle(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
