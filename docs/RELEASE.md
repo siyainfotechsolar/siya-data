@@ -115,6 +115,12 @@ For internal testing and GitHub release distribution, standard release signing i
 
 ## 📌 Release History
 
+### Release v1.0.16 (Build 17) - 2026-09-18
+- **Admin Panel: Reports Dashboard Improvements**: Enhanced report service with advanced filtering, record diff tracking, and improved filter options for comprehensive audit trail visibility.
+- **Report Filter Options**: New `ReportFilterOptions` model with richer filter criteria for customizable executive report generation.
+- **Record Diff Tracking**: `RecordDiff` model introduced for before/after change comparison across customer and loan records.
+- **Mobile App v1.0.16**: Stability improvements and session management enhancements in login screen.
+
 ### Release v1.0.10 (Build 11) - 2026-09-05
 - **Lead Management Module**: Full prospect management before customer application workflow with smart next action guidance, follow-up scheduling, and conversion with duplicate safety checking.
 - **Hold / No Action Required State**: Distinct non-destructive hold queue with reason tracking, separated from completed applications, with instant reopen workflow.
