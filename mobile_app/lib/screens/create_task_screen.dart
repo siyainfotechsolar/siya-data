@@ -11,6 +11,8 @@ import '../services/supabase_service.dart';
 import '../widgets/suggested_customer_card.dart';
 import '../widgets/customer_search_dialog.dart';
 import '../widgets/duplicate_document_dialog.dart';
+import '../utils/back_navigation_helper.dart';
+import 'home_screen.dart';
 import 'task_detail_screen.dart';
 
 class CreateTaskScreen extends StatefulWidget {
@@ -33,6 +35,8 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   ExtractedDocumentData? _extractedData;
   CustomerMatchResult? _suggestedMatch;
   ConsumerRecord? _selectedCustomer;
+  String? _initialTitle;
+  String? _initialRemarks;
 
   late final TextEditingController _titleController;
   late final TextEditingController _remarksController;
@@ -110,6 +114,8 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
           _remarksController.text = highlights.join(' | ');
         }
 
+        _initialTitle = _titleController.text;
+        _initialRemarks = _remarksController.text;
         _isProcessing = false;
       });
     }
@@ -260,13 +266,78 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     }
   }
 
+  bool _hasUnsavedChanges() {
+    if (_initialTitle != null && _titleController.text.trim() != _initialTitle!.trim()) {
+      return true;
+    }
+    if (_remarksController.text.trim() != (_initialRemarks ?? '').trim()) {
+      return true;
+    }
+    if (_selectedCustomer != null &&
+        _selectedCustomer != widget.preselectedCustomer &&
+        _selectedCustomer != _suggestedMatch?.customer) {
+      return true;
+    }
+    return false;
+  }
+
+  Future<bool> _handleWillPop() async {
+    if (_isProcessing || _isSubmitting) {
+      final confirm = await BackNavigationHelper.showProcessingDialog(
+        context,
+        title: 'Operation in Progress',
+        message: 'Task processing or creation is in progress. Leaving now may interrupt it. Are you sure you want to leave?',
+      );
+      return confirm;
+    }
+
+    if (_hasUnsavedChanges()) {
+      final discard = await BackNavigationHelper.showDiscardDialog(
+        context,
+        title: 'Discard Task?',
+        message: 'Unsaved task details will be lost.',
+      );
+      return discard;
+    }
+
+    return true;
+  }
+
+  void _safePop() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const MobileHomeScreen()),
+      );
+    }
+  }
+
+  Future<void> _handleBackPress() async {
+    final canLeave = await _handleWillPop();
+    if (canLeave && mounted) {
+      _safePop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Column(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _handleBackPress();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Back',
+            onPressed: _handleBackPress,
+          ),
+          title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -380,6 +451,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                 ],
               ),
             ),
+      ),
     );
   }
 

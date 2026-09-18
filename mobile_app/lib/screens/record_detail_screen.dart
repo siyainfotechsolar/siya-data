@@ -12,6 +12,7 @@ import '../services/app_database.dart';
 import '../widgets/no_action_reason_dialog.dart';
 import '../widgets/customer_timeline_widget.dart';
 import '../widgets/add_payment_dialog.dart';
+import '../utils/back_navigation_helper.dart';
 
 class RecordDetailScreen extends StatefulWidget {
   final ConsumerRecord record;
@@ -43,15 +44,34 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
 
     final updatedName = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.edit_note_rounded, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 8),
-            const Text('Edit Consumer Name', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ],
-        ),
+      builder: (ctx) {
+        Future<void> handleCancel() async {
+          if (nameCtrl.text.trim() != _record.name) {
+            final discard = await BackNavigationHelper.showDiscardDialog(
+              ctx,
+              title: 'Discard Name Change?',
+              message: 'Unsaved name change will be lost.',
+            );
+            if (!discard) return;
+          }
+          Navigator.pop(ctx);
+        }
+
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, result) async {
+            if (didPop) return;
+            await handleCancel();
+          },
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Icon(Icons.edit_note_rounded, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                const Text('Edit Consumer Name', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
         content: Form(
           key: formKey,
           child: Column(
@@ -85,7 +105,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: handleCancel,
             child: const Text('Cancel'),
           ),
           FilledButton(
@@ -101,6 +121,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           ),
         ],
       ),
+      );
+      },
     );
 
     if (updatedName != null && updatedName != _record.name && _record.id != null && mounted) {
@@ -460,35 +482,66 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         final remarksController = TextEditingController(text: _record.remarks ?? '');
         bool isSaving = false;
 
+        bool hasChanges() {
+          if (selectedAppStatus != _record.applicationStatus) return true;
+          if (selectedAgreeStatus != _record.agreementStatus) return true;
+          if (selectedLoanReq != _record.loanRequired) return true;
+          if (selectedLoanStatus != _record.loanStatus) return true;
+          if (selectedInstallStatus != _record.installationStatus) return true;
+          if (selectedRtsStatus != _record.rtsStatus) return true;
+          if (selectedSubsidyStatus != _record.subsidyStatus) return true;
+          if (remarksController.text.trim() != (_record.remarks ?? '').trim()) return true;
+          return false;
+        }
+
+        Future<void> handleCancel() async {
+          if (isSaving) return;
+          if (hasChanges()) {
+            final discard = await BackNavigationHelper.showDiscardDialog(
+              ctx,
+              title: 'Discard Changes?',
+              message: 'Unsaved workflow updates will be lost.',
+            );
+            if (!discard) return;
+          }
+          Navigator.of(ctx).pop();
+        }
+
         return StatefulBuilder(
           builder: (context, setSheetState) {
             final stageStates = WorkflowEngine.getStageStates(_record);
 
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Update Workflow Stages',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.of(ctx).pop(),
-                        ),
-                      ],
-                    ),
+            return PopScope(
+              canPop: false,
+              onPopInvokedWithResult: (didPop, result) async {
+                if (didPop) return;
+                await handleCancel();
+              },
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 20,
+                  right: 20,
+                  top: 20,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Update Workflow Stages',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: handleCancel,
+                          ),
+                        ],
+                      ),
                     const Divider(height: 20),
 
                     // Stage 1: Application
@@ -739,6 +792,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                   ],
                 ),
               ),
+            ),
             );
           },
         );

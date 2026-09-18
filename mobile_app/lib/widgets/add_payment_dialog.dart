@@ -7,6 +7,7 @@ import '../models/customer_payment.dart';
 import '../models/consumer_record.dart';
 import '../services/payment_service.dart';
 import '../services/payment_receipt_service.dart';
+import '../utils/back_navigation_helper.dart';
 import 'customer_search_dialog.dart';
 
 class AddPaymentDialog extends StatefulWidget {
@@ -292,6 +293,40 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
     );
   }
 
+  bool _hasUnsavedChanges() {
+    if (_amountCtrl.text.trim().isNotEmpty) return true;
+    if (_refCtrl.text.trim().isNotEmpty) return true;
+    if (_remarksCtrl.text.trim().isNotEmpty) return true;
+    if (_attachedFile != null) return true;
+    if (_selectedCustomer != null && _selectedCustomer != widget.preselectedCustomer) return true;
+    return false;
+  }
+
+  Future<bool> _handleWillPop() async {
+    if (_isSaving || _isAnalyzingProof) {
+      return await BackNavigationHelper.showProcessingDialog(
+        context,
+        title: 'Payment in Progress',
+        message: 'Payment verification or saving is currently in progress. Do you want to cancel?',
+      );
+    }
+    if (_hasUnsavedChanges()) {
+      return await BackNavigationHelper.showDiscardDialog(
+        context,
+        title: 'Discard Payment?',
+        message: 'Entered payment details will be lost.',
+      );
+    }
+    return true;
+  }
+
+  Future<void> _handleClose() async {
+    final canClose = await _handleWillPop();
+    if (canClose && mounted) {
+      Navigator.of(context).pop(false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -302,7 +337,13 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
     final paid = customer?.paidAmount ?? 0.0;
     final pending = customer?.pendingAmount ?? 0.0;
 
-    return Container(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _handleClose();
+      },
+      child: Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -341,7 +382,7 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _handleClose,
                   ),
                 ],
               ),
@@ -710,6 +751,7 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

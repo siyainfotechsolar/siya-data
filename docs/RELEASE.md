@@ -115,6 +115,12 @@ For internal testing and GitHub release distribution, standard release signing i
 
 ## 📌 Release History
 
+### Release v1.0.17 (Build 18) - 2026-09-18
+- **Global Android Back Navigation & Safety Policy**: Unified `PopScope` back-button navigation across all 15+ screens and dialogs. Unsaved form changes protection (`[Stay]` / `[Discard]`), in-flight upload protection, and 2-second double-back exit safety on root Home screen.
+- **Admin Panel Production-Ready Login Screen**: Complete eradication of `Dev Preview (Skip Auth)`. Strictly enforced Supabase Auth flow, user profile status check (`is_active` / Suspended), dynamic progress indicators, and self-service Forgot Password flow.
+- **Vercel Web Deployment**: Continuous integration & deployment configured for Admin Web Portal (`admin_panel/build/web`) with SPA routing rewrites and asset caching headers.
+- **Mobile App v1.0.17**: Automated APK release with direct GitHub Pages download portal and release artifact archiving.
+
 ### Release v1.0.16 (Build 17) - 2026-09-18
 - **Admin Panel: Reports Dashboard Improvements**: Enhanced report service with advanced filtering, record diff tracking, and improved filter options for comprehensive audit trail visibility.
 - **Report Filter Options**: New `ReportFilterOptions` model with richer filter criteria for customizable executive report generation.

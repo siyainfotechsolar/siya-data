@@ -7,6 +7,7 @@ import '../models/extracted_document_data.dart';
 import '../services/task_service.dart';
 import '../services/record_service.dart';
 import '../widgets/customer_account_update_dialog.dart';
+import 'home_screen.dart';
 
 class TaskDetailScreen extends StatefulWidget {
   final CustomerTask task;
@@ -238,6 +239,19 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const MobileHomeScreen()),
+              );
+            }
+          },
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

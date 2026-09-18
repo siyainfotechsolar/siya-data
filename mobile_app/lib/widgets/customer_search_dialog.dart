@@ -58,7 +58,18 @@ class _CustomerSearchDialogState extends State<CustomerSearchDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
+    final hasSearchQuery = _searchController.text.isNotEmpty;
+
+    return PopScope(
+      canPop: !hasSearchQuery,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        setState(() {
+          _searchController.clear();
+          _results = [];
+        });
+      },
+      child: Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         width: MediaQuery.of(context).size.width * 0.9,
@@ -181,6 +192,7 @@ class _CustomerSearchDialogState extends State<CustomerSearchDialog> {
               ),
           ],
         ),
+      ),
       ),
     );
   }

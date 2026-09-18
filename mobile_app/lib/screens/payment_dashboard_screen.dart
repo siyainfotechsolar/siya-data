@@ -104,10 +104,32 @@ class _PaymentDashboardScreenState extends State<PaymentDashboardScreen> with Si
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final isSearchActive = _searchCtrl.text.isNotEmpty;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Payment Hub', style: TextStyle(fontWeight: FontWeight.bold)),
+    return PopScope(
+      canPop: !isSearchActive,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        setState(() {
+          _searchCtrl.clear();
+        });
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Back',
+            onPressed: () {
+              if (_searchCtrl.text.isNotEmpty) {
+                setState(() {
+                  _searchCtrl.clear();
+                });
+              } else {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+          title: const Text('Payment Hub', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           const SyncStatusIndicator(),
           IconButton(
@@ -197,6 +219,7 @@ class _PaymentDashboardScreenState extends State<PaymentDashboardScreen> with Si
             _loadDashboardData();
           }
         },
+      ),
       ),
     );
   }

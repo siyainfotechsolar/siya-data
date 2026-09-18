@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/back_navigation_helper.dart';
 
 /// Dialog to prompt mobile app users for a mandatory reason when marking a customer as
 /// "No Action Required" (Hold).
@@ -59,13 +60,35 @@ class _NoActionReasonDialogState extends State<NoActionReasonDialog> {
     });
   }
 
+  bool _hasUnsavedChanges() {
+    return _detailsController.text.trim().isNotEmpty;
+  }
+
+  Future<void> _handleCancel() async {
+    if (_hasUnsavedChanges()) {
+      final discard = await BackNavigationHelper.showDiscardDialog(
+        context,
+        title: 'Discard Reason?',
+        message: 'Unsaved details will be lost.',
+      );
+      if (!discard) return;
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isOther = _selectedReason == 'Other';
 
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _handleCancel();
+      },
+      child: AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
       contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -194,7 +217,7 @@ class _NoActionReasonDialogState extends State<NoActionReasonDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _handleCancel,
           child: const Text('Cancel'),
         ),
         FilledButton(
@@ -206,6 +229,7 @@ class _NoActionReasonDialogState extends State<NoActionReasonDialog> {
           child: const Text('Confirm'),
         ),
       ],
+      ),
     );
   }
 }

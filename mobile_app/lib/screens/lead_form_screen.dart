@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/lead_record.dart';
 import '../services/lead_service.dart';
+import '../utils/back_navigation_helper.dart';
 
 class MobileLeadFormScreen extends StatefulWidget {
   final LeadRecord? lead;
@@ -168,14 +169,64 @@ class _MobileLeadFormScreenState extends State<MobileLeadFormScreen> {
     }
   }
 
+  bool _hasUnsavedChanges() {
+    final l = widget.lead;
+    if (_nameController.text.trim() != (l?.customerName ?? '').trim()) return true;
+    if (_mobileController.text.trim() != (l?.mobileNo ?? '').trim()) return true;
+    if (_whatsappController.text.trim() != (l?.whatsappNo ?? '').trim()) return true;
+    if (_villageController.text.trim() != (l?.village ?? '').trim()) return true;
+    if (_talukaController.text.trim() != (l?.taluka ?? '').trim()) return true;
+    if (_districtController.text.trim() != (l?.district ?? '').trim()) return true;
+    if (_systemSizeController.text.trim() != (l?.approxSystemSize ?? '3 kW').trim()) return true;
+    final initialBill = l?.monthlyElectricityBill != null ? l!.monthlyElectricityBill!.toStringAsFixed(0) : '';
+    if (_billController.text.trim() != initialBill) return true;
+    final initialBudget = l?.estimatedBudget != null ? l!.estimatedBudget!.toStringAsFixed(0) : '';
+    if (_budgetController.text.trim() != initialBudget) return true;
+    if (_consumerNoController.text.trim() != (l?.consumerNo ?? '').trim()) return true;
+    if (_assignedStaffController.text.trim() != (l?.assignedStaffName ?? '').trim()) return true;
+    if (_remarksController.text.trim() != (l?.remarks ?? '').trim()) return true;
+    if (l != null && _leadStatus != l.leadStatus) return true;
+    return false;
+  }
+
+  Future<bool> _handleWillPop() async {
+    if (_isSaving) return false;
+    if (_hasUnsavedChanges()) {
+      return await BackNavigationHelper.showDiscardDialog(
+        context,
+        title: 'Discard Lead?',
+        message: 'Unsaved lead changes will be lost.',
+      );
+    }
+    return true;
+  }
+
+  Future<void> _handleBackPress() async {
+    final canLeave = await _handleWillPop();
+    if (canLeave && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.lead != null;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(isEdit ? 'Edit Lead' : 'New Lead'),
-        actions: [
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _handleBackPress();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Back',
+            onPressed: _handleBackPress,
+          ),
+          title: Text(isEdit ? 'Edit Lead' : 'New Lead'),
+          actions: [
           IconButton(
             icon: _isSaving
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -408,6 +459,7 @@ class _MobileLeadFormScreenState extends State<MobileLeadFormScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

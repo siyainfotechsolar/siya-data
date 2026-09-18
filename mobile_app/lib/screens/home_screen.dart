@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/supabase_service.dart';
+import '../utils/back_navigation_helper.dart';
 import 'login_screen.dart';
 
 import 'consumer_records_screen.dart';
@@ -90,39 +92,37 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
 
   DateTime? _lastBackPressTime;
 
-  Future<bool> _onWillPop() async {
-    final now = DateTime.now();
-    if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
-      _lastBackPressTime = now;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Press back again to exit app'),
-          duration: Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return false;
+  Future<void> _showExitDialog() async {
+    final shouldExit = await BackNavigationHelper.showExitAppDialog(
+      context,
+      title: 'Exit App?',
+      message: 'Do you want to exit Siya Solar?',
+      cancelLabel: 'Cancel',
+      exitLabel: 'Exit',
+    );
+    if (shouldExit) {
+      SystemNavigator.pop();
     }
-    return true;
   }
 
-  void _showExitDialog() {
+  void _showLogoutDialog() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Exit App'),
-        content: const Text('Are you sure you want to sign out and exit?'),
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel'),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
             onPressed: () {
               Navigator.of(ctx).pop();
               _handleSignOut();
             },
-            child: const Text('Log Out & Exit'),
+            child: const Text('Sign Out'),
           ),
         ],
       ),
@@ -150,14 +150,13 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
+      onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        final shouldPop = await _onWillPop();
-        if (shouldPop && context.mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const MobileLoginScreen()),
-          );
-        }
+        BackNavigationHelper.handleDoubleBackPress(
+          context: context,
+          lastBackPressTime: _lastBackPressTime,
+          onTimeUpdated: (t) => _lastBackPressTime = t,
+        );
       },
       child: Scaffold(
         appBar: AppBar(
@@ -167,7 +166,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            tooltip: 'Exit to Login',
+            tooltip: 'Exit App',
             onPressed: _showExitDialog,
           ),
           actions: [
@@ -205,8 +204,8 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.logout),
-              tooltip: 'Logout / Exit',
-              onPressed: _showExitDialog,
+              tooltip: 'Sign Out',
+              onPressed: _showLogoutDialog,
             ),
           ],
         ),

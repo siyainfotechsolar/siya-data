@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/lead_record.dart';
 import '../services/lead_service.dart';
+import '../utils/back_navigation_helper.dart';
 import 'lead_form_screen.dart';
 
 class MobileLeadDetailScreen extends StatefulWidget {
@@ -80,24 +81,44 @@ class _MobileLeadDetailScreenState extends State<MobileLeadDetailScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (c, setSheetState) => Padding(
-          padding: EdgeInsets.only(
-            top: 20,
-            left: 20,
-            right: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Log Follow-up', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-                ],
+        builder: (c, setSheetState) {
+          Future<void> handleCancel() async {
+            if (isSaving) return;
+            if (notesCtrl.text.trim().isNotEmpty) {
+              final discard = await BackNavigationHelper.showDiscardDialog(
+                ctx,
+                title: 'Discard Follow-up?',
+                message: 'Unsaved follow-up notes will be lost.',
+              );
+              if (!discard) return;
+            }
+            Navigator.pop(ctx);
+          }
+
+          return PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (didPop, result) async {
+              if (didPop) return;
+              await handleCancel();
+            },
+            child: Padding(
+              padding: EdgeInsets.only(
+                top: 20,
+                left: 20,
+                right: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
               ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Log Follow-up', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      IconButton(icon: const Icon(Icons.close), onPressed: handleCancel),
+                    ],
+                  ),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -198,8 +219,10 @@ class _MobileLeadDetailScreenState extends State<MobileLeadDetailScreen> {
             ],
           ),
         ),
-      ),
-    );
+      );
+    },
+  ),
+);
   }
 
   // Conversion with safety duplicate check
@@ -391,6 +414,11 @@ class _MobileLeadDetailScreenState extends State<MobileLeadDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: Text(_lead.customerName),
         actions: [
           IconButton(

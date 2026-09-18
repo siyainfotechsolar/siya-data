@@ -168,11 +168,22 @@ class _CustomerAccountUpdateDialogState
     }
   }
 
+  void _handleCancel() {
+    if (_isSaving) return;
+    Navigator.of(context).pop(false);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
+    return PopScope(
+      canPop: !_isSaving,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleCancel();
+      },
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
         width: MediaQuery.of(context).size.width * 0.95,
         constraints: const BoxConstraints(maxHeight: 650),
         padding: const EdgeInsets.all(16.0),
@@ -327,6 +338,7 @@ class _CustomerAccountUpdateDialogState
             ),
           ],
         ),
+      ),
       ),
     );
   }

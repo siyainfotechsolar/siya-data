@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/back_navigation_helper.dart';
 
 /// Result object for Mark Follow-up action
 class FollowupDialogResult {
@@ -101,13 +102,37 @@ class _FollowupDialogState extends State<FollowupDialog> {
     );
   }
 
+  bool _hasUnsavedChanges() {
+    if (_remarksController.text.trim().isNotEmpty) return true;
+    if (_otherReasonController.text.trim().isNotEmpty) return true;
+    return false;
+  }
+
+  Future<void> _handleCancel() async {
+    if (_hasUnsavedChanges()) {
+      final discard = await BackNavigationHelper.showDiscardDialog(
+        context,
+        title: 'Discard Follow-up?',
+        message: 'Unsaved follow-up details will be lost.',
+      );
+      if (!discard) return;
+    }
+    if (mounted) Navigator.of(context).pop(null);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isOther = _selectedReason == 'Other';
 
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _handleCancel();
+      },
+      child: AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
       contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -274,7 +299,7 @@ class _FollowupDialogState extends State<FollowupDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(null),
+          onPressed: _handleCancel,
           child: const Text('Cancel'),
         ),
         FilledButton.icon(
@@ -286,6 +311,7 @@ class _FollowupDialogState extends State<FollowupDialog> {
           label: const Text('Save Follow-up'),
         ),
       ],
+      ),
     );
   }
 

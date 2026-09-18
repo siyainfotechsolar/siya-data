@@ -70,11 +70,28 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
     }
   }
 
+  bool get _isSearchActive => _searchController.text.isNotEmpty || _hasSearched;
+
+  void _clearSearch() {
+    setState(() {
+      _searchController.clear();
+      _results = [];
+      _hasSearched = false;
+      _isLoading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return PopScope(
+      canPop: !_isSearchActive,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _clearSearch();
+      },
+      child: Scaffold(
       body: Column(
         children: [
           // Search Input Card
@@ -283,6 +300,7 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
                           ),
           ),
         ],
+      ),
       ),
     );
   }
