@@ -5,25 +5,51 @@ import 'screens/create_task_screen.dart';
 import 'services/supabase_service.dart';
 import 'services/share_intent_service.dart';
 import 'services/offline_task_sync_service.dart';
+import 'services/app_database.dart';
+import 'services/connectivity_service.dart';
+import 'services/sync_engine.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 1. Initialize SQLite local database
+  try {
+    await AppDatabase.database;
+  } catch (e) {
+    debugPrint('AppDatabase init error: $e');
+  }
+
+  // 2. Initialize network & connectivity monitor
+  try {
+    await ConnectivityService.initialize();
+  } catch (e) {
+    debugPrint('ConnectivityService init error: $e');
+  }
+
+  // 3. Initialize sync engine
+  try {
+    SyncEngine.initialize();
+  } catch (e) {
+    debugPrint('SyncEngine init error: $e');
+  }
+
+  // 4. Initialize Supabase
   try {
     await SupabaseService.initialize();
   } catch (e) {
     debugPrint('Supabase init error: $e');
   }
 
-  // Load offline queue in background
+  // 5. Load offline task queue
   try {
     await OfflineTaskSyncService.loadQueue();
   } catch (e) {
     debugPrint('Offline queue init error: $e');
   }
 
-  // Initialize Android Native Share Intent Service
+  // 6. Initialize Android Native Share Intent Service
   try {
     await ShareIntentService.initialize();
   } catch (e) {

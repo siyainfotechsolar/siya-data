@@ -294,7 +294,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                 Text('Error Breakdown', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Container(
-                  maxHeight: 140,
+                  constraints: const BoxConstraints(maxHeight: 140),
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.red.withValues(alpha: 0.05),

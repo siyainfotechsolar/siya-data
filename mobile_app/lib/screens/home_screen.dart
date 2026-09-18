@@ -15,6 +15,10 @@ import '../services/share_intent_service.dart';
 import '../services/offline_task_sync_service.dart';
 import 'create_task_screen.dart';
 import 'tasks_list_screen.dart';
+import 'sync_center_screen.dart';
+import 'payment_dashboard_screen.dart';
+import '../widgets/sync_status_indicator.dart';
+import '../services/connectivity_service.dart';
 
 class MobileHomeScreen extends StatefulWidget {
   const MobileHomeScreen({super.key});
@@ -167,6 +171,20 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
             onPressed: _showExitDialog,
           ),
           actions: [
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: SyncStatusIndicator(compact: true),
+            ),
+            IconButton(
+              icon: const Icon(Icons.sync_rounded),
+              tooltip: 'Sync Center',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SyncCenterScreen()),
+                );
+              },
+            ),
             if (_currentIndex == 1)
               IconButton(
                 icon: const Icon(Icons.refresh),
@@ -299,6 +317,47 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Offline Status Banner
+          ValueListenableBuilder<SyncMode>(
+            valueListenable: ConnectivityService.modeNotifier,
+            builder: (context, mode, _) {
+              if (mode == SyncMode.online) return const SizedBox.shrink();
+              final isOff = mode == SyncMode.offline;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  color: isOff ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isOff ? const Color(0xFFEF4444).withValues(alpha: 0.3) : const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isOff ? Icons.cloud_off_rounded : Icons.warning_amber_rounded,
+                      size: 16,
+                      color: isOff ? const Color(0xFF991B1B) : const Color(0xFF92400E),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        isOff
+                            ? 'LOCAL DATA (Offline) • All field actions will sync when internet returns.'
+                            : 'Sync Issue Detected • Tap top sync button to view details.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isOff ? const Color(0xFF991B1B) : const Color(0xFF92400E),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           // Banner Card
           Card(
             color: theme.colorScheme.primaryContainer,
@@ -499,6 +558,60 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                       ),
                     ),
                     const Icon(Icons.chevron_right, color: Color(0xFF059669)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // INTELLIGENT PAYMENT HUB
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PaymentDashboardScreen()),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Card(
+              elevation: 0,
+              color: const Color(0xFFF0FDF4), // Soft mint green
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Color(0xFFBBF7D0)),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(14.0),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Color(0xFF059669),
+                      child: Icon(Icons.currency_rupee_rounded, color: Colors.white, size: 20),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'PAYMENT & FINANCIAL HUB',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Color(0xFF065F46),
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Collections, installation milestones, receipts, and offline sync',
+                            style: TextStyle(fontSize: 11, color: Color(0xFF047857)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Color(0xFF059669)),
                   ],
                 ),
               ),

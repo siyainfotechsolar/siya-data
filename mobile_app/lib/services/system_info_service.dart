@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../config/app_config.dart';
 import 'supabase_service.dart';
 
 class SystemHealthItem {
@@ -145,11 +143,14 @@ class SystemInfoService {
       serverOk = true;
       dbOk = true;
       storageOk = true;
+      realtimeOk = true;
     } catch (e) {
       stopwatch.stop();
       latency = stopwatch.elapsedMilliseconds > 0 ? stopwatch.elapsedMilliseconds : 999;
       serverOk = false;
       dbOk = false;
+      storageOk = false;
+      realtimeOk = false;
       dbErrorMsg = e.toString();
       logDiagnosticError('Database ping failed: $e');
     }
@@ -237,8 +238,8 @@ class SystemInfoService {
 
     return SystemDiagnosticsData(
       appName: 'Siya Solar Connect',
-      version: '1.0.14',
-      buildNumber: '15',
+      version: '1.0.15',
+      buildNumber: '16',
       environment: kReleaseMode ? 'Production' : 'Development',
       serverReachability: serverOk ? 'Online' : 'Offline',
       databaseStatus: dbOk ? 'Connected' : 'Disconnected',

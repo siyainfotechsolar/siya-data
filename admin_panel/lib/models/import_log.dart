@@ -11,6 +11,9 @@ class ImportLog {
   final DateTime createdAt;
   final String? createdBy;
   final String? creatorEmail;
+  final List<String> errors;
+
+  String? get userEmail => creatorEmail;
 
   ImportLog({
     this.id,
@@ -25,6 +28,7 @@ class ImportLog {
     required this.createdAt,
     this.createdBy,
     this.creatorEmail,
+    this.errors = const [],
   });
 
   factory ImportLog.fromJson(Map<String, dynamic> json) {
@@ -43,6 +47,7 @@ class ImportLog {
           : DateTime.now(),
       createdBy: json['created_by'] as String?,
       creatorEmail: json['profiles'] != null ? (json['profiles'] as Map<String, dynamic>)['email'] as String? : null,
+      errors: (json['errors'] as List?)?.map((e) => e.toString()).toList() ?? const [],
     );
   }
 
@@ -93,6 +98,8 @@ class AuditLogEntry {
   final String? changerEmail;
   final String source;
   final DateTime createdAt;
+
+  String? get userEmail => changerEmail;
 
   AuditLogEntry({
     this.id,

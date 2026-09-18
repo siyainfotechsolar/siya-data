@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 import '../models/consumer_record.dart';
+import '../models/customer_payment.dart';
 import '../services/record_service.dart';
 import '../services/workflow_engine.dart';
+import '../services/payment_service.dart';
+import '../services/payment_receipt_service.dart';
+import '../services/app_database.dart';
 import '../widgets/no_action_reason_dialog.dart';
 import '../widgets/customer_timeline_widget.dart';
+import '../widgets/add_payment_dialog.dart';
 
 class RecordDetailScreen extends StatefulWidget {
   final ConsumerRecord record;
@@ -789,6 +795,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return PopScope(
       canPop: false,
@@ -931,6 +938,11 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                   ),
                 ),
               ),
+
+              const SizedBox(height: 16),
+
+              // Customer Payment Profile & Milestone Intelligence Card
+              _buildCustomerPaymentProfileCard(theme, isDark),
 
               const SizedBox(height: 16),
 
@@ -1406,6 +1418,267 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           ),
           if (trailing != null) trailing,
         ],
+      ),
+    );
+  }
+
+  Widget _buildCustomerPaymentProfileCard(ThemeData theme, bool isDark) {
+    final total = _record.totalAmount;
+    final paid = _record.paidAmount;
+    final pending = _record.pendingAmount;
+    final status = _record.paymentStatus;
+    final milestone = PaymentService.evaluateMilestone(_record);
+    final paidPercent = total > 0 ? (paid / total).clamp(0.0, 1.0) : 0.0;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF059669), size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'PAYMENT PROFILE',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: PaymentStatus.statusColor(status).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    status.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: PaymentStatus.statusColor(status),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 20),
+
+            // 3 Numbers: Contract, Paid, Pending
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _paymentMetricCol('Contract', '₹${NumberFormat('#,##,###').format(total)}', Colors.grey.shade700),
+                _paymentMetricCol('Paid', '₹${NumberFormat('#,##,###').format(paid)}', const Color(0xFF059669)),
+                _paymentMetricCol('Pending', '₹${NumberFormat('#,##,###').format(pending)}', const Color(0xFFDC2626)),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Progress Bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: paidPercent,
+                minHeight: 6,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  paidPercent >= 1.0 ? const Color(0xFF059669) : theme.colorScheme.primary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Installation Milestone Intelligence Banner
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: milestone.badgeColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: milestone.badgeColor.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.bolt_rounded, size: 16, color: milestone.badgeColor),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Stage: ${_record.installationStatus} — ${milestone.actionRecommendation}',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: milestone.badgeColor),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Add Payment', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    onPressed: () async {
+                      final res = await AddPaymentDialog.show(context, preselectedCustomer: _record);
+                      if (res == true && mounted) {
+                        final updated = await AppDatabase.getConsumerRecordById(_record.id!);
+                        if (updated != null) {
+                          setState(() {
+                            _record = updated;
+                            _hasChanged = true;
+                          });
+                        }
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.receipt_long_rounded, size: 16),
+                  label: const Text('History', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  onPressed: _showPaymentHistorySheet,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _paymentMetricCol(String title, String val, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        const SizedBox(height: 2),
+        Text(val, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
+      ],
+    );
+  }
+
+  void _showPaymentHistorySheet() async {
+    if (_record.id == null) return;
+    final payments = await AppDatabase.getCustomerPayments(_record.id!);
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Payment History (${payments.length})',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const Divider(),
+            if (payments.isEmpty)
+              const Expanded(
+                child: Center(child: Text('No recorded payments for this customer yet.')),
+              )
+            else
+              Expanded(
+                child: ListView.builder(
+                  itemCount: payments.length,
+                  itemBuilder: (context, idx) {
+                    final tx = payments[idx];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: tx.isPendingSync
+                              ? const Color(0xFFEA580C).withValues(alpha: 0.15)
+                              : const Color(0xFF059669).withValues(alpha: 0.15),
+                          child: Icon(PaymentMode.getModeIcon(tx.paymentMode), size: 18),
+                        ),
+                        title: Row(
+                          children: [
+                            Text(
+                              '₹${NumberFormat('#,##,###').format(tx.amount)}',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const Spacer(),
+                            Text(
+                              tx.syncStatus,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: tx.isPendingSync ? const Color(0xFFEA580C) : const Color(0xFF059669),
+                              ),
+                            ),
+                          ],
+                        ),
+                        subtitle: Text(
+                          '${DateFormat('dd MMM yyyy').format(tx.paymentDate)} • ${tx.paymentMode} ${tx.referenceNumber != null ? "(${tx.referenceNumber})" : ""}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.share, size: 18),
+                              tooltip: 'WhatsApp Receipt',
+                              onPressed: () {
+                                PaymentReceiptService.shareViaWhatsApp(tx: tx, customer: _record);
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                              tooltip: 'PDF Receipt',
+                              onPressed: () async {
+                                final file = await PaymentReceiptService.generateReceiptPdf(
+                                  tx: tx,
+                                  customer: _record,
+                                );
+                                await PaymentReceiptService.openReceipt(file);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -6,6 +6,9 @@ import '../models/consumer_record.dart';
 import 'supabase_service.dart';
 import 'activity_log_service.dart';
 import 'offline_task_sync_service.dart';
+import 'app_database.dart';
+import 'connectivity_service.dart';
+import 'sync_engine.dart';
 
 class CustomerMatchResult {
   final ConsumerRecord customer;
@@ -26,13 +29,53 @@ class CustomerMatchResult {
 class TaskService {
   static SupabaseClient get _client => SupabaseService.client;
 
-  /// Find suggested customer based on extracted document identifiers
+  /// Find suggested customer based on extracted document identifiers (Offline-First)
   static Future<CustomerMatchResult?> findSuggestedCustomer({
     String? consumerNo,
     String? mobile,
     String? applicationId,
     String? name,
   }) async {
+    // 1. If offline, match using local SQLite database
+    if (ConnectivityService.isOffline) {
+      if (consumerNo != null && consumerNo.trim().isNotEmpty) {
+        final cleanCons = consumerNo.trim().replaceAll(RegExp(r'[^0-9]'), '');
+        final matches = await AppDatabase.searchConsumerRecords(query: cleanCons, pageSize: 1);
+        if (matches.isNotEmpty) {
+          return CustomerMatchResult(
+            customer: matches.first,
+            confidenceScore: 100,
+            confidenceLabel: 'High Confidence',
+            matchReason: 'Exact Consumer Number Match ($cleanCons)',
+          );
+        }
+      }
+      if (mobile != null && mobile.trim().isNotEmpty) {
+        final cleanMob = mobile.trim();
+        final matches = await AppDatabase.searchConsumerRecords(query: cleanMob, pageSize: 1);
+        if (matches.isNotEmpty) {
+          return CustomerMatchResult(
+            customer: matches.first,
+            confidenceScore: 90,
+            confidenceLabel: 'High Confidence',
+            matchReason: 'Mobile Number Match ($cleanMob)',
+          );
+        }
+      }
+      if (name != null && name.trim().length >= 3) {
+        final matches = await AppDatabase.searchConsumerRecords(query: name.trim(), pageSize: 1);
+        if (matches.isNotEmpty) {
+          return CustomerMatchResult(
+            customer: matches.first,
+            confidenceScore: 65,
+            confidenceLabel: 'Medium Confidence',
+            matchReason: 'Name Similarity Match ("$name")',
+          );
+        }
+      }
+      return null;
+    }
+
     try {
       // 1. Try exact consumer number match (Highest Confidence)
       if (consumerNo != null && consumerNo.trim().isNotEmpty) {
@@ -282,7 +325,7 @@ class TaskService {
             'fileHash': createdTask.fileHash,
           },
         );
-
+        await AppDatabase.upsertCustomerTask(createdTask);
         return createdTask;
       } catch (err) {
         debugPrint('customer_tasks insert failed, falling back: $err');
@@ -307,36 +350,23 @@ class TaskService {
         } catch (_) {}
       }
 
+      await AppDatabase.upsertCustomerTask(taskToSave);
       return taskToSave;
     } catch (offlineError) {
-      // OFFLINE FALLBACK: Save locally to persistent queue
+      // OFFLINE FALLBACK: Save locally to persistent queue and SQLite
       debugPrint('Offline mode: saving task locally. $offlineError');
       final offlineTask = taskToSave.copyWith(
         syncStatus: 'Pending Sync',
       );
       await OfflineTaskSyncService.enqueueTask(offlineTask);
+      await AppDatabase.upsertCustomerTask(offlineTask);
       return offlineTask;
     }
   }
 
   /// Sync all pending offline tasks to Supabase
   static Future<int> syncPendingOfflineTasks() async {
-    final pending = await OfflineTaskSyncService.getPendingTasks();
-    if (pending.isEmpty) return 0;
-
-    int syncedCount = 0;
-    for (final task in pending) {
-      try {
-        final synced = await createTask(task.copyWith(syncStatus: 'Synced'));
-        if (synced.syncStatus == 'Synced') {
-          await OfflineTaskSyncService.dequeueTask(task.id);
-          syncedCount++;
-        }
-      } catch (e) {
-        debugPrint('Failed to sync offline task ${task.id}: $e');
-      }
-    }
-    return syncedCount;
+    return (await SyncEngine.syncNow()).pushedCount;
   }
 
   /// Fetch all tasks (combines offline pending tasks with remote tasks)
@@ -345,6 +375,10 @@ class TaskService {
     String? sourceFilter,
     String? customerId,
   }) async {
+    if (ConnectivityService.isOffline) {
+      return await AppDatabase.getCustomerTasks(statusFilter: statusFilter);
+    }
+
     final List<CustomerTask> results = [];
 
     // 1. Add offline pending tasks
@@ -370,10 +404,15 @@ class TaskService {
       }
       final list = await query.order('created_at', ascending: false).limit(50);
       for (final item in list) {
-        results.add(CustomerTask.fromMap(item));
+        final task = CustomerTask.fromMap(item);
+        results.add(task);
+        AppDatabase.upsertCustomerTask(task).catchError((_) {});
       }
     } catch (e) {
       debugPrint('Error fetching customer_tasks: $e');
+      if (results.isEmpty) {
+        return await AppDatabase.getCustomerTasks(statusFilter: statusFilter);
+      }
     }
 
     return results;

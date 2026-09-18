@@ -240,6 +240,11 @@ class ConsumerRecord {
   /// Intelligent Priority Category
   String get priorityCategory => WorkflowEngine.getPriorityCategory(this);
 
+  /// Compatibility getters for offline caching & search
+  String? get village => address;
+  String? get assignedStaffId => assignedStaff;
+  String? get assignedStaffName => null;
+
   bool get isSubmitDateFuture {
     if (submitDate == null) return false;
     final now = DateTime.now();

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app_information_screen.dart';
+import 'sync_center_screen.dart';
 
 class MobileSettingsScreen extends StatelessWidget {
   const MobileSettingsScreen({super.key});
@@ -61,18 +62,18 @@ class MobileSettingsScreen extends StatelessWidget {
                     child: const Icon(Icons.sync_rounded, color: Colors.blue, size: 22),
                   ),
                   title: const Text(
-                    'Cloud Synchronization',
+                    'Sync Center',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   subtitle: const Text(
-                    'Manage offline cache and sync queue',
+                    'Offline database status, pending changes & conflict resolution',
                     style: TextStyle(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const AppInformationScreen()),
+                      MaterialPageRoute(builder: (_) => const SyncCenterScreen()),
                     );
                   },
                 ),
@@ -109,7 +110,7 @@ class MobileSettingsScreen extends StatelessWidget {
                   trailing: Switch(
                     value: true,
                     onChanged: (val) {},
-                    activeColor: theme.colorScheme.primary,
+                    activeThumbColor: theme.colorScheme.primary,
                   ),
                 ),
                 const Divider(height: 1, indent: 56),

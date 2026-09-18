@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
+import '../widgets/sync_status_indicator.dart';
 import 'record_detail_screen.dart';
 
 class SearchRecordsScreen extends StatefulWidget {
@@ -78,28 +79,36 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
         children: [
           // Search Input Card
           Padding(
-            padding: const EdgeInsets.all(14.0),
-            child: TextField(
-              controller: _searchController,
-              autofocus: true,
-              onChanged: _onSearchChanged,
-              decoration: InputDecoration(
-                hintText: 'Search by Consumer No, Name, Mobile, or App ID...',
-                hintStyle: const TextStyle(fontSize: 13),
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _onSearchChanged('');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-              ),
+            padding: const EdgeInsets.fromLTRB(14.0, 14.0, 14.0, 8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    autofocus: true,
+                    onChanged: _onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Search Consumer No, Name, Mobile, Village...',
+                      hintStyle: const TextStyle(fontSize: 13),
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                _onSearchChanged('');
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      filled: true,
+                      fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const SyncStatusIndicator(compact: true),
+              ],
             ),
           ),
 
