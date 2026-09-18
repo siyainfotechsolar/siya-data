@@ -11,6 +11,10 @@ import '../services/record_service.dart';
 import '../services/realtime_service.dart';
 import 'leads_screen.dart';
 import 'settings_screen.dart';
+import '../services/share_intent_service.dart';
+import '../services/offline_task_sync_service.dart';
+import 'create_task_screen.dart';
+import 'tasks_list_screen.dart';
 
 class MobileHomeScreen extends StatefulWidget {
   const MobileHomeScreen({super.key});
@@ -31,6 +35,18 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     _loadSummary();
     _loadUserProfile();
     _initMetricsRealtime();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final pending = ShareIntentService.consumePendingDocument();
+      if (pending != null && mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CreateTaskScreen(document: pending),
+          ),
+        );
+      }
+    });
   }
 
   void _initMetricsRealtime() {
@@ -416,6 +432,79 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
             ),
             const SizedBox(height: 16),
           ],
+
+          // WHATSAPP DOCUMENT TASKS PORTAL
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TasksListScreen(initialSourceFilter: 'WhatsApp Share'),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Card(
+              elevation: 0,
+              color: const Color(0xFFECFDF5), // Soft emerald green
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Color(0xFFA7F3D0)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14.0),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Color(0xFF25D366), // WhatsApp brand color
+                      child: Icon(Icons.share_rounded, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text(
+                                'WHATSAPP DOCUMENT TASKS',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: Color(0xFF065F46),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              if (OfflineTaskSyncService.hasPendingTasks)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.shade700,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '${OfflineTaskSyncService.pendingCount} Pending',
+                                    style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Incoming WhatsApp bills, receipts & task workflow reviews',
+                            style: TextStyle(fontSize: 11, color: Colors.green.shade900.withValues(alpha: 0.8)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Color(0xFF059669)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
 
           // TODAY'S WORK Summary Section Header
           Text(

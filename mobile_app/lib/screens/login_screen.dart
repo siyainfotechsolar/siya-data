@@ -79,15 +79,31 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                 children: [
                   Center(
                     child: Container(
-                      padding: const EdgeInsets.all(16),
+                      width: 96,
+                      height: 96,
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primaryContainer,
                         shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      child: Icon(
-                        Icons.solar_power_rounded,
-                        size: 48,
-                        color: theme.colorScheme.primary,
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            color: theme.colorScheme.primaryContainer,
+                            child: Icon(
+                              Icons.solar_power_rounded,
+                              size: 48,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),

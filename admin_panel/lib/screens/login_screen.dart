@@ -85,10 +85,32 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Icon(
-                        Icons.solar_power_rounded,
-                        size: 56,
-                        color: theme.colorScheme.primary,
+                      Center(
+                        child: Container(
+                          width: 88,
+                          height: 88,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/images/logo.png',
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.solar_power_rounded,
+                                size: 56,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Text(
