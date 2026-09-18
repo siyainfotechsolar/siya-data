@@ -153,8 +153,10 @@ void main() {
       expect(CustomerPaymentTransaction.standardModes, contains('UPI'));
       expect(CustomerPaymentTransaction.standardModes, contains('Bank Transfer'));
       expect(CustomerPaymentTransaction.standardModes, contains('Cheque'));
+      expect(CustomerPaymentTransaction.standardModes, contains('NEFT'));
+      expect(CustomerPaymentTransaction.standardModes, contains('RTGS'));
       expect(CustomerPaymentTransaction.standardModes, contains('Other'));
-      expect(CustomerPaymentTransaction.standardModes.length, 5);
+      expect(CustomerPaymentTransaction.standardModes.length, 7);
     });
 
     test('6. Overpayment detection logic', () {

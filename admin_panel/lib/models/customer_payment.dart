@@ -1,20 +1,49 @@
 import 'package:flutter/material.dart';
 
+/// Payment Types supported
+class PaymentType {
+  static const String offline = 'Offline';
+  static const String online = 'Online';
+
+  static const List<String> allTypes = [offline, online];
+}
+
 /// Payment Modes supported
 class PaymentMode {
   static const String cash = 'Cash';
   static const String upi = 'UPI';
   static const String bankTransfer = 'Bank Transfer';
   static const String cheque = 'Cheque';
+  static const String neft = 'NEFT';
+  static const String rtgs = 'RTGS';
   static const String other = 'Other';
 
   static const List<String> allModes = [
-    cash,
     upi,
     bankTransfer,
+    neft,
+    rtgs,
+    cash,
     cheque,
     other,
   ];
+
+  static IconData getModeIcon(String mode) {
+    switch (mode) {
+      case upi:
+        return Icons.qr_code_2_rounded;
+      case bankTransfer:
+      case neft:
+      case rtgs:
+        return Icons.account_balance_rounded;
+      case cash:
+        return Icons.payments_outlined;
+      case cheque:
+        return Icons.edit_note_rounded;
+      default:
+        return Icons.receipt_long_rounded;
+    }
+  }
 }
 
 /// Payment Statuses
@@ -23,6 +52,8 @@ class PaymentStatus {
   static const String partiallyPaid = 'Partially Paid';
   static const String paid = 'Paid';
   static const String overdue = 'Overdue';
+  static const String followup = 'Payment Follow-up';
+  static const String pendingSync = 'Pending Sync';
   static const String refunded = 'Refunded';
   static const String cancelled = 'Cancelled';
 
@@ -31,6 +62,8 @@ class PaymentStatus {
     partiallyPaid,
     paid,
     overdue,
+    followup,
+    pendingSync,
     refunded,
     cancelled,
   ];
@@ -43,6 +76,10 @@ class PaymentStatus {
         return const Color(0xFF0284C7); // Sky
       case overdue:
         return const Color(0xFFDC2626); // Red
+      case followup:
+        return const Color(0xFFF59E0B); // Amber
+      case pendingSync:
+        return const Color(0xFFEA580C); // Orange
       case refunded:
         return const Color(0xFF9333EA); // Purple
       case cancelled:
@@ -54,22 +91,58 @@ class PaymentStatus {
   }
 }
 
+/// Payment Verification Status
+class PaymentVerificationStatus {
+  static const String pending = 'Pending';
+  static const String verified = 'Verified';
+  static const String rejected = 'Rejected';
+  static const String voided = 'Void';
+
+  static const List<String> allStatuses = [
+    pending,
+    verified,
+    rejected,
+    voided,
+  ];
+
+  static Color badgeColor(String status) {
+    switch (status) {
+      case verified:
+        return const Color(0xFF059669);
+      case rejected:
+        return const Color(0xFFDC2626);
+      case voided:
+        return const Color(0xFF475569);
+      case pending:
+      default:
+        return const Color(0xFFD97706);
+    }
+  }
+}
+
 /// Transaction Status
 class TransactionStatus {
   static const String valid = 'Valid';
   static const String reversed = 'Reversed';
   static const String refunded = 'Refunded';
+  static const String voided = 'Void';
 }
 
-/// Model for a Customer Payment Transaction
+/// Model for a Customer Payment Transaction (Central Database Schema Parity)
 class PaymentTransaction {
   static const List<String> standardModes = PaymentMode.allModes;
 
   final String? id;
+  final String? clientTxId;
+  final String? idempotencyKey;
   final String customerId;
   final String consumerNo;
+  final String? customerName;
+  final String? village;
+  final String? mobileNumber;
   final double amount;
   final DateTime paymentDate;
+  final String paymentType;
   final String paymentMode;
   final String? referenceNumber;
   final String? receivedBy;
@@ -77,6 +150,17 @@ class PaymentTransaction {
   final String? attachmentUrl;
   final String status;
   final String? reversalReason;
+  final String? voidReason;
+  final String verificationStatus;
+  final String? verifiedBy;
+  final String? verifiedByName;
+  final DateTime? verifiedAt;
+  final String? verificationRemarks;
+  final double? extractedAmount;
+  final DateTime? extractedDate;
+  final String? extractedRefNo;
+  final bool proofMismatch;
+  final String syncStatus;
   final String? createdBy;
   final String? createdByName;
   final DateTime? createdAt;
@@ -86,10 +170,16 @@ class PaymentTransaction {
 
   const PaymentTransaction({
     this.id,
+    this.clientTxId,
+    this.idempotencyKey,
     required this.customerId,
     required this.consumerNo,
+    this.customerName,
+    this.village,
+    this.mobileNumber,
     required this.amount,
     required this.paymentDate,
+    this.paymentType = PaymentType.offline,
     required this.paymentMode,
     this.referenceNumber,
     this.receivedBy,
@@ -97,6 +187,17 @@ class PaymentTransaction {
     this.attachmentUrl,
     this.status = TransactionStatus.valid,
     this.reversalReason,
+    this.voidReason,
+    this.verificationStatus = PaymentVerificationStatus.pending,
+    this.verifiedBy,
+    this.verifiedByName,
+    this.verifiedAt,
+    this.verificationRemarks,
+    this.extractedAmount,
+    this.extractedDate,
+    this.extractedRefNo,
+    this.proofMismatch = false,
+    this.syncStatus = 'Synced',
     this.createdBy,
     this.createdByName,
     this.createdAt,
@@ -107,18 +208,29 @@ class PaymentTransaction {
 
   bool get isValid => status == TransactionStatus.valid;
   bool get isReversed => status == TransactionStatus.reversed;
+  bool get isVoid => status == TransactionStatus.voided || verificationStatus == PaymentVerificationStatus.voided;
+  bool get isVerified => verificationStatus == PaymentVerificationStatus.verified;
+  bool get isPendingVerification => verificationStatus == PaymentVerificationStatus.pending;
+  bool get isRejected => verificationStatus == PaymentVerificationStatus.rejected;
+  bool get isSynced => syncStatus == 'Synced';
 
   factory PaymentTransaction.fromJson(Map<String, dynamic> json) {
     return PaymentTransaction(
       id: json['id']?.toString(),
+      clientTxId: json['client_tx_id']?.toString(),
+      idempotencyKey: json['idempotency_key']?.toString(),
       customerId: json['customer_id']?.toString() ?? '',
       consumerNo: json['consumer_no']?.toString() ?? '',
+      customerName: json['customer_name']?.toString() ?? json['customer']?['customer_name']?.toString(),
+      village: json['village']?.toString() ?? json['customer']?['village']?.toString(),
+      mobileNumber: json['mobile_number']?.toString() ?? json['customer']?['mobile_number']?.toString(),
       amount: (json['amount'] is num)
           ? (json['amount'] as num).toDouble()
           : double.tryParse(json['amount']?.toString() ?? '0') ?? 0.0,
       paymentDate: json['payment_date'] != null
           ? DateTime.tryParse(json['payment_date'].toString()) ?? DateTime.now()
           : DateTime.now(),
+      paymentType: json['payment_type']?.toString() ?? PaymentType.offline,
       paymentMode: json['payment_mode']?.toString() ?? PaymentMode.other,
       referenceNumber: json['reference_number']?.toString(),
       receivedBy: json['received_by']?.toString(),
@@ -126,6 +238,17 @@ class PaymentTransaction {
       attachmentUrl: json['attachment_url']?.toString(),
       status: json['status']?.toString() ?? TransactionStatus.valid,
       reversalReason: json['reversal_reason']?.toString(),
+      voidReason: json['void_reason']?.toString(),
+      verificationStatus: json['verification_status']?.toString() ?? PaymentVerificationStatus.pending,
+      verifiedBy: json['verified_by']?.toString(),
+      verifiedByName: json['verified_by_name']?.toString(),
+      verifiedAt: json['verified_at'] != null ? DateTime.tryParse(json['verified_at'].toString()) : null,
+      verificationRemarks: json['verification_remarks']?.toString(),
+      extractedAmount: json['extracted_amount'] != null ? double.tryParse(json['extracted_amount'].toString()) : null,
+      extractedDate: json['extracted_date'] != null ? DateTime.tryParse(json['extracted_date'].toString()) : null,
+      extractedRefNo: json['extracted_ref_no']?.toString(),
+      proofMismatch: json['proof_mismatch'] == true,
+      syncStatus: json['sync_status']?.toString() ?? 'Synced',
       createdBy: json['created_by']?.toString(),
       createdByName: json['created_by_name']?.toString(),
       createdAt: json['created_at'] != null
@@ -142,10 +265,13 @@ class PaymentTransaction {
   Map<String, dynamic> toJson() {
     return {
       if (id != null) 'id': id,
+      if (clientTxId != null) 'client_tx_id': clientTxId,
+      if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
       'customer_id': customerId,
       'consumer_no': consumerNo,
       'amount': amount,
       'payment_date': paymentDate.toIso8601String().split('T')[0],
+      'payment_type': paymentType,
       'payment_mode': paymentMode,
       if (referenceNumber != null) 'reference_number': referenceNumber,
       if (receivedBy != null) 'received_by': receivedBy,
@@ -153,6 +279,17 @@ class PaymentTransaction {
       if (attachmentUrl != null) 'attachment_url': attachmentUrl,
       'status': status,
       if (reversalReason != null) 'reversal_reason': reversalReason,
+      if (voidReason != null) 'void_reason': voidReason,
+      'verification_status': verificationStatus,
+      if (verifiedBy != null) 'verified_by': verifiedBy,
+      if (verifiedByName != null) 'verified_by_name': verifiedByName,
+      if (verifiedAt != null) 'verified_at': verifiedAt!.toIso8601String(),
+      if (verificationRemarks != null) 'verification_remarks': verificationRemarks,
+      if (extractedAmount != null) 'extracted_amount': extractedAmount,
+      if (extractedDate != null) 'extracted_date': extractedDate!.toIso8601String().split('T')[0],
+      if (extractedRefNo != null) 'extracted_ref_no': extractedRefNo,
+      'proof_mismatch': proofMismatch,
+      'sync_status': syncStatus,
       if (createdBy != null) 'created_by': createdBy,
       if (createdByName != null) 'created_by_name': createdByName,
       'created_at': (createdAt ?? DateTime.now()).toIso8601String(),
@@ -161,22 +298,104 @@ class PaymentTransaction {
       'updated_at': (updatedAt ?? DateTime.now()).toIso8601String(),
     };
   }
+
+  PaymentTransaction copyWith({
+    String? id,
+    String? clientTxId,
+    String? idempotencyKey,
+    String? customerId,
+    String? consumerNo,
+    String? customerName,
+    String? village,
+    String? mobileNumber,
+    double? amount,
+    DateTime? paymentDate,
+    String? paymentType,
+    String? paymentMode,
+    String? referenceNumber,
+    String? receivedBy,
+    String? remarks,
+    String? attachmentUrl,
+    String? status,
+    String? reversalReason,
+    String? voidReason,
+    String? verificationStatus,
+    String? verifiedBy,
+    String? verifiedByName,
+    DateTime? verifiedAt,
+    String? verificationRemarks,
+    double? extractedAmount,
+    DateTime? extractedDate,
+    String? extractedRefNo,
+    bool? proofMismatch,
+    String? syncStatus,
+    String? createdBy,
+    String? createdByName,
+    DateTime? createdAt,
+    String? updatedBy,
+    String? updatedByName,
+    DateTime? updatedAt,
+  }) {
+    return PaymentTransaction(
+      id: id ?? this.id,
+      clientTxId: clientTxId ?? this.clientTxId,
+      idempotencyKey: idempotencyKey ?? this.idempotencyKey,
+      customerId: customerId ?? this.customerId,
+      consumerNo: consumerNo ?? this.consumerNo,
+      customerName: customerName ?? this.customerName,
+      village: village ?? this.village,
+      mobileNumber: mobileNumber ?? this.mobileNumber,
+      amount: amount ?? this.amount,
+      paymentDate: paymentDate ?? this.paymentDate,
+      paymentType: paymentType ?? this.paymentType,
+      paymentMode: paymentMode ?? this.paymentMode,
+      referenceNumber: referenceNumber ?? this.referenceNumber,
+      receivedBy: receivedBy ?? this.receivedBy,
+      remarks: remarks ?? this.remarks,
+      attachmentUrl: attachmentUrl ?? this.attachmentUrl,
+      status: status ?? this.status,
+      reversalReason: reversalReason ?? this.reversalReason,
+      voidReason: voidReason ?? this.voidReason,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
+      verifiedBy: verifiedBy ?? this.verifiedBy,
+      verifiedByName: verifiedByName ?? this.verifiedByName,
+      verifiedAt: verifiedAt ?? this.verifiedAt,
+      verificationRemarks: verificationRemarks ?? this.verificationRemarks,
+      extractedAmount: extractedAmount ?? this.extractedAmount,
+      extractedDate: extractedDate ?? this.extractedDate,
+      extractedRefNo: extractedRefNo ?? this.extractedRefNo,
+      proofMismatch: proofMismatch ?? this.proofMismatch,
+      syncStatus: syncStatus ?? this.syncStatus,
+      createdBy: createdBy ?? this.createdBy,
+      createdByName: createdByName ?? this.createdByName,
+      createdAt: createdAt ?? this.createdAt,
+      updatedBy: updatedBy ?? this.updatedBy,
+      updatedByName: updatedByName ?? this.updatedByName,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }
 
 /// Summary helper for customer balance calculations
 class CustomerPaymentSummary {
   final double totalAmount;
   final double paidAmount;
+  final double onlinePaidAmount;
+  final double offlinePaidAmount;
   final double pendingAmount;
   final String paymentStatus;
   final DateTime? paymentDueDate;
+  final DateTime? lastPaymentDate;
 
   const CustomerPaymentSummary({
     required this.totalAmount,
     required this.paidAmount,
+    this.onlinePaidAmount = 0.0,
+    this.offlinePaidAmount = 0.0,
     required this.pendingAmount,
     required this.paymentStatus,
     this.paymentDueDate,
+    this.lastPaymentDate,
   });
 
   bool get isPaid => paymentStatus == PaymentStatus.paid;
@@ -192,9 +411,21 @@ class CustomerPaymentSummary {
     DateTime? dueDate,
   }) {
     double validPaid = 0;
+    double onlinePaid = 0;
+    double offlinePaid = 0;
+    DateTime? lastPayment;
+
     for (final tx in transactions) {
-      if (tx.isValid) {
+      if (tx.isValid && tx.verificationStatus != PaymentVerificationStatus.rejected && tx.verificationStatus != PaymentVerificationStatus.voided) {
         validPaid += tx.amount;
+        if (tx.paymentType == PaymentType.online) {
+          onlinePaid += tx.amount;
+        } else {
+          offlinePaid += tx.amount;
+        }
+        if (lastPayment == null || tx.paymentDate.isAfter(lastPayment)) {
+          lastPayment = tx.paymentDate;
+        }
       }
     }
 
@@ -219,14 +450,43 @@ class CustomerPaymentSummary {
     return CustomerPaymentSummary(
       totalAmount: totalAmount,
       paidAmount: validPaid,
+      onlinePaidAmount: onlinePaid,
+      offlinePaidAmount: offlinePaid,
       pendingAmount: pending,
       paymentStatus: status,
       paymentDueDate: dueDate,
+      lastPaymentDate: lastPayment,
     );
   }
+}
+
+/// Admin Payment Dashboard Summary Metrics
+class AdminPaymentMetrics {
+  final double totalCollection;
+  final double todayCollection;
+  final double monthCollection;
+  final double totalOutstanding;
+  final int pendingVerificationCount;
+  final int pendingSyncCount;
+  final int followUpCount;
+  final int todayPaymentsCount;
+  final int totalTransactionsCount;
+
+  const AdminPaymentMetrics({
+    this.totalCollection = 0.0,
+    this.todayCollection = 0.0,
+    this.monthCollection = 0.0,
+    this.totalOutstanding = 0.0,
+    this.pendingVerificationCount = 0,
+    this.pendingSyncCount = 0,
+    this.followUpCount = 0,
+    this.todayPaymentsCount = 0,
+    this.totalTransactionsCount = 0,
+  });
+
+  static AdminPaymentMetrics empty() => const AdminPaymentMetrics();
 }
 
 /// Backward compatibility and naming aliases
 typedef CustomerPaymentTransaction = PaymentTransaction;
 typedef CustomerPaymentCalculation = CustomerPaymentSummary;
-

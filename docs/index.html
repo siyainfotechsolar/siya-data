@@ -280,7 +280,7 @@
     <h1 class="app-title">Siya Solar Staff</h1>
     <p class="app-subtitle">Official Android Application for Staff & Field Operations</p>
     <div class="badges">
-      <span class="badge badge-version" id="versionBadge">Version 1.0.15</span>
+      <span class="badge badge-version" id="versionBadge">Version 1.0.16</span>
       <span class="badge badge-status">● Production Release</span>
     </div>
   </div>
@@ -288,13 +288,13 @@
   <!-- Download & Details Card -->
   <div class="release-card">
     <!-- Primary APK Download -->
-    <a href="./siya-solar-v1.0.15.apk" download="siya-solar-v1.0.15.apk" class="btn-download-primary" id="primaryDownloadBtn">
+    <a href="./siya-solar-v1.0.16.apk" download="siya-solar-v1.0.16.apk" class="btn-download-primary" id="primaryDownloadBtn">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      <span id="btnText">DOWNLOAD APK (52.5 MB)</span>
+      <span id="btnText">DOWNLOAD APK (61.3 MB)</span>
     </a>
 
     <!-- Secondary GitHub Release Link -->
@@ -313,7 +313,7 @@
     <div class="meta-grid">
       <div class="meta-box">
         <div class="meta-label">Version</div>
-        <div class="meta-value" id="metaVersion">1.0.15 (Build 16)</div>
+        <div class="meta-value" id="metaVersion">1.0.16 (Build 17)</div>
       </div>
       <div class="meta-box">
         <div class="meta-label">Release Date</div>
@@ -332,15 +332,15 @@
     <!-- What's New -->
     <div class="changelog-section">
       <div class="changelog-title">
-        <span>✨</span> Highlights in v1.0.15
+        <span>✨</span> Highlights in v1.0.16
       </div>
       <ul class="changelog-list" id="changelogList">
-        <li><strong>Intelligent Payment Management System</strong> — Integrated Payment Hub with Collection Summaries, Pending Sync &amp; Verification tracking</li>
-        <li><strong>Customer Payment Intelligence</strong> — Immediate Contract vs. Paid vs. Pending balance card linked directly to current Installation Stage requirements</li>
-        <li><strong>Smart Calculation &amp; Overpayment Defense</strong> — Real-time remaining balance calculations preventing accidental overpayments without authorized override</li>
-        <li><strong>Payment Proof Intelligence (OCR)</strong> — Auto-extracts amount, date, and UTR reference from camera/gallery/PDF with <code>⚠ PAYMENT PROOF MISMATCH</code> warnings</li>
-        <li><strong>Branded PDF Receipts &amp; WhatsApp Share</strong> — Instant PDF generation with dynamic <code>DRAFT / PENDING SYNC</code> and <code>CONFIRMED RECEIPT</code> watermarking and one-tap WhatsApp sharing</li>
-        <li><strong>Whole-App Offline-First Resilience</strong> — Full local SQLite persistence for payments, zero data loss across app force-stops and phone restarts, and idempotent duplicate-proof sync</li>
+        <li><strong>Separate Payment Module Architecture</strong> — Dedicated offline-first Payment Hub in Android App with real-time balance calculations, overpayment defense, and WhatsApp receipt generation.</li>
+        <li><strong>Admin Panel Reports Enhancements</strong> — Advanced multi-stage filtering, customizable <code>ReportFilterOptions</code>, and <code>RecordDiff</code> audit trail tracking.</li>
+        <li><strong>SQLite v2 Safe Migration &amp; Dead-Letter Queue</strong> — Robust table guards (<code>CREATE TABLE IF NOT EXISTS</code>), retry capping at 10, and graceful abandoned operation recovery.</li>
+        <li><strong>Periodic Background Sync Engine</strong> — Automated 8-minute background data synchronization keeping field staff continuously updated while online.</li>
+        <li><strong>Production Security Hardening</strong> — Dev demo bypass completely gated behind <code>kDebugMode</code>, eliminating unauthorized test logins in production builds.</li>
+        <li><strong>WhatsApp Shared Storage Lifecycle</strong> — Microtask disk cleaner automatically pruning temporary shared files older than 30 days to protect device storage.</li>
       </ul>
     </div>
 
@@ -358,15 +358,15 @@
 
   <script>
     const REPO = 'siyainfotechsolar/siya-data';
-    const DIRECT_APK = './siya-solar-v1.0.15.apk';
-    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.15.apk`;
+    const DIRECT_APK = './siya-solar-v1.0.16.apk';
+    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.16.apk`;
 
     const primaryBtn = document.getElementById('primaryDownloadBtn');
     const btnText = document.getElementById('btnText');
 
     // Default immediate direct link
     primaryBtn.href = DIRECT_APK;
-    primaryBtn.setAttribute('download', 'siya-solar-v1.0.15.apk');
+    primaryBtn.setAttribute('download', 'siya-solar-v1.0.16.apk');
 
     // Ensure fallback to raw GitHub if relative link is blocked
     primaryBtn.addEventListener('error', () => {

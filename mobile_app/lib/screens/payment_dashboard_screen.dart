@@ -155,15 +155,19 @@ class _PaymentDashboardScreenState extends State<PaymentDashboardScreen> with Si
                 children: [
                   // 1. TOP METRICS CAROUSEL / SUMMARY CARDS
                   _buildSummaryCards(theme, isDark),
+                  const SizedBox(height: 14),
+
+                  // 2. QUICK ACTION MODULE BUTTONS
+                  _buildQuickActionButtons(theme, isDark),
                   const SizedBox(height: 16),
 
-                  // 2. OFFLINE SYNC ALERT BANNER
+                  // 3. OFFLINE SYNC ALERT BANNER
                   if (_summary.pendingSyncCount > 0) ...[
                     _buildPendingSyncBanner(theme),
                     const SizedBox(height: 16),
                   ],
 
-                  // 3. SEARCH & MODE FILTER BAR
+                  // 4. SEARCH & MODE FILTER BAR
                   _buildSearchAndFilters(theme, isDark),
                   const SizedBox(height: 16),
 
@@ -193,6 +197,97 @@ class _PaymentDashboardScreenState extends State<PaymentDashboardScreen> with Si
             _loadDashboardData();
           }
         },
+      ),
+    );
+  }
+
+  Widget _buildQuickActionButtons(ThemeData theme, bool isDark) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          // 1. [+ Add Payment]
+          FilledButton.icon(
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('+ Add Payment', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              final res = await AddPaymentDialog.show(context);
+              if (res == true) {
+                _loadDashboardData();
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+
+          // 2. [Payment History]
+          OutlinedButton.icon(
+            icon: const Icon(Icons.history_rounded, size: 18),
+            label: const Text('Payment History', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              _tabController.animateTo(0);
+            },
+          ),
+          const SizedBox(width: 8),
+
+          // 3. [Customer Payments]
+          OutlinedButton.icon(
+            icon: const Icon(Icons.people_outline_rounded, size: 18),
+            label: const Text('Customer Payments', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              _tabController.animateTo(1);
+            },
+          ),
+          const SizedBox(width: 8),
+
+          // 4. [Payment Follow-up]
+          OutlinedButton.icon(
+            icon: const Icon(Icons.phone_callback_rounded, size: 18),
+            label: const Text('Payment Follow-up', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              _tabController.animateTo(2);
+            },
+          ),
+          const SizedBox(width: 8),
+
+          // 5. [Payment Receipts]
+          OutlinedButton.icon(
+            icon: const Icon(Icons.receipt_long_rounded, size: 18, color: Color(0xFF059669)),
+            label: const Text('Payment Receipts', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF059669))),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFFA7F3D0)),
+              backgroundColor: const Color(0xFFECFDF5),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              _tabController.animateTo(0);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Showing all payments. Tap receipt or WhatsApp icon on any entry to view or share.'),
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -505,19 +600,37 @@ class _PaymentDashboardScreenState extends State<PaymentDashboardScreen> with Si
                 ),
               ],
             ),
-            trailing: IconButton(
-              icon: const Icon(Icons.receipt_long_rounded, size: 20),
-              tooltip: 'Receipt',
-              onPressed: () async {
-                final customer = await AppDatabase.getConsumerRecordById(tx.customerId);
-                if (customer != null && context.mounted) {
-                  final file = await PaymentReceiptService.generateReceiptPdf(
-                    tx: tx,
-                    customer: customer,
-                  );
-                  await PaymentReceiptService.openReceipt(file);
-                }
-              },
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.share_rounded, size: 18, color: Color(0xFF25D366)),
+                  tooltip: 'WhatsApp Receipt',
+                  onPressed: () async {
+                    final customer = await AppDatabase.getConsumerRecordById(tx.customerId);
+                    if (customer != null && context.mounted) {
+                      await PaymentReceiptService.shareViaWhatsApp(
+                        tx: tx,
+                        customer: customer,
+                      );
+                    }
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.receipt_long_rounded, size: 20, color: Color(0xFF059669)),
+                  tooltip: 'View PDF',
+                  onPressed: () async {
+                    final customer = await AppDatabase.getConsumerRecordById(tx.customerId);
+                    if (customer != null && context.mounted) {
+                      final file = await PaymentReceiptService.generateReceiptPdf(
+                        tx: tx,
+                        customer: customer,
+                      );
+                      await PaymentReceiptService.openReceipt(file);
+                    }
+                  },
+                ),
+              ],
             ),
           ),
         );

@@ -57,6 +57,77 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     }
   }
 
+  Future<void> _handleForgotPassword() async {
+    final emailFromInput = _emailController.text.trim();
+    final emailTextController = TextEditingController(text: emailFromInput);
+
+    final emailToReset = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter your registered staff email address to receive a password reset link.',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailTextController,
+              keyboardType: TextInputType.emailAddress,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Email Address',
+                prefixIcon: Icon(Icons.email_outlined),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final val = emailTextController.text.trim();
+              if (val.isNotEmpty && val.contains('@')) {
+                Navigator.of(ctx).pop(val);
+              }
+            },
+            child: const Text('Send Link'),
+          ),
+        ],
+      ),
+    );
+
+    if (emailToReset == null || emailToReset.isEmpty) return;
+
+    try {
+      await SupabaseService.resetPassword(emailToReset);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Password reset link sent to $emailToReset. Check your inbox.'),
+            backgroundColor: const Color(0xFF059669),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send reset link: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
   void _bypassForDevDemo() {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const MobileHomeScreen()),
@@ -171,7 +242,26 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                     validator: (val) =>
                         (val == null || val.length < 6) ? 'Min 6 characters' : null,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _isLoading ? null : _handleForgotPassword,
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      ),
+                      child: Text(
+                        'Forgot Password?',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   FilledButton(
                     onPressed: _isLoading ? null : _handleLogin,
                     style: FilledButton.styleFrom(

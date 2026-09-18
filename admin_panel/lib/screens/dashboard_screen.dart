@@ -15,6 +15,7 @@ import 'reports_screen.dart';
 import 'leads_screen.dart';
 import 'settings_screen.dart';
 import 'whatsapp_tasks_screen.dart';
+import 'payments_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -38,6 +39,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavDestination('Leads', Icons.leaderboard_outlined, Icons.leaderboard),
     _NavDestination('Duplicate Finder', Icons.find_in_page_outlined, Icons.find_in_page),
     _NavDestination('Records', Icons.table_chart_outlined, Icons.table_chart),
+    _NavDestination('Payments', Icons.payments_outlined, Icons.payments),
     _NavDestination('Import Data', Icons.upload_file_outlined, Icons.upload_file),
     _NavDestination('Import History', Icons.history_outlined, Icons.history),
     _NavDestination('Recycle Bin', Icons.delete_sweep_outlined, Icons.delete_sweep),
@@ -210,16 +212,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           initialWorkflowQueue: _selectedQueueFilter,
         );
       case 6:
-        return _buildImportLandingView();
+        return const PaymentsScreen();
       case 7:
-        return const HistoryScreen();
+        return _buildImportLandingView();
       case 8:
-        return const RecycleBinScreen();
+        return const HistoryScreen();
       case 9:
-        return const UsersScreen();
+        return const RecycleBinScreen();
       case 10:
-        return const ReportsScreen();
+        return const UsersScreen();
       case 11:
+        return const ReportsScreen();
+      case 12:
         return const SettingsScreen();
       default:
         return _buildDashboardView();
@@ -505,9 +509,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               _buildQueueCard(
                 title: 'Subsidy Processing',
                 count: _isLoadingMetrics ? '...' : '${_metrics?.subsidyProcessingCount ?? 0}',
-                icon: Icons.payments_rounded,
-                color: const Color(0xFF059669),
+                icon: Icons.receipt_long_rounded,
+                color: const Color(0xFF0F766E),
                 onTap: () => _openActionCenter('Subsidy Processing'),
+              ),
+              _buildQueueCard(
+                title: 'Payments & Ledger',
+                count: 'Manage →',
+                icon: Icons.currency_rupee_rounded,
+                color: const Color(0xFF059669),
+                onTap: () => setState(() => _selectedIndex = 6),
               ),
             ],
           ),

@@ -10,6 +10,7 @@ import 'services/offline_task_sync_service.dart';
 import 'services/app_database.dart';
 import 'services/connectivity_service.dart';
 import 'services/sync_engine.dart';
+import 'package:sqflite/sqflite.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
