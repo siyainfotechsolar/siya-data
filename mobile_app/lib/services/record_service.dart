@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
 import '../models/customer_misc_action.dart';
@@ -9,6 +10,12 @@ import 'activity_log_service.dart';
 import 'app_database.dart';
 import 'connectivity_service.dart';
 import 'sync_engine.dart';
+
+/// Centralized logger for MobileRecordService — always use this instead of
+/// bare catch (_) {} so errors are traceable in production logs.
+void _log(String fn, Object error, {String? context}) {
+  debugPrint('[RecordService][$fn] Error${context != null ? " ($context)" : ""}: $error');
+}
 
 class PaginatedResult<T> {
   final List<T> items;
@@ -101,8 +108,9 @@ class MobileRecordService {
         page: page,
         pageSize: pageSize,
       );
-    } catch (_) {
+    } catch (e) {
       // On any connection error, fallback immediately to SQLite
+      _log('fetchRecords', e, context: 'page=$page q=$searchQuery');
       final localItems = await AppDatabase.searchConsumerRecords(
         query: searchQuery,
         statusFilter: statusFilter,
@@ -141,7 +149,8 @@ class MobileRecordService {
       final record = ConsumerRecord.fromJson(response);
       await AppDatabase.upsertConsumerRecord(record, syncStatus: 'SYNCED');
       return record;
-    } catch (_) {
+    } catch (e) {
+      _log('getRecordById', e, context: 'id=$id');
       return null;
     }
   }
@@ -251,8 +260,9 @@ class MobileRecordService {
       } catch (_) {}
 
       return updated;
-    } catch (_) {
+    } catch (e) {
       // On network failure, enqueue for later sync
+      _log('updateRecordStatus', e, context: 'id=$id status=$newStatus');
       await AppDatabase.enqueueOperation(
         OfflineOperation(
           operationId: 'op_${DateTime.now().microsecondsSinceEpoch}',

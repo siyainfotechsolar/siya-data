@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
@@ -56,20 +58,56 @@ void main() async {
     debugPrint('ShareIntentService init error: $e');
   }
 
-  // Configure Direct Navigation from WhatsApp Share
-  ShareIntentService.onDirectNavigate = (sharedDoc) {
-    final nav = navigatorKey.currentState;
-    if (nav != null) {
-      nav.push(
-        MaterialPageRoute(
-          builder: (_) => CreateTaskScreen(document: sharedDoc),
-        ),
-      );
-    }
-  };
+  // 7. Clean up stale WhatsApp shared docs from disk (files older than 30 days)
+  // NOTE: onDirectNavigate callback is registered later in _SiyaMobileAppState.initState()
+  // AFTER the widget tree is built and navigatorKey.currentState is ready.
+  _cleanupStaleSharedDocs();
 
   runApp(const SiyaMobileApp());
 }
+
+/// Delete WhatsApp-shared files from local storage that are older than 30 days.
+/// Prevents unbounded disk growth from accumulated shared PDFs/images.
+void _cleanupStaleSharedDocs() {
+  try {
+    // Run fully asynchronous — do not await to avoid blocking app startup.
+    Future.microtask(() async {
+      try {
+        // Resolve the app's filesDir equivalent on Flutter (path_provider not
+        // available here; use the known subdirectory path derived from the
+        // SQLite DB path which shares the same documents root).
+        final dbPath = await getDatabasesPath();
+        // filesDir is typically the parent of the databases directory.
+        final filesDir = Directory(dbPath).parent;
+        final sharedDocsDir = Directory('${filesDir.path}/whatsapp_shared_docs');
+
+        if (!sharedDocsDir.existsSync()) return;
+
+        final cutoff = DateTime.now().subtract(const Duration(days: 30));
+        int deletedCount = 0;
+        await for (final entity in sharedDocsDir.list()) {
+          if (entity is File) {
+            try {
+              final stat = await entity.stat();
+              if (stat.modified.isBefore(cutoff)) {
+                await entity.delete();
+                deletedCount++;
+              }
+            } catch (_) {}
+          }
+        }
+        if (deletedCount > 0) {
+          debugPrint('[Cleanup] Deleted $deletedCount stale WhatsApp shared docs (>30 days old).');
+        }
+      } catch (e) {
+        debugPrint('[Cleanup] WhatsApp shared docs cleanup error: $e');
+      }
+    });
+  } catch (e) {
+    debugPrint('[Cleanup] Could not schedule cleanup: $e');
+  }
+}
+
 
 class SiyaMobileApp extends StatefulWidget {
   const SiyaMobileApp({super.key});
@@ -82,7 +120,33 @@ class _SiyaMobileAppState extends State<SiyaMobileApp> {
   @override
   void initState() {
     super.initState();
-    // Check if a document was received during cold launch
+
+    // Register onDirectNavigate HERE — after the widget tree is built and
+    // navigatorKey.currentState is guaranteed to be non-null.
+    // Previously set in main() before runApp() which caused a timing race
+    // where cold-launch shared docs were silently dropped.
+    ShareIntentService.onDirectNavigate = (sharedDoc) {
+      final nav = navigatorKey.currentState;
+      if (nav != null) {
+        nav.push(
+          MaterialPageRoute(
+            builder: (_) => CreateTaskScreen(document: sharedDoc),
+          ),
+        );
+      } else {
+        // Navigator not yet available — re-queue via post-frame callback
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          navigatorKey.currentState?.push(
+            MaterialPageRoute(
+              builder: (_) => CreateTaskScreen(document: sharedDoc),
+            ),
+          );
+        });
+      }
+    };
+
+    // Check if a document was received during cold launch and deliver it
+    // now that the navigator is ready.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final pendingDoc = ShareIntentService.consumePendingDocument();
       if (pendingDoc != null && navigatorKey.currentState != null) {

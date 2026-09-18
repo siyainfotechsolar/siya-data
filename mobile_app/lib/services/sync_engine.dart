@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -27,15 +28,35 @@ class SyncResult {
 class SyncEngine {
   static SupabaseClient get _client => SupabaseService.client;
   static bool _isSyncing = false;
+  static Timer? _periodicSyncTimer;
 
   static bool get isSyncing => _isSyncing;
 
-  /// Initialize sync engine and connect to connectivity change hooks
+  /// Initialize sync engine, reconnect hook, and periodic background sync
   static void initialize() {
+    // Trigger sync immediately when network reconnects after being offline
     ConnectivityService.onReconnected = () {
       debugPrint('[SyncEngine] Automatic background sync triggered on network reconnection.');
       syncNow();
     };
+
+    // Periodic background sync every 8 minutes while app is alive.
+    // Ensures the local cache stays fresh even when no reconnection event fires
+    // (e.g. admin makes changes from web panel while staff is already online).
+    _periodicSyncTimer?.cancel();
+    _periodicSyncTimer = Timer.periodic(const Duration(minutes: 8), (_) {
+      if (ConnectivityService.isOnline && !_isSyncing) {
+        debugPrint('[SyncEngine] Periodic background sync triggered (8-min interval).');
+        syncNow();
+      }
+    });
+    debugPrint('[SyncEngine] Initialized. Periodic sync active (every 8 min).');
+  }
+
+  /// Cancel timers — call when the app is fully disposed.
+  static void dispose() {
+    _periodicSyncTimer?.cancel();
+    _periodicSyncTimer = null;
   }
 
   /// Trigger full synchronization (Push pending local ops -> Pull remote deltas)
