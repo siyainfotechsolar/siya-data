@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import 'home_screen.dart';
@@ -187,11 +188,17 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                           )
                         : const Text('Sign In', style: TextStyle(fontSize: 16)),
                   ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: _bypassForDevDemo,
-                    child: const Text('Dev Demo (Skip Login)'),
-                  ),
+                  // Dev Demo bypass — only visible in debug builds, never in production APK
+                  if (kDebugMode) ...[
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: _bypassForDevDemo,
+                      child: Text(
+                        'Dev Demo (Skip Login)',
+                        style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

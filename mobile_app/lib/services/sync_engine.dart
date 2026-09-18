@@ -84,14 +84,29 @@ class SyncEngine {
             conflicts++;
           }
         } catch (e) {
-          debugPrint('[SyncEngine] Error processing operation ${op.operationId}: $e');
-          await AppDatabase.updateOperationStatus(
-            operationId: op.operationId,
-            syncStatus: 'FAILED',
-            retryCount: op.retryCount + 1,
-            errorMessage: e.toString(),
-          );
+          final newRetryCount = op.retryCount + 1;
+          debugPrint('[SyncEngine] Error processing operation ${op.operationId} (attempt $newRetryCount): $e');
+
+          if (newRetryCount >= 10) {
+            // Dead-letter: operation has exceeded max retries. Mark ABANDONED
+            // so it never blocks the sync queue again.
+            await AppDatabase.updateOperationStatus(
+              operationId: op.operationId,
+              syncStatus: 'ABANDONED',
+              retryCount: newRetryCount,
+              errorMessage: 'Max retries exceeded. Last error: ${e.toString()}',
+            );
+            debugPrint('[SyncEngine] Operation ${op.operationId} ABANDONED after $newRetryCount attempts.');
+          } else {
+            await AppDatabase.updateOperationStatus(
+              operationId: op.operationId,
+              syncStatus: 'FAILED',
+              retryCount: newRetryCount,
+              errorMessage: e.toString(),
+            );
+          }
         }
+
       }
 
       // 2. PUSH OFFLINE ACTIVITY LOGS

@@ -1,7 +1,10 @@
 -- ==============================================================================
--- Migration: Workflow-Aware Priority List Helper RPC
+-- Migration: 20260903000009_workflow_aware_priority.sql
+-- Workflow-Aware Priority List Helper RPC
 -- Excludes Completed, Subsidy Received, and Subsidy Processing records from Active Priority Counts
+-- RENAMED: was 20260903000008 (duplicate); correct sequence is now 000009.
 -- ==============================================================================
+
 
 CREATE OR REPLACE FUNCTION get_priority_summary_counts()
 RETURNS TABLE (

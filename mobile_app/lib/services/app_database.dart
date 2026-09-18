@@ -177,7 +177,13 @@ class SyncConflict {
 /// Main Persistent Local Database Service (SQLite)
 class AppDatabase {
   static const String _dbName = 'siya_solar_local.db';
-  static const int _dbVersion = 1;
+
+  /// Version history:
+  ///   v1 — Initial schema (10 tables: records, leads, tasks, payments,
+  ///          misc_actions, issues, activity_logs, op_queue, conflicts, metadata)
+  ///   v2 — Added: retry_count safety guard (data only, no schema change needed)
+  ///          whatsapp_docs cleanup tracking metadata key
+  static const int _dbVersion = 2;
 
   static Database? _database;
   static Database? _testDatabase;
@@ -395,7 +401,108 @@ class AppDatabase {
   }
 
   static Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Migration logic for future upgrades
+    debugPrint('[AppDatabase] Upgrading SQLite from v$oldVersion to v$newVersion');
+    final batch = db.batch();
+
+    // -------------------------------------------------------------------------
+    // v1 → v2: No new columns required yet.
+    // Use CREATE TABLE IF NOT EXISTS guards to handle any users who may have
+    // a partially-initialised db (edge-case recovery).
+    // -------------------------------------------------------------------------
+    if (oldVersion < 2) {
+      // Ensure all core tables exist (safe no-op on fresh installs)
+      batch.execute('''
+        CREATE TABLE IF NOT EXISTS cached_consumer_records (
+          id TEXT PRIMARY KEY, consumer_no TEXT, name TEXT, mobile TEXT,
+          application_id TEXT, village TEXT, status TEXT, customer_work_state TEXT,
+          priority TEXT, assigned_staff_id TEXT, assigned_staff_name TEXT,
+          raw_json TEXT NOT NULL, sync_status TEXT NOT NULL DEFAULT 'SYNCED',
+          last_modified_at TEXT
+        )
+      ''');
+      batch.execute('''
+        CREATE TABLE IF NOT EXISTS cached_leads (
+          id TEXT PRIMARY KEY, customer_name TEXT, mobile_no TEXT, village TEXT,
+          lead_status TEXT, assigned_staff_id TEXT, next_followup_date TEXT,
+          raw_json TEXT NOT NULL, sync_status TEXT NOT NULL DEFAULT 'SYNCED'
+        )
+      ''');
+      batch.execute('''
+        CREATE TABLE IF NOT EXISTS cached_customer_tasks (
+          id TEXT PRIMARY KEY, customer_id TEXT, consumer_no TEXT,
+          customer_name TEXT, status TEXT, document_type TEXT, document_name TEXT,
+          local_file_path TEXT, document_url TEXT,
+          raw_json TEXT NOT NULL, sync_status TEXT NOT NULL DEFAULT 'Synced'
+        )
+      ''');
+      batch.execute('''
+        CREATE TABLE IF NOT EXISTS cached_payments (
+          id TEXT PRIMARY KEY, client_tx_id TEXT UNIQUE, idempotency_key TEXT UNIQUE,
+          customer_id TEXT, consumer_no TEXT, customer_name TEXT, amount REAL,
+          payment_date TEXT, payment_type TEXT NOT NULL DEFAULT 'Offline',
+          payment_mode TEXT, reference_number TEXT,
+          verification_status TEXT NOT NULL DEFAULT 'Pending',
+          proof_mismatch INTEGER NOT NULL DEFAULT 0,
+          extracted_amount REAL, extracted_ref_no TEXT,
+          attachment_url TEXT, local_attachment_path TEXT,
+          raw_json TEXT NOT NULL, sync_status TEXT NOT NULL DEFAULT 'Synced'
+        )
+      ''');
+      batch.execute('''
+        CREATE TABLE IF NOT EXISTS cached_misc_actions (
+          id TEXT PRIMARY KEY, record_id TEXT, consumer_no TEXT,
+          customer_name TEXT, action_type TEXT, status TEXT,
+          raw_json TEXT NOT NULL, sync_status TEXT NOT NULL DEFAULT 'SYNCED'
+        )
+      ''');
+      batch.execute('''
+        CREATE TABLE IF NOT EXISTS cached_customer_issues (
+          id TEXT PRIMARY KEY, customer_id TEXT, consumer_no TEXT,
+          customer_name TEXT, issue_type TEXT, status TEXT, priority TEXT,
+          raw_json TEXT NOT NULL, sync_status TEXT NOT NULL DEFAULT 'SYNCED'
+        )
+      ''');
+      batch.execute('''
+        CREATE TABLE IF NOT EXISTS cached_activity_logs (
+          id TEXT PRIMARY KEY, record_id TEXT, consumer_no TEXT, staff_name TEXT,
+          action TEXT, created_at TEXT, raw_json TEXT NOT NULL,
+          sync_status TEXT NOT NULL DEFAULT 'Pending'
+        )
+      ''');
+      batch.execute('''
+        CREATE TABLE IF NOT EXISTS offline_operations_queue (
+          operation_id TEXT PRIMARY KEY, entity_type TEXT NOT NULL,
+          entity_id TEXT NOT NULL, action TEXT NOT NULL, payload TEXT NOT NULL,
+          user_id TEXT, device_id TEXT, created_at TEXT NOT NULL,
+          sync_status TEXT NOT NULL DEFAULT 'PENDING',
+          retry_count INTEGER NOT NULL DEFAULT 0, error_message TEXT
+        )
+      ''');
+      batch.execute('''
+        CREATE TABLE IF NOT EXISTS sync_conflicts (
+          conflict_id TEXT PRIMARY KEY, operation_id TEXT NOT NULL,
+          entity_type TEXT NOT NULL, entity_id TEXT NOT NULL,
+          local_payload TEXT NOT NULL, server_payload TEXT NOT NULL,
+          detected_at TEXT NOT NULL, resolved INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+      batch.execute('''
+        CREATE TABLE IF NOT EXISTS sync_metadata (
+          key TEXT PRIMARY KEY, value TEXT NOT NULL
+        )
+      ''');
+
+      // Dead-letter any FAILED operations that piled up before the retry cap
+      // existed — mark them ABANDONED so they do not loop forever.
+      batch.execute('''
+        UPDATE offline_operations_queue
+        SET sync_status = 'ABANDONED', error_message = 'Abandoned during v1→v2 upgrade (exceeded retry safety limit)'
+        WHERE sync_status = 'FAILED' AND retry_count >= 10
+      ''');
+    }
+
+    await batch.commit(noResult: true);
+    debugPrint('[AppDatabase] Upgrade complete (v$oldVersion → v$newVersion)');
   }
 
   // ===========================================================================
@@ -440,7 +547,9 @@ class AppDatabase {
     final db = await database;
     final res = await db.query(
       'offline_operations_queue',
-      where: "sync_status IN ('PENDING', 'FAILED')",
+      // Cap retries at 10 to prevent permanently-failing ops from looping forever.
+      // Operations exceeding the cap are marked ABANDONED by the sync engine.
+      where: "sync_status IN ('PENDING', 'FAILED') AND retry_count < 10",
       orderBy: 'created_at ASC',
       limit: limit,
     );
