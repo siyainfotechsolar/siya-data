@@ -191,7 +191,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           scrolledUnderElevation: 1,
           title: Text(_getAppBarTitle(), style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3)),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(Icons.exit_to_app_rounded),
             tooltip: 'Exit App',
             onPressed: _showExitDialog,
           ),
@@ -272,7 +272,12 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [cs.primary, cs.primary.withValues(alpha: 0.82)],
+                colors: [
+                  cs.primary,
+                  cs.primary.withValues(alpha: 0.82),
+                  cs.primaryContainer.withValues(alpha: 0.9),
+                ],
+                stops: const [0.0, 0.6, 1.0],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -322,6 +327,18 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                 const SizedBox(height: 20),
 
                 // Metric chips row
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'YOUR PIPELINE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.3,
+                      color: Colors.white.withValues(alpha: 0.65),
+                    ),
+                  ),
+                ),
                 if (_isLoadingSummary)
                   const SizedBox(
                     height: 4,
@@ -454,6 +471,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
               ),
             ),
           ],
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -628,9 +646,12 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                 child: Icon(icon, size: 16, color: color),
               ),
               const SizedBox(width: 10),
-              Text(
-                label,
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: color),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: color),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),

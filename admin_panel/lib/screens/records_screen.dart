@@ -579,95 +579,120 @@ class _RecordsScreenState extends State<RecordsScreen> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  // Work Queue Scope Dropdown
-                  DropdownButtonHideUnderline(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: theme.colorScheme.primary),
-                        borderRadius: BorderRadius.circular(4),
-                        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+                  // Work Queue Scope Dropdown — labelled
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('SCOPE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.colorScheme.onSurfaceVariant)),
+                      const SizedBox(height: 2),
+                      DropdownButtonHideUnderline(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: theme.colorScheme.primary),
+                            borderRadius: BorderRadius.circular(8),
+                            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+                          ),
+                          child: DropdownButton<String>(
+                            value: _workQueueScope,
+                            items: const [
+                              DropdownMenuItem(value: 'Active', child: Text('⚡ Active Customers', style: TextStyle(fontWeight: FontWeight.bold))),
+                              DropdownMenuItem(value: 'No Action Required', child: Text('⏸️ Hold / No Action Required')),
+                              DropdownMenuItem(value: 'Completed', child: Text('✅ Completed Customers')),
+                              DropdownMenuItem(value: 'Old Applications', child: Text('⏳ Old Applications (≥60 Days)')),
+                              DropdownMenuItem(value: 'All', child: Text('🌐 All Customers')),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _workQueueScope = val;
+                                  _currentPage = 1;
+                                  _selectedRecordIds.clear();
+                                });
+                                _loadRecords();
+                              }
+                            },
+                          ),
+                        ),
                       ),
-                      child: DropdownButton<String>(
-                        value: _workQueueScope,
-                        items: const [
-                          DropdownMenuItem(value: 'Active', child: Text('⚡ Active Customers', style: TextStyle(fontWeight: FontWeight.bold))),
-                          DropdownMenuItem(value: 'No Action Required', child: Text('⏸️ Hold / No Action Required')),
-                          DropdownMenuItem(value: 'Completed', child: Text('✅ Completed Customers')),
-                          DropdownMenuItem(value: 'Old Applications', child: Text('⏳ Old Applications (≥60 Days)')),
-                          DropdownMenuItem(value: 'All', child: Text('🌐 All Customers')),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              _workQueueScope = val;
-                              _currentPage = 1;
-                              _selectedRecordIds.clear();
-                            });
-                            _loadRecords();
-                          }
-                        },
-                      ),
-                    ),
+                    ],
                   ),
                   const SizedBox(width: 16),
-                  // Workflow Queue Dropdown
-                  DropdownButtonHideUnderline(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFD97706)),
-                        borderRadius: BorderRadius.circular(4),
-                        color: const Color(0xFFFFFBEB),
+                  // Workflow Queue Dropdown — labelled
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('QUEUE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.colorScheme.onSurfaceVariant)),
+                      const SizedBox(height: 2),
+                      DropdownButtonHideUnderline(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFFD97706)),
+                            borderRadius: BorderRadius.circular(8),
+                            color: const Color(0xFFFFFBEB),
+                          ),
+                          child: DropdownButton<String>(
+                            value: _selectedWorkflowQueue,
+                            items: const [
+                              DropdownMenuItem(value: 'All', child: Text('All Queues', style: TextStyle(fontWeight: FontWeight.bold))),
+                              DropdownMenuItem(value: 'Agreement Pending', child: Text('⚡ Agreement Pending')),
+                              DropdownMenuItem(value: 'Loan Pending', child: Text('💰 Loan Pending')),
+                              DropdownMenuItem(value: 'Installation Pending', child: Text('🔧 Installation Pending')),
+                              DropdownMenuItem(value: 'RTS Pending', child: Text('⚡ RTS Pending')),
+                              DropdownMenuItem(value: 'Subsidy Pending', child: Text('🏛️ Subsidy Pending')),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _selectedWorkflowQueue = val;
+                                  _currentPage = 1;
+                                  _selectedRecordIds.clear();
+                                });
+                                _loadRecords();
+                              }
+                            },
+                          ),
+                        ),
                       ),
-                      child: DropdownButton<String>(
-                        value: _selectedWorkflowQueue,
-                        items: const [
-                          DropdownMenuItem(value: 'All', child: Text('All Queues', style: TextStyle(fontWeight: FontWeight.bold))),
-                          DropdownMenuItem(value: 'Agreement Pending', child: Text('⚡ Agreement Pending')),
-                          DropdownMenuItem(value: 'Loan Pending', child: Text('💰 Loan Pending')),
-                          DropdownMenuItem(value: 'Installation Pending', child: Text('🔧 Installation Pending')),
-                          DropdownMenuItem(value: 'RTS Pending', child: Text('⚡ RTS Pending')),
-                          DropdownMenuItem(value: 'Subsidy Pending', child: Text('🏛️ Subsidy Pending')),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              _selectedWorkflowQueue = val;
-                              _currentPage = 1;
-                              _selectedRecordIds.clear();
-                            });
-                            _loadRecords();
-                          }
-                        },
-                      ),
-                    ),
+                    ],
                   ),
                   const SizedBox(width: 16),
-                  DropdownButtonHideUnderline(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade400),
-                        borderRadius: BorderRadius.circular(4),
+                  // Status Dropdown — labelled
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('STATUS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.colorScheme.onSurfaceVariant)),
+                      const SizedBox(height: 2),
+                      DropdownButtonHideUnderline(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade400),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: DropdownButton<String>(
+                            value: _selectedStatus,
+                            items: _statusFilters
+                                .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                                .toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _selectedStatus = val;
+                                  _currentPage = 1;
+                                  _selectedRecordIds.clear();
+                                });
+                                _loadRecords();
+                              }
+                            },
+                          ),
+                        ),
                       ),
-                      child: DropdownButton<String>(
-                        value: _selectedStatus,
-                        items: _statusFilters
-                            .map((s) => DropdownMenuItem(value: s, child: Text('Status: $s')))
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              _selectedStatus = val;
-                              _currentPage = 1;
-                              _selectedRecordIds.clear();
-                            });
-                            _loadRecords();
-                          }
-                        },
-                      ),
-                    ),
+                    ],
                   ),
                   const SizedBox(width: 16),
                   IconButton.outlined(

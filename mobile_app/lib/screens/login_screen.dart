@@ -278,132 +278,153 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
-                  AutofillGroup(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextFormField(
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          autofillHints: const [AutofillHints.email, AutofillHints.username],
-                          decoration: const InputDecoration(
-                            labelText: 'Staff Email',
-                            prefixIcon: Icon(Icons.person_outline),
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (val) =>
-                              (val == null || !val.contains('@')) ? 'Valid email required' : null,
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: _obscurePassword,
-                          autofillHints: const [AutofillHints.password],
-                          onFieldSubmitted: (_) => _isLoading ? null : _handleLogin(),
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            prefixIcon: const Icon(Icons.lock_outline),
-                            border: const OutlineInputBorder(),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                              ),
-                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                            ),
-                          ),
-                          validator: (val) =>
-                              (val == null || val.length < 6) ? 'Min 6 characters' : null,
-                        ),
-                      ],
+                  Card(
+                    elevation: 0,
+                    color: theme.colorScheme.surfaceContainerLow,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: InkWell(
-                          onTap: _isLoading
-                              ? null
-                              : () {
-                                  setState(() {
-                                    _rememberPassword = !_rememberPassword;
-                                  });
-                                },
-                          borderRadius: BorderRadius.circular(6),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          AutofillGroup(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: Checkbox(
-                                    value: _rememberPassword,
-                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    visualDensity: VisualDensity.compact,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    onChanged: _isLoading
-                                        ? null
-                                        : (val) {
-                                            setState(() {
-                                              _rememberPassword = val ?? false;
-                                            });
-                                          },
+                                TextFormField(
+                                  controller: _emailController,
+                                  keyboardType: TextInputType.emailAddress,
+                                  autofillHints: const [AutofillHints.email, AutofillHints.username],
+                                  decoration: InputDecoration(
+                                    labelText: 'Staff Email',
+                                    prefixIcon: const Icon(Icons.person_outline),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                   ),
+                                  validator: (val) =>
+                                      (val == null || !val.contains('@')) ? 'Valid email required' : null,
                                 ),
-                                const SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    'Remember Password',
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      color: theme.colorScheme.onSurface,
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _passwordController,
+                                  obscureText: _obscurePassword,
+                                  autofillHints: const [AutofillHints.password],
+                                  onFieldSubmitted: (_) => _isLoading ? null : _handleLogin(),
+                                  decoration: InputDecoration(
+                                    labelText: 'Password',
+                                    prefixIcon: const Icon(Icons.lock_outline),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                                      ),
+                                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                                     ),
                                   ),
+                                  validator: (val) =>
+                                      (val == null || val.length < 6) ? 'Min 6 characters' : null,
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: _isLoading ? null : _handleForgotPassword,
-                        style: TextButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        ),
-                        child: Text(
-                          'Forgot Password?',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: theme.colorScheme.primary,
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: InkWell(
+                                  onTap: _isLoading
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            _rememberPassword = !_rememberPassword;
+                                          });
+                                        },
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 4),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: Checkbox(
+                                            value: _rememberPassword,
+                                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                            visualDensity: VisualDensity.compact,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            onChanged: _isLoading
+                                                ? null
+                                                : (val) {
+                                                    setState(() {
+                                                      _rememberPassword = val ?? false;
+                                                    });
+                                                  },
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Flexible(
+                                          child: Text(
+                                            'Remember Password',
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.normal,
+                                              color: theme.colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _isLoading ? null : _handleForgotPassword,
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                ),
+                                child: Text(
+                                  'Forgot Password?',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  FilledButton(
-                    onPressed: _isLoading ? null : _handleLogin,
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                          const SizedBox(height: 14),
+                          FilledButton(
+                            onPressed: _isLoading ? null : _handleLogin,
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
-                          )
-                        : const Text('Sign In', style: TextStyle(fontSize: 16)),
+                            child: _isLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text('Sign In', style: TextStyle(fontSize: 16)),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   // Dev Demo bypass — only visible in debug builds, never in production APK
                   if (kDebugMode) ...[
@@ -412,7 +433,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                       onPressed: _bypassForDevDemo,
                       child: Text(
                         'Dev Demo (Skip Login)',
-                        style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                        style: TextStyle(color: theme.colorScheme.outline, fontSize: 12),
                       ),
                     ),
                   ],

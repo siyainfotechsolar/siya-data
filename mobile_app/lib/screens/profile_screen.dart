@@ -126,41 +126,61 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
                 children: [
                   // Profile Header Card
                   Card(
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                      ),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(20.0),
-                      child: Column(
+                      child: Stack(
                         children: [
-                          CircleAvatar(
-                            radius: 36,
-                            backgroundColor: theme.colorScheme.primaryContainer,
-                            child: Icon(Icons.person_pin, size: 44, color: theme.colorScheme.primary),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            fullName,
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            email,
-                            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
-                          ),
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(6),
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: IconButton(
+                              icon: Icon(Icons.logout_rounded, color: theme.colorScheme.error, size: 20),
+                              tooltip: 'Sign Out',
+                              onPressed: _handleSignOut,
                             ),
-                            child: Text(
-                              'ROLE: $role',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.primary,
-                              ),
+                          ),
+                          Center(
+                            child: Column(
+                              children: [
+                                CircleAvatar(
+                                  radius: 36,
+                                  backgroundColor: theme.colorScheme.primaryContainer,
+                                  child: Icon(Icons.account_circle_rounded, size: 44, color: theme.colorScheme.primary),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  fullName,
+                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  email,
+                                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+                                ),
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    'ROLE: $role',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -172,8 +192,13 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
 
                   // Today's & Weekly Work Summary (Who Worked Log Integration)
                   Card(
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(
+                        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                      ),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
@@ -190,11 +215,11 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
                           Row(
                             children: [
                               Expanded(
-                                child: _buildWorkCounter('Today\'s Actions', '${_workStats['today'] ?? 0}', const Color(0xFF059669)),
+                                child: _buildWorkCounter('Today\'s Actions', '${_workStats['today'] ?? 0}', theme.colorScheme.primary),
                               ),
                               const SizedBox(width: 10),
                               Expanded(
-                                child: _buildWorkCounter('Weekly Actions', '${_workStats['weekly'] ?? 0}', Colors.blue.shade700),
+                                child: _buildWorkCounter('Weekly Actions', '${_workStats['weekly'] ?? 0}', theme.colorScheme.secondary),
                               ),
                             ],
                           ),
@@ -202,11 +227,11 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              _buildMiniStat('Completed', '${_workStats['completed'] ?? 0}', Colors.green.shade700),
-                              _buildMiniStat('Pending', '${_workStats['pending'] ?? 0}', Colors.orange.shade800),
-                              _buildMiniStat('Follow-ups', '${_workStats['followups'] ?? 0}', Colors.indigo.shade700),
-                              _buildMiniStat('Installations', '${_workStats['installations'] ?? 0}', Colors.teal.shade700),
-                              _buildMiniStat('Payments', '${_workStats['payments'] ?? 0}', Colors.purple.shade700),
+                              _buildMiniStat('Completed', '${_workStats['completed'] ?? 0}', theme.colorScheme.primary),
+                              _buildMiniStat('Pending', '${_workStats['pending'] ?? 0}', theme.colorScheme.error),
+                              _buildMiniStat('Follow-ups', '${_workStats['followups'] ?? 0}', theme.colorScheme.secondary),
+                              _buildMiniStat('Installations', '${_workStats['installations'] ?? 0}', theme.colorScheme.tertiary),
+                              _buildMiniStat('Payments', '${_workStats['payments'] ?? 0}', const Color(0xFF7C3AED)),
                             ],
                           ),
                         ],
@@ -218,8 +243,13 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
 
                   // Permissions Card
                   Card(
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(
+                        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                      ),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
@@ -258,10 +288,10 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
                   OutlinedButton.icon(
                     onPressed: _handleSignOut,
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
+                      foregroundColor: theme.colorScheme.error,
+                      side: BorderSide(color: theme.colorScheme.error),
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     icon: const Icon(Icons.logout),
                     label: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -278,25 +308,26 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
     required String subtitle,
     required bool isAllowed,
   }) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         children: [
-          Icon(icon, size: 22, color: isAllowed ? Colors.green.shade700 : Colors.grey),
+          Icon(icon, size: 22, color: isAllowed ? cs.primary : cs.onSurfaceVariant),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                Text(subtitle, style: TextStyle(color: Colors.grey.shade600, fontSize: 11)),
+                Text(subtitle, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11)),
               ],
             ),
           ),
           Icon(
             isAllowed ? Icons.check_circle : Icons.cancel_outlined,
             size: 18,
-            color: isAllowed ? Colors.green.shade700 : Colors.grey,
+            color: isAllowed ? cs.primary : cs.onSurfaceVariant,
           ),
         ],
       ),
@@ -321,7 +352,7 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey),
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -338,7 +369,7 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
         const SizedBox(height: 2),
         Text(
           label,
-          style: const TextStyle(fontSize: 10, color: Colors.grey),
+          style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ],
     );

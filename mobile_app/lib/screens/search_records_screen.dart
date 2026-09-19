@@ -245,11 +245,19 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
                                     : filter,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
                     ),
                   ),
                   selected: isSelected,
                   selectedColor: theme.colorScheme.primaryContainer,
+                  backgroundColor: theme.colorScheme.surfaceContainerLow,
+                  side: BorderSide(
+                    color: isSelected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   onSelected: (selected) {
                     if (selected) {
                       _applySmartFilter(filter);
@@ -270,8 +278,15 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.search_rounded, size: 64, color: Colors.grey.shade400),
-                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                              ),
+                              child: Icon(Icons.search_rounded, size: 48, color: theme.colorScheme.primary),
+                            ),
+                            const SizedBox(height: 16),
                             Text(
                               'Type to find solar consumer records',
                               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -289,8 +304,15 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.sentiment_dissatisfied_rounded, size: 56, color: Colors.grey.shade400),
-                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: theme.colorScheme.errorContainer.withValues(alpha: 0.3),
+                                  ),
+                                  child: Icon(Icons.search_off_rounded, size: 48, color: theme.colorScheme.error),
+                                ),
+                                const SizedBox(height: 16),
                                 Text(
                                   'No matching consumers found',
                                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -311,8 +333,13 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
                               final statusColor = _getStatusColor(record.status);
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 10),
-                                elevation: 1,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(
+                                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                                  ),
+                                ),
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(12),
                                   onTap: () async {

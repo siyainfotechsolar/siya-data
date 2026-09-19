@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -31,22 +32,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final client = SupabaseService.client;
       // Latency and DB ping
-      final resp = await client.from('consumer_records').select('id').limit(1);
+      await client.from('consumer_records').select('id').limit(1);
       sw.stop();
       _latencyMs = sw.elapsedMilliseconds;
       _serverOnline = true;
-      _dbConnected = resp is List;
+      _dbConnected = true;
 
-      // Count records & users
-      final userCount = await client.from('profiles').select('id');
-      if (userCount is List) {
-        _totalUsers = userCount.length;
-      }
+      // Count records & users using server-side COUNT
+      final userResp = await client
+          .from('profiles')
+          .select('id')
+          .count(CountOption.exact);
+      _totalUsers = userResp.count;
 
-      final recCount = await client.from('consumer_records').select('id').eq('is_deleted', false);
-      if (recCount is List) {
-        _totalRecords = recCount.length;
-      }
+      final recResp = await client
+          .from('consumer_records')
+          .select('id')
+          .eq('deleted', false)
+          .count(CountOption.exact);
+      _totalRecords = recResp.count;
     } catch (e) {
       sw.stop();
       _latencyMs = sw.elapsedMilliseconds > 0 ? sw.elapsedMilliseconds : 999;
@@ -165,7 +169,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildAppInfoCard(ThemeData theme) {
     return Card(
-      elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(18.0),
@@ -193,7 +196,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildHealthCard(ThemeData theme) {
     return Card(
-      elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(18.0),
@@ -231,7 +233,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildServerCard(ThemeData theme) {
     final dateFormat = DateFormat('dd/MM/yyyy hh:mm a');
     return Card(
-      elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(18.0),
@@ -264,7 +265,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildAdminTelemetryCard(ThemeData theme) {
     return Card(
-      elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(18.0),
@@ -319,7 +319,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          Text(label, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
           Text(
             value,
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: valColor),

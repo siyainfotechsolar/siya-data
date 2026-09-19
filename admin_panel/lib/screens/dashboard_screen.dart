@@ -109,6 +109,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDesktop = MediaQuery.of(context).size.width >= 900;
+    final isExtended = MediaQuery.of(context).size.width >= 1100;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -172,22 +173,47 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
       body: Row(
         children: [
-          NavigationRail(
-            extended: isDesktop,
-            selectedIndex: _selectedIndex,
-            useIndicator: true,
-            onDestinationSelected: (i) {
-              setState(() => _selectedIndex = i);
-              if (i == 0) _loadMetrics();
-            },
-            destinations: _navItems
-                .map((d) => NavigationRailDestination(
-                      icon: Icon(d.icon),
-                      selectedIcon: Icon(d.selectedIcon),
-                      label: Text(d.label),
-                    ))
-                .toList(),
-          ),
+          if (isDesktop)
+            SizedBox(
+              width: isExtended ? 200 : 72,
+              child: SingleChildScrollView(
+                child: IntrinsicHeight(
+                  child: NavigationRail(
+                    extended: isExtended,
+                    selectedIndex: _selectedIndex,
+                    useIndicator: true,
+                    onDestinationSelected: (i) {
+                      setState(() => _selectedIndex = i);
+                      if (i == 0) _loadMetrics();
+                    },
+                    destinations: _navItems
+                        .map((d) => NavigationRailDestination(
+                              icon: Icon(d.icon),
+                              selectedIcon: Icon(d.selectedIcon),
+                              label: Text(d.label),
+                            ))
+                        .toList(),
+                  ),
+                ),
+              ),
+            )
+          else
+            NavigationRail(
+              extended: false,
+              selectedIndex: _selectedIndex,
+              useIndicator: true,
+              onDestinationSelected: (i) {
+                setState(() => _selectedIndex = i);
+                if (i == 0) _loadMetrics();
+              },
+              destinations: _navItems
+                  .map((d) => NavigationRailDestination(
+                        icon: Icon(d.icon),
+                        selectedIcon: Icon(d.selectedIcon),
+                        label: Text(d.label),
+                      ))
+                  .toList(),
+            ),
           const VerticalDivider(thickness: 1, width: 1),
           Expanded(child: _buildBodyContent()),
         ],
@@ -262,11 +288,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const SizedBox(width: 24),
                 Row(
                   children: [
-                    _buildHeroStat('Total Records', '${_metrics?.totalRecords ?? 0}'),
+                    SizedBox(width: 140, child: _buildHeroStat('Total Records', '${_metrics?.totalRecords ?? 0}')),
                     const SizedBox(width: 12),
-                    _buildHeroStat('Recent Updates', '${_metrics?.recentlyUpdated ?? 0}'),
+                    SizedBox(width: 140, child: _buildHeroStat('Recent Updates', '${_metrics?.recentlyUpdated ?? 0}')),
                     const SizedBox(width: 12),
-                    _buildHeroStat('Active Users', '${_metrics?.activeUsers ?? 1}'),
+                    SizedBox(width: 140, child: _buildHeroStat('Active Users', '${_metrics?.activeUsers ?? 1}')),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${DateTime.now().day.toString().padLeft(2,'0')} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][DateTime.now().month - 1]} ${DateTime.now().year}',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          '${DateTime.now().hour.toString().padLeft(2,'0')}:${DateTime.now().minute.toString().padLeft(2,'0')}',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ],
@@ -287,7 +327,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     const SizedBox(height: 14),
                     isWide
                         ? Row(children: _actionQueueCards().map((w) => Expanded(child: Padding(padding: const EdgeInsets.only(right: 12), child: w))).toList())
-                        : Wrap(spacing: 12, runSpacing: 12, children: _actionQueueCards()),
+                        : Wrap(spacing: 12, runSpacing: 12, children: _actionQueueCards().map((w) => SizedBox(width: 175, child: w)).toList()),
                     const SizedBox(height: 32),
 
                     // Status
@@ -338,10 +378,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            _isLoadingMetrics ? '…' : value,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
+            label.toUpperCase(),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
           ),
-          Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.8))),
+          const SizedBox(height: 4),
+          Text(
+            _isLoadingMetrics ? '…' : value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ],
       ),
     );
@@ -356,13 +409,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           title,
           style: TextStyle(
             fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.3,
-            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.2,
+            color: theme.colorScheme.primary,
           ),
         ),
         const SizedBox(height: 2),
-        Text(subtitle, style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7))),
+        Text(subtitle, style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
       ],
     );
   }
@@ -416,7 +469,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: color, letterSpacing: -0.5),
             ),
             const SizedBox(height: 2),
-            Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+            Text(
+              title,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
           ],
         ),
       ),
@@ -440,15 +498,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             children: [
               Icon(icon, color: color, size: 28),
               const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _isLoadingMetrics ? '…' : '${count ?? 0}',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color),
-                  ),
-                  Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isLoadingMetrics ? '…' : '${count ?? 0}',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color),
+                    ),
+                    Text(
+                      title,
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

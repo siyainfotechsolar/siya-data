@@ -603,8 +603,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
                                           fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                          color: theme.colorScheme.onSurface,
+                                          fontWeight: FontWeight.normal,
+                                          color: theme.colorScheme.onSurfaceVariant,
                                         ),
                                       ),
                                     ),

@@ -22,7 +22,6 @@ class MobileSettingsScreen extends StatelessWidget {
           // Section 1: System & Diagnostics
           _buildSectionHeader('SYSTEM & DIAGNOSTICS'),
           Card(
-            elevation: 1,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             child: Column(
               children: [
@@ -86,7 +85,6 @@ class MobileSettingsScreen extends StatelessWidget {
           // Section 2: Preferences & Device
           _buildSectionHeader('DEVICE & PERMISSIONS'),
           Card(
-            elevation: 1,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             child: Column(
               children: [
@@ -107,10 +105,10 @@ class MobileSettingsScreen extends StatelessWidget {
                     'Stage updates, customer alerts and notifications',
                     style: TextStyle(fontSize: 12),
                   ),
-                  trailing: Switch(
-                    value: true,
-                    onChanged: (val) {},
-                    activeThumbColor: theme.colorScheme.primary,
+                  trailing: Icon(
+                    Icons.notifications_active_outlined,
+                    color: theme.colorScheme.primary,
+                    size: 20,
                   ),
                 ),
                 const Divider(height: 1, indent: 56),
@@ -148,7 +146,6 @@ class MobileSettingsScreen extends StatelessWidget {
           // Section 3: About
           _buildSectionHeader('ABOUT SIYA SOLAR'),
           Card(
-            elevation: 1,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             child: Column(
               children: [
@@ -166,7 +163,7 @@ class MobileSettingsScreen extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   subtitle: const Text(
-                    'Version 1.0.20 (Build 21)',
+                    'Version 1.0.21 (Build 22)',
                     style: TextStyle(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
@@ -188,13 +185,15 @@ class MobileSettingsScreen extends StatelessWidget {
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4.0, bottom: 8.0),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: Colors.grey,
-          letterSpacing: 0.8,
+      child: Builder(
+        builder: (ctx) => Text(
+          title,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+            letterSpacing: 0.8,
+          ),
         ),
       ),
     );
