@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/office_task.dart';
@@ -7,6 +8,19 @@ import 'connectivity_service.dart';
 
 class MobileOfficeTaskService {
   static SupabaseClient get _client => SupabaseService.client;
+
+  /// Upload an attachment for an office task
+  static Future<String?> uploadTaskFile(File file) async {
+    try {
+      final fileName = 'office_task_${DateTime.now().millisecondsSinceEpoch}_${file.uri.pathSegments.last}';
+      final path = 'office_tasks/$fileName';
+      await _client.storage.from('customer-documents').upload(path, file);
+      return _client.storage.from('customer-documents').getPublicUrl(path);
+    } catch (e) {
+      debugPrint('Error uploading task file: $e');
+      return null;
+    }
+  }
 
   /// Fetch active office staff members specifically eligible for task assignment
   static Future<List<Map<String, String>>> fetchActiveOfficeStaff() async {
@@ -59,6 +73,7 @@ class MobileOfficeTaskService {
     DateTime? dueDate,
     String? assignedToId,
     required String assignedToName,
+    String? attachmentUrl,
   }) async {
     final currentUser = SupabaseService.currentUser;
     final createdByName = currentUser?.email?.split('@').first ?? 'Staff';
@@ -79,6 +94,8 @@ class MobileOfficeTaskService {
       'assigned_to_name': assignedToName.trim(),
       'created_by': currentUser?.id,
       'created_by_name': createdByName,
+      if (attachmentUrl != null && attachmentUrl.isNotEmpty)
+        'attachment_url': attachmentUrl,
       'created_at': now.toIso8601String(),
       'updated_at': now.toIso8601String(),
     };

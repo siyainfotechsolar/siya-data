@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/office_task.dart';
 import '../models/consumer_record.dart';
 import '../services/office_task_service.dart';
@@ -49,6 +52,10 @@ class _CreateOfficeTaskBottomSheetState
   String? _selectedStaffName;
   bool _isLoadingStaff = true;
   bool _isSaving = false;
+
+  File? _attachedFile;
+  String? _attachedFileName;
+  int? _attachedFileSize;
 
   @override
   void initState() {
@@ -113,6 +120,52 @@ class _CreateOfficeTaskBottomSheetState
     }
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: source, imageQuality: 85);
+      if (picked != null) {
+        final file = File(picked.path);
+        final size = await file.length();
+        setState(() {
+          _attachedFile = file;
+          _attachedFileName = picked.name;
+          _attachedFileSize = size;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking image: $e');
+    }
+  }
+
+  Future<void> _pickDocument() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'xlsx'],
+      );
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        final size = await file.length();
+        setState(() {
+          _attachedFile = file;
+          _attachedFileName = result.files.single.name;
+          _attachedFileSize = size;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking document: $e');
+    }
+  }
+
+  void _removeAttachment() {
+    setState(() {
+      _attachedFile = null;
+      _attachedFileName = null;
+      _attachedFileSize = null;
+    });
+  }
+
   Future<void> _handleSave() async {
     if (_selectedCustomer == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -139,6 +192,11 @@ class _CreateOfficeTaskBottomSheetState
     setState(() => _isSaving = true);
 
     try {
+      String? attachmentUrl;
+      if (_attachedFile != null) {
+        attachmentUrl = await MobileOfficeTaskService.uploadTaskFile(_attachedFile!);
+      }
+
       final task = await MobileOfficeTaskService.createTask(
         customerId: _selectedCustomer!.id,
         customerName: _selectedCustomer!.name,
@@ -151,6 +209,7 @@ class _CreateOfficeTaskBottomSheetState
         dueDate: _dueDate,
         assignedToId: _selectedStaffId,
         assignedToName: _selectedStaffName!,
+        attachmentUrl: attachmentUrl,
       );
 
       if (mounted) {
@@ -575,6 +634,104 @@ class _CreateOfficeTaskBottomSheetState
                         borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
+                const SizedBox(height: 14),
+
+                // 7. File Attachment Section
+                const Text(
+                  'ATTACH FILE / DOCUMENT (दस्तऐवज संलग्न करा)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_attachedFile == null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onPressed: () => _pickImage(ImageSource.camera),
+                          icon: const Icon(Icons.camera_alt_outlined, size: 16),
+                          label: const Text('Camera', style: TextStyle(fontSize: 12)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onPressed: () => _pickImage(ImageSource.gallery),
+                          icon: const Icon(Icons.photo_library_outlined, size: 16),
+                          label: const Text('Gallery', style: TextStyle(fontSize: 12)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onPressed: _pickDocument,
+                          icon: const Icon(Icons.picture_as_pdf_outlined, size: 16),
+                          label: const Text('PDF / Doc', style: TextStyle(fontSize: 12)),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          (_attachedFileName ?? '').toLowerCase().endsWith('.pdf')
+                              ? Icons.picture_as_pdf_rounded
+                              : Icons.image_rounded,
+                          color: const Color(0xFF2563EB),
+                          size: 24,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _attachedFileName ?? 'Attached File',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1E40AF),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                '${((_attachedFileSize ?? 0) / 1024).toStringAsFixed(1)} KB',
+                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.red, size: 20),
+                          tooltip: 'Remove',
+                          onPressed: _removeAttachment,
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 20),
 
                 // Submit Button

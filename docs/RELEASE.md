@@ -115,8 +115,19 @@ For internal testing and GitHub release distribution, standard release signing i
 
 ## 📌 Release History
 
+### Release v1.0.19 (Build 20) - 2026-09-19
+- **Office Staff Tasks File & Document Attachments**:
+  - **Task Creation Attachment**: Admin and staff can now attach documents, PDF files, images, quotation copies, and agreements when assigning tasks.
+  - **Attachment Picker**: Integrated `FilePicker` and `ImagePicker` across web and mobile supporting Camera, Gallery, and Document file formats (PDF, DOCX, XLSX, JPG, PNG).
+  - **Storage Integration**: Files are automatically uploaded to Supabase Storage bucket `customer-documents/office_tasks/` with public URL resolution.
+  - **Task Card & Management View**: Prominent interactive attachment badge (`[📎 Attached File / Document]`) on mobile task cards and `[File]` indicator + `[📎 Open Attachment]` button in Admin Panel table.
+  - **Completion Proof Support**: Office staff can attach completion document proofs (PDF or photos) directly when completing tasks.
+- **Web Compilation & Vercel Fix**:
+  - Resolved `RecordService.fetchRecords` method resolution for `dart2js` web target, guaranteeing seamless automated Vercel deployments.
+
 ### Release v1.0.18 (Build 19) - 2026-09-19
-- **Dedicated Office Staff Task Assignment System**: Full end-to-end task workflow: `Admin → Office Staff → Customer → Task → Update`. Tasks are assignable specifically to active Office Staff (`role IN ('office_staff', 'staff', 'admin')`).
+- **Office Staff Task Assignment & Management System**: Complete end-to-end task assignment module enforcing $\text{Admin} \to \text{Office Staff} \to \text{Customer} \to \text{Task} \to \text{Update}$.
+- **14 Registered Task Types**: Customer Call, Follow-up, Document Collection, Agreement, Payment Follow-up, Loan Document, PM Surya Ghar Document, Subsidy Follow-up, RTS Follow-up, Customer Information Update, Billing Issue, Customer Complaint, General Office Work, Other.
 - **Mobile App: MY TASKS (माझी कामे)**: 4 dedicated tabs with real-time badges (Today's Tasks, Pending, Overdue, Completed). Complete task cards with customer, village, due date, priority, and one-tap actions: `[Start]`, `[Hold]` (with hold reason), `[Complete]` (completion note + camera/gallery photo upload), `[Add Note]`, and `[Customer Profile]`.
 - **Admin Panel: Office Tasks Portal**: Integrated into Action Center with `+ Create Task` button, dedicated Office Tasks screen, active office staff filter, reassignments (`Pooja → Rahul`) with full audit trail, and Work Log timeline showing *"Who worked on which customer/task?"*.
 - **Offline SQLite Task Persistence**: Local SQLite tables `cached_office_tasks` and `cached_task_assignments` (DB v4) ensure pending tasks remain intact when the app is closed or restarted without internet.

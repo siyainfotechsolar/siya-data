@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/office_task.dart';
 import '../services/office_task_service.dart';
 import '../widgets/create_office_task_dialog.dart';
@@ -237,6 +238,34 @@ class _OfficeTasksScreenState extends State<OfficeTasksScreen> {
                   border: const OutlineInputBorder(),
                 ),
               ),
+              if (task.attachmentUrl != null && task.attachmentUrl!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () => launchUrl(Uri.parse(task.attachmentUrl!)),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.attach_file_rounded, size: 16, color: Color(0xFF2563EB)),
+                        SizedBox(width: 6),
+                        Text(
+                          'View Attached Document / Photo',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2563EB)),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(Icons.open_in_new_rounded, size: 14, color: Color(0xFF2563EB)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           actions: [
@@ -512,7 +541,37 @@ class _OfficeTasksScreenState extends State<OfficeTasksScreen> {
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            Text(t.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(t.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                                if (t.attachmentUrl != null && t.attachmentUrl!.isNotEmpty) ...[
+                                                  const SizedBox(width: 6),
+                                                  Tooltip(
+                                                    message: 'Attached File (Click to view)',
+                                                    child: InkWell(
+                                                      onTap: () => launchUrl(Uri.parse(t.attachmentUrl!)),
+                                                      child: Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                                        decoration: BoxDecoration(
+                                                          color: const Color(0xFFEFF6FF),
+                                                          borderRadius: BorderRadius.circular(4),
+                                                          border: Border.all(color: const Color(0xFFBFDBFE)),
+                                                        ),
+                                                        child: const Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            Icon(Icons.attach_file_rounded, size: 11, color: Color(0xFF2563EB)),
+                                                            SizedBox(width: 2),
+                                                            Text('File', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
                                             Text(t.taskType, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                                           ],
                                         ),
@@ -603,6 +662,13 @@ class _OfficeTasksScreenState extends State<OfficeTasksScreen> {
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
+                                        if (t.attachmentUrl != null && t.attachmentUrl!.isNotEmpty)
+                                          IconButton(
+                                            icon: const Icon(Icons.attach_file_rounded, size: 20),
+                                            tooltip: 'Open Attached Document',
+                                            color: const Color(0xFF2563EB),
+                                            onPressed: () => launchUrl(Uri.parse(t.attachmentUrl!)),
+                                          ),
                                         IconButton(
                                           icon: const Icon(Icons.swap_horiz_rounded, size: 20),
                                           tooltip: 'Reassign Staff',

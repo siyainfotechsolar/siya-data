@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/office_task.dart';
 import '../models/consumer_record.dart';
 import '../services/office_task_service.dart';
@@ -372,8 +374,8 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              icon: const Icon(Icons.camera_alt_outlined, size: 18),
-                              label: const Text('Take Photo'),
+                              icon: const Icon(Icons.camera_alt_outlined, size: 16),
+                              label: const Text('Camera', style: TextStyle(fontSize: 12)),
                               onPressed: () async {
                                 final photo = await picker.pickImage(
                                     source: ImageSource.camera,
@@ -385,12 +387,12 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                               },
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: OutlinedButton.icon(
                               icon: const Icon(Icons.photo_library_outlined,
-                                  size: 18),
-                              label: const Text('Gallery'),
+                                  size: 16),
+                              label: const Text('Gallery', style: TextStyle(fontSize: 12)),
                               onPressed: () async {
                                 final img = await picker.pickImage(
                                     source: ImageSource.gallery,
@@ -398,6 +400,24 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                                 if (img != null) {
                                   setModalState(
                                       () => attachedFile = File(img.path));
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.picture_as_pdf_outlined,
+                                  size: 16),
+                              label: const Text('PDF / Doc', style: TextStyle(fontSize: 12)),
+                              onPressed: () async {
+                                final res = await FilePicker.platform.pickFiles(
+                                  type: FileType.custom,
+                                  allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'png'],
+                                );
+                                if (res != null && res.files.single.path != null) {
+                                  setModalState(
+                                      () => attachedFile = File(res.files.single.path!));
                                 }
                               },
                             ),
@@ -1117,6 +1137,47 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                       ),
                     ),
                   ],
+                ),
+              ),
+            ],
+
+            // Attached File banner
+            if (task.attachmentUrl != null && task.attachmentUrl!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () async {
+                  final uri = Uri.parse(task.attachmentUrl!);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } else {
+                    _showError('Could not open attached file');
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.attach_file_rounded, size: 18, color: Color(0xFF1D4ED8)),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Attached File / Document (दस्तऐवज पहा)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1D4ED8),
+                          ),
+                        ),
+                      ),
+                      const Icon(Icons.open_in_new_rounded, size: 14, color: Color(0xFF1D4ED8)),
+                    ],
+                  ),
                 ),
               ),
             ],

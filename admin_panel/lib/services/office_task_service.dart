@@ -45,7 +45,21 @@ class OfficeTaskService {
     }
   }
 
-  /// Create a new Office Staff Task with an initial assignment audit record
+  /// Upload a file attachment for an office task to Supabase storage
+  static Future<String> uploadTaskAttachment({
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    final cleanName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+    final storagePath = 'office_tasks/${DateTime.now().millisecondsSinceEpoch}_$cleanName';
+    await _client.storage.from('customer-documents').uploadBinary(
+      storagePath,
+      bytes,
+    );
+    return _client.storage.from('customer-documents').getPublicUrl(storagePath);
+  }
+
+  /// Create a new Office Task and assign to an Office Staff member
   static Future<OfficeTask> createTask({
     String? customerId,
     required String customerName,
@@ -58,6 +72,7 @@ class OfficeTaskService {
     DateTime? dueDate,
     String? assignedToId,
     required String assignedToName,
+    String? attachmentUrl,
   }) async {
     try {
       final currentUser = SupabaseService.currentUser;
@@ -78,6 +93,8 @@ class OfficeTaskService {
         'assigned_to_name': assignedToName.trim(),
         'created_by': currentUser?.id,
         'created_by_name': createdByName,
+        if (attachmentUrl != null && attachmentUrl.isNotEmpty)
+          'attachment_url': attachmentUrl,
       };
 
       final response = await _client

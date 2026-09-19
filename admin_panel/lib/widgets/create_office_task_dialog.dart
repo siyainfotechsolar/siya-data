@@ -1,5 +1,7 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/office_task.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
@@ -45,6 +47,10 @@ class _CreateOfficeTaskDialogState extends State<CreateOfficeTaskDialog> {
   String? _selectedStaffName;
   bool _isLoadingStaff = true;
   bool _isSubmitting = false;
+
+  Uint8List? _attachedFileBytes;
+  String? _attachedFileName;
+  int? _attachedFileSize;
 
   List<ConsumerRecord> _customerSearchResults = [];
   bool _isSearchingCustomer = false;
@@ -110,6 +116,36 @@ class _CreateOfficeTaskDialogState extends State<CreateOfficeTaskDialog> {
     }
   }
 
+  Future<void> _pickAttachment() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xlsx', 'xls'],
+        withData: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        if (file.bytes != null) {
+          setState(() {
+            _attachedFileBytes = file.bytes;
+            _attachedFileName = file.name;
+            _attachedFileSize = file.size;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error picking file: $e');
+    }
+  }
+
+  void _removeAttachment() {
+    setState(() {
+      _attachedFileBytes = null;
+      _attachedFileName = null;
+      _attachedFileSize = null;
+    });
+  }
+
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -136,6 +172,14 @@ class _CreateOfficeTaskDialogState extends State<CreateOfficeTaskDialog> {
     setState(() => _isSubmitting = true);
 
     try {
+      String? attachmentUrl;
+      if (_attachedFileBytes != null && _attachedFileName != null) {
+        attachmentUrl = await OfficeTaskService.uploadTaskAttachment(
+          bytes: _attachedFileBytes!,
+          fileName: _attachedFileName!,
+        );
+      }
+
       final task = await OfficeTaskService.createTask(
         customerId: _selectedCustomer!.id,
         customerName: _selectedCustomer!.name,
@@ -148,6 +192,7 @@ class _CreateOfficeTaskDialogState extends State<CreateOfficeTaskDialog> {
         dueDate: _selectedDueDate,
         assignedToId: _selectedStaffId,
         assignedToName: _selectedStaffName!,
+        attachmentUrl: attachmentUrl,
       );
 
       if (mounted) {
@@ -476,6 +521,101 @@ class _CreateOfficeTaskDialogState extends State<CreateOfficeTaskDialog> {
                     hintText: 'e.g. Call customer, request electricity bill copy and confirm loan disbursement status.',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // 6. File Attachment Section
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.attach_file_rounded, size: 18, color: Color(0xFF2563EB)),
+                              SizedBox(width: 6),
+                              Text(
+                                'File Attachment (दस्तऐवज / फोटो संलग्न करा)',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                          if (_attachedFileBytes == null)
+                            OutlinedButton.icon(
+                              onPressed: _pickAttachment,
+                              icon: const Icon(Icons.upload_file_rounded, size: 16),
+                              label: const Text('Choose File', style: TextStyle(fontSize: 12)),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (_attachedFileBytes != null) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _attachedFileName!.toLowerCase().endsWith('.pdf')
+                                    ? Icons.picture_as_pdf_rounded
+                                    : Icons.insert_drive_file_rounded,
+                                color: const Color(0xFF2563EB),
+                                size: 22,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _attachedFileName!,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1E3A8A),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      '${((_attachedFileSize ?? 0) / 1024).toStringAsFixed(1)} KB',
+                                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close_rounded, size: 18, color: Colors.red),
+                                tooltip: 'Remove file',
+                                onPressed: _removeAttachment,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Attach quotation, bill, customer photo, agreement, or application PDF (Optional)',
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],
