@@ -93,10 +93,15 @@ class _CreateOfficeTaskDialogState extends State<CreateOfficeTaskDialog> {
 
     setState(() => _isSearchingCustomer = true);
     try {
-      final results = await RecordService.searchRecords(query: query.trim());
+      final res = await RecordService.fetchRecords(
+        page: 1,
+        pageSize: 8,
+        searchQuery: query.trim(),
+        workQueueScope: 'All',
+      );
       if (mounted) {
         setState(() {
-          _customerSearchResults = results;
+          _customerSearchResults = res.items;
           _isSearchingCustomer = false;
         });
       }
