@@ -123,7 +123,8 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
       } else if (filter == 'Stalled (>10d)') {
         matched = all.where((r) {
           if (r.isDeleted || r.isCompletedState) return false;
-          final days = now.difference(r.updatedAt).inDays;
+          final rDate = r.updatedAt ?? r.createdAt ?? now;
+          final days = now.difference(rDate).inDays;
           return days >= 10 || r.isHold;
         }).toList();
       } else if (filter == 'Loan Attention') {
@@ -424,72 +425,78 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
                                         ),
 
                                         // Smart Status Badges
-                                        if (record.pendingAmount > 0 ||
-                                            record.isHold ||
-                                            DateTime.now().difference(record.updatedAt).inDays >= 10) ...[
-                                          const SizedBox(height: 8),
-                                          Wrap(
-                                            spacing: 6,
-                                            runSpacing: 4,
-                                            children: [
-                                              if (record.pendingAmount > 0)
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(0xFFDC2626).withValues(alpha: 0.1),
-                                                    borderRadius: BorderRadius.circular(6),
-                                                    border: Border.all(
-                                                      color: const Color(0xFFDC2626).withValues(alpha: 0.3),
+                                        Builder(
+                                          builder: (context) {
+                                            final recDate = record.updatedAt ?? record.createdAt ?? DateTime.now();
+                                            final idleDays = DateTime.now().difference(recDate).inDays;
+                                            if (record.pendingAmount <= 0 && !record.isHold && idleDays < 10) {
+                                              return const SizedBox.shrink();
+                                            }
+                                            return Padding(
+                                              padding: const EdgeInsets.only(top: 8.0),
+                                              child: Wrap(
+                                                spacing: 6,
+                                                runSpacing: 4,
+                                                children: [
+                                                  if (record.pendingAmount > 0)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                                                        borderRadius: BorderRadius.circular(6),
+                                                        border: Border.all(
+                                                          color: const Color(0xFFDC2626).withValues(alpha: 0.3),
+                                                        ),
+                                                      ),
+                                                      child: Text(
+                                                        'Pending: ₹${NumberFormat('#,##,###').format(record.pendingAmount)}',
+                                                        style: const TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: Color(0xFFDC2626),
+                                                        ),
+                                                      ),
                                                     ),
-                                                  ),
-                                                  child: Text(
-                                                    'Pending: ₹${NumberFormat('#,##,###').format(record.pendingAmount)}',
-                                                    style: const TextStyle(
-                                                      fontSize: 11,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: Color(0xFFDC2626),
+                                                  if (record.isHold)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                                                        borderRadius: BorderRadius.circular(6),
+                                                        border: Border.all(
+                                                          color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                                                        ),
+                                                      ),
+                                                      child: const Text(
+                                                        '⏸️ On Hold',
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: Color(0xFFB45309),
+                                                        ),
+                                                      ),
                                                     ),
-                                                  ),
-                                                ),
-                                              if (record.isHold)
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
-                                                    borderRadius: BorderRadius.circular(6),
-                                                    border: Border.all(
-                                                      color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                                                  if (!record.isCompletedState && idleDays >= 10)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.grey.withValues(alpha: 0.15),
+                                                        borderRadius: BorderRadius.circular(6),
+                                                      ),
+                                                      child: Text(
+                                                        '⏳ ${idleDays}d idle',
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: Colors.grey.shade800,
+                                                        ),
+                                                      ),
                                                     ),
-                                                  ),
-                                                  child: const Text(
-                                                    '⏸️ On Hold',
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: Color(0xFFB45309),
-                                                    ),
-                                                  ),
-                                                ),
-                                              if (!record.isCompletedState &&
-                                                  DateTime.now().difference(record.updatedAt).inDays >= 10)
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.grey.withValues(alpha: 0.15),
-                                                    borderRadius: BorderRadius.circular(6),
-                                                  ),
-                                                  child: Text(
-                                                    '⏳ ${DateTime.now().difference(record.updatedAt).inDays}d idle',
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: Colors.grey.shade800,
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ],
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        ),
                                       ],
                                     ),
                                   ),

@@ -126,8 +126,11 @@ class ConsumerRecord {
   final double totalAmount;
   final double paidAmount;
   final double pendingAmount;
+  final double additionalPaidAmount;
   final String paymentStatus;
   final DateTime? paymentDueDate;
+
+  bool get isDeleted => deleted;
 
   ConsumerRecord({
     this.id,
@@ -206,6 +209,7 @@ class ConsumerRecord {
     this.totalAmount = 0.0,
     this.paidAmount = 0.0,
     this.pendingAmount = 0.0,
+    this.additionalPaidAmount = 0.0,
     this.paymentStatus = 'Pending',
     this.paymentDueDate,
   });
@@ -470,6 +474,9 @@ class ConsumerRecord {
       pendingAmount: (json['pending_amount'] is num)
           ? (json['pending_amount'] as num).toDouble()
           : double.tryParse(json['pending_amount']?.toString() ?? '0') ?? 0.0,
+      additionalPaidAmount: (json['additional_paid_amount'] is num)
+          ? (json['additional_paid_amount'] as num).toDouble()
+          : double.tryParse(json['additional_paid_amount']?.toString() ?? '0') ?? 0.0,
       paymentStatus: json['payment_status'] as String? ?? 'Pending',
       paymentDueDate: json['payment_due_date'] != null
           ? DateTime.tryParse(json['payment_due_date'].toString())
@@ -520,6 +527,7 @@ class ConsumerRecord {
       'total_amount': totalAmount,
       'paid_amount': paidAmount,
       'pending_amount': pendingAmount,
+      'additional_paid_amount': additionalPaidAmount,
       'payment_status': paymentStatus,
     };
 
@@ -632,6 +640,7 @@ class ConsumerRecord {
     double? totalAmount,
     double? paidAmount,
     double? pendingAmount,
+    double? additionalPaidAmount,
     String? paymentStatus,
     DateTime? paymentDueDate,
   }) {
@@ -705,6 +714,7 @@ class ConsumerRecord {
       totalAmount: totalAmount ?? this.totalAmount,
       paidAmount: paidAmount ?? this.paidAmount,
       pendingAmount: pendingAmount ?? this.pendingAmount,
+      additionalPaidAmount: additionalPaidAmount ?? this.additionalPaidAmount,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentDueDate: paymentDueDate ?? this.paymentDueDate,
     );

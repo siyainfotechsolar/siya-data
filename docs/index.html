@@ -280,7 +280,7 @@
     <h1 class="app-title">Siya Solar Staff</h1>
     <p class="app-subtitle">Official Android Application for Staff & Field Operations</p>
     <div class="badges">
-      <span class="badge badge-version" id="versionBadge">Version 1.0.19</span>
+      <span class="badge badge-version" id="versionBadge">Version 1.0.20</span>
       <span class="badge badge-status">● Production Release</span>
     </div>
   </div>
@@ -288,13 +288,13 @@
   <!-- Download & Details Card -->
   <div class="release-card">
     <!-- Primary APK Download -->
-    <a href="./siya-solar-v1.0.19.apk" download="siya-solar-v1.0.19.apk" class="btn-download-primary" id="primaryDownloadBtn">
+    <a href="./siya-solar-v1.0.20.apk" download="siya-solar-v1.0.20.apk" class="btn-download-primary" id="primaryDownloadBtn">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      <span id="btnText">DOWNLOAD APK (v1.0.19)</span>
+      <span id="btnText">DOWNLOAD APK (v1.0.20)</span>
     </a>
 
     <!-- Secondary GitHub Release Link -->
@@ -313,7 +313,7 @@
     <div class="meta-grid">
       <div class="meta-box">
         <div class="meta-label">Version</div>
-        <div class="meta-value" id="metaVersion">1.0.19 (Build 20)</div>
+        <div class="meta-value" id="metaVersion">1.0.20 (Build 21)</div>
       </div>
       <div class="meta-box">
         <div class="meta-label">Release Date</div>
@@ -332,14 +332,15 @@
     <!-- What's New -->
     <div class="changelog-section">
       <div class="changelog-title">
-        <span>✨</span> Highlights in v1.0.19
+        <span>✨</span> Highlights in v1.0.20
       </div>
       <ul class="changelog-list" id="changelogList">
-        <li><strong>Office Staff Tasks File &amp; Document Attachments</strong> — Admin and staff can now attach documents, PDF files, images, quotation copies, and agreements when assigning tasks.</li>
-        <li><strong>Multi-source Attachment Pickers</strong> — Camera, Gallery, and PDF/DOC file pickers integrated seamlessly across Web Admin Panel and Mobile Android App with automatic Supabase storage upload.</li>
-        <li><strong>Direct Attachment View &amp; Access</strong> — Interactive <code>[📎 Attached File / Document]</code> badge on mobile task cards and <code>[File]</code> indicator + <code>[📎 Open Attachment]</code> button in Admin Panel table for one-tap viewing.</li>
-        <li><strong>Task Completion Proofs</strong> — Office staff can attach completion document proofs (PDF or photos) directly when completing assigned work.</li>
-        <li><strong>Web Compilation &amp; Vercel Fix</strong> — Resolved <code>dart2js</code> compilation method lookup, guaranteeing smooth and continuous Vercel web deployments.</li>
+        <li><strong>Simple Payment Module</strong> — Streamlined Total Payment, Paid, Pending, and Additional Payment breakdown with inline editing for authorized staff and offline sync.</li>
+        <li><strong>Clean 4-Field Add Payment</strong> — Rapid payment logging with only Amount (₹), Date, Payment Mode (Cash, UPI, Bank Transfer, Cheque, Other), Remarks, and Contract vs Additional classification.</li>
+        <li><strong>Deterministic Math &amp; Strict Separation</strong> — Enforced <code>Paid = sum(Contract)</code>, <code>Pending = Total - Paid</code>. Additional payments are strictly kept separate and never reduce contract pending.</li>
+        <li><strong>⚡ Smart Operational Radar</strong> — Real-time proactive pipeline monitoring on Mobile Home screen (Stalled &gt;10d, Payments Due, Loan Attention, Follow-ups Due) with 1-tap navigation.</li>
+        <li><strong>🎯 Next Best Action Assistant</strong> — Context-aware recommendation banner on Customer Profile with 1-tap quick payment entry pre-filled with suggested balance.</li>
+        <li><strong>🔍 1-Tap Smart Filters &amp; Suggestions</strong> — Horizontal smart search chips on search screen and 1-tap Full/50% quick-fill balance chips.</li>
       </ul>
     </div>
 
@@ -357,15 +358,15 @@
 
   <script>
     const REPO = 'siyainfotechsolar/siya-data';
-    const DIRECT_APK = './siya-solar-v1.0.19.apk';
-    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.19.apk`;
+    const DIRECT_APK = './siya-solar-v1.0.20.apk';
+    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.20.apk`;
 
     const primaryBtn = document.getElementById('primaryDownloadBtn');
     const btnText = document.getElementById('btnText');
 
     // Default immediate direct link
     primaryBtn.href = DIRECT_APK;
-    primaryBtn.setAttribute('download', 'siya-solar-v1.0.19.apk');
+    primaryBtn.setAttribute('download', 'siya-solar-v1.0.20.apk');
 
     // Ensure fallback to raw GitHub if relative link is blocked
     primaryBtn.addEventListener('error', () => {
