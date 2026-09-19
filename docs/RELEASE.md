@@ -115,6 +115,26 @@ For internal testing and GitHub release distribution, standard release signing i
 
 ## 📌 Release History
 
+### Release v1.0.21 (Build 22) - 2026-09-19
+- **Professional & Clean UI Redesign (Mobile App & Admin Panel)**:
+  - **Mobile Home Screen**:
+    - Redesigned gradient hero banner (`#059669` → `#047857`) featuring personalized greeting, staff name, role chip, and live glassmorphic metric badges (Active Consumers & Pending Tasks).
+    - Clear visual hierarchy with uppercase tracked section headers (`MODULES`, `TODAY'S WORK`, `NEEDS ATTENTION`).
+    - Color-coded workflow stage tiles with tinted container backgrounds and stage-matched icons.
+    - Dynamic "Needs Attention" alert chips that automatically hide when counts are zero.
+    - Integrated pull-to-refresh for real-time synchronization.
+  - **Admin Web Dashboard**:
+    - Full-width gradient hero bar with embedded glassmorphic stat blocks, date indicator, and inline refresh spinner.
+    - Redesigned operational queue cards with tinted glow borders and navigation arrows.
+    - Enhanced high-density data table with alternating zebra row shading and crisp typography.
+    - Horizontal full-width summary tiles for On Hold and Completed project records.
+    - Polished CSV/Excel Import section with clean iconography and spacing.
+  - **Unified Shared Models Package (`siya_shared`)**:
+    - Extracted core domain models, payment calculations, and workflow engine into `shared/` package, ensuring absolute synchronization between mobile app and admin web portal.
+  - **Theme Modernization**:
+    - Flat card elevation (`0`) with subtle outline borders (`colorScheme.outlineVariant`).
+    - Standardized Google Fonts Inter typography across both mobile and web clients.
+
 ### Release v1.0.20 (Build 21) - 2026-09-19
 - **Simple Payment Module (Android App & Admin Panel)**:
   - **Customer Profile Overview**: Streamlined, prominent summary showing Total Payment, Paid, Pending, and Additional Payment.

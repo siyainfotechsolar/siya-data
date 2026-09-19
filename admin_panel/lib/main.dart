@@ -25,6 +25,8 @@ class SiyaAdminApp extends StatelessWidget {
           brightness: Brightness.light,
         ),
         textTheme: GoogleFonts.interTextTheme(),
+        cardTheme: const CardThemeData(elevation: 0),
+        appBarTheme: const AppBarTheme(centerTitle: false),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
@@ -33,6 +35,8 @@ class SiyaAdminApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
         textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+        cardTheme: const CardThemeData(elevation: 0),
+        appBarTheme: const AppBarTheme(centerTitle: false),
       ),
       themeMode: ThemeMode.system,
       home: SupabaseService.isAuthenticated

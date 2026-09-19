@@ -246,15 +246,15 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Siya Solar Field App',
+                    'Siya Solar',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Sign in to access solar consumer records',
+                    'Sign in to your staff account',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,

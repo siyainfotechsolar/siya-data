@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/create_task_screen.dart';
@@ -172,6 +173,10 @@ class _SiyaMobileAppState extends State<SiyaMobileApp> {
           seedColor: const Color(0xFF059669), // Emerald Solar Green
           brightness: Brightness.light,
         ),
+        textTheme: GoogleFonts.interTextTheme(),
+        cardTheme: const CardThemeData(elevation: 0),
+        appBarTheme: const AppBarTheme(centerTitle: false),
+        navigationBarTheme: const NavigationBarThemeData(labelBehavior: NavigationDestinationLabelBehavior.alwaysShow),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
@@ -179,6 +184,9 @@ class _SiyaMobileAppState extends State<SiyaMobileApp> {
           seedColor: const Color(0xFF059669),
           brightness: Brightness.dark,
         ),
+        textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+        cardTheme: const CardThemeData(elevation: 0),
+        appBarTheme: const AppBarTheme(centerTitle: false),
       ),
       themeMode: ThemeMode.system,
       home: SupabaseService.isAuthenticated

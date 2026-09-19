@@ -9,7 +9,6 @@ import 'records_screen.dart';
 import 'history_screen.dart';
 import 'recycle_bin_screen.dart';
 import 'users_screen.dart';
-import 'priority_list_screen.dart';
 import 'duplicate_finder_screen.dart';
 import 'reports_screen.dart';
 import 'leads_screen.dart';
@@ -17,6 +16,7 @@ import 'settings_screen.dart';
 import 'whatsapp_tasks_screen.dart';
 import 'payments_screen.dart';
 import 'office_tasks_screen.dart';
+import 'action_center_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -30,24 +30,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _isLoadingMetrics = false;
   DashboardMetrics? _metrics;
   StreamSubscription<ConsumerRecordChangeEvent>? _metricsRealtimeSub;
+  String? _selectedStageFilter;
   String? _selectedQueueFilter;
-  String? _selectedPriorityFilter;
 
-  final List<_NavDestination> _destinations = [
-    _NavDestination('Dashboard', Icons.dashboard_outlined, Icons.dashboard),
-    _NavDestination('Action Center', Icons.bolt_outlined, Icons.bolt),
-    _NavDestination('Office Tasks', Icons.assignment_ind_outlined, Icons.assignment_ind),
-    _NavDestination('WhatsApp Tasks', Icons.share_rounded, Icons.share),
-    _NavDestination('Leads', Icons.leaderboard_outlined, Icons.leaderboard),
-    _NavDestination('Duplicate Finder', Icons.find_in_page_outlined, Icons.find_in_page),
-    _NavDestination('Records', Icons.table_chart_outlined, Icons.table_chart),
-    _NavDestination('Payments', Icons.payments_outlined, Icons.payments),
-    _NavDestination('Import Data', Icons.upload_file_outlined, Icons.upload_file),
-    _NavDestination('Import History', Icons.history_outlined, Icons.history),
-    _NavDestination('Recycle Bin', Icons.delete_sweep_outlined, Icons.delete_sweep),
-    _NavDestination('Users', Icons.people_outline, Icons.people),
-    _NavDestination('Reports', Icons.bar_chart_outlined, Icons.bar_chart),
-    _NavDestination('Settings', Icons.settings_outlined, Icons.settings),
+  final List<_NavItem> _navItems = [
+    _NavItem('Dashboard',     Icons.dashboard_outlined,       Icons.dashboard),
+    _NavItem('Action Center', Icons.bolt_outlined,            Icons.bolt),
+    _NavItem('Office Tasks',  Icons.assignment_ind_outlined,  Icons.assignment_ind),
+    _NavItem('WhatsApp',      Icons.share_rounded,            Icons.share),
+    _NavItem('Leads',         Icons.leaderboard_outlined,     Icons.leaderboard),
+    _NavItem('Records',       Icons.table_chart_outlined,     Icons.table_chart),
+    _NavItem('Payments',      Icons.payments_outlined,        Icons.payments),
+    _NavItem('Import',        Icons.upload_file_outlined,     Icons.upload_file),
+    _NavItem('Reports',       Icons.bar_chart_outlined,       Icons.bar_chart),
+    _NavItem('History',       Icons.history_outlined,         Icons.history),
+    _NavItem('Duplicates',    Icons.find_in_page_outlined,    Icons.find_in_page),
+    _NavItem('Recycle Bin',   Icons.delete_sweep_outlined,    Icons.delete_sweep),
+    _NavItem('Users',         Icons.people_outline,           Icons.people),
+    _NavItem('Settings',      Icons.settings_outlined,        Icons.settings),
   ];
 
   @override
@@ -60,9 +60,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void _initMetricsRealtime() {
     RealtimeSyncService.initialize();
     _metricsRealtimeSub = RealtimeSyncService.recordEvents.listen((_) {
-      if (mounted) {
-        _loadMetrics();
-      }
+      if (mounted) _loadMetrics();
     });
   }
 
@@ -92,19 +90,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
+  void _openActionCenter(String stage) {
+    setState(() {
+      _selectedStageFilter = stage;
+      _selectedIndex = 1;
+    });
+  }
+
+  void _openImportDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ImportDialog(onImportSuccess: _loadMetrics),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDesktop = MediaQuery.of(context).size.width >= 900;
 
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
+        elevation: 0,
+        scrolledUnderElevation: 1,
         title: Row(
           children: [
             Container(
-              width: 28,
-              height: 28,
-              decoration: const BoxDecoration(shape: BoxShape.circle),
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                shape: BoxShape.circle,
+              ),
               child: ClipOval(
                 child: Image.asset(
                   'assets/images/logo.png',
@@ -112,41 +131,43 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   errorBuilder: (_, __, ___) => Icon(
                     Icons.solar_power_rounded,
                     color: theme.colorScheme.primary,
+                    size: 16,
                   ),
                 ),
               ),
             ),
             const SizedBox(width: 10),
-            const Text(
-              'Siya Data Management',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Text('Siya Data', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3)),
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none_outlined),
-            tooltip: 'Notifications',
-            onPressed: () {},
-          ),
-          const SizedBox(width: 8),
-          CircleAvatar(
-            backgroundColor: theme.colorScheme.primaryContainer,
-            child: Text(
-              'A',
-              style: TextStyle(
-                color: theme.colorScheme.onPrimaryContainer,
-                fontWeight: FontWeight.bold,
+          if (_isLoadingMetrics)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.primary),
               ),
             ),
+          IconButton(icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh', onPressed: _loadMetrics),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More options',
+            onSelected: (v) { if (v == 'signout') _handleSignOut(); },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'signout',
+                child: ListTile(
+                  leading: Icon(Icons.logout, color: Colors.red),
+                  title: Text('Sign Out', style: TextStyle(color: Colors.red)),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sign Out',
-            onPressed: _handleSignOut,
-          ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 4),
         ],
       ),
       body: Row(
@@ -154,488 +175,151 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           NavigationRail(
             extended: isDesktop,
             selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) {
-              setState(() {
-                _selectedIndex = index;
-              });
-              if (index == 0) {
-                _loadMetrics();
-              }
+            useIndicator: true,
+            onDestinationSelected: (i) {
+              setState(() => _selectedIndex = i);
+              if (i == 0) _loadMetrics();
             },
-            destinations: _destinations
-                .map(
-                  (d) => NavigationRailDestination(
-                    icon: Icon(d.icon),
-                    selectedIcon: Icon(d.selectedIcon),
-                    label: Text(d.label),
-                  ),
-                )
+            destinations: _navItems
+                .map((d) => NavigationRailDestination(
+                      icon: Icon(d.icon),
+                      selectedIcon: Icon(d.selectedIcon),
+                      label: Text(d.label),
+                    ))
                 .toList(),
           ),
           const VerticalDivider(thickness: 1, width: 1),
-          Expanded(
-            child: _buildBodyContent(),
-          ),
+          Expanded(child: _buildBodyContent()),
         ],
-      ),
-    );
-  }
-
-  void _openImportDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => ImportDialog(
-        onImportSuccess: () {
-          _loadMetrics();
-        },
       ),
     );
   }
 
   Widget _buildBodyContent() {
     switch (_selectedIndex) {
-      case 0:
-        return _buildDashboardView();
-      case 1:
-        return PriorityListScreen(
-          key: ValueKey(_selectedPriorityFilter),
-          initialPriorityFilter: _selectedPriorityFilter,
-        );
-      case 2:
-        return const OfficeTasksScreen();
-      case 3:
-        return const WhatsAppTasksScreen();
-      case 4:
-        return const LeadsScreen();
-      case 5:
-        return const DuplicateFinderScreen();
-      case 6:
-        return RecordsScreen(
-          key: ValueKey(_selectedQueueFilter),
-          initialWorkflowQueue: _selectedQueueFilter,
-        );
-      case 7:
-        return const PaymentsScreen();
-      case 8:
-        return _buildImportLandingView();
-      case 9:
-        return const HistoryScreen();
-      case 10:
-        return const RecycleBinScreen();
-      case 11:
-        return const UsersScreen();
-      case 12:
-        return const ReportsScreen();
-      case 13:
-        return const SettingsScreen();
-      default:
-        return _buildDashboardView();
+      case 0: return _buildDashboardView();
+      case 1: return ActionCenterScreen(key: ValueKey(_selectedStageFilter), initialStageFilter: _selectedStageFilter);
+      case 2: return const OfficeTasksScreen();
+      case 3: return const WhatsAppTasksScreen();
+      case 4: return const LeadsScreen();
+      case 5: return RecordsScreen(key: ValueKey(_selectedQueueFilter), initialWorkflowQueue: _selectedQueueFilter);
+      case 6: return const PaymentsScreen();
+      case 7: return _buildImportView();
+      case 8: return const ReportsScreen();
+      case 9: return const HistoryScreen();
+      case 10: return const DuplicateFinderScreen();
+      case 11: return const RecycleBinScreen();
+      case 12: return const UsersScreen();
+      case 13: return const SettingsScreen();
+      default: return _buildDashboardView();
     }
   }
 
-  Widget _buildImportLandingView() {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 720),
-        padding: const EdgeInsets.all(40.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.cloud_upload_outlined, size: 64, color: theme.colorScheme.primary),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Excel & CSV Import Center',
-              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Easily batch-import hundreds or thousands of solar consumer records from .xlsx, .xls, or .csv files with automatic header mapping and data verification.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 14, height: 1.5),
-            ),
-            const SizedBox(height: 32),
-            FilledButton.icon(
-              onPressed: _openImportDialog,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              icon: const Icon(Icons.upload_file_rounded),
-              label: const Text('Launch Import Wizard', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // ── Dashboard view ───────────────────────────────────────────────────────────
 
   Widget _buildDashboardView() {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'System Overview',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Live metrics and synchronized records',
-                    style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-              IconButton.outlined(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh Dashboard',
-                onPressed: _loadMetrics,
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: [
-              _buildStatCard(
-                'Total Records',
-                _isLoadingMetrics ? '...' : '${_metrics?.totalRecords ?? 0}',
-                Icons.description_outlined,
-                Colors.blue,
-              ),
-              _buildStatCard(
-                'Active Users',
-                _isLoadingMetrics ? '...' : '${_metrics?.activeUsers ?? 1}',
-                Icons.person_outline,
-                Colors.green,
-              ),
-              _buildStatCard(
-                'Recently Updated',
-                _isLoadingMetrics ? '...' : '${_metrics?.recentlyUpdated ?? 0}',
-                Icons.update,
-                Colors.orange,
-              ),
-              _buildStatCard(
-                'Import Batches',
-                _isLoadingMetrics ? '...' : '${_metrics?.totalImportBatches ?? 0}',
-                Icons.cloud_upload_outlined,
-                Colors.purple,
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // PROSPECTIVE LEADS SECTION
-          Card(
-            elevation: 0,
-            color: const Color(0xFFEFF6FF), // Soft sky blue
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: Color(0xFFBFDBFE)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: const Color(0xFF2563EB),
-                    child: const Icon(Icons.leaderboard_rounded, color: Colors.white),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'PROSPECTIVE LEADS & INQUIRIES',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: Color(0xFF1E3A8A),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Manage pre-conversion customer inquiries, track follow-ups, and convert leads into applications.',
-                          style: TextStyle(fontSize: 12, color: Colors.blue.shade900.withValues(alpha: 0.8)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
-                    icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                    label: const Text('Go to Leads'),
-                    onPressed: () => setState(() => _selectedIndex = 2),
-                  ),
-                ],
+          // ── Top metrics bar ───────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [cs.primary, cs.primary.withValues(alpha: 0.78)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
               ),
             ),
-          ),
-          const SizedBox(height: 28),
-
-          // ACTION CENTER SECTION
-          Text(
-            'ACTION CENTER',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF1E293B),
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Operational queues for customers currently requiring action',
-            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
-          ),
-          const SizedBox(height: 14),
-
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _buildQueueCard(
-                title: 'Agreement Pending',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.agreementPendingCount ?? 0}',
-                icon: Icons.history_edu_rounded,
-                color: const Color(0xFF2563EB),
-                onTap: () => _openActionCenter('Agreement Pending'),
-              ),
-              _buildQueueCard(
-                title: 'Loan Pending',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.loanPendingCount ?? 0}',
-                icon: Icons.account_balance_rounded,
-                color: const Color(0xFFD97706),
-                onTap: () => _openActionCenter('Loan Pending'),
-              ),
-              _buildQueueCard(
-                title: 'Installation Pending',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.installationPendingCount ?? 0}',
-                icon: Icons.build_circle_outlined,
-                color: const Color(0xFF0F766E),
-                onTap: () => _openActionCenter('Installation Pending'),
-              ),
-              _buildQueueCard(
-                title: 'RTS Pending',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.rtsPendingCount ?? 0}',
-                icon: Icons.electric_meter_rounded,
-                color: const Color(0xFF7C3AED),
-                onTap: () => _openActionCenter('RTS Pending'),
-              ),
-              _buildQueueCard(
-                title: 'Subsidy Processing',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.subsidyPendingCount ?? 0}',
-                icon: Icons.currency_rupee_rounded,
-                color: const Color(0xFF059669),
-                onTap: () => _openActionCenter('Subsidy Processing'),
-              ),
-              _buildQueueCard(
-                title: 'Hold / No Action',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.noActionCount ?? 0}',
-                icon: Icons.pause_circle_filled_rounded,
-                color: const Color(0xFFD97706),
-                onTap: () => _openActionCenter('Hold'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
-
-          // TODAY'S WORK SECTION
-          Text(
-            'TODAY\'S WORK',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF1E293B),
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Summary of actionable work calculated automatically from current workflow state',
-            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
-          ),
-          const SizedBox(height: 14),
-
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _buildQueueCard(
-                title: 'Loan Follow-ups',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.loanFollowupsCount ?? 0}',
-                icon: Icons.phone_callback_rounded,
-                color: const Color(0xFFD97706),
-                onTap: () => _openActionCenter('Loan Pending'),
-              ),
-              _buildQueueCard(
-                title: 'Installations',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.installationsCount ?? 0}',
-                icon: Icons.construction_rounded,
-                color: const Color(0xFF0F766E),
-                onTap: () => _openActionCenter('Installation Pending'),
-              ),
-              _buildQueueCard(
-                title: 'RTS Work',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.rtsWorkCount ?? 0}',
-                icon: Icons.bolt_rounded,
-                color: const Color(0xFF7C3AED),
-                onTap: () => _openActionCenter('RTS Pending'),
-              ),
-              _buildQueueCard(
-                title: 'Agreements',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.agreementsCount ?? 0}',
-                icon: Icons.draw_rounded,
-                color: const Color(0xFF2563EB),
-                onTap: () => _openActionCenter('Agreement Pending'),
-              ),
-              _buildQueueCard(
-                title: 'Subsidy Processing',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.subsidyProcessingCount ?? 0}',
-                icon: Icons.receipt_long_rounded,
-                color: const Color(0xFF0F766E),
-                onTap: () => _openActionCenter('Subsidy Processing'),
-              ),
-              _buildQueueCard(
-                title: 'Payments & Ledger',
-                count: 'Manage →',
-                icon: Icons.currency_rupee_rounded,
-                color: const Color(0xFF059669),
-                onTap: () => setState(() => _selectedIndex = 6),
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
-
-          // INACTIVE QUEUES (HOLD & COMPLETED)
-          Text(
-            'INACTIVE QUEUES (HOLD & COMPLETED)',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF1E293B),
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Customers excluded from active queues (Hold / Paused or Fully Completed)',
-            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
-          ),
-          const SizedBox(height: 14),
-
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _buildQueueCard(
-                title: 'Hold / No Action',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.noActionCount ?? 0}',
-                icon: Icons.pause_circle_filled_rounded,
-                color: const Color(0xFFD97706),
-                onTap: () => _openActionCenter('Hold'),
-              ),
-              _buildQueueCard(
-                title: 'Completed',
-                count: _isLoadingMetrics ? '...' : '${_metrics?.completedCount ?? 0}',
-                icon: Icons.verified_rounded,
-                color: Colors.green.shade800,
-                onTap: () => _openActionCenter('Completed'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
-
-          // Recent Records Table Card
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Recently Updated Records',
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      const Text(
+                        'System Overview',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
                       ),
-                      TextButton(
-                        onPressed: () => setState(() => _selectedIndex = 1),
-                        child: const Text('View All Records →'),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Live metrics · updated in real-time',
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 13),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  if (_isLoadingMetrics)
-                    const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
-                  else if (_metrics == null || _metrics!.recentRecords.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24.0),
-                      child: Center(
-                        child: Text(
-                          'No records added yet. Head to "Records" tab to add your first solar consumer.',
-                          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-                        ),
-                      ),
-                    )
-                  else
-                    Table(
-                      columnWidths: const {
-                        0: FlexColumnWidth(1.2),
-                        1: FlexColumnWidth(2),
-                        2: FlexColumnWidth(1.2),
-                        3: FlexColumnWidth(1.2),
-                      },
+                ),
+                const SizedBox(width: 24),
+                Row(
+                  children: [
+                    _buildHeroStat('Total Records', '${_metrics?.totalRecords ?? 0}'),
+                    const SizedBox(width: 12),
+                    _buildHeroStat('Recent Updates', '${_metrics?.recentlyUpdated ?? 0}'),
+                    const SizedBox(width: 12),
+                    _buildHeroStat('Active Users', '${_metrics?.activeUsers ?? 1}'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // ── Body content ──────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 28, 28, 28),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth > 800;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Action queues
+                    _sectionHeader('ACTION QUEUES', 'Customers requiring immediate follow-up'),
+                    const SizedBox(height: 14),
+                    isWide
+                        ? Row(children: _actionQueueCards().map((w) => Expanded(child: Padding(padding: const EdgeInsets.only(right: 12), child: w))).toList())
+                        : Wrap(spacing: 12, runSpacing: 12, children: _actionQueueCards()),
+                    const SizedBox(height: 32),
+
+                    // Status
+                    _sectionHeader('STATUS', 'Hold and completed pipeline'),
+                    const SizedBox(height: 14),
+                    Row(
                       children: [
-                        const TableRow(
-                          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5))),
-                          children: [
-                            Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
-                            Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Name', style: TextStyle(fontWeight: FontWeight.bold))),
-                            Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
-                            Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Last Updated', style: TextStyle(fontWeight: FontWeight.bold))),
-                          ],
-                        ),
-                        ..._metrics!.recentRecords.map((r) {
-                          return TableRow(
-                            children: [
-                              Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(r.consumerNo, style: const TextStyle(fontWeight: FontWeight.w500))),
-                              Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(r.name)),
-                              Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(r.status)),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                child: Text(r.updatedAt != null ? r.updatedAt!.toLocal().toString().split(' ')[0] : '—'),
-                              ),
-                            ],
-                          );
-                        }),
+                        _buildStatusCard('Hold / No Action', _metrics?.noActionCount, Icons.pause_circle_outline_rounded, const Color(0xFFD97706)),
+                        const SizedBox(width: 12),
+                        _buildStatusCard('Completed', _metrics?.completedCount, Icons.verified_rounded, const Color(0xFF059669)),
                       ],
                     ),
-                ],
-              ),
+                    const SizedBox(height: 32),
+
+                    // Recent records table
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _sectionHeader('RECENT RECORDS', 'Last updated consumer records'),
+                        TextButton.icon(
+                          onPressed: () => setState(() => _selectedIndex = 5),
+                          icon: const Icon(Icons.arrow_forward, size: 14),
+                          label: const Text('View All'),
+                          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildRecentTable(theme),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -643,37 +327,69 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  void _openActionCenter(String stage) {
-    setState(() {
-      _selectedPriorityFilter = stage;
-      _selectedIndex = 1; // Switch to Action Center tab
-    });
+  Widget _buildHeroStat(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _isLoadingMetrics ? '…' : value,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
+          ),
+          Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.8))),
+        ],
+      ),
+    );
   }
 
+  Widget _sectionHeader(String title, String subtitle) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.3,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(subtitle, style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7))),
+      ],
+    );
+  }
 
-  Widget _buildQueueCard({
-    required String title,
-    required String count,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  List<Widget> _actionQueueCards() {
+    return [
+      _buildQueueCard('Agreement Pending', _metrics?.agreementPendingCount,   Icons.history_edu_rounded,      const Color(0xFF2563EB)),
+      _buildQueueCard('Loan Pending',      _metrics?.loanPendingCount,        Icons.account_balance_rounded,  const Color(0xFFD97706)),
+      _buildQueueCard('Installation',      _metrics?.installationPendingCount, Icons.build_circle_outlined,   const Color(0xFF0F766E)),
+      _buildQueueCard('RTS Pending',       _metrics?.rtsPendingCount,         Icons.electric_meter_rounded,   const Color(0xFF7C3AED)),
+      _buildQueueCard('Subsidy',           _metrics?.subsidyPendingCount,     Icons.currency_rupee_rounded,   const Color(0xFF059669)),
+    ];
+  }
+
+  Widget _buildQueueCard(String title, int? count, IconData icon, Color color) {
+    final theme = Theme.of(context);
     return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      onTap: () => _openActionCenter(title),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        width: 175,
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(12),
+          color: theme.colorScheme.surface,
+          border: Border.all(color: color.withValues(alpha: 0.2)),
           boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.05),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
+            BoxShadow(color: color.withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, 2)),
           ],
         ),
         child: Column(
@@ -682,65 +398,57 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: color.withValues(alpha: 0.12),
-                  child: Icon(icon, size: 16, color: color),
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Icon(icon, size: 17, color: color),
                 ),
-                Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.grey.shade400),
+                Icon(Icons.north_east_rounded, size: 14, color: color.withValues(alpha: 0.6)),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(
-              count,
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
+              _isLoadingMetrics ? '…' : '${count ?? 0}',
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: color, letterSpacing: -0.5),
             ),
             const SizedBox(height: 2),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
-            ),
+            Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatusCard(String title, int? count, IconData icon, Color color) {
     final theme = Theme.of(context);
-
-    return SizedBox(
-      width: 220,
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Expanded(
+      child: InkWell(
+        onTap: () => _openActionCenter(title),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: color.withValues(alpha: 0.06),
+            border: Border.all(color: color.withValues(alpha: 0.2)),
+          ),
+          child: Row(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Icon(icon, color: color, size: 28),
+              const SizedBox(width: 14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                    _isLoadingMetrics ? '…' : '${count ?? 0}',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color),
                   ),
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: color.withValues(alpha: 0.1),
-                    child: Icon(icon, color: color, size: 20),
-                  ),
+                  Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
                 ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                value,
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
               ),
             ],
           ),
@@ -749,26 +457,158 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildPlaceholderView(String title, String subtitle) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildRecentTable(ThemeData theme) {
+    final cs = theme.colorScheme;
+
+    if (_isLoadingMetrics) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_metrics == null || _metrics!.recentRecords.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Text('No records yet.', style: TextStyle(color: cs.onSurfaceVariant)),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.6)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Table(
+        columnWidths: const {
+          0: FlexColumnWidth(1.2),
+          1: FlexColumnWidth(2.2),
+          2: FlexColumnWidth(1.6),
+          3: FlexColumnWidth(1.2),
+        },
         children: [
-          Icon(Icons.construction_rounded, size: 64, color: Colors.grey.shade400),
-          const SizedBox(height: 16),
-          Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(subtitle, style: TextStyle(color: Colors.grey.shade600)),
+          // Header row
+          TableRow(
+            decoration: BoxDecoration(color: cs.surfaceContainerHighest),
+            children: const [
+              _TH('Consumer No'),
+              _TH('Name'),
+              _TH('Status'),
+              _TH('Updated'),
+            ],
+          ),
+          // Data rows
+          ..._metrics!.recentRecords.asMap().entries.map((entry) {
+            final isEven = entry.key.isEven;
+            final r = entry.value;
+            return TableRow(
+              decoration: BoxDecoration(
+                color: isEven ? cs.surface : cs.surfaceContainerLowest,
+              ),
+              children: [
+                _TD(r.consumerNo, bold: true),
+                _TD(r.name),
+                _TD(r.status),
+                _TD(r.updatedAt != null ? r.updatedAt!.toLocal().toString().split(' ')[0] : '—'),
+              ],
+            );
+          }),
         ],
+      ),
+    );
+  }
+
+  // ── Import view ──────────────────────────────────────────────────────────────
+
+  Widget _buildImportView() {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 480),
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Icon(Icons.cloud_upload_outlined, size: 36, color: cs.primary),
+            ),
+            const SizedBox(height: 20),
+            Text('Import Center', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.4)),
+            const SizedBox(height: 8),
+            Text(
+              'Import consumer records from .xlsx, .xls, or .csv files with automatic header mapping.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 28),
+            FilledButton.icon(
+              onPressed: _openImportDialog,
+              icon: const Icon(Icons.upload_file_rounded),
+              label: const Text('Launch Import Wizard', style: TextStyle(fontWeight: FontWeight.w600)),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _NavDestination {
+// ── Table helpers ────────────────────────────────────────────────────────────
+
+class _TH extends StatelessWidget {
+  final String text;
+  const _TH(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+class _TD extends StatelessWidget {
+  final String text;
+  final bool bold;
+  const _TD(this.text, {this.bold = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 13, fontWeight: bold ? FontWeight.w600 : FontWeight.normal),
+      ),
+    );
+  }
+}
+
+// ── Nav model ────────────────────────────────────────────────────────────────
+
+class _NavItem {
   final String label;
   final IconData icon;
   final IconData selectedIcon;
-
-  _NavDestination(this.label, this.icon, this.selectedIcon);
+  _NavItem(this.label, this.icon, this.selectedIcon);
 }

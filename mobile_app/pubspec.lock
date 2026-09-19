@@ -712,6 +712,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.4.1"
+  siya_shared:
+    dependency: "direct main"
+    description:
+      path: "../shared"
+      relative: true
+    source: path
+    version: "1.0.0"
   sky_engine:
     dependency: transitive
     description: flutter

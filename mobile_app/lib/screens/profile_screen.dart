@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import '../services/record_service.dart';
 import 'login_screen.dart';
-import 'app_information_screen.dart';
-import 'settings_screen.dart';
 import '../services/activity_log_service.dart';
 
 class StaffProfileScreen extends StatefulWidget {
@@ -254,65 +252,6 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 16),
-
-                  // Settings & System Information Card
-                  Card(
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('System & Diagnostics', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-                          const Divider(height: 18),
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primaryContainer,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(Icons.info_outline_rounded, color: theme.colorScheme.primary, size: 20),
-                            ),
-                            title: const Text('App Information', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                            subtitle: const Text('Server parameters, device info & health', style: TextStyle(fontSize: 11)),
-                            trailing: const Icon(Icons.chevron_right, size: 20),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const AppInformationScreen()),
-                              );
-                            },
-                          ),
-                          const Divider(height: 1),
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(Icons.settings_outlined, color: Colors.blue, size: 20),
-                            ),
-                            title: const Text('Application Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                            subtitle: const Text('Preferences, offline sync & policies', style: TextStyle(fontSize: 11)),
-                            trailing: const Icon(Icons.chevron_right, size: 20),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const MobileSettingsScreen()),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
                   const SizedBox(height: 24),
 
                   // Sign Out Button
@@ -325,7 +264,7 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     icon: const Icon(Icons.logout),
-                    label: const Text('Sign Out from App', style: TextStyle(fontWeight: FontWeight.bold)),
+                    label: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),

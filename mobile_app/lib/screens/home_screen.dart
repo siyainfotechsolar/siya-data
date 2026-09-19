@@ -20,7 +20,6 @@ import 'tasks_list_screen.dart';
 import 'sync_center_screen.dart';
 import 'payment_dashboard_screen.dart';
 import 'my_tasks_screen.dart';
-import 'package:intl/intl.dart';
 import '../widgets/sync_status_indicator.dart';
 import '../services/connectivity_service.dart';
 import '../services/app_intelligence_service.dart';
@@ -39,6 +38,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
   OperationalInsights? _operationalInsights;
   bool _isLoadingSummary = false;
   StreamSubscription<MobileRecordChangeEvent>? _metricsSub;
+  Map<String, dynamic>? _userProfile;
 
   @override
   void initState() {
@@ -52,9 +52,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
       if (pending != null && mounted) {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => CreateTaskScreen(document: pending),
-          ),
+          MaterialPageRoute(builder: (_) => CreateTaskScreen(document: pending)),
         );
       }
     });
@@ -63,9 +61,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
   void _initMetricsRealtime() {
     MobileRealtimeService.initialize();
     _metricsSub = MobileRealtimeService.recordEvents.listen((_) {
-      if (mounted) {
-        _loadSummary();
-      }
+      if (mounted) _loadSummary();
     });
   }
 
@@ -89,6 +85,11 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     }
   }
 
+  Future<void> _loadUserProfile() async {
+    final profile = await MobileRecordService.getCurrentStaffProfile();
+    if (mounted) setState(() => _userProfile = profile);
+  }
+
   Future<void> _handleSignOut() async {
     await SupabaseService.signOut();
     if (mounted) {
@@ -108,24 +109,20 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
       cancelLabel: 'Cancel',
       exitLabel: 'Exit',
     );
-    if (shouldExit) {
-      SystemNavigator.pop();
-    }
+    if (shouldExit) SystemNavigator.pop();
   }
 
   void _showLogoutDialog() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Sign Out'),
         content: const Text('Are you sure you want to sign out?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
             onPressed: () {
               Navigator.of(ctx).pop();
               _handleSignOut();
@@ -137,164 +134,15 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     );
   }
 
-  String _getAppBarTitle() {
-    switch (_currentIndex) {
-      case 0:
-        return 'Siya Solar';
-      case 1:
-        return 'Action Center';
-      case 2:
-        return 'Consumer Records';
-      case 3:
-        return 'Search Consumers';
-      case 4:
-        return 'Staff Profile';
-      default:
-        return 'Siya Solar';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        BackNavigationHelper.handleDoubleBackPress(
-          context: context,
-          lastBackPressTime: _lastBackPressTime,
-          onTimeUpdated: (t) => _lastBackPressTime = t,
-        );
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            _getAppBarTitle(),
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            tooltip: 'Exit App',
-            onPressed: _showExitDialog,
-          ),
-          actions: [
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: SyncStatusIndicator(compact: true),
-            ),
-            IconButton(
-              icon: const Icon(Icons.sync_rounded),
-              tooltip: 'Sync Center',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SyncCenterScreen()),
-                );
-              },
-            ),
-            if (_currentIndex == 1)
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh',
-                onPressed: () {
-                  setState(() {});
-                },
-              ),
-            IconButton(
-              icon: const Icon(Icons.settings_outlined),
-              tooltip: 'Settings & App Info',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const MobileSettingsScreen()),
-                );
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Sign Out',
-              onPressed: _showLogoutDialog,
-            ),
-          ],
-        ),
-        body: _buildBody(),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _currentIndex,
-          onDestinationSelected: (idx) {
-            setState(() => _currentIndex = idx);
-            if (idx == 0) {
-              _loadSummary();
-            }
-          },
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.bolt_outlined),
-              selectedIcon: Icon(Icons.bolt),
-              label: 'Action Center',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.assignment_outlined),
-              selectedIcon: Icon(Icons.assignment),
-              label: 'Records',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.search),
-              label: 'Search',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'Profile',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBody() {
-    switch (_currentIndex) {
-      case 0:
-        return _buildHomeTab();
-      case 1:
-        return const ActionCenterScreen();
-      case 2:
-        return const ConsumerRecordsScreen();
-      case 3:
-        return const SearchRecordsScreen();
-      case 4:
-        return const StaffProfileScreen();
-      default:
-        return _buildHomeTab();
-    }
-  }
-
-  Map<String, dynamic>? _userProfile;
-
-  Future<void> _loadUserProfile() async {
-    final profile = await MobileRecordService.getCurrentStaffProfile();
-    if (mounted) {
-      setState(() => _userProfile = profile);
-    }
-  }
-
   bool _canAccessModule(String module) {
-    if (_userProfile == null) return true; // Fallback while loading
+    if (_userProfile == null) return true;
     final role = (_userProfile?['role'] as String? ?? 'staff').toLowerCase();
     if (role == 'admin' || role == 'super_admin' || role == 'owner') return true;
-
     final permissions = _userProfile?['permissions'];
     if (permissions != null && permissions is Map) {
       final modActions = permissions[module.toLowerCase()];
       if (modActions is List && modActions.isNotEmpty) return true;
     }
-
-    // Role-specific defaults
     switch (role) {
       case 'installation_staff':
         return module == 'installation' || module == 'customer';
@@ -309,696 +157,493 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     }
   }
 
+  String _getAppBarTitle() {
+    const titles = ['Siya Solar', 'Action Center', 'Records', 'Search', 'Profile'];
+    return titles[_currentIndex.clamp(0, titles.length - 1)];
+  }
+
+  String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        BackNavigationHelper.handleDoubleBackPress(
+          context: context,
+          lastBackPressTime: _lastBackPressTime,
+          onTimeUpdated: (t) => _lastBackPressTime = t,
+        );
+      },
+      child: Scaffold(
+        backgroundColor: colorScheme.surface,
+        appBar: AppBar(
+          elevation: 0,
+          scrolledUnderElevation: 1,
+          title: Text(_getAppBarTitle(), style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3)),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Exit App',
+            onPressed: _showExitDialog,
+          ),
+          actions: [
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: SyncStatusIndicator(compact: true),
+            ),
+            const SizedBox(width: 4),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              tooltip: 'More options',
+              onSelected: (value) {
+                switch (value) {
+                  case 'sync':
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SyncCenterScreen()));
+                    break;
+                  case 'settings':
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const MobileSettingsScreen()));
+                    break;
+                  case 'signout':
+                    _showLogoutDialog();
+                    break;
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'sync', child: ListTile(leading: Icon(Icons.sync_rounded), title: Text('Sync Center'), dense: true, contentPadding: EdgeInsets.zero)),
+                const PopupMenuItem(value: 'settings', child: ListTile(leading: Icon(Icons.settings_outlined), title: Text('Settings'), dense: true, contentPadding: EdgeInsets.zero)),
+                const PopupMenuDivider(),
+                const PopupMenuItem(value: 'signout', child: ListTile(leading: Icon(Icons.logout, color: Colors.red), title: Text('Sign Out', style: TextStyle(color: Colors.red)), dense: true, contentPadding: EdgeInsets.zero)),
+              ],
+            ),
+          ],
+        ),
+        body: _buildBody(),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _currentIndex,
+          elevation: 0,
+          onDestinationSelected: (idx) {
+            setState(() => _currentIndex = idx);
+            if (idx == 0) _loadSummary();
+          },
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+            NavigationDestination(icon: Icon(Icons.bolt_outlined), selectedIcon: Icon(Icons.bolt), label: 'Actions'),
+            NavigationDestination(icon: Icon(Icons.assignment_outlined), selectedIcon: Icon(Icons.assignment), label: 'Records'),
+            NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
+            NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    switch (_currentIndex) {
+      case 0: return _buildHomeTab();
+      case 1: return const ActionCenterScreen();
+      case 2: return const ConsumerRecordsScreen();
+      case 3: return const SearchRecordsScreen();
+      case 4: return const StaffProfileScreen();
+      default: return _buildHomeTab();
+    }
+  }
+
   Widget _buildHomeTab() {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final name = (_userProfile?['full_name'] as String?)?.split(' ').first ?? 'there';
 
-    final showLeads = _canAccessModule('leads');
-    final showAgreement = _canAccessModule('customer');
-    final showLoan = _canAccessModule('loan');
-    final showInstallation = _canAccessModule('installation');
-    final showRts = _canAccessModule('rts');
-    final showSubsidy = _canAccessModule('subsidy');
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return RefreshIndicator(
+      onRefresh: _loadSummary,
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 24),
         children: [
-          // Offline Status Banner
-          ValueListenableBuilder<SyncMode>(
-            valueListenable: ConnectivityService.modeNotifier,
-            builder: (context, mode, _) {
-              if (mode == SyncMode.online) return const SizedBox.shrink();
-              final isOff = mode == SyncMode.offline;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                decoration: BoxDecoration(
-                  color: isOff ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isOff ? const Color(0xFFEF4444).withValues(alpha: 0.3) : const Color(0xFFF59E0B).withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      isOff ? Icons.cloud_off_rounded : Icons.warning_amber_rounded,
-                      size: 16,
-                      color: isOff ? const Color(0xFF991B1B) : const Color(0xFF92400E),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        isOff
-                            ? 'LOCAL DATA (Offline) • All field actions will sync when internet returns.'
-                            : 'Sync Issue Detected • Tap top sync button to view details.',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: isOff ? const Color(0xFF991B1B) : const Color(0xFF92400E),
-                        ),
+          // ── Hero greeting header ──────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [cs.primary, cs.primary.withValues(alpha: 0.82)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Offline banner inside header when offline
+                ValueListenableBuilder<SyncMode>(
+                  valueListenable: ConnectivityService.modeNotifier,
+                  builder: (context, mode, _) {
+                    if (mode == SyncMode.online) return const SizedBox.shrink();
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    ),
-                  ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            mode == SyncMode.offline ? Icons.cloud_off_rounded : Icons.warning_amber_rounded,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            mode == SyncMode.offline ? 'Offline mode' : 'Sync issue',
+                            style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-          // Banner Card
-          Card(
-            color: theme.colorScheme.primaryContainer,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.bolt_rounded,
-                    size: 38,
-                    color: theme.colorScheme.onPrimaryContainer,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'ACTION CENTER MOBILE PORTAL',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.onPrimaryContainer,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'What work do I need to do today?',
-                          style: TextStyle(
-                            color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.85),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
+                Text(
+                  '${_greeting()}, $name 👋',
+                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: -0.4),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Here\'s your operational snapshot',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
+                ),
+                const SizedBox(height: 20),
+
+                // Metric chips row
+                if (_isLoadingSummary)
+                  const SizedBox(
+                    height: 4,
+                    child: LinearProgressIndicator(
+                      backgroundColor: Colors.transparent,
+                      color: Colors.white,
                     ),
+                  )
+                else if (_summaryCounts != null)
+                  Row(
+                    children: [
+                      _buildHeroMetric('Active', '${_summaryCounts!['total'] ?? 0}'),
+                      const SizedBox(width: 10),
+                      _buildHeroMetric('Pending', '${_summaryCounts!['pending'] ?? 0}'),
+                      const SizedBox(width: 10),
+                      _buildHeroMetric('Actions', '${_summaryCounts!['action_center'] ?? 0}'),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Attention needed (only when items exist) ──────────────────
+          if (_operationalInsights != null) _buildAttentionSection(theme),
+
+          // ── Quick modules ─────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              'MODULES',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.6)),
+              ),
+              child: Column(
+                children: [
+                  if (_canAccessModule('leads'))
+                    _buildModuleTile(
+                      icon: Icons.leaderboard_rounded,
+                      iconColor: const Color(0xFF3B82F6),
+                      title: 'Leads & Prospects',
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MobileLeadsScreen())),
+                    ),
+                  if (_canAccessModule('leads'))
+                    Divider(height: 1, indent: 58, endIndent: 16, color: cs.outlineVariant.withValues(alpha: 0.5)),
+                  _buildModuleTile(
+                    icon: Icons.assignment_ind_rounded,
+                    iconColor: const Color(0xFF6366F1),
+                    title: 'My Tasks',
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MyTasksScreen())),
+                  ),
+                  Divider(height: 1, indent: 58, endIndent: 16, color: cs.outlineVariant.withValues(alpha: 0.5)),
+                  _buildModuleTile(
+                    icon: Icons.share_rounded,
+                    iconColor: const Color(0xFF25D366),
+                    title: 'WhatsApp Tasks',
+                    trailing: OfflineTaskSyncService.hasPendingTasks
+                        ? _buildBadge('${OfflineTaskSyncService.pendingCount}', cs.error)
+                        : null,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const TasksListScreen(initialSourceFilter: 'WhatsApp Share')),
+                    ),
+                  ),
+                  Divider(height: 1, indent: 58, endIndent: 16, color: cs.outlineVariant.withValues(alpha: 0.5)),
+                  _buildModuleTile(
+                    icon: Icons.currency_rupee_rounded,
+                    iconColor: cs.primary,
+                    title: 'Payments',
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PaymentDashboardScreen())),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 14),
 
-          // Quick Metrics Row
-          if (_isLoadingSummary)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: LinearProgressIndicator(),
-            )
-          else if (_summaryCounts != null)
-            Row(
+          // ── Today's work grid ─────────────────────────────────────────
+          if (_canAccessModule('customer') ||
+              _canAccessModule('loan') ||
+              _canAccessModule('installation') ||
+              _canAccessModule('rts') ||
+              _canAccessModule('subsidy')) ...[
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'TODAY\'S WORK',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (_canAccessModule('customer'))
+                    _buildWorkTile(Icons.draw_rounded, 'Agreement', const Color(0xFF2563EB), () => _openStage('Agreement Pending')),
+                  if (_canAccessModule('loan'))
+                    _buildWorkTile(Icons.account_balance_rounded, 'Loan', const Color(0xFFD97706), () => _openStage('Loan Pending')),
+                  if (_canAccessModule('installation'))
+                    _buildWorkTile(Icons.construction_rounded, 'Installation', const Color(0xFF059669), () => _openStage('Installation Pending')),
+                  if (_canAccessModule('rts'))
+                    _buildWorkTile(Icons.electric_meter_rounded, 'RTS', const Color(0xFF7C3AED), () => _openStage('RTS Pending')),
+                  if (_canAccessModule('subsidy'))
+                    _buildWorkTile(Icons.currency_rupee_rounded, 'Subsidy', const Color(0xFF0F766E), () => _openStage('Subsidy Processing')),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _openStage(String stage) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => ActionCenterScreen(initialStageFilter: stage)));
+  }
+
+  Widget _buildHeroMetric(String label, String value) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
+            Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.8), fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttentionSection(ThemeData theme) {
+    final cs = theme.colorScheme;
+    final ins = _operationalInsights!;
+
+    final items = <_Chip>[];
+    if (ins.stalledCount > 0) {
+      items.add(_Chip('${ins.stalledCount} Stalled', Icons.timer_outlined, cs.error, () {
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => SearchRecordsScreen(initialFilter: 'Stalled (>10d)', initialRecords: ins.stalledRecords),
+        ));
+      }));
+    }
+    if (ins.paymentActionCount > 0) {
+      items.add(_Chip('${ins.paymentActionCount} Payments', Icons.payments_outlined, cs.primary, () {
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => SearchRecordsScreen(initialFilter: 'Pending Payment', initialRecords: ins.paymentOpportunityRecords),
+        ));
+      }));
+    }
+    if (ins.loanAttentionCount > 0) {
+      items.add(_Chip('${ins.loanAttentionCount} Loans', Icons.account_balance_outlined, cs.secondary, () {
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => SearchRecordsScreen(initialFilter: 'Loan Attention', initialRecords: ins.loanAttentionRecords),
+        ));
+      }));
+    }
+    if (ins.followupDueCount > 0) {
+      items.add(_Chip('${ins.followupDueCount} Follow-ups', Icons.phone_callback_rounded, cs.tertiary, () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const ActionCenterScreen()));
+      }));
+    }
+
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Row(
               children: [
-                Expanded(
-                  child: _buildMetricCard(
-                    title: 'Total Active',
-                    value: '${_summaryCounts!['total'] ?? 0}',
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricCard(
-                    title: 'Pending Action',
-                    value: '${_summaryCounts!['pending'] ?? 0}',
-                    color: Colors.orange.shade800,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricCard(
-                    title: 'Action Center',
-                    value: '${_summaryCounts!['action_center'] ?? 0}',
-                    color: Colors.blue.shade800,
-                  ),
+                Icon(Icons.radar_rounded, size: 14, color: cs.onSurfaceVariant),
+                const SizedBox(width: 5),
+                Text(
+                  'NEEDS ATTENTION',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: cs.onSurfaceVariant),
                 ),
               ],
             ),
-          const SizedBox(height: 14),
-
-          // ⚡ SMART OPERATIONAL RADAR
-          if (_operationalInsights != null) ...[
-            _buildSmartRadarCard(context, theme),
-            const SizedBox(height: 14),
-          ],
-
-          // LEADS & PROSPECTS PORTAL
-          if (showLeads) ...[
-            InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const MobileLeadsScreen()),
-                );
-              },
-              borderRadius: BorderRadius.circular(12),
-              child: Card(
-                elevation: 0,
-                color: const Color(0xFFEFF6FF), // Soft sky blue
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: Color(0xFFBFDBFE)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(14.0),
-                  child: Row(
-                    children: [
-                      const CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Color(0xFF2563EB),
-                        child: Icon(Icons.leaderboard_rounded, color: Colors.white, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'LEADS & PROSPECTS',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: Color(0xFF1E3A8A),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Pre-application customer inquiries, follow-ups & conversion',
-                              style: TextStyle(fontSize: 11, color: Colors.blue.shade900.withValues(alpha: 0.8)),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right, color: Color(0xFF2563EB)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-
-          // OFFICE STAFF MY TASKS (माझी कामे)
-          InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const MyTasksScreen()),
-              );
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Card(
-              elevation: 0,
-              color: const Color(0xFFEEF2FF), // Soft indigo
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: Color(0xFFC7D2FE)),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(14.0),
-                child: Row(
-                  children: [
-                    const CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Color(0xFF4F46E5), // Indigo
-                      child: Icon(Icons.assignment_ind_rounded, color: Colors.white, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'MY TASKS (माझी कामे)',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Color(0xFF312E81),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Assigned customer calls, agreements, follow-ups & documents',
-                            style: TextStyle(fontSize: 11, color: Colors.indigo.shade900.withValues(alpha: 0.8)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, color: Color(0xFF4F46E5)),
-                  ],
-                ),
-              ),
-            ),
           ),
-          const SizedBox(height: 16),
-
-          // WHATSAPP DOCUMENT TASKS PORTAL
-          InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const TasksListScreen(initialSourceFilter: 'WhatsApp Share'),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Card(
-              elevation: 0,
-              color: const Color(0xFFECFDF5), // Soft emerald green
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: Color(0xFFA7F3D0)),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(14.0),
-                child: Row(
-                  children: [
-                    const CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Color(0xFF25D366), // WhatsApp brand color
-                      child: Icon(Icons.share_rounded, color: Colors.white, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Text(
-                                'WHATSAPP DOCUMENT TASKS',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                  color: Color(0xFF065F46),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              if (OfflineTaskSyncService.hasPendingTasks)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: Colors.amber.shade700,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    '${OfflineTaskSyncService.pendingCount} Pending',
-                                    style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Incoming WhatsApp bills, receipts & task workflow reviews',
-                            style: TextStyle(fontSize: 11, color: Colors.green.shade900.withValues(alpha: 0.8)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, color: Color(0xFF059669)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // INTELLIGENT PAYMENT HUB
-          InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const PaymentDashboardScreen()),
-              );
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Card(
-              elevation: 0,
-              color: const Color(0xFFF0FDF4), // Soft mint green
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: Color(0xFFBBF7D0)),
-              ),
-              child: const Padding(
-                padding: EdgeInsets.all(14.0),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Color(0xFF059669),
-                      child: Icon(Icons.currency_rupee_rounded, color: Colors.white, size: 20),
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'PAYMENT & FINANCIAL HUB',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Color(0xFF065F46),
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Collections, installation milestones, receipts, and offline sync',
-                            style: TextStyle(fontSize: 11, color: Color(0xFF047857)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.chevron_right, color: Color(0xFF059669)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // TODAY'S WORK Summary Section Header
-          Text(
-            'TODAY\'S WORK',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Actionable work required today across operational stages',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 12),
-
-          // Action Queues Summary Grid (Dynamically filtered by staff permissions)
           Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              if (showAgreement)
-                SizedBox(
-                  width: (MediaQuery.of(context).size.width - 42) / 2,
-                  child: _buildActionTile(
-                    icon: Icons.draw_rounded,
-                    label: 'My Agreement Work',
-                    onTap: () => _openActionCenterStage('Agreement Pending'),
-                  ),
-                ),
-              if (showLoan)
-                SizedBox(
-                  width: (MediaQuery.of(context).size.width - 42) / 2,
-                  child: _buildActionTile(
-                    icon: Icons.account_balance_rounded,
-                    label: 'My Loan Work',
-                    onTap: () => _openActionCenterStage('Loan Pending'),
-                  ),
-                ),
-              if (showInstallation)
-                SizedBox(
-                  width: (MediaQuery.of(context).size.width - 42) / 2,
-                  child: _buildActionTile(
-                    icon: Icons.construction_rounded,
-                    label: 'My Installation Work',
-                    onTap: () => _openActionCenterStage('Installation Pending'),
-                  ),
-                ),
-              if (showRts)
-                SizedBox(
-                  width: (MediaQuery.of(context).size.width - 42) / 2,
-                  child: _buildActionTile(
-                    icon: Icons.electric_meter_rounded,
-                    label: 'My RTS Work',
-                    onTap: () => _openActionCenterStage('RTS Pending'),
-                  ),
-                ),
-              if (showSubsidy)
-                SizedBox(
-                  width: (MediaQuery.of(context).size.width - 42) / 2,
-                  child: _buildActionTile(
-                    icon: Icons.currency_rupee_rounded,
-                    label: 'My Subsidy Work',
-                    onTap: () => _openActionCenterStage('Subsidy Processing'),
-                  ),
-                ),
-              SizedBox(
-                width: (MediaQuery.of(context).size.width - 42) / 2,
-                child: _buildActionTile(
-                  icon: Icons.search,
-                  label: 'Search Consumers',
-                  onTap: () => setState(() => _currentIndex = 3),
-                ),
-              ),
-            ],
+            spacing: 6,
+            runSpacing: 6,
+            children: items.map((chip) => _buildAttentionChip(chip)).toList(),
           ),
         ],
       ),
     );
   }
 
-  void _openActionCenterStage(String stage) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ActionCenterScreen(initialStageFilter: stage),
-      ),
-    );
-  }
-
-  Widget _buildMetricCard({required String title, required String value, required Color color}) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionTile({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      elevation: 2,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 12.0),
-          child: Column(
-            children: [
-              Icon(icon, size: 28, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSmartRadarCard(BuildContext context, ThemeData theme) {
-    final insights = _operationalInsights!;
-    final totalActionNeeded = insights.stalledCount +
-        insights.paymentActionCount +
-        insights.loanAttentionCount +
-        insights.followupDueCount;
-
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.25)),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            colors: [
-              theme.colorScheme.primary.withValues(alpha: 0.05),
-              Colors.transparent,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        padding: const EdgeInsets.all(14.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.bolt_rounded, color: Color(0xFFD97706), size: 22),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'Operational Intelligence Radar',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: (totalActionNeeded > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669))
-                        .withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '$totalActionNeeded Need Attention',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: totalActionNeeded > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _buildRadarChip(
-                  icon: Icons.timer_outlined,
-                  label: '${insights.stalledCount} Stalled (>10d)',
-                  color: const Color(0xFFEF4444),
-                  count: insights.stalledCount,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SearchRecordsScreen(
-                          initialFilter: 'Stalled (>10d)',
-                          initialRecords: insights.stalledRecords,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                _buildRadarChip(
-                  icon: Icons.payments_outlined,
-                  label: '${insights.paymentActionCount} Payments Due',
-                  color: const Color(0xFF059669),
-                  count: insights.paymentActionCount,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SearchRecordsScreen(
-                          initialFilter: 'Pending Payment',
-                          initialRecords: insights.paymentOpportunityRecords,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                _buildRadarChip(
-                  icon: Icons.account_balance_outlined,
-                  label: '${insights.loanAttentionCount} Loan Attention',
-                  color: const Color(0xFF2563EB),
-                  count: insights.loanAttentionCount,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SearchRecordsScreen(
-                          initialFilter: 'Loan Attention',
-                          initialRecords: insights.loanAttentionRecords,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                _buildRadarChip(
-                  icon: Icons.phone_callback_rounded,
-                  label: '${insights.followupDueCount} Follow-ups Due',
-                  color: const Color(0xFFD97706),
-                  count: insights.followupDueCount,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ActionCenterScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRadarChip({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required int count,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildAttentionChip(_Chip chip) {
     return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      onTap: chip.onTap,
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: count > 0 ? color.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: count > 0 ? color.withValues(alpha: 0.3) : Colors.grey.shade300,
-          ),
+          color: chip.color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: chip.color.withValues(alpha: 0.25)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 15, color: count > 0 ? color : Colors.grey),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: count > 0 ? FontWeight.bold : FontWeight.normal,
-                color: count > 0 ? color : Colors.grey.shade700,
-              ),
-            ),
+            Icon(chip.icon, size: 13, color: chip.color),
+            const SizedBox(width: 5),
+            Text(chip.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: chip.color)),
             const SizedBox(width: 4),
-            Icon(Icons.chevron_right, size: 14, color: count > 0 ? color : Colors.grey),
+            Icon(Icons.chevron_right_rounded, size: 13, color: chip.color.withValues(alpha: 0.7)),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
+      child: Text(text, style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _buildModuleTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required VoidCallback onTap,
+    Widget? trailing,
+  }) {
+    return ListTile(
+      leading: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: iconColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: iconColor, size: 19),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, letterSpacing: -0.1)),
+      trailing: trailing ?? Icon(Icons.chevron_right, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  Widget _buildWorkTile(IconData icon, String label, Color color, VoidCallback onTap) {
+    final width = (MediaQuery.of(context).size.width - 40) / 2;
+    return SizedBox(
+      width: width,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 16, color: color),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: color),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Chip {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  _Chip(this.label, this.icon, this.color, this.onTap);
 }
