@@ -115,6 +115,24 @@ For internal testing and GitHub release distribution, standard release signing i
 
 ## 📌 Release History
 
+### Release v1.0.22 (Build 23) - 2026-09-20
+- **Complete Design System & Comprehensive UI Audit Resolution**:
+  - **Global Cross-Platform Design System**:
+    - Standardized `InputDecorationTheme` with 12px rounded borders across all text fields in light and dark themes.
+    - Floating, rounded SnackBars (`shape: RoundedRectangleBorder(borderRadius: 10)`).
+    - Replaced all raw hardcoded color tokens with semantic `colorScheme` values.
+  - **Android Mobile App (`mobile_app`)**:
+    - **Home Screen**: 3-stop rich gradient (`#059669` → `#047857` → `primaryContainer`), `"YOUR PIPELINE"` uppercase section label, overflow-protected work tile labels, and improved exit app action.
+    - **Login Screen**: Elevated form card with `surfaceContainerLow` tint, subtle border, 12px rounded input fields, and 12px rounded Sign In button.
+    - **Staff Profile**: Pinned quick-access Sign Out button to Profile Header Card, replaced location icon with profile avatar, and removed card elevation overrides.
+    - **Search & Records**: Contrast-enhanced smart intelligence chips with active borders, branded circular badge containers for initial and empty search states.
+    - **Settings**: Synchronized versioning, theme-aware headers, and clarified Android OS notification controls.
+  - **Admin Web Panel (`admin_panel`)**:
+    - **Dashboard**: Uniform action queue cards with fixed width in Wrap layouts, protected status card labels against truncation, and integrated live date and time indicators.
+    - **Navigation Rail**: Wrapped in `SingleChildScrollView` to support smaller laptop screens without clipping; tuned extended breakpoint to 1100px.
+    - **Records Table**: Enabled smooth multi-device trackpad and mouse-wheel scrolling via `ScrollConfiguration`, added clear uppercase category labels above filter dropdowns (`SCOPE:`, `QUEUE:`, `STATUS:`).
+    - **Settings & Health Check**: Upgraded database health telemetry from full-table scans to server-side Postgrest `.count(CountOption.exact)` queries.
+
 ### Release v1.0.21 (Build 22) - 2026-09-19
 - **Professional & Clean UI Redesign (Mobile App & Admin Panel)**:
   - **Mobile Home Screen**:
