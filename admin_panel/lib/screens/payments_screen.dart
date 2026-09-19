@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/customer_payment.dart';
 import '../models/consumer_record.dart';
 import '../services/payment_service.dart';
+import '../services/record_service.dart';
 import '../services/supabase_service.dart';
 
 class PaymentsScreen extends StatefulWidget {
