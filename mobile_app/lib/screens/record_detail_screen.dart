@@ -9,6 +9,7 @@ import '../services/workflow_engine.dart';
 import '../services/payment_service.dart';
 import '../services/payment_receipt_service.dart';
 import '../services/app_database.dart';
+import '../services/app_intelligence_service.dart';
 import '../widgets/no_action_reason_dialog.dart';
 import '../widgets/customer_timeline_widget.dart';
 import '../widgets/add_payment_dialog.dart';
@@ -846,6 +847,121 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     );
   }
 
+  Widget _buildSmartInsightBanner(BuildContext context, ThemeData theme, bool isDark) {
+    final intel = AppIntelligenceService.evaluateCustomer(_record);
+    final isWarning = intel.riskLevel == 'high';
+    final isMedium = intel.riskLevel == 'medium';
+    final badgeColor = isWarning
+        ? const Color(0xFFDC2626)
+        : (isMedium ? const Color(0xFFD97706) : const Color(0xFF2563EB));
+    final bgColor = isDark
+        ? (isWarning ? const Color(0xFF450A0A) : const Color(0xFF1E293B))
+        : (isWarning ? const Color(0xFFFEF2F2) : const Color(0xFFEFF6FF));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.3), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  isWarning ? Icons.warning_amber_rounded : Icons.auto_awesome_rounded,
+                  size: 18,
+                  color: badgeColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'NEXT BEST ACTION: ${intel.nextBestAction.toUpperCase()}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    color: badgeColor,
+                  ),
+                ),
+              ),
+              if (intel.daysInCurrentStage > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: (intel.daysInCurrentStage >= 10 ? const Color(0xFFEF4444) : Colors.grey)
+                        .withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${intel.daysInCurrentStage}d in stage',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: intel.daysInCurrentStage >= 10 ? const Color(0xFFDC2626) : Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            intel.context,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? Colors.white70 : const Color(0xFF334155),
+              height: 1.3,
+            ),
+          ),
+          if (intel.suggestedPaymentAmount != null && intel.suggestedPaymentAmount! > 0) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669).withValues(alpha: 0.15),
+                  foregroundColor: const Color(0xFF059669),
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: const Icon(Icons.bolt_rounded, size: 16),
+                label: Text(
+                  'Quick Record ₹${NumberFormat('#,##,###').format(intel.suggestedPaymentAmount)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+                onPressed: () async {
+                  final res = await AddPaymentDialog.show(
+                    context,
+                    preselectedCustomer: _record,
+                    initialAmount: intel.suggestedPaymentAmount,
+                  );
+                  if (res == true && mounted) {
+                    final updated = await AppDatabase.getConsumerRecordById(_record.id!);
+                    if (updated != null) {
+                      setState(() {
+                        _record = updated;
+                        _hasChanged = true;
+                      });
+                    }
+                  }
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -905,6 +1021,9 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                     ],
                   ),
                 ),
+
+              // Smart Next Best Action Radar Banner
+              _buildSmartInsightBanner(context, theme, isDark),
 
               // Header Card
               Card(
@@ -1480,9 +1599,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     final total = _record.totalAmount;
     final paid = _record.paidAmount;
     final pending = _record.pendingAmount;
-    final status = _record.paymentStatus;
-    final milestone = PaymentService.evaluateMilestone(_record);
-    final paidPercent = total > 0 ? (paid / total).clamp(0.0, 1.0) : 0.0;
+    final hasAdditional = _record.additionalPaidAmount > 0;
 
     return Card(
       elevation: 2,
@@ -1497,10 +1614,10 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF059669), size: 20),
+                    const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF059669), size: 22),
                     const SizedBox(width: 8),
                     Text(
-                      'PAYMENT PROFILE',
+                      'PAYMENT',
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.5,
@@ -1508,85 +1625,57 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                     ),
                   ],
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: PaymentStatus.statusColor(status).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    status.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: PaymentStatus.statusColor(status),
-                    ),
-                  ),
+                TextButton.icon(
+                  icon: const Icon(Icons.edit_outlined, size: 14),
+                  label: const Text('Edit Total', style: TextStyle(fontSize: 12)),
+                  onPressed: _showEditTotalPaymentDialog,
                 ),
               ],
             ),
-            const Divider(height: 20),
+            const Divider(height: 16),
 
-            // 3 Numbers: Contract, Paid, Pending
+            // Metrics: Total Payment, Paid, Pending, Additional
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _paymentMetricCol('Contract', '₹${NumberFormat('#,##,###').format(total)}', Colors.grey.shade700),
-                _paymentMetricCol('Paid', '₹${NumberFormat('#,##,###').format(paid)}', const Color(0xFF059669)),
-                _paymentMetricCol('Pending', '₹${NumberFormat('#,##,###').format(pending)}', const Color(0xFFDC2626)),
+                _paymentMetricCol(
+                  'Total Payment',
+                  '₹${NumberFormat('#,##,###').format(total)}',
+                  Colors.grey.shade800,
+                  onTap: _showEditTotalPaymentDialog,
+                ),
+                _paymentMetricCol(
+                  'Paid',
+                  '₹${NumberFormat('#,##,###').format(paid)}',
+                  const Color(0xFF059669),
+                ),
+                _paymentMetricCol(
+                  'Pending',
+                  '₹${NumberFormat('#,##,###').format(pending)}',
+                  pending > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                ),
+                if (hasAdditional)
+                  _paymentMetricCol(
+                    'Additional',
+                    '₹${NumberFormat('#,##,###').format(_record.additionalPaidAmount)}',
+                    const Color(0xFF7C3AED),
+                  ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
-            // Progress Bar
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: paidPercent,
-                minHeight: 6,
-                backgroundColor: Colors.grey.shade200,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  paidPercent >= 1.0 ? const Color(0xFF059669) : theme.colorScheme.primary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Installation Milestone Intelligence Banner
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: milestone.badgeColor.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: milestone.badgeColor.withValues(alpha: 0.25)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.bolt_rounded, size: 16, color: milestone.badgeColor),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Stage: ${_record.installationStatus} — ${milestone.actionRecommendation}',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: milestone.badgeColor),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // Action Buttons
+            // Action Buttons: [ + Add Payment ] and [ Payment History ]
             Row(
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Add Payment', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('+ Add Payment', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.colorScheme.primary,
+                      backgroundColor: const Color(0xFF059669),
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     onPressed: () async {
                       final res = await AddPaymentDialog.show(context, preselectedCustomer: _record);
@@ -1602,13 +1691,13 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                     },
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 OutlinedButton.icon(
-                  icon: const Icon(Icons.receipt_long_rounded, size: 16),
-                  label: const Text('History', style: TextStyle(fontSize: 12)),
+                  icon: const Icon(Icons.history_rounded, size: 18),
+                  label: const Text('Payment History', style: TextStyle(fontSize: 13)),
                   style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   ),
                   onPressed: _showPaymentHistorySheet,
                 ),
@@ -1620,15 +1709,88 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     );
   }
 
-  Widget _paymentMetricCol(String title, String val, Color color) {
-    return Column(
+  Future<void> _showEditTotalPaymentDialog() async {
+    final totalCtrl = TextEditingController(
+      text: _record.totalAmount > 0 ? _record.totalAmount.toStringAsFixed(0) : '',
+    );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Total Payment'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Customer: ${_record.name} (${_record.consumerNo})'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: totalCtrl,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Total Payment (₹) *',
+                prefixText: '₹ ',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final newTotal = double.tryParse(totalCtrl.text.trim()) ?? 0.0;
+      final updated = await PaymentService.updateTotalPayment(
+        customerId: _record.id!,
+        newTotalAmount: newTotal,
+      );
+      if (updated != null && mounted) {
+        setState(() {
+          _record = updated;
+          _hasChanged = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Total Payment updated successfully!'),
+            backgroundColor: Color(0xFF059669),
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _paymentMetricCol(String title, String val, Color color, {VoidCallback? onTap}) {
+    final col = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            if (onTap != null) ...[
+              const SizedBox(width: 2),
+              const Icon(Icons.edit_outlined, size: 10, color: Colors.grey),
+            ],
+          ],
+        ),
         const SizedBox(height: 2),
         Text(val, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
       ],
     );
+
+    if (onTap != null) {
+      return InkWell(onTap: onTap, child: col);
+    }
+    return col;
   }
 
   void _showPaymentHistorySheet() async {
@@ -1677,79 +1839,51 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: tx.isPendingSync
-                              ? const Color(0xFFEA580C).withValues(alpha: 0.15)
-                              : const Color(0xFF059669).withValues(alpha: 0.15),
-                          child: Icon(PaymentMode.getModeIcon(tx.paymentMode), size: 18),
+                          backgroundColor: const Color(0xFF059669).withValues(alpha: 0.12),
+                          child: Icon(PaymentMode.getModeIcon(tx.paymentMode), size: 18, color: const Color(0xFF059669)),
                         ),
                         title: Row(
                           children: [
                             Text(
                               '₹${NumberFormat('#,##,###').format(tx.amount)}',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                             ),
-                            const Spacer(),
-                            Text(
-                              tx.syncStatus,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: tx.isPendingSync ? const Color(0xFFEA580C) : const Color(0xFF059669),
+                            if (tx.isAdditional) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEDE9FE),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'Additional',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF7C3AED),
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const SizedBox(height: 2),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: tx.isAdditional
-                                    ? const Color(0xFF7C3AED).withValues(alpha: 0.12)
-                                    : const Color(0xFF0284C7).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                tx.isAdditional
-                                    ? 'Additional: ${AdditionalPaymentCategory.displayName(tx.additionalCategory ?? "")}'
-                                    : 'Contract Payment',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: tx.isAdditional ? const Color(0xFF7C3AED) : const Color(0xFF0284C7),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
                             Text(
-                              '${DateFormat('dd MMM yyyy').format(tx.paymentDate)} • ${tx.paymentMode} ${tx.referenceNumber != null ? "(${tx.referenceNumber})" : ""}',
+                              '${DateFormat('dd MMM yyyy').format(tx.paymentDate)} • ${tx.paymentMode}',
                               style: const TextStyle(fontSize: 12),
                             ),
-                          ],
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.share, size: 18),
-                              tooltip: 'WhatsApp Receipt',
-                              onPressed: () {
-                                PaymentReceiptService.shareViaWhatsApp(tx: tx, customer: _record);
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
-                              tooltip: 'PDF Receipt',
-                              onPressed: () async {
-                                final file = await PaymentReceiptService.generateReceiptPdf(
-                                  tx: tx,
-                                  customer: _record,
-                                );
-                                await PaymentReceiptService.openReceipt(file);
-                              },
-                            ),
+                            if (tx.remarks != null && tx.remarks!.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  tx.remarks!,
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                ),
+                              ),
                           ],
                         ),
                       ),

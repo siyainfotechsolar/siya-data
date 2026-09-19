@@ -1887,6 +1887,8 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
   }
 
   Widget _buildPaymentCard() {
+    final hasAdditional = _record.additionalPaidAmount > 0;
+
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -1898,6 +1900,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header with [ + Add Payment ]
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -1912,11 +1915,14 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       child: const Icon(Icons.payments_rounded, color: Color(0xFF059669), size: 20),
                     ),
                     const SizedBox(width: 8),
-                    const Text('Payment & Balance Tracking', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    const Text('Payment', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  ),
                   onPressed: () async {
                     final res = await PaymentDialog.show(context, customerRecord: _record);
                     if (res == true) {
@@ -1927,11 +1933,13 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                     }
                   },
                   icon: const Icon(Icons.add, size: 16),
-                  label: const Text('Record Payment', style: TextStyle(fontSize: 12)),
+                  label: const Text('+ Add Payment', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
             const SizedBox(height: 12),
+
+            // Summary Metrics: Total Payment, Paid, Pending, Additional
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
@@ -1942,24 +1950,48 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  // Total Payment (editable)
+                  InkWell(
+                    onTap: _showEditTotalPaymentDialog,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text('Total Payment', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                              const SizedBox(width: 4),
+                              Icon(Icons.edit_outlined, size: 13, color: Colors.green.shade800),
+                            ],
+                          ),
+                          Text(
+                            '₹${_record.totalAmount.toStringAsFixed(0)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Paid
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Total Amount', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                      Text('₹${_record.totalAmount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      const Text('Paid', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                      Text(
+                        '₹${_record.paidAmount.toStringAsFixed(0)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF059669)),
+                      ),
                     ],
                   ),
+
+                  // Pending
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Paid Amount', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                      Text('₹${_record.paidAmount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF059669))),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Pending Balance', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                      const Text('Pending', style: TextStyle(fontSize: 11, color: Colors.black54)),
                       Text(
                         '₹${_record.pendingAmount.toStringAsFixed(0)}',
                         style: TextStyle(
@@ -1970,27 +2002,23 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       ),
                     ],
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Payment Status', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: PaymentStatus.statusColor(_record.paymentStatus).withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: PaymentStatus.statusColor(_record.paymentStatus).withOpacity(0.3)),
+
+                  // Additional (if any)
+                  if (hasAdditional)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Additional', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                        Text(
+                          '₹${_record.additionalPaidAmount.toStringAsFixed(0)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF7C3AED)),
                         ),
-                        child: Text(
-                          _record.paymentStatus,
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: PaymentStatus.statusColor(_record.paymentStatus)),
-                        ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                 ],
               ),
             ),
+
             if (_isLoadingPayments)
               const Padding(
                 padding: EdgeInsets.all(12),
@@ -2003,19 +2031,18 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
               )
             else ...[
               const SizedBox(height: 12),
-              const Text('Transaction History:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              const Text('Payment History', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: Table(
                   border: TableBorder.all(color: Colors.grey.shade200),
                   columnWidths: const {
-                    0: FlexColumnWidth(2),
-                    1: FlexColumnWidth(2),
-                    2: FlexColumnWidth(2),
-                    3: FlexColumnWidth(3),
-                    4: FlexColumnWidth(2),
-                    5: FlexColumnWidth(2),
+                    0: FlexColumnWidth(2), // Date
+                    1: FlexColumnWidth(2), // Amount
+                    2: FlexColumnWidth(2), // Mode
+                    3: FlexColumnWidth(3), // Remarks
+                    4: FlexColumnWidth(1.5), // Actions
                   },
                   children: [
                     TableRow(
@@ -2023,38 +2050,73 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       children: const [
                         Padding(padding: EdgeInsets.all(6), child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
                         Padding(padding: EdgeInsets.all(6), child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        Padding(padding: EdgeInsets.all(6), child: Text('Mode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        Padding(padding: EdgeInsets.all(6), child: Text('Ref / UTR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        Padding(padding: EdgeInsets.all(6), child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        Padding(padding: EdgeInsets.all(6), child: Text('Action', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        Padding(padding: EdgeInsets.all(6), child: Text('Payment Mode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        Padding(padding: EdgeInsets.all(6), child: Text('Remarks', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        Padding(padding: EdgeInsets.all(6), child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
                       ],
                     ),
                     ..._transactions.map((tx) {
                       return TableRow(
                         children: [
-                          Padding(padding: const EdgeInsets.all(6), child: Text(tx.paymentDate.toIso8601String().split('T')[0], style: const TextStyle(fontSize: 11))),
-                          Padding(padding: const EdgeInsets.all(6), child: Text('₹${tx.amount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                          Padding(padding: const EdgeInsets.all(6), child: Text(tx.paymentMode, style: const TextStyle(fontSize: 11))),
-                          Padding(padding: const EdgeInsets.all(6), child: Text(tx.referenceNumber ?? '—', style: const TextStyle(fontSize: 11))),
                           Padding(
                             padding: const EdgeInsets.all(6),
                             child: Text(
-                              tx.status,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: tx.isValid ? const Color(0xFF059669) : const Color(0xFFDC2626),
-                              ),
+                              '${tx.paymentDate.day.toString().padLeft(2, '0')}/${tx.paymentDate.month.toString().padLeft(2, '0')}/${tx.paymentDate.year}',
+                              style: const TextStyle(fontSize: 11),
                             ),
                           ),
                           Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: Row(
+                              children: [
+                                Text(
+                                  '₹${tx.amount.toStringAsFixed(0)}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                                ),
+                                if (tx.isAdditional) ...[
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEDE9FE),
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                    child: const Text('Addl', style: TextStyle(fontSize: 9, color: Color(0xFF7C3AED), fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: Text(tx.paymentMode, style: const TextStyle(fontSize: 11)),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: Text(tx.remarks?.isNotEmpty == true ? tx.remarks! : '—', style: const TextStyle(fontSize: 11)),
+                          ),
+                          Padding(
                             padding: const EdgeInsets.all(4),
-                            child: tx.isValid
-                                ? InkWell(
-                                    onTap: () => _confirmReversePayment(tx),
-                                    child: const Text('Reverse', style: TextStyle(fontSize: 11, color: Color(0xFFDC2626), decoration: TextDecoration.underline)),
-                                  )
-                                : const Text('—', style: TextStyle(fontSize: 11)),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                InkWell(
+                                  onTap: () => _openEditPaymentDialog(tx),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(2),
+                                    child: Icon(Icons.edit_outlined, size: 15, color: Colors.blue),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                InkWell(
+                                  onTap: () => _confirmDeletePayment(tx),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(2),
+                                    child: Icon(Icons.delete_outline, size: 15, color: Colors.red),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       );
@@ -2216,58 +2278,103 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     );
   }
 
-  Future<void> _confirmReversePayment(PaymentTransaction tx) async {
-    final reasonCtrl = TextEditingController();
+  Future<void> _showEditTotalPaymentDialog() async {
+    final totalCtrl = TextEditingController(
+      text: _record.totalAmount > 0 ? _record.totalAmount.toStringAsFixed(0) : '',
+    );
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Reverse Payment Transaction'),
+        title: const Text('Edit Total Payment'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Are you sure you want to reverse payment of ₹${tx.amount.toStringAsFixed(0)}?'),
+            Text('Customer: ${_record.name} (${_record.consumerNo})'),
             const SizedBox(height: 12),
             TextField(
-              controller: reasonCtrl,
+              controller: totalCtrl,
+              autofocus: true,
+              keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Reversal Reason *',
+                labelText: 'Total Payment (₹) *',
+                prefixText: '₹ ',
                 border: OutlineInputBorder(),
               ),
-              maxLines: 2,
             ),
           ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final newTotal = double.tryParse(totalCtrl.text.trim()) ?? 0.0;
+      try {
+        await RecordService.updateCustomerPaymentProfile(
+          customerId: _record.id!,
+          totalAmount: newTotal,
+        );
+        final updated = await RecordService.fetchRecordById(_record.id!);
+        if (updated != null && mounted) setState(() => _record = updated);
+        _loadPayments();
+        widget.onRecordUpdated?.call();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating Total Payment: $e')));
+        }
+      }
+    }
+  }
+
+  Future<void> _openEditPaymentDialog(PaymentTransaction tx) async {
+    final res = await PaymentDialog.show(
+      context,
+      customerRecord: _record,
+      existingPayment: tx,
+    );
+    if (res == true && mounted) {
+      _loadPayments();
+      final updated = await RecordService.fetchRecordById(_record.id!);
+      if (updated != null && mounted) setState(() => _record = updated);
+      widget.onRecordUpdated?.call();
+    }
+  }
+
+  Future<void> _confirmDeletePayment(PaymentTransaction tx) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Payment'),
+        content: Text('Are you sure you want to delete payment of ₹${tx.amount.toStringAsFixed(0)} on ${tx.paymentDate.day.toString().padLeft(2, '0')}/${tx.paymentDate.month.toString().padLeft(2, '0')}/${tx.paymentDate.year}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Confirm Reverse'),
+            child: const Text('Delete'),
           ),
         ],
       ),
     );
 
     if (confirmed == true && tx.id != null && mounted) {
-      if (reasonCtrl.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reversal reason is required')),
-        );
-        return;
-      }
       try {
-        await RecordService.reversePaymentTransaction(
-          transactionId: tx.id!,
-          reason: reasonCtrl.text.trim(),
-        );
+        await RecordService.deletePaymentTransaction(tx.id!);
         _loadPayments();
         final updated = await RecordService.fetchRecordById(_record.id!);
         if (updated != null && mounted) setState(() => _record = updated);
         widget.onRecordUpdated?.call();
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting payment: $e')));
         }
       }
     }

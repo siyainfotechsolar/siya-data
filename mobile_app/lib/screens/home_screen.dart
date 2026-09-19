@@ -20,8 +20,11 @@ import 'tasks_list_screen.dart';
 import 'sync_center_screen.dart';
 import 'payment_dashboard_screen.dart';
 import 'my_tasks_screen.dart';
+import 'package:intl/intl.dart';
 import '../widgets/sync_status_indicator.dart';
 import '../services/connectivity_service.dart';
+import '../services/app_intelligence_service.dart';
+import 'action_center_screen.dart';
 
 class MobileHomeScreen extends StatefulWidget {
   const MobileHomeScreen({super.key});
@@ -33,6 +36,7 @@ class MobileHomeScreen extends StatefulWidget {
 class _MobileHomeScreenState extends State<MobileHomeScreen> {
   int _currentIndex = 0;
   Map<String, int>? _summaryCounts;
+  OperationalInsights? _operationalInsights;
   bool _isLoadingSummary = false;
   StreamSubscription<MobileRecordChangeEvent>? _metricsSub;
 
@@ -73,10 +77,13 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
 
   Future<void> _loadSummary() async {
     setState(() => _isLoadingSummary = true);
-    final summary = await MobileRecordService.fetchDashboardSummary();
+    final summaryFuture = MobileRecordService.fetchDashboardSummary();
+    final insightsFuture = AppIntelligenceService.computeInsights();
+    final results = await Future.wait([summaryFuture, insightsFuture]);
     if (mounted) {
       setState(() {
-        _summaryCounts = summary;
+        _summaryCounts = results[0] as Map<String, int>?;
+        _operationalInsights = results[1] as OperationalInsights?;
         _isLoadingSummary = false;
       });
     }
@@ -435,6 +442,12 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
               ],
             ),
           const SizedBox(height: 14),
+
+          // ⚡ SMART OPERATIONAL RADAR
+          if (_operationalInsights != null) ...[
+            _buildSmartRadarCard(context, theme),
+            const SizedBox(height: 14),
+          ],
 
           // LEADS & PROSPECTS PORTAL
           if (showLeads) ...[
@@ -809,6 +822,181 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSmartRadarCard(BuildContext context, ThemeData theme) {
+    final insights = _operationalInsights!;
+    final totalActionNeeded = insights.stalledCount +
+        insights.paymentActionCount +
+        insights.loanAttentionCount +
+        insights.followupDueCount;
+
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.25)),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            colors: [
+              theme.colorScheme.primary.withValues(alpha: 0.05),
+              Colors.transparent,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: const EdgeInsets.all(14.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.bolt_rounded, color: Color(0xFFD97706), size: 22),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Operational Intelligence Radar',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: (totalActionNeeded > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669))
+                        .withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '$totalActionNeeded Need Attention',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: totalActionNeeded > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildRadarChip(
+                  icon: Icons.timer_outlined,
+                  label: '${insights.stalledCount} Stalled (>10d)',
+                  color: const Color(0xFFEF4444),
+                  count: insights.stalledCount,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SearchRecordsScreen(
+                          initialFilter: 'Stalled (>10d)',
+                          initialRecords: insights.stalledRecords,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _buildRadarChip(
+                  icon: Icons.payments_outlined,
+                  label: '${insights.paymentActionCount} Payments Due',
+                  color: const Color(0xFF059669),
+                  count: insights.paymentActionCount,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SearchRecordsScreen(
+                          initialFilter: 'Pending Payment',
+                          initialRecords: insights.paymentOpportunityRecords,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _buildRadarChip(
+                  icon: Icons.account_balance_outlined,
+                  label: '${insights.loanAttentionCount} Loan Attention',
+                  color: const Color(0xFF2563EB),
+                  count: insights.loanAttentionCount,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SearchRecordsScreen(
+                          initialFilter: 'Loan Attention',
+                          initialRecords: insights.loanAttentionRecords,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _buildRadarChip(
+                  icon: Icons.phone_callback_rounded,
+                  label: '${insights.followupDueCount} Follow-ups Due',
+                  color: const Color(0xFFD97706),
+                  count: insights.followupDueCount,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ActionCenterScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRadarChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required int count,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: count > 0 ? color.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: count > 0 ? color.withValues(alpha: 0.3) : Colors.grey.shade300,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: count > 0 ? color : Colors.grey),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: count > 0 ? FontWeight.bold : FontWeight.normal,
+                color: count > 0 ? color : Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right, size: 14, color: count > 0 ? color : Colors.grey),
+          ],
         ),
       ),
     );

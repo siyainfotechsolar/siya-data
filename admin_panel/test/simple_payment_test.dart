@@ -145,5 +145,53 @@ void main() {
       expect(columns[3].valueExtractor(row), 50000.0);
       expect(columns[4].valueExtractor(row), 150000.0);
     });
+
+    test('5. Additional Payment: Separated and does NOT reduce Contract Pending', () {
+      const total = 190000.0;
+      final p1 = PaymentTransaction(
+        id: 'tx-1',
+        customerId: 'cust-101',
+        consumerNo: '123456789012',
+        amount: 50000.0,
+        paymentDate: DateTime(2026, 9, 15),
+        paymentMode: 'Cash',
+        paymentType: PaymentType.contract,
+        status: 'Valid',
+      );
+
+      final p2 = PaymentTransaction(
+        id: 'tx-2',
+        customerId: 'cust-101',
+        consumerNo: '123456789012',
+        amount: 40000.0,
+        paymentDate: DateTime(2026, 9, 18),
+        paymentMode: 'UPI',
+        paymentType: PaymentType.contract,
+        status: 'Valid',
+      );
+
+      final pAdditional = PaymentTransaction(
+        id: 'tx-add-1',
+        customerId: 'cust-101',
+        consumerNo: '123456789012',
+        amount: 10000.0,
+        paymentDate: DateTime(2026, 9, 19),
+        paymentMode: 'UPI',
+        paymentType: PaymentType.additional,
+        status: 'Valid',
+        remarks: 'Extra material',
+      );
+
+      final summary = CustomerPaymentSummary.calculate(
+        totalAmount: total,
+        transactions: [p1, p2, pAdditional],
+      );
+
+      expect(summary.contractAmount, 190000.0);
+      expect(summary.contractPaid, 90000.0);
+      expect(summary.contractPending, 100000.0);
+      expect(summary.additionalPaid, 10000.0);
+      expect(summary.totalReceived, 100000.0);
+    });
   });
 }

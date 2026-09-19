@@ -84,11 +84,9 @@ class PaymentMode {
   static const String other = 'Other';
 
   static const List<String> allModes = [
+    cash,
     upi,
     bankTransfer,
-    neft,
-    rtgs,
-    cash,
     cheque,
     other,
   ];

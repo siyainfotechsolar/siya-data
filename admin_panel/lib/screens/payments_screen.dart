@@ -202,6 +202,59 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
     );
   }
 
+  void _openEditTotalPaymentDialog(CustomerPaymentRow row) async {
+    final totalCtrl = TextEditingController(
+      text: row.totalAmount > 0 ? row.totalAmount.toStringAsFixed(0) : '',
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Total Payment'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Customer: ${row.customerName} (${row.consumerNo})'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: totalCtrl,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Total Payment (₹) *',
+                prefixText: '₹ ',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final newTotal = double.tryParse(totalCtrl.text.trim()) ?? 0.0;
+      try {
+        await RecordService.updateCustomerPaymentProfile(
+          customerId: row.customerId,
+          totalAmount: newTotal,
+        );
+        _loadAll();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating Total Payment: $e')));
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -610,7 +663,17 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
                     ),
                   ),
                   DataCell(
-                    Text('₹${currency.format(row.totalAmount)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                    InkWell(
+                      onTap: () => _openEditTotalPaymentDialog(row),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('₹${currency.format(row.totalAmount)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          const SizedBox(width: 4),
+                          Icon(Icons.edit_outlined, size: 12, color: Colors.grey.shade600),
+                        ],
+                      ),
+                    ),
                   ),
                   DataCell(
                     Text(
@@ -654,6 +717,11 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_note_rounded, color: Colors.indigo, size: 20),
+                          tooltip: 'Edit Total Payment',
+                          onPressed: () => _openEditTotalPaymentDialog(row),
+                        ),
                         IconButton(
                           icon: const Icon(Icons.add_circle_outline, color: Color(0xFF059669), size: 20),
                           tooltip: 'Add Payment',

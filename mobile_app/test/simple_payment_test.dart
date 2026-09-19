@@ -94,5 +94,51 @@ void main() {
       expect(idempotencyKey, contains('UPI'));
       expect(idempotencyKey, contains('ptx_172665000'));
     });
+
+    test('4. Additional Payment: Does NOT reduce original Contract Pending balance', () {
+      const total = 190000.0;
+      final tx1 = PaymentTransaction(
+        id: 'tx-1',
+        customerId: 'cust-1',
+        consumerNo: '123456789012',
+        amount: 50000.0,
+        paymentDate: DateTime(2026, 9, 15),
+        paymentMode: 'Cash',
+        paymentType: PaymentType.contract,
+      );
+
+      final tx2 = PaymentTransaction(
+        id: 'tx-2',
+        customerId: 'cust-1',
+        consumerNo: '123456789012',
+        amount: 40000.0,
+        paymentDate: DateTime(2026, 9, 18),
+        paymentMode: 'UPI',
+        paymentType: PaymentType.contract,
+      );
+
+      final txAdditional = PaymentTransaction(
+        id: 'tx-add-1',
+        customerId: 'cust-1',
+        consumerNo: '123456789012',
+        amount: 10000.0,
+        paymentDate: DateTime(2026, 9, 19),
+        paymentMode: 'UPI',
+        paymentType: PaymentType.additional,
+        remarks: 'Extra cable wire',
+      );
+
+      final summary = CustomerPaymentSummary.calculate(
+        totalAmount: total,
+        transactions: [tx1, tx2, txAdditional],
+      );
+
+      expect(summary.contractAmount, 190000.0);
+      expect(summary.contractPaid, 90000.0);
+      // Contract Pending must remain exactly 1,00,000 (190000 - 90000)
+      expect(summary.contractPending, 100000.0);
+      expect(summary.additionalPaid, 10000.0);
+      expect(summary.totalReceived, 100000.0);
+    });
   });
 }

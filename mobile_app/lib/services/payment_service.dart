@@ -432,4 +432,61 @@ class PaymentService {
       SyncEngine.syncNow().catchError((_) => const SyncResult(success: false));
     }
   }
+
+  /// Update customer's Total Payment (contract amount)
+  static Future<ConsumerRecord?> updateTotalPayment({
+    required String customerId,
+    required double newTotalAmount,
+  }) async {
+    final customer = await AppDatabase.getConsumerRecordById(customerId);
+    if (customer == null) return null;
+
+    final newPending = (newTotalAmount - customer.paidAmount).clamp(0.0, double.infinity);
+    String newStatus = customer.paymentStatus;
+    if (newTotalAmount > 0 && customer.paidAmount >= newTotalAmount) {
+      newStatus = PaymentStatus.paid;
+    } else if (customer.paidAmount > 0) {
+      newStatus = PaymentStatus.partiallyPaid;
+    } else {
+      newStatus = PaymentStatus.pending;
+    }
+
+    final updated = customer.copyWith(
+      totalAmount: newTotalAmount,
+      pendingAmount: newPending,
+      paymentStatus: newStatus,
+      updatedAt: DateTime.now(),
+    );
+
+    // 1. Save locally in SQLite
+    await AppDatabase.upsertConsumerRecord(updated, syncStatus: 'Pending Sync');
+
+    // 2. Queue offline sync
+    final user = SupabaseService.currentUser;
+    await AppDatabase.enqueueOperation(
+      OfflineOperation(
+        operationId: 'total_${DateTime.now().microsecondsSinceEpoch}',
+        entityType: 'consumer_record',
+        entityId: customerId,
+        action: 'UPDATE_RECORD',
+        payload: {
+          'id': customerId,
+          'total_amount': newTotalAmount,
+          'contract_amount': newTotalAmount,
+          'pending_amount': newPending,
+          'payment_status': newStatus,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        },
+        userId: user?.id,
+        createdAt: DateTime.now(),
+      ),
+    );
+
+    // 3. Sync if online
+    if (ConnectivityService.isOnline) {
+      SyncEngine.syncNow().catchError((_) => const SyncResult(success: false));
+    }
+
+    return updated;
+  }
 }

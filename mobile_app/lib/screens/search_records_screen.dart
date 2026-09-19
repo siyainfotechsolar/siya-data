@@ -1,13 +1,22 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
+import '../services/app_database.dart';
 import '../widgets/sync_status_indicator.dart';
 import 'record_detail_screen.dart';
 
 class SearchRecordsScreen extends StatefulWidget {
-  const SearchRecordsScreen({super.key});
+  final String? initialFilter;
+  final List<ConsumerRecord>? initialRecords;
+
+  const SearchRecordsScreen({
+    super.key,
+    this.initialFilter,
+    this.initialRecords,
+  });
 
   @override
   State<SearchRecordsScreen> createState() => _SearchRecordsScreenState();
@@ -20,6 +29,28 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
   bool _isLoading = false;
   List<ConsumerRecord> _results = [];
   bool _hasSearched = false;
+  String _selectedSmartFilter = 'All';
+
+  final List<String> _smartFilters = [
+    'All',
+    'Pending Payment',
+    'Stalled (>10d)',
+    'Loan Attention',
+    'On Hold',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialRecords != null && widget.initialRecords!.isNotEmpty) {
+      _results = List.from(widget.initialRecords!);
+      _hasSearched = true;
+      _selectedSmartFilter = widget.initialFilter ?? 'All';
+    } else if (widget.initialFilter != null && widget.initialFilter != 'All') {
+      _selectedSmartFilter = widget.initialFilter!;
+      _applySmartFilter(_selectedSmartFilter);
+    }
+  }
 
   @override
   void dispose() {
@@ -30,7 +61,7 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
 
   void _onSearchChanged(String query) {
     _debounceTimer?.cancel();
-    if (query.trim().isEmpty) {
+    if (query.trim().isEmpty && _selectedSmartFilter == 'All') {
       setState(() {
         _results = [];
         _hasSearched = false;
@@ -40,7 +71,11 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
     }
 
     _debounceTimer = Timer(const Duration(milliseconds: 350), () {
-      _performSearch(query.trim());
+      if (_selectedSmartFilter != 'All') {
+        _applySmartFilter(_selectedSmartFilter);
+      } else {
+        _performSearch(query.trim());
+      }
     });
   }
 
@@ -67,6 +102,62 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _applySmartFilter(String filter) async {
+    setState(() {
+      _selectedSmartFilter = filter;
+      _isLoading = true;
+      _hasSearched = true;
+    });
+
+    try {
+      final all = await AppDatabase.getAllConsumerRecords();
+      List<ConsumerRecord> matched = [];
+
+      final now = DateTime.now();
+      if (filter == 'Pending Payment') {
+        matched = all.where((r) => !r.isDeleted && r.pendingAmount > 0).toList();
+        matched.sort((a, b) => b.pendingAmount.compareTo(a.pendingAmount));
+      } else if (filter == 'Stalled (>10d)') {
+        matched = all.where((r) {
+          if (r.isDeleted || r.isCompletedState) return false;
+          final days = now.difference(r.updatedAt).inDays;
+          return days >= 10 || r.isHold;
+        }).toList();
+      } else if (filter == 'Loan Attention') {
+        matched = all.where((r) {
+          if (r.isDeleted || r.isCompletedState) return false;
+          final sub = r.loanSubStage.trim().toLowerCase();
+          return r.overallStage == 'Loan' ||
+              sub.contains('rejected') ||
+              sub.contains('correction') ||
+              sub.contains('bank');
+        }).toList();
+      } else if (filter == 'On Hold') {
+        matched = all.where((r) => !r.isDeleted && r.isHold).toList();
+      } else {
+        matched = all.where((r) => !r.isDeleted).toList();
+      }
+
+      if (_searchController.text.trim().isNotEmpty) {
+        final q = _searchController.text.trim().toLowerCase();
+        matched = matched.where((r) =>
+            r.name.toLowerCase().contains(q) ||
+            r.consumerNo.toLowerCase().contains(q) ||
+            (r.mobile?.contains(q) ?? false) ||
+            (r.village?.toLowerCase().contains(q) ?? false)).toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _results = matched;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -128,6 +219,46 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
               ],
             ),
           ),
+
+          // Smart Intelligence Filters
+          SizedBox(
+            height: 38,
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              scrollDirection: Axis.horizontal,
+              itemCount: _smartFilters.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (ctx, i) {
+                final filter = _smartFilters[i];
+                final isSelected = _selectedSmartFilter == filter;
+                return ChoiceChip(
+                  label: Text(
+                    filter == 'Pending Payment'
+                        ? '💰 $filter'
+                        : filter == 'Stalled (>10d)'
+                            ? '⏳ $filter'
+                            : filter == 'Loan Attention'
+                                ? '🏦 $filter'
+                                : filter == 'On Hold'
+                                    ? '⏸️ $filter'
+                                    : filter,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  selected: isSelected,
+                  selectedColor: theme.colorScheme.primaryContainer,
+                  onSelected: (selected) {
+                    if (selected) {
+                      _applySmartFilter(filter);
+                    }
+                  },
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 6),
 
           // Search Results
           Expanded(
@@ -291,6 +422,74 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
                                             ],
                                           ],
                                         ),
+
+                                        // Smart Status Badges
+                                        if (record.pendingAmount > 0 ||
+                                            record.isHold ||
+                                            DateTime.now().difference(record.updatedAt).inDays >= 10) ...[
+                                          const SizedBox(height: 8),
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 4,
+                                            children: [
+                                              if (record.pendingAmount > 0)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                                                    borderRadius: BorderRadius.circular(6),
+                                                    border: Border.all(
+                                                      color: const Color(0xFFDC2626).withValues(alpha: 0.3),
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    'Pending: ₹${NumberFormat('#,##,###').format(record.pendingAmount)}',
+                                                    style: const TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Color(0xFFDC2626),
+                                                    ),
+                                                  ),
+                                                ),
+                                              if (record.isHold)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                                                    borderRadius: BorderRadius.circular(6),
+                                                    border: Border.all(
+                                                      color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                                                    ),
+                                                  ),
+                                                  child: const Text(
+                                                    '⏸️ On Hold',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Color(0xFFB45309),
+                                                    ),
+                                                  ),
+                                                ),
+                                              if (!record.isCompletedState &&
+                                                  DateTime.now().difference(record.updatedAt).inDays >= 10)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey.withValues(alpha: 0.15),
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                  child: Text(
+                                                    '⏳ ${DateTime.now().difference(record.updatedAt).inDays}d idle',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: Colors.grey.shade800,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),

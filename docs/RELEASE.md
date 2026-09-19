@@ -115,6 +115,19 @@ For internal testing and GitHub release distribution, standard release signing i
 
 ## 📌 Release History
 
+### Release v1.0.20 (Build 21) - 2026-09-19
+- **Simple Payment Module (Android App & Admin Panel)**:
+  - **Customer Profile Overview**: Streamlined, prominent summary showing Total Payment, Paid, Pending, and Additional Payment.
+  - **Inline Total Payment Editing**: Admin and authorized staff can set or update customer Total Payment with instant re-calculation and offline-first queue synchronization.
+  - **Streamlined Add Payment Modal**: Clean modal with strictly 4 primary fields: Amount (₹), Date, Payment Mode (`Cash`, `UPI`, `Bank Transfer`, `Cheque`, `Other`), and Remarks, plus Payment Type toggle (`Contract` vs `Additional`).
+  - **Deterministic Math**: Automatic calculations enforcing $\text{Paid} = \sum(\text{Contract})$, $\text{Pending} = \max(0, \text{Total} - \text{Paid})$. Additional payments are strictly tracked separately and never reduce contract pending.
+  - **Full Offline-First Resilience**: Mobile SQLite persistence, duplicate-preventing idempotency keys, and automatic sync upon reconnect.
+- **Whole App Operational Intelligence**:
+  - **Smart Operational Radar**: Instant pipeline health counters on the Mobile Home screen tracking Stalled Cases ($>10$ days), Payments Due, Loan Action Needed, and Follow-ups Due Today with 1-tap navigation.
+  - **Next Best Action Assistant**: Proactive smart banner on the Customer Detail screen analyzing stage, days elapsed, and loan blockers with 1-tap `[ Quick Record ₹X ]` action.
+  - **1-Tap Smart Filters**: Horizontal quick-filter chips on the Search Records screen (`Pending Payment`, `Stalled (>10d)`, `Loan Attention`, `On Hold`) coupled with intelligent badges on customer cards.
+  - **Quick Amount Suggestions**: 1-tap `Full` and `50%` payment amount suggestion chips inside the Add Payment dialog.
+
 ### Release v1.0.19 (Build 20) - 2026-09-19
 - **Office Staff Tasks File & Document Attachments**:
   - **Task Creation Attachment**: Admin and staff can now attach documents, PDF files, images, quotation copies, and agreements when assigning tasks.

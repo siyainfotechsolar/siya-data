@@ -2704,6 +2704,36 @@ class RecordService {
     return reversed;
   }
 
+  /// Update a payment transaction (amount, date, mode, remarks, payment_type)
+  static Future<void> updatePaymentTransaction(PaymentTransaction transaction) async {
+    if (transaction.id == null) return;
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    await _client.from('customer_payment_transactions').update({
+      'amount': transaction.amount,
+      'payment_date': transaction.paymentDate.toIso8601String().split('T')[0],
+      'payment_mode': transaction.paymentMode,
+      'payment_type': transaction.paymentType,
+      'remarks': transaction.remarks,
+      'updated_by': user?.id,
+      'updated_at': nowIso,
+    }).eq('id', transaction.id!);
+  }
+
+  /// Delete (or soft delete) a payment transaction
+  static Future<void> deletePaymentTransaction(String transactionId) async {
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    await _client.from('customer_payment_transactions').update({
+      'deleted': true,
+      'status': 'Cancelled',
+      'updated_by': user?.id,
+      'updated_at': nowIso,
+    }).eq('id', transactionId);
+  }
+
   /// Update customer total contract amount & payment due date
   static Future<void> updateCustomerPaymentProfile({
     required String customerId,
