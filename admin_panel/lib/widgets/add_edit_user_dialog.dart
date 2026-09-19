@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
 import '../services/user_management_service.dart';
 
@@ -160,9 +160,17 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> with SingleTicker
       }
     } catch (e) {
       if (mounted) {
+        String msg = e.toString().replaceAll('Exception: ', '');
+        if (msg.contains('email_address_invalid') || msg.contains('is invalid')) {
+          msg = 'Invalid email address or domain. Please check the email format.';
+        } else if (msg.contains('already exists')) {
+          msg = 'A user with this email address already exists.';
+        } else if (msg.contains('Password must be')) {
+          msg = 'Initial password must be at least 6 characters long.';
+        }
         setState(() {
           _isSaving = false;
-          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _errorMessage = msg;
         });
       }
     }

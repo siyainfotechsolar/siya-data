@@ -9,6 +9,7 @@ import '../models/lead_record.dart';
 import '../models/customer_misc_action.dart';
 import '../models/customer_issue.dart';
 import '../models/activity_log.dart';
+import '../models/office_task.dart';
 
 /// Representation of an operation queued for server synchronization
 class OfflineOperation {
@@ -184,7 +185,9 @@ class AppDatabase {
   ///          misc_actions, issues, activity_logs, op_queue, conflicts, metadata)
   ///   v2 — Added: retry_count safety guard (data only, no schema change needed)
   ///          whatsapp_docs cleanup tracking metadata key
-  static const int _dbVersion = 2;
+  ///   v3 — Added: additional_category column to cached_payments for Additional Payments support
+  ///   v4 — Added: cached_office_tasks and cached_task_assignments for Office Staff Tasks support
+  static const int _dbVersion = 4;
 
   static Database? _database;
   static Database? _testDatabase;
@@ -295,7 +298,8 @@ class AppDatabase {
         customer_name TEXT,
         amount REAL,
         payment_date TEXT,
-        payment_type TEXT NOT NULL DEFAULT 'Offline',
+        payment_type TEXT NOT NULL DEFAULT 'CONTRACT',
+        additional_category TEXT,
         payment_mode TEXT,
         reference_number TEXT,
         verification_status TEXT NOT NULL DEFAULT 'Pending',
@@ -397,6 +401,56 @@ class AppDatabase {
         value TEXT NOT NULL
       )
     ''');
+
+    // 11. Cached Office Tasks Table
+    batch.execute('''
+      CREATE TABLE cached_office_tasks (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT,
+        customer_name TEXT NOT NULL,
+        consumer_no TEXT NOT NULL,
+        village TEXT,
+        title TEXT NOT NULL,
+        task_type TEXT NOT NULL,
+        description TEXT,
+        priority TEXT NOT NULL,
+        status TEXT NOT NULL,
+        due_date TEXT,
+        assigned_to_id TEXT,
+        assigned_to_name TEXT NOT NULL,
+        created_by TEXT,
+        created_by_name TEXT,
+        started_at TEXT,
+        completed_at TEXT,
+        completion_note TEXT,
+        hold_reason TEXT,
+        attachment_url TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    batch.execute('CREATE INDEX idx_cached_office_tasks_status ON cached_office_tasks(status)');
+    batch.execute('CREATE INDEX idx_cached_office_tasks_assigned_to ON cached_office_tasks(assigned_to_name)');
+    batch.execute('CREATE INDEX idx_cached_office_tasks_due_date ON cached_office_tasks(due_date)');
+
+    // 12. Cached Task Assignments Table
+    batch.execute('''
+      CREATE TABLE cached_task_assignments (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        staff_id TEXT,
+        staff_name TEXT NOT NULL,
+        assigned_by TEXT,
+        assigned_by_name TEXT,
+        assigned_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT,
+        remarks TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    batch.execute('CREATE INDEX idx_cached_assign_task ON cached_task_assignments(task_id)');
 
     await batch.commit(noResult: true);
   }
@@ -500,6 +554,68 @@ class AppDatabase {
         SET sync_status = 'ABANDONED', error_message = 'Abandoned during v1→v2 upgrade (exceeded retry safety limit)'
         WHERE sync_status = 'FAILED' AND retry_count >= 10
       ''');
+    }
+
+    // -------------------------------------------------------------------------
+    // v2 → v3: Add additional_category column to cached_payments
+    // -------------------------------------------------------------------------
+    if (oldVersion < 3) {
+      try {
+        batch.execute('ALTER TABLE cached_payments ADD COLUMN additional_category TEXT');
+      } catch (_) {}
+    }
+
+    // -------------------------------------------------------------------------
+    // v3 → v4: Add cached_office_tasks and cached_task_assignments
+    // -------------------------------------------------------------------------
+    if (oldVersion < 4) {
+      batch.execute('''
+        CREATE TABLE IF NOT EXISTS cached_office_tasks (
+          id TEXT PRIMARY KEY,
+          customer_id TEXT,
+          customer_name TEXT NOT NULL,
+          consumer_no TEXT NOT NULL,
+          village TEXT,
+          title TEXT NOT NULL,
+          task_type TEXT NOT NULL,
+          description TEXT,
+          priority TEXT NOT NULL,
+          status TEXT NOT NULL,
+          due_date TEXT,
+          assigned_to_id TEXT,
+          assigned_to_name TEXT NOT NULL,
+          created_by TEXT,
+          created_by_name TEXT,
+          started_at TEXT,
+          completed_at TEXT,
+          completion_note TEXT,
+          hold_reason TEXT,
+          attachment_url TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      ''');
+      batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_office_tasks_status ON cached_office_tasks(status)');
+      batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_office_tasks_assigned_to ON cached_office_tasks(assigned_to_name)');
+      batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_office_tasks_due_date ON cached_office_tasks(due_date)');
+
+      batch.execute('''
+        CREATE TABLE IF NOT EXISTS cached_task_assignments (
+          id TEXT PRIMARY KEY,
+          task_id TEXT NOT NULL,
+          staff_id TEXT,
+          staff_name TEXT NOT NULL,
+          assigned_by TEXT,
+          assigned_by_name TEXT,
+          assigned_at TEXT NOT NULL,
+          status TEXT NOT NULL,
+          started_at TEXT,
+          completed_at TEXT,
+          remarks TEXT,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_assign_task ON cached_task_assignments(task_id)');
     }
 
     await batch.commit(noResult: true);
@@ -884,6 +1000,7 @@ class AppDatabase {
         'amount': tx.amount,
         'payment_date': tx.paymentDate.toIso8601String().split('T')[0],
         'payment_type': tx.paymentType,
+        'additional_category': tx.additionalCategory,
         'payment_mode': tx.paymentMode,
         'reference_number': tx.referenceNumber,
         'verification_status': tx.verificationStatus,
@@ -915,6 +1032,7 @@ class AppDatabase {
           'amount': tx.amount,
           'payment_date': tx.paymentDate.toIso8601String().split('T')[0],
           'payment_type': tx.paymentType,
+          'additional_category': tx.additionalCategory,
           'payment_mode': tx.paymentMode,
           'reference_number': tx.referenceNumber,
           'verification_status': tx.verificationStatus,
@@ -949,6 +1067,8 @@ class AppDatabase {
 
   static Future<List<PaymentTransaction>> getAllPayments({
     String? modeFilter,
+    String? typeFilter,
+    String? categoryFilter,
     String? verificationFilter,
     DateTime? startDate,
     DateTime? endDate,
@@ -960,6 +1080,16 @@ class AppDatabase {
     if (modeFilter != null && modeFilter != 'All') {
       whereClauses.add('payment_mode = ?');
       whereArgs.add(modeFilter);
+    }
+
+    if (typeFilter != null && typeFilter != 'All') {
+      whereClauses.add('payment_type = ?');
+      whereArgs.add(typeFilter);
+    }
+
+    if (categoryFilter != null && categoryFilter != 'All') {
+      whereClauses.add('additional_category = ?');
+      whereArgs.add(categoryFilter);
     }
 
     if (verificationFilter != null && verificationFilter != 'All') {
@@ -1054,12 +1184,25 @@ class AppDatabase {
     );
     final unverifiedCount = Sqflite.firstIntValue(unverifiedRes) ?? 0;
 
+    // 7. Contract & Additional Collections
+    final contractRes = await db.rawQuery(
+      "SELECT SUM(amount) as s FROM cached_payments WHERE payment_type != 'ADDITIONAL'",
+    );
+    final contractCollection = (contractRes.first['s'] as num?)?.toDouble() ?? 0.0;
+
+    final addRes = await db.rawQuery(
+      "SELECT SUM(amount) as s FROM cached_payments WHERE payment_type = 'ADDITIONAL'",
+    );
+    final additionalCollection = (addRes.first['s'] as num?)?.toDouble() ?? 0.0;
+
     return PaymentDashboardSummary(
       todayCollection: todayCollection,
       monthCollection: monthCollection,
       totalContractAmount: totalContract,
       totalPaidAmount: totalPaid,
       totalPendingAmount: totalPending,
+      contractCollection: contractCollection,
+      additionalCollection: additionalCollection,
       todayPaymentsCount: todayPaymentsCount,
       pendingPaymentsCount: pendingCount,
       pendingSyncCount: pendingSync,
@@ -1443,6 +1586,73 @@ class AppDatabase {
   }
 
   // ===========================================================================
+  // OFFICE TASKS PERSISTENCE (OFFICE STAFF MY TASKS)
+  // ===========================================================================
+
+  static Future<void> upsertOfficeTasks(List<OfficeTask> tasks) async {
+    final db = await database;
+    final batch = db.batch();
+    for (final t in tasks) {
+      batch.insert(
+        'cached_office_tasks',
+        t.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  static Future<void> upsertOfficeTask(OfficeTask task) async {
+    final db = await database;
+    await db.insert(
+      'cached_office_tasks',
+      task.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  static Future<List<OfficeTask>> getCachedOfficeTasks({
+    String? staffName,
+    String? status,
+  }) async {
+    final db = await database;
+    String? whereClause;
+    List<dynamic> whereArgs = [];
+
+    if (staffName != null && staffName.isNotEmpty && staffName != 'ALL') {
+      whereClause = 'assigned_to_name = ?';
+      whereArgs.add(staffName);
+    }
+
+    if (status != null && status.isNotEmpty && status != 'ALL') {
+      if (whereClause != null) {
+        whereClause += ' AND status = ?';
+      } else {
+        whereClause = 'status = ?';
+      }
+      whereArgs.add(status);
+    }
+
+    final res = await db.query(
+      'cached_office_tasks',
+      where: whereClause,
+      whereArgs: whereArgs.isNotEmpty ? whereArgs : null,
+      orderBy: 'created_at DESC',
+    );
+
+    return res.map((m) => OfficeTask.fromMap(m)).toList();
+  }
+
+  static Future<void> deleteCachedOfficeTask(String id) async {
+    final db = await database;
+    await db.delete(
+      'cached_office_tasks',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // ===========================================================================
   // CLEANUP & PURGE
   // ===========================================================================
 
@@ -1455,6 +1665,8 @@ class AppDatabase {
     await db.delete('cached_misc_actions');
     await db.delete('cached_customer_issues');
     await db.delete('cached_activity_logs');
+    await db.delete('cached_office_tasks');
+    await db.delete('cached_task_assignments');
     await db.delete('offline_operations_queue');
     await db.delete('sync_conflicts');
     await db.delete('sync_metadata');

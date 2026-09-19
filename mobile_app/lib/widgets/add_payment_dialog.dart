@@ -48,7 +48,8 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
   late TextEditingController _receivedByCtrl;
 
   String _paymentMode = PaymentMode.upi;
-  String _paymentType = PaymentType.offline;
+  String _paymentType = PaymentType.contract;
+  String _additionalCategory = AdditionalPaymentCategory.extraMaterial;
   DateTime _paymentDate = DateTime.now();
 
   File? _attachedFile;
@@ -81,6 +82,12 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
 
   void _onAmountChanged() {
     if (_selectedCustomer == null) return;
+    if (_paymentType == PaymentType.additional) {
+      if (_overpaymentWarning != null) {
+        setState(() => _overpaymentWarning = null);
+      }
+      return;
+    }
     final entered = double.tryParse(_amountCtrl.text.trim()) ?? 0.0;
     final total = _selectedCustomer!.totalAmount;
     final pending = _selectedCustomer!.pendingAmount;
@@ -89,7 +96,7 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
       final excess = entered - pending;
       setState(() {
         _overpaymentWarning =
-            '⚠️ Entered amount exceeds pending balance by ₹${excess.toStringAsFixed(0)} (Pending: ₹${pending.toStringAsFixed(0)}).';
+            '⚠️ Entered amount exceeds pending contract balance by ₹${excess.toStringAsFixed(0)} (Pending: ₹${pending.toStringAsFixed(0)}).';
       });
     } else {
       if (_overpaymentWarning != null) {
@@ -192,13 +199,6 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
       return;
     }
 
-    if (_overpaymentWarning != null && !_overrideOverpayment) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please confirm the overpayment override to proceed')),
-      );
-      return;
-    }
-
     setState(() => _isSaving = true);
 
     try {
@@ -209,6 +209,7 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
         paymentDate: _paymentDate,
         paymentMode: _paymentMode,
         paymentType: _paymentType,
+        additionalCategory: _paymentType == PaymentType.additional ? _additionalCategory : null,
         referenceNumber: _refCtrl.text.trim().isNotEmpty ? _refCtrl.text.trim() : null,
         receivedBy: _receivedByCtrl.text.trim().isNotEmpty ? _receivedByCtrl.text.trim() : null,
         remarks: _remarksCtrl.text.trim().isNotEmpty ? _remarksCtrl.text.trim() : null,
@@ -253,6 +254,9 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text('Payment Type: ${PaymentType.displayName(tx.paymentType)}'),
+            if (tx.isAdditional && tx.additionalCategory != null)
+              Text('Category: ${AdditionalPaymentCategory.displayName(tx.additionalCategory!)}'),
             Text('Amount: ₹${NumberFormat('#,##,###').format(tx.amount)}'),
             Text('Status: ${tx.syncStatus}'),
             Text('Mode: ${tx.paymentMode}'),
@@ -455,7 +459,70 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
 
               const SizedBox(height: 16),
 
-              // 2. Amount & Payment Date
+              // 2. Payment Type Selection (Contract vs Additional)
+              const SizedBox(height: 16),
+              const Text(
+                'Payment Type *',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(
+                      value: PaymentType.contract,
+                      label: Text('Contract Payment', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      icon: Icon(Icons.receipt_long_rounded, size: 16),
+                    ),
+                    ButtonSegment(
+                      value: PaymentType.additional,
+                      label: Text('Additional Payment', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      icon: Icon(Icons.add_circle_outline_rounded, size: 16),
+                    ),
+                  ],
+                  selected: {_paymentType},
+                  onSelectionChanged: (Set<String> newSelection) {
+                    setState(() {
+                      _paymentType = newSelection.first;
+                    });
+                    _onAmountChanged();
+                  },
+                ),
+              ),
+
+              // 2.1 If Additional Payment: Show Category Selection
+              if (_paymentType == PaymentType.additional) ...[
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: _additionalCategory,
+                  decoration: InputDecoration(
+                    labelText: 'Additional Payment For *',
+                    prefixIcon: Icon(AdditionalPaymentCategory.getCategoryIcon(_additionalCategory)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    helperText: 'Extra work, material, transport, etc. (Separate from Contract)',
+                  ),
+                  items: AdditionalPaymentCategory.allCategories.map((cat) {
+                    return DropdownMenuItem(
+                      value: cat,
+                      child: Row(
+                        children: [
+                          Icon(AdditionalPaymentCategory.getCategoryIcon(cat), size: 18),
+                          const SizedBox(width: 8),
+                          Text(AdditionalPaymentCategory.displayName(cat)),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) setState(() => _additionalCategory = val);
+                  },
+                ),
+              ],
+
+              const SizedBox(height: 16),
+
+              // 3. Amount & Payment Date
               Row(
                 children: [
                   Expanded(
@@ -515,8 +582,8 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
                 ],
               ),
 
-              // Overpayment Notice & Override Checkbox
-              if (_overpaymentWarning != null) ...[
+              // Overpayment Notice & Override Checkbox (Contract Payments only)
+              if (_overpaymentWarning != null && _paymentType == PaymentType.contract) ...[
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -550,49 +617,23 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
 
               const SizedBox(height: 16),
 
-              // 3. Payment Mode & Payment Type
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _paymentMode,
-                      decoration: InputDecoration(
-                        labelText: 'Payment Mode',
-                        prefixIcon: Icon(PaymentMode.getModeIcon(_paymentMode)),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      items: PaymentMode.allModes.map((mode) {
-                        return DropdownMenuItem(
-                          value: mode,
-                          child: Text(mode),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) setState(() => _paymentMode = val);
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _paymentType,
-                      decoration: InputDecoration(
-                        labelText: 'Payment Type',
-                        prefixIcon: const Icon(Icons.swap_horiz_rounded),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      items: PaymentType.allTypes.map((type) {
-                        return DropdownMenuItem(
-                          value: type,
-                          child: Text(type),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) setState(() => _paymentType = val);
-                      },
-                    ),
-                  ),
-                ],
+              // 4. Payment Mode
+              DropdownButtonFormField<String>(
+                initialValue: _paymentMode,
+                decoration: InputDecoration(
+                  labelText: 'Payment Mode',
+                  prefixIcon: Icon(PaymentMode.getModeIcon(_paymentMode)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                items: PaymentMode.allModes.map((mode) {
+                  return DropdownMenuItem(
+                    value: mode,
+                    child: Text(mode),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _paymentMode = val);
+                },
               ),
 
               const SizedBox(height: 16),
@@ -737,7 +778,7 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
                         )
                       : const Icon(Icons.save_rounded),
                   label: Text(
-                    _isSaving ? 'Recording...' : 'RECORD PAYMENT',
+                    _isSaving ? 'Saving...' : 'Save Payment',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(

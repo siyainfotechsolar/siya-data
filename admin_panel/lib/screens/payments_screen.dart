@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/customer_payment.dart';
+import '../models/consumer_record.dart';
 import '../services/payment_service.dart';
 import '../services/supabase_service.dart';
 
@@ -12,41 +14,77 @@ class PaymentsScreen extends StatefulWidget {
   State<PaymentsScreen> createState() => _PaymentsScreenState();
 }
 
-class _PaymentsScreenState extends State<PaymentsScreen> {
-  bool _isLoading = true;
-  bool _isLoadingMetrics = true;
-  AdminPaymentMetrics _metrics = AdminPaymentMetrics.empty();
-  List<PaymentTransaction> _payments = [];
+class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
 
-  // Filter controllers
+  bool _isLoadingMetrics = true;
+  bool _isLoadingCustomers = true;
+  bool _isLoadingLedger = true;
+  bool _isExporting = false;
+
+  AdminPaymentMetrics _metrics = AdminPaymentMetrics.empty();
+  List<CustomerPaymentRow> _customerRows = [];
+  List<PaymentTransaction> _ledgerTransactions = [];
+
   final TextEditingController _searchController = TextEditingController();
-  String _selectedDateFilter = 'All';
-  String _selectedPaymentType = 'All';
-  String _selectedPaymentMode = 'All';
-  String _selectedVerification = 'All';
-  String _selectedSyncStatus = 'All';
+  String _selectedStatusFilter = 'All'; // 'All', 'Pending', 'Partially Paid', 'Paid'
+  String _selectedModeFilter = 'All';
+  String _selectedTypeFilter = 'All'; // 'All', 'CONTRACT', 'ADDITIONAL'
+  String _selectedCategoryFilter = 'All'; // 'All', 'EXTRA_MATERIAL', etc.
+
+  StreamSubscription? _realtimeSub;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadAll();
+    _initRealtime();
   }
 
   @override
   void dispose() {
+    _tabController.dispose();
     _searchController.dispose();
+    _realtimeSub?.cancel();
     super.dispose();
   }
 
-  Future<void> _loadAll() async {
+  void _initRealtime() {
+    try {
+      final channel = SupabaseService.client.channel('public:payments_realtime');
+      channel
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'customer_payment_transactions',
+            callback: (_) {
+              if (mounted) {
+                _loadAll(silent: true);
+              }
+            },
+          )
+          .subscribe();
+    } catch (_) {}
+  }
+
+  Future<void> _loadAll({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _isLoadingMetrics = true;
+        _isLoadingCustomers = true;
+        _isLoadingLedger = true;
+      });
+    }
+
     await Future.wait([
       _loadMetrics(),
-      _loadPayments(),
+      _loadCustomerSummaries(),
+      _loadLedgerTransactions(),
     ]);
   }
 
   Future<void> _loadMetrics() async {
-    setState(() => _isLoadingMetrics = true);
     final m = await AdminPaymentService.fetchDashboardMetrics();
     if (mounted) {
       setState(() {
@@ -56,637 +94,113 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     }
   }
 
-  Future<void> _loadPayments() async {
-    setState(() => _isLoading = true);
-    final list = await AdminPaymentService.fetchPayments(
+  Future<void> _loadCustomerSummaries() async {
+    final rows = await AdminPaymentService.fetchCustomerPaymentSummaries(
       searchQuery: _searchController.text,
-      dateFilter: _selectedDateFilter,
-      paymentType: _selectedPaymentType,
-      paymentMode: _selectedPaymentMode,
-      verificationStatus: _selectedVerification,
-      syncStatus: _selectedSyncStatus,
+      statusFilter: _selectedStatusFilter,
     );
     if (mounted) {
       setState(() {
-        _payments = list;
-        _isLoading = false;
+        _customerRows = rows;
+        _isLoadingCustomers = false;
+      });
+    }
+  }
+
+  Future<void> _loadLedgerTransactions() async {
+    final txs = await AdminPaymentService.fetchPayments(
+      searchQuery: _searchController.text,
+      paymentMode: _selectedModeFilter,
+      paymentType: _selectedTypeFilter,
+      additionalCategory: _selectedCategoryFilter,
+    );
+    if (mounted) {
+      setState(() {
+        _ledgerTransactions = txs;
+        _isLoadingLedger = false;
       });
     }
   }
 
   void _onSearchChanged(String val) {
-    _loadPayments();
+    _loadCustomerSummaries();
+    _loadLedgerTransactions();
   }
 
-  // ===========================================================================
-  // ACTION HANDLERS
-  // ===========================================================================
-
-  Future<void> _handleVerify(PaymentTransaction tx) async {
-    final user = SupabaseService.currentUser;
-    final adminId = user?.id ?? 'admin-uuid';
-    final adminName = user?.email?.split('@').first ?? 'Admin';
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle_outline, color: Color(0xFF059669)),
-            SizedBox(width: 8),
-            Text('Verify Payment'),
-          ],
-        ),
-        content: Text(
-          'Confirm verification for ₹${NumberFormat('#,##,###').format(tx.amount)} from ${tx.customerName ?? tx.consumerNo}?\nReference: ${tx.referenceNumber ?? 'N/A'}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Verify Payment'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      final success = await AdminPaymentService.verifyPayment(
-        paymentId: tx.id!,
-        adminId: adminId,
-        adminName: adminName,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success ? 'Payment verified successfully.' : 'Failed to verify payment.'),
-            backgroundColor: success ? const Color(0xFF059669) : Colors.red,
-          ),
-        );
-        _loadAll();
-      }
-    }
-  }
-
-  Future<void> _handleReject(PaymentTransaction tx) async {
-    final user = SupabaseService.currentUser;
-    final adminId = user?.id ?? 'admin-uuid';
-    final adminName = user?.email?.split('@').first ?? 'Admin';
-    final reasonCtrl = TextEditingController();
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.cancel_outlined, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Reject Payment'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Enter mandatory rejection reason for payment of ₹${NumberFormat('#,##,###').format(tx.amount)}:'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonCtrl,
-              autofocus: true,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: 'e.g., UTR not matching bank statement / Invalid cheque',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              if (reasonCtrl.text.trim().isEmpty) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('Rejection reason is mandatory.')),
-                );
-                return;
-              }
-              Navigator.of(ctx).pop(true);
-            },
-            child: const Text('Confirm Rejection'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      final success = await AdminPaymentService.rejectPayment(
-        paymentId: tx.id!,
-        adminId: adminId,
-        adminName: adminName,
-        reason: reasonCtrl.text.trim(),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success ? 'Payment rejected.' : 'Failed to reject payment.'),
-            backgroundColor: success ? Colors.orange.shade800 : Colors.red,
-          ),
-        );
-        _loadAll();
-      }
-    }
-  }
-
-  Future<void> _handleVoid(PaymentTransaction tx) async {
-    final user = SupabaseService.currentUser;
-    final adminId = user?.id ?? 'admin-uuid';
-    final adminName = user?.email?.split('@').first ?? 'Admin';
-    final reasonCtrl = TextEditingController();
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.block_rounded, color: Colors.blueGrey),
-            SizedBox(width: 8),
-            Text('Void Payment (Non-destructive)'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '⚠️ Financial Record Preservation:\nThis transaction will be marked as Void in the ledger without permanently deleting the audit trail.',
-              style: TextStyle(fontSize: 13, color: Colors.blueGrey, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            Text('Enter mandatory reason for voiding ₹${NumberFormat('#,##,###').format(tx.amount)}:'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: reasonCtrl,
-              autofocus: true,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                hintText: 'e.g., Duplicate entry made by staff / Bounced cheque',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.blueGrey.shade800),
-            onPressed: () {
-              if (reasonCtrl.text.trim().isEmpty) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('Reason is mandatory to void transaction.')),
-                );
-                return;
-              }
-              Navigator.of(ctx).pop(true);
-            },
-            child: const Text('Mark Void'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      final success = await AdminPaymentService.voidPayment(
-        paymentId: tx.id!,
-        adminId: adminId,
-        adminName: adminName,
-        reason: reasonCtrl.text.trim(),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success ? 'Payment voided and preserved in ledger.' : 'Failed to void payment.'),
-            backgroundColor: Colors.blueGrey,
-          ),
-        );
-        _loadAll();
-      }
-    }
-  }
-
-  Future<void> _handleEdit(PaymentTransaction tx) async {
-    final user = SupabaseService.currentUser;
-    final adminId = user?.id ?? 'admin-uuid';
-    final adminName = user?.email?.split('@').first ?? 'Admin';
-
-    final amtCtrl = TextEditingController(text: tx.amount.toStringAsFixed(2));
-    final refCtrl = TextEditingController(text: tx.referenceNumber ?? '');
-    final remarksCtrl = TextEditingController(text: tx.remarks ?? '');
-    final reasonCtrl = TextEditingController();
-    String selectedMode = tx.paymentMode;
-    String selectedType = tx.paymentType;
-
-    final updated = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDState) => AlertDialog(
-          title: const Text('Edit Authorized Payment Fields'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: amtCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Amount (₹)', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: selectedType,
-                  decoration: const InputDecoration(labelText: 'Payment Type', border: OutlineInputBorder()),
-                  items: PaymentType.allTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                  onChanged: (v) => setDState(() => selectedType = v!),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: selectedMode,
-                  decoration: const InputDecoration(labelText: 'Payment Mode', border: OutlineInputBorder()),
-                  items: PaymentMode.allModes.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
-                  onChanged: (v) => setDState(() => selectedMode = v!),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: refCtrl,
-                  decoration: const InputDecoration(labelText: 'Reference Number / UTR', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: remarksCtrl,
-                  decoration: const InputDecoration(labelText: 'Remarks', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Mandatory Edit Reason (Audit Trail)*', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                      const SizedBox(height: 4),
-                      TextField(
-                        controller: reasonCtrl,
-                        decoration: const InputDecoration(
-                          hintText: 'Explain why this payment is being altered',
-                          isDense: true,
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () {
-                if (reasonCtrl.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('Audit reason is required for editing payment records.')),
-                  );
-                  return;
-                }
-                Navigator.of(ctx).pop(true);
-              },
-              child: const Text('Save Changes'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (updated == true) {
-      final newAmt = double.tryParse(amtCtrl.text.trim()) ?? tx.amount;
-      final updates = {
-        'amount': newAmt,
-        'payment_type': selectedType,
-        'payment_mode': selectedMode,
-        'reference_number': refCtrl.text.trim().isEmpty ? null : refCtrl.text.trim(),
-        'remarks': remarksCtrl.text.trim().isEmpty ? null : remarksCtrl.text.trim(),
-      };
-
-      final ok = await AdminPaymentService.updatePayment(
-        oldPayment: tx,
-        updates: updates,
-        reason: reasonCtrl.text.trim(),
-        adminId: adminId,
-        adminName: adminName,
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ok ? 'Payment updated with audit record.' : 'Failed to update payment.')),
-        );
-        _loadAll();
-      }
-    }
-  }
-
-  void _showReceiptDialog(PaymentTransaction tx) {
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          width: 520,
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF059669).withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFF059669), size: 28),
-                  ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'SIYA INFOTECH & SOLAR ENERGY',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                        Text(
-                          'Official Payment Acknowledgement Receipt',
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const Divider(height: 28),
-
-              // Details
-              _receiptRow('Receipt Ref #', tx.id ?? 'N/A'),
-              _receiptRow('Customer Name', tx.customerName ?? 'N/A'),
-              _receiptRow('Consumer Number', tx.consumerNo),
-              _receiptRow('Village', tx.village ?? '-'),
-              _receiptRow('Payment Date', DateFormat('dd MMM yyyy').format(tx.paymentDate)),
-              _receiptRow('Payment Mode', '${tx.paymentMode} (${tx.paymentType})'),
-              if (tx.referenceNumber != null && tx.referenceNumber!.isNotEmpty)
-                _receiptRow('UTR / Ref No', tx.referenceNumber!),
-              _receiptRow('Collected By', tx.createdByName ?? tx.receivedBy ?? 'Staff'),
-              _receiptRow('Verification', tx.verificationStatus),
-              const Divider(height: 24),
-
-              // Amount Highlight Box
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFECFDF5),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFA7F3D0)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Amount Received:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF065F46))),
-                    Text(
-                      '₹${NumberFormat('#,##,###').format(tx.amount)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Color(0xFF059669)),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Actions
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    child: const Text('Close'),
-                  ),
-                  const SizedBox(width: 8),
-                  if (tx.mobileNumber != null && tx.mobileNumber!.isNotEmpty)
-                    FilledButton.icon(
-                      icon: const Icon(Icons.share, size: 16),
-                      label: const Text('WhatsApp Receipt'),
-                      style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
-                      onPressed: () {
-                        final phone = tx.mobileNumber!.replaceAll(RegExp(r'\D'), '');
-                        final msg = Uri.encodeComponent(
-                          'Dear ${tx.customerName ?? "Customer"},\nWe have received payment of ₹${NumberFormat("#,##,###").format(tx.amount)} via ${tx.paymentMode} on ${DateFormat("dd-MM-yyyy").format(tx.paymentDate)} for Consumer No: ${tx.consumerNo}.\nReference: ${tx.referenceNumber ?? "N/A"}.\nStatus: ${tx.verificationStatus}.\nThank you,\nSiya Solar Connect',
-                        );
-                        launchUrl(Uri.parse('https://wa.me/91$phone?text=$msg'), mode: LaunchMode.externalApplication);
-                      },
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _receiptRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-        ],
-      ),
-    );
-  }
-
-  void _showProofDialog(PaymentTransaction tx) {
-    if (tx.attachmentUrl == null || tx.attachmentUrl!.isEmpty) {
+  Future<void> _handleExportExcel() async {
+    if (_customerRows.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No payment proof image attached for this transaction.')),
+        const SnackBar(content: Text('No payment records to export.')),
       );
       return;
     }
 
+    setState(() => _isExporting = true);
+    try {
+      final success = await AdminPaymentService.exportCustomerPaymentsToExcel(_customerRows);
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Excel payment ledger exported successfully!'),
+            backgroundColor: Color(0xFF059669),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  void _openAddPaymentDialog([CustomerPaymentRow? customer]) {
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 600, maxHeight: 600),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Payment Proof Document', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  IconButton(onPressed: () => Navigator.of(ctx).pop(), icon: const Icon(Icons.close)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: Image.network(
-                  tx.attachmentUrl!,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Center(
-                    child: Text('Could not load proof image or format is unsupported.'),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+      barrierDismissible: false,
+      builder: (ctx) => _AdminAddPaymentDialog(
+        preselectedCustomer: customer,
+        onSaved: () {
+          _loadAll();
+        },
       ),
     );
   }
 
-  void _showCustomerProfile(PaymentTransaction tx) async {
-    final data = await AdminPaymentService.fetchCustomerPaymentProfile(tx.customerId);
-    if (data == null || !mounted) return;
-
-    final cust = data['customer'] as Map<String, dynamic>;
-    final summary = data['summary'] as CustomerPaymentSummary;
-    final txList = data['transactions'] as List<PaymentTransaction>;
-
+  void _openEditPaymentDialog(PaymentTransaction tx) {
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          width: 750,
-          constraints: const BoxConstraints(maxHeight: 650),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(cust['customer_name'] ?? 'Customer', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text('Consumer: ${cust['consumer_no']} • Village: ${cust['village'] ?? "-"} • Stage: ${cust['current_stage'] ?? "-"}',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    ],
-                  ),
-                  IconButton(onPressed: () => Navigator.of(ctx).pop(), icon: const Icon(Icons.close)),
-                ],
-              ),
-              const Divider(height: 24),
-
-              // KPI Row
-              Row(
-                children: [
-                  _profileKpi('Contract Amount', '₹${NumberFormat('#,##,###').format(summary.totalAmount)}', Colors.blueGrey),
-                  _profileKpi('Total Paid', '₹${NumberFormat('#,##,###').format(summary.paidAmount)}', const Color(0xFF059669)),
-                  _profileKpi('Online Paid', '₹${NumberFormat('#,##,###').format(summary.onlinePaidAmount)}', Colors.blue.shade700),
-                  _profileKpi('Offline Paid', '₹${NumberFormat('#,##,###').format(summary.offlinePaidAmount)}', Colors.orange.shade800),
-                  _profileKpi('Pending Balance', '₹${NumberFormat('#,##,###').format(summary.pendingAmount)}', Colors.red.shade700),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              const Text('Payment History Ledger', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              const SizedBox(height: 8),
-
-              Expanded(
-                child: ListView.separated(
-                  itemCount: txList.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (ctx, i) {
-                    final t = txList[i];
-                    return ListTile(
-                      dense: true,
-                      leading: Icon(PaymentMode.getModeIcon(t.paymentMode), color: const Color(0xFF059669)),
-                      title: Text('₹${NumberFormat('#,##,###').format(t.amount)} via ${t.paymentMode}'),
-                      subtitle: Text('${DateFormat('dd MMM yyyy').format(t.paymentDate)} • Ref: ${t.referenceNumber ?? "N/A"}'),
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: PaymentVerificationStatus.badgeColor(t.verificationStatus).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          t.verificationStatus,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: PaymentVerificationStatus.badgeColor(t.verificationStatus),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+      barrierDismissible: false,
+      builder: (ctx) => _AdminEditPaymentDialog(
+        transaction: tx,
+        onSaved: () {
+          _loadAll();
+        },
       ),
     );
   }
 
-  Widget _profileKpi(String label, String value, Color color) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
-            const SizedBox(height: 4),
-            Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
-          ],
-        ),
-      ),
+  void _openAdditionalReportDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => const _AdditionalPaymentReportDialog(),
     );
   }
 
-  void _exportCsv() {
-    final csv = AdminPaymentService.generatePaymentsCsv(_payments);
-    // Open in new tab or trigger download via data URI
-    final bytes = Uri.encodeComponent(csv);
-    launchUrl(Uri.parse('data:text/csv;charset=utf-8,$bytes'));
+  void _openCustomerHistoryDialog(CustomerPaymentRow customer) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _CustomerHistoryDialog(
+        customer: customer,
+        onAddPayment: () => _openAddPaymentDialog(customer),
+        onEditPayment: (tx) => _openEditPaymentDialog(tx),
+        onPaymentChanged: () => _loadAll(),
+      ),
+    );
   }
-
-  // ===========================================================================
-  // BUILD METHOD
-  // ===========================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -694,8 +208,9 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
 
     return Scaffold(
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. TOP HEADER & METRICS
+          // 1. TOP HEADER & ACTION BUTTONS
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
             child: Row(
@@ -704,23 +219,63 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Payments & Financial Management', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                    Text(
+                      'Payments',
+                      style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                    ),
                     const SizedBox(height: 2),
-                    Text('Central ledger, verification, and audit trail', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    Text(
+                      'Contract payments, additional payments, customer balances & Excel export',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
                   ],
                 ),
                 Row(
                   children: [
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('+ Add Payment', style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () => _openAddPaymentDialog(),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.analytics_outlined, size: 18),
+                      label: const Text('Additional Report', style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6366F1),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: _openAdditionalReportDialog,
+                    ),
+                    const SizedBox(width: 10),
                     OutlinedButton.icon(
-                      icon: const Icon(Icons.file_download_outlined, size: 18),
-                      label: const Text('Export CSV'),
-                      onPressed: _payments.isEmpty ? null : _exportCsv,
+                      icon: _isExporting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.file_download_outlined, size: 18),
+                      label: const Text('Export Excel'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: _isExporting ? null : _handleExportExcel,
                     ),
                     const SizedBox(width: 10),
                     IconButton(
                       icon: const Icon(Icons.refresh),
-                      tooltip: 'Refresh Ledger',
-                      onPressed: _loadAll,
+                      tooltip: 'Refresh',
+                      onPressed: () => _loadAll(),
                     ),
                   ],
                 ),
@@ -728,158 +283,211 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
             ),
           ),
 
-          // 2. DASHBOARD KPI METRIC CARDS
+          // 2. DASHBOARD KPI CARDS (Contract Collection, Additional Collection, Total Collection, Contract Pending)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: _isLoadingMetrics
                 ? const LinearProgressIndicator()
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Row(
-                        children: [
-                          _buildMetricCard('Total Collection', '₹${NumberFormat('#,##,###').format(_metrics.totalCollection)}', const Color(0xFF059669), Icons.account_balance_wallet_rounded),
-                          const SizedBox(width: 10),
-                          _buildMetricCard("Today's Collection", '₹${NumberFormat('#,##,###').format(_metrics.todayCollection)}', const Color(0xFF0284C7), Icons.today_rounded),
-                          const SizedBox(width: 10),
-                          _buildMetricCard('This Month', '₹${NumberFormat('#,##,###').format(_metrics.monthCollection)}', const Color(0xFF7C3AED), Icons.calendar_month_rounded),
-                          const SizedBox(width: 10),
-                          _buildMetricCard('Total Outstanding', '₹${NumberFormat('#,##,###').format(_metrics.totalOutstanding)}', const Color(0xFFDC2626), Icons.pending_actions_rounded),
-                          const SizedBox(width: 10),
-                          _buildMetricCard('Pending Verification', '${_metrics.pendingVerificationCount}', const Color(0xFFD97706), Icons.verified_user_outlined),
-                          const SizedBox(width: 10),
-                          _buildMetricCard('Pending Sync', '${_metrics.pendingSyncCount}', const Color(0xFFEA580C), Icons.sync_problem_rounded),
-                        ],
-                      );
-                    },
+                : Row(
+                    children: [
+                      Expanded(
+                        child: _buildMetricCard(
+                          title: 'Contract Collection',
+                          amount: _metrics.contractCollection,
+                          subtitle: 'Original contract payments',
+                          color: const Color(0xFF0284C7), // Sky Blue
+                          icon: Icons.description_rounded,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: _buildMetricCard(
+                          title: 'Additional Collection',
+                          amount: _metrics.additionalCollection,
+                          subtitle: 'Extra material, work, etc.',
+                          color: const Color(0xFF8B5CF6), // Purple
+                          icon: Icons.playlist_add_check_circle_rounded,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: _buildMetricCard(
+                          title: 'Total Collection',
+                          amount: _metrics.totalCollection,
+                          subtitle: '${_metrics.totalTransactionsCount} total payments',
+                          color: const Color(0xFF059669), // Emerald
+                          icon: Icons.account_balance_wallet_rounded,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: _buildMetricCard(
+                          title: 'Contract Pending',
+                          amount: _metrics.totalOutstanding,
+                          subtitle: 'Outstanding contract balance',
+                          color: const Color(0xFFDC2626), // Red
+                          icon: Icons.pending_actions_rounded,
+                        ),
+                      ),
+                    ],
                   ),
           ),
           const SizedBox(height: 16),
 
-          // 3. SEARCH & FILTERS BAR
+          // 3. SEARCH & TABS BAR WITH COMPREHENSIVE FILTERS
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Row(
-                children: [
-                  // Search Box
-                  Expanded(
-                    flex: 3,
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: _onSearchChanged,
-                      decoration: const InputDecoration(
-                        hintText: 'Search customer, consumer no, mobile, UTR, ID...',
-                        prefixIcon: Icon(Icons.search, size: 20),
-                        isDense: true,
-                        border: OutlineInputBorder(),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Search customer name, consumer no, mobile, village...',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      isDense: true,
+                      filled: true,
+                      fillColor: theme.cardColor,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                // Filters depending on active tab
+                if (_tabController.index == 0) ...[
+                  // Customer Summary Tab Filters
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedStatusFilter,
+                        items: const [
+                          DropdownMenuItem(value: 'All', child: Text('Status: All')),
+                          DropdownMenuItem(value: 'Pending', child: Text('Pending Only')),
+                          DropdownMenuItem(value: 'Partially Paid', child: Text('Partially Paid')),
+                          DropdownMenuItem(value: 'Paid', child: Text('Fully Paid')),
+                        ],
+                        onChanged: (v) {
+                          setState(() => _selectedStatusFilter = v!);
+                          _loadCustomerSummaries();
+                        },
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-
-                  // Date Filter
-                  _buildDropdownFilter(
-                    label: 'Date',
-                    value: _selectedDateFilter,
-                    items: const ['All', 'Today', 'This Week', 'This Month'],
-                    onChanged: (v) {
-                      setState(() => _selectedDateFilter = v!);
-                      _loadPayments();
-                    },
+                ] else ...[
+                  // Payment History Tab Filters: Type, Category, Mode
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedTypeFilter,
+                        items: const [
+                          DropdownMenuItem(value: 'All', child: Text('Type: All')),
+                          DropdownMenuItem(value: PaymentType.contract, child: Text('Contract')),
+                          DropdownMenuItem(value: PaymentType.additional, child: Text('Additional')),
+                        ],
+                        onChanged: (v) {
+                          setState(() => _selectedTypeFilter = v!);
+                          _loadLedgerTransactions();
+                        },
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 10),
-
-                  // Payment Type
-                  _buildDropdownFilter(
-                    label: 'Type',
-                    value: _selectedPaymentType,
-                    items: const ['All', 'Online', 'Offline'],
-                    onChanged: (v) {
-                      setState(() => _selectedPaymentType = v!);
-                      _loadPayments();
-                    },
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedCategoryFilter,
+                        items: [
+                          const DropdownMenuItem(value: 'All', child: Text('Category: All')),
+                          ...AdditionalPaymentCategory.allCategories.map((c) => DropdownMenuItem(
+                                value: c,
+                                child: Text(AdditionalPaymentCategory.displayName(c)),
+                              )),
+                        ],
+                        onChanged: (v) {
+                          setState(() => _selectedCategoryFilter = v!);
+                          _loadLedgerTransactions();
+                        },
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 10),
-
-                  // Payment Mode
-                  _buildDropdownFilter(
-                    label: 'Mode',
-                    value: _selectedPaymentMode,
-                    items: ['All', ...PaymentMode.allModes],
-                    onChanged: (v) {
-                      setState(() => _selectedPaymentMode = v!);
-                      _loadPayments();
-                    },
-                  ),
-                  const SizedBox(width: 10),
-
-                  // Verification Status
-                  _buildDropdownFilter(
-                    label: 'Verification',
-                    value: _selectedVerification,
-                    items: const ['All', 'Pending', 'Verified', 'Rejected', 'Void'],
-                    onChanged: (v) {
-                      setState(() => _selectedVerification = v!);
-                      _loadPayments();
-                    },
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedModeFilter,
+                        items: const [
+                          DropdownMenuItem(value: 'All', child: Text('Mode: All')),
+                          DropdownMenuItem(value: 'Cash', child: Text('Cash')),
+                          DropdownMenuItem(value: 'UPI', child: Text('UPI')),
+                          DropdownMenuItem(value: 'Bank Transfer', child: Text('Bank Transfer')),
+                          DropdownMenuItem(value: 'Cheque', child: Text('Cheque')),
+                          DropdownMenuItem(value: 'Other', child: Text('Other')),
+                        ],
+                        onChanged: (v) {
+                          setState(() => _selectedModeFilter = v!);
+                          _loadLedgerTransactions();
+                        },
+                      ),
+                    ),
                   ),
                 ],
-              ),
+                const SizedBox(width: 14),
+                SizedBox(
+                  width: 320,
+                  child: TabBar(
+                    controller: _tabController,
+                    labelColor: theme.colorScheme.primary,
+                    indicatorColor: theme.colorScheme.primary,
+                    onTap: (_) => setState(() {}),
+                    tabs: [
+                      Tab(text: 'Customer Summary (${_customerRows.length})'),
+                      Tab(text: 'Payment History (${_ledgerTransactions.length})'),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
 
-          // 4. DATA TABLE
+          // 4. MAIN CONTENT TABS
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _payments.isEmpty
-                      ? const Center(child: Text('No payment transactions match the selected criteria.'))
-                      : Card(
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(color: Colors.grey.shade300),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.vertical,
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: DataTable(
-                                  headingRowColor: WidgetStateProperty.all(Colors.grey.shade100),
-                                  columnSpacing: 18,
-                                  dataRowMaxHeight: 52,
-                                  columns: const [
-                                    DataColumn(label: Text('Payment ID', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    DataColumn(label: Text('Customer', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    DataColumn(label: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    DataColumn(label: Text('Village', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    DataColumn(label: Text('Amount (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    DataColumn(label: Text('Type', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    DataColumn(label: Text('Mode', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    DataColumn(label: Text('Reference No', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    DataColumn(label: Text('Verification', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    DataColumn(label: Text('Created By', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    DataColumn(label: Text('Sync', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  ],
-                                  rows: _payments.map((tx) => _buildDataRow(tx)).toList(),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildCustomerTable(theme),
+                  _buildLedgerTable(theme),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -888,226 +496,1441 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     );
   }
 
-  DataRow _buildDataRow(PaymentTransaction tx) {
-    return DataRow(
-      cells: [
-        // Payment ID
-        DataCell(
-          Text(
-            tx.id != null && tx.id!.length > 8 ? tx.id!.substring(0, 8) : (tx.id ?? '-'),
-            style: const TextStyle(fontSize: 11, fontFamily: 'monospace', fontWeight: FontWeight.bold),
+  Widget _buildMetricCard({
+    required String title,
+    required double amount,
+    required String subtitle,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: color.withValues(alpha: 0.15),
+            radius: 24,
+            child: Icon(icon, color: color, size: 24),
           ),
-        ),
-        // Customer Name
-        DataCell(
-          InkWell(
-            onTap: () => _showCustomerProfile(tx),
-            child: Text(
-              tx.customerName ?? 'Unknown',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0284C7)),
-            ),
-          ),
-        ),
-        // Consumer No
-        DataCell(Text(tx.consumerNo, style: const TextStyle(fontSize: 12))),
-        // Village
-        DataCell(Text(tx.village ?? '-', style: const TextStyle(fontSize: 12))),
-        // Amount
-        DataCell(
-          Text(
-            '₹${NumberFormat('#,##,###').format(tx.amount)}',
-            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF059669)),
-          ),
-        ),
-        // Type
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: tx.paymentType == 'Online' ? Colors.blue.shade50 : Colors.amber.shade50,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              tx.paymentType,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: tx.paymentType == 'Online' ? Colors.blue.shade800 : Colors.amber.shade900,
-              ),
-            ),
-          ),
-        ),
-        // Mode
-        DataCell(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(PaymentMode.getModeIcon(tx.paymentMode), size: 16, color: Colors.grey.shade700),
-              const SizedBox(width: 6),
-              Text(tx.paymentMode, style: const TextStyle(fontSize: 12)),
-            ],
-          ),
-        ),
-        // Date
-        DataCell(Text(DateFormat('dd MMM yyyy').format(tx.paymentDate), style: const TextStyle(fontSize: 12))),
-        // Reference No
-        DataCell(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(tx.referenceNumber ?? '-', style: const TextStyle(fontSize: 11, fontFamily: 'monospace')),
-              if (tx.proofMismatch)
-                const Tooltip(
-                  message: 'Proof Mismatch Warning',
-                  child: Padding(
-                    padding: EdgeInsets.only(left: 4),
-                    child: Icon(Icons.warning_amber_rounded, size: 14, color: Colors.red),
-                  ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
                 ),
-            ],
-          ),
-        ),
-        // Verification
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: PaymentVerificationStatus.badgeColor(tx.verificationStatus).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              tx.verificationStatus,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: PaymentVerificationStatus.badgeColor(tx.verificationStatus),
-              ),
-            ),
-          ),
-        ),
-        // Created By
-        DataCell(Text(tx.createdByName ?? tx.createdBy ?? '-', style: const TextStyle(fontSize: 11))),
-        // Sync Status
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: tx.syncStatus == 'Synced' ? Colors.green.shade50 : Colors.orange.shade50,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              tx.syncStatus,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: tx.syncStatus == 'Synced' ? Colors.green.shade800 : Colors.orange.shade900,
-              ),
-            ),
-          ),
-        ),
-        // Actions
-        DataCell(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.receipt_outlined, size: 18),
-                tooltip: 'View Receipt',
-                onPressed: () => _showReceiptDialog(tx),
-              ),
-              if (tx.attachmentUrl != null && tx.attachmentUrl!.isNotEmpty)
-                IconButton(
-                  icon: const Icon(Icons.image_outlined, size: 18),
-                  tooltip: 'View Proof',
-                  onPressed: () => _showProofDialog(tx),
+                const SizedBox(height: 4),
+                Text(
+                  '₹${NumberFormat('#,##,###').format(amount)}',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
                 ),
-              if (tx.isPendingVerification) ...[
-                IconButton(
-                  icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF059669)),
-                  tooltip: 'Verify Payment',
-                  onPressed: () => _handleVerify(tx),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.cancel_outlined, size: 18, color: Colors.red),
-                  tooltip: 'Reject Payment',
-                  onPressed: () => _handleReject(tx),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                 ),
               ],
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, size: 18),
-                onSelected: (val) {
-                  if (val == 'edit') _handleEdit(tx);
-                  if (val == 'void') _handleVoid(tx);
-                  if (val == 'profile') _showCustomerProfile(tx);
-                },
-                itemBuilder: (_) => [
-                  const PopupMenuItem(value: 'profile', child: Text('Customer Profile')),
-                  const PopupMenuItem(value: 'edit', child: Text('Edit Record')),
-                  if (!tx.isVoid)
-                    const PopupMenuItem(value: 'void', child: Text('Mark Void (Non-destructive)')),
-                ],
-              ),
-            ],
+            ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomerTable(ThemeData theme) {
+    if (_isLoadingCustomers) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_customerRows.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.person_search_rounded, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            const Text('No customer payment records found.', style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
+    final currency = NumberFormat('#,##,###');
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SingleChildScrollView(
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5)),
+            columns: const [
+              DataColumn(label: Text('Customer', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Contract Amt', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+              DataColumn(label: Text('Contract Paid', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+              DataColumn(label: Text('Contract Pending', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+              DataColumn(label: Text('Additional Paid', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+              DataColumn(label: Text('Total Received', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+              DataColumn(label: Text('Last Payment', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Payment Date', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+            ],
+            rows: _customerRows.map((row) {
+              final isPending = row.pendingAmount > 0;
+
+              return DataRow(
+                cells: [
+                  DataCell(
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(row.customerName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        if (row.village.isNotEmpty)
+                          Text(row.village, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      ],
+                    ),
+                  ),
+                  DataCell(
+                    Text(
+                      row.consumerNo,
+                      style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  DataCell(
+                    Text('₹${currency.format(row.totalAmount)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                  DataCell(
+                    Text(
+                      '₹${currency.format(row.paidAmount)}',
+                      style: const TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  DataCell(
+                    Text(
+                      '₹${currency.format(row.pendingAmount)}',
+                      style: TextStyle(
+                        color: isPending ? const Color(0xFFDC2626) : Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    Text(
+                      row.additionalPaid > 0 ? '₹${currency.format(row.additionalPaid)}' : '—',
+                      style: const TextStyle(color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  DataCell(
+                    Text(
+                      '₹${currency.format(row.totalReceived)}',
+                      style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  DataCell(
+                    row.lastPaymentAmount != null
+                        ? Text(
+                            '₹${currency.format(row.lastPaymentAmount)} (${row.lastPaymentMode ?? "—"})${row.lastPaymentType == PaymentType.additional ? " [${row.lastAdditionalCategory != null ? AdditionalPaymentCategory.displayName(row.lastAdditionalCategory!) : 'Extra'}]" : ""}')
+                        : const Text('—', style: TextStyle(color: Colors.grey)),
+                  ),
+                  DataCell(
+                    row.lastPaymentDate != null
+                        ? Text(DateFormat('dd/MM/yyyy').format(row.lastPaymentDate!))
+                        : const Text('—', style: TextStyle(color: Colors.grey)),
+                  ),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline, color: Color(0xFF059669), size: 20),
+                          tooltip: 'Add Payment',
+                          onPressed: () => _openAddPaymentDialog(row),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.history_rounded, color: Color(0xFF0284C7), size: 20),
+                          tooltip: 'Payment History',
+                          onPressed: () => _openCustomerHistoryDialog(row),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLedgerTable(ThemeData theme) {
+    if (_isLoadingLedger) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_ledgerTransactions.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long_outlined, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            const Text('No payment transactions found.', style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
+    final currency = NumberFormat('#,##,###');
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SingleChildScrollView(
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5)),
+            columns: const [
+              DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Customer', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Type', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Category', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+              DataColumn(label: Text('Mode', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Reference No', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Remarks', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Recorded By', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+            ],
+            rows: _ledgerTransactions.map((tx) {
+              return DataRow(
+                cells: [
+                  DataCell(Text(DateFormat('dd/MM/yyyy').format(tx.paymentDate))),
+                  DataCell(Text(tx.customerName ?? '—', style: const TextStyle(fontWeight: FontWeight.bold))),
+                  DataCell(Text(tx.consumerNo, style: const TextStyle(fontFamily: 'monospace'))),
+                  DataCell(
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: tx.isAdditional
+                            ? const Color(0xFF8B5CF6).withValues(alpha: 0.1)
+                            : const Color(0xFF0284C7).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        tx.typeDisplayName,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: tx.isAdditional ? const Color(0xFF7C3AED) : const Color(0xFF0284C7),
+                        ),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    tx.isAdditional
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                AdditionalPaymentCategory.getCategoryIcon(tx.additionalCategory ?? ''),
+                                size: 14,
+                                color: const Color(0xFF6366F1),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(tx.categoryDisplayName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                            ],
+                          )
+                        : const Text('—', style: TextStyle(color: Colors.grey)),
+                  ),
+                  DataCell(
+                    Text(
+                      '₹${currency.format(tx.amount)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: tx.isAdditional ? const Color(0xFF7C3AED) : const Color(0xFF059669),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(PaymentMode.getModeIcon(tx.paymentMode), size: 16, color: Colors.grey.shade700),
+                        const SizedBox(width: 6),
+                        Text(tx.paymentMode),
+                      ],
+                    ),
+                  ),
+                  DataCell(Text(tx.referenceNumber?.isNotEmpty == true ? tx.referenceNumber! : '—')),
+                  DataCell(Text(tx.remarks?.isNotEmpty == true ? tx.remarks! : '—')),
+                  DataCell(Text(tx.createdByName ?? tx.receivedBy ?? 'Staff')),
+                  DataCell(
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF0284C7)),
+                      tooltip: 'Edit Payment',
+                      onPressed: () => _openEditPaymentDialog(tx),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Admin Add Payment Dialog with Typeahead / Customer Selection, Type & Category, and Auto-calculation
+class _AdminAddPaymentDialog extends StatefulWidget {
+  final CustomerPaymentRow? preselectedCustomer;
+  final VoidCallback onSaved;
+
+  const _AdminAddPaymentDialog({
+    this.preselectedCustomer,
+    required this.onSaved,
+  });
+
+  @override
+  State<_AdminAddPaymentDialog> createState() => _AdminAddPaymentDialogState();
+}
+
+class _AdminAddPaymentDialogState extends State<_AdminAddPaymentDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  String? _selectedCustomerId;
+  String? _selectedCustomerName;
+  String? _selectedConsumerNo;
+  double _contractAmount = 0.0;
+  double _contractPaid = 0.0;
+  double _contractPending = 0.0;
+  double _additionalPaid = 0.0;
+  double _totalReceived = 0.0;
+
+  String _paymentType = PaymentType.contract;
+  String _additionalCategory = AdditionalPaymentCategory.extraMaterial;
+
+  final TextEditingController _amountCtrl = TextEditingController();
+  final TextEditingController _refCtrl = TextEditingController();
+  final TextEditingController _remarksCtrl = TextEditingController();
+  final TextEditingController _searchCtrl = TextEditingController();
+
+  DateTime _paymentDate = DateTime.now();
+  String _paymentMode = 'UPI';
+  bool _isSaving = false;
+  bool _isSearching = false;
+  List<ConsumerRecord> _matchingCustomers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.preselectedCustomer != null) {
+      _selectedCustomerId = widget.preselectedCustomer!.customerId;
+      _selectedCustomerName = widget.preselectedCustomer!.customerName;
+      _selectedConsumerNo = widget.preselectedCustomer!.consumerNo;
+      _contractAmount = widget.preselectedCustomer!.totalAmount;
+      _contractPaid = widget.preselectedCustomer!.paidAmount;
+      _contractPending = widget.preselectedCustomer!.pendingAmount;
+      _additionalPaid = widget.preselectedCustomer!.additionalPaid;
+      _totalReceived = widget.preselectedCustomer!.totalReceived;
+    }
+  }
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    _refCtrl.dispose();
+    _remarksCtrl.dispose();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _searchCustomers(String q) async {
+    if (q.trim().isEmpty) {
+      setState(() => _matchingCustomers = []);
+      return;
+    }
+    setState(() => _isSearching = true);
+    try {
+      final res = await SupabaseService.client
+          .from('consumer_records')
+          .select('id, customer_name, consumer_no, total_amount, paid_amount, pending_amount, additional_paid_amount, total_received_amount, village')
+          .eq('deleted', false)
+          .or('customer_name.ilike.%$q%,consumer_no.ilike.%$q%,mobile_number.ilike.%$q%')
+          .limit(10);
+
+      final list = (res as List).map((m) => ConsumerRecord.fromJson(m as Map<String, dynamic>)).toList();
+      if (mounted) {
+        setState(() {
+          _matchingCustomers = list;
+          _isSearching = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isSearching = false);
+    }
+  }
+
+  void _selectCustomer(ConsumerRecord c) {
+    setState(() {
+      _selectedCustomerId = c.id;
+      _selectedCustomerName = c.name;
+      _selectedConsumerNo = c.consumerNo;
+      _contractAmount = c.totalAmount;
+      _contractPaid = c.paidAmount;
+      _contractPending = c.pendingAmount;
+      _matchingCustomers = [];
+      _searchCtrl.clear();
+    });
+  }
+
+  Future<void> _handleSave() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedCustomerId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a customer first.')),
+      );
+      return;
+    }
+
+    final amt = double.tryParse(_amountCtrl.text.trim()) ?? 0.0;
+    if (amt <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid amount greater than 0.')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      await AdminPaymentService.recordPayment(
+        customerId: _selectedCustomerId!,
+        consumerNo: _selectedConsumerNo!,
+        amount: amt,
+        paymentDate: _paymentDate,
+        paymentMode: _paymentMode,
+        paymentType: _paymentType,
+        additionalCategory: _paymentType == PaymentType.additional ? _additionalCategory : null,
+        referenceNumber: _refCtrl.text.trim(),
+        remarks: _remarksCtrl.text.trim(),
+      );
+
+      widget.onSaved();
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment saved and customer balance updated!'),
+            backgroundColor: Color(0xFF059669),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving payment: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat('#,##,###');
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          const Icon(Icons.add_circle, color: Color(0xFF059669)),
+          const SizedBox(width: 8),
+          const Text('Record Payment'),
+        ],
+      ),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Customer Selection / Auto Display
+                if (_selectedCustomerId == null) ...[
+                  const Text('Select Customer', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _searchCtrl,
+                    onChanged: _searchCustomers,
+                    decoration: InputDecoration(
+                      hintText: 'Type customer name or consumer number...',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _isSearching
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: Padding(
+                                padding: EdgeInsets.all(12),
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : null,
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                  if (_matchingCustomers.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 180),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _matchingCustomers.length,
+                        itemBuilder: (ctx, idx) {
+                          final c = _matchingCustomers[idx];
+                          return ListTile(
+                            dense: true,
+                            title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text('${c.consumerNo}${c.address != null ? " • ${c.address}" : ""}'),
+                            trailing: Text('Pending: ₹${currency.format(c.pendingAmount)}'),
+                            onTap: () => _selectCustomer(c),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ] else ...[
+                  // Selected Customer Summary Box
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFBBF7D0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _selectedCustomerName ?? '',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                            TextButton(
+                              onPressed: () => setState(() => _selectedCustomerId = null),
+                              child: const Text('Change Customer', style: TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          'Consumer No: $_selectedConsumerNo',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontFamily: 'monospace'),
+                        ),
+                        const Divider(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Contract Amount', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                  Text(
+                                    '₹${currency.format(_contractAmount)}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Contract Paid', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                  Text(
+                                    '₹${currency.format(_contractPaid)}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF059669)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Contract Pending', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                  Text(
+                                    '₹${currency.format(_contractPending)}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFFDC2626)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_additionalPaid > 0) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Additional Paid: ₹${currency.format(_additionalPaid)}',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF7C3AED)),
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  'Total Received: ₹${currency.format(_totalReceived)}',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+
+                // 2. PAYMENT TYPE SELECTION
+                const Text('Payment Type*', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(
+                      value: PaymentType.contract,
+                      label: Text('Contract Payment'),
+                      icon: Icon(Icons.assignment_outlined, size: 16),
+                    ),
+                    ButtonSegment(
+                      value: PaymentType.additional,
+                      label: Text('Additional Payment'),
+                      icon: Icon(Icons.add_shopping_cart_rounded, size: 16),
+                    ),
+                  ],
+                  selected: {_paymentType},
+                  onSelectionChanged: (newSelection) {
+                    setState(() => _paymentType = newSelection.first);
+                  },
+                ),
+                const SizedBox(height: 14),
+
+                // 3. IF ADDITIONAL PAYMENT: CATEGORY DROPDOWN
+                if (_paymentType == PaymentType.additional) ...[
+                  DropdownButtonFormField<String>(
+                    value: _additionalCategory,
+                    decoration: const InputDecoration(
+                      labelText: 'Additional Payment For*',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: AdditionalPaymentCategory.allCategories.map((cat) {
+                      return DropdownMenuItem(
+                        value: cat,
+                        child: Row(
+                          children: [
+                            Icon(AdditionalPaymentCategory.getCategoryIcon(cat), size: 18, color: const Color(0xFF7C3AED)),
+                            const SizedBox(width: 8),
+                            Text(AdditionalPaymentCategory.displayName(cat)),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (v) => setState(() => _additionalCategory = v!),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+
+                // 4. Payment Amount & Date
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: TextFormField(
+                        controller: _amountCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Payment Amount (₹)*',
+                          prefixText: '₹ ',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) return 'Enter amount';
+                          final n = double.tryParse(val.trim());
+                          if (n == null || n <= 0) return 'Invalid amount';
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _paymentDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now().add(const Duration(days: 1)),
+                          );
+                          if (picked != null) {
+                            setState(() => _paymentDate = picked);
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Payment Date*',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                            suffixIcon: Icon(Icons.calendar_today, size: 16),
+                          ),
+                          child: Text(DateFormat('dd/MM/yyyy').format(_paymentDate)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // 5. Payment Mode & Reference
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: DropdownButtonFormField<String>(
+                        value: _paymentMode,
+                        decoration: const InputDecoration(
+                          labelText: 'Payment Mode*',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'Cash', child: Text('Cash')),
+                          DropdownMenuItem(value: 'UPI', child: Text('UPI')),
+                          DropdownMenuItem(value: 'Bank Transfer', child: Text('Bank Transfer')),
+                          DropdownMenuItem(value: 'Cheque', child: Text('Cheque')),
+                          DropdownMenuItem(value: 'Other', child: Text('Other')),
+                        ],
+                        onChanged: (v) => setState(() => _paymentMode = v!),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 3,
+                      child: TextFormField(
+                        controller: _refCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Reference Number / UTR',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // 6. Description / Remarks
+                TextFormField(
+                  controller: _remarksCtrl,
+                  decoration: InputDecoration(
+                    labelText: _paymentType == PaymentType.additional
+                        ? 'Description / Remarks (e.g. 50m extra cable)'
+                        : 'Description / Remarks (Optional)',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+          onPressed: _isSaving ? null : _handleSave,
+          child: _isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Text('Save Payment'),
         ),
       ],
     );
   }
+}
 
-  Widget _buildMetricCard(String title, String value, Color color, IconData icon) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
-              child: Icon(icon, size: 20, color: color),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+/// Admin Edit Payment Dialog with automatic balance recalculation
+class _AdminEditPaymentDialog extends StatefulWidget {
+  final PaymentTransaction transaction;
+  final VoidCallback onSaved;
+
+  const _AdminEditPaymentDialog({
+    required this.transaction,
+    required this.onSaved,
+  });
+
+  @override
+  State<_AdminEditPaymentDialog> createState() => _AdminEditPaymentDialogState();
+}
+
+class _AdminEditPaymentDialogState extends State<_AdminEditPaymentDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  late TextEditingController _amountCtrl;
+  late TextEditingController _refCtrl;
+  late TextEditingController _remarksCtrl;
+  late DateTime _paymentDate;
+  late String _paymentMode;
+  late String _paymentType;
+  late String _additionalCategory;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountCtrl = TextEditingController(text: widget.transaction.amount.toStringAsFixed(0));
+    _refCtrl = TextEditingController(text: widget.transaction.referenceNumber ?? '');
+    _remarksCtrl = TextEditingController(text: widget.transaction.remarks ?? '');
+    _paymentDate = widget.transaction.paymentDate;
+    _paymentMode = ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Other'].contains(widget.transaction.paymentMode)
+        ? widget.transaction.paymentMode
+        : 'Other';
+    _paymentType = widget.transaction.paymentType.toUpperCase() == 'ADDITIONAL'
+        ? PaymentType.additional
+        : PaymentType.contract;
+    _additionalCategory = widget.transaction.additionalCategory ?? AdditionalPaymentCategory.extraMaterial;
+  }
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    _refCtrl.dispose();
+    _remarksCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleUpdate() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final amt = double.tryParse(_amountCtrl.text.trim()) ?? 0.0;
+    if (amt <= 0) return;
+
+    setState(() => _isSaving = true);
+    try {
+      await AdminPaymentService.updatePaymentSimple(
+        paymentId: widget.transaction.id!,
+        customerId: widget.transaction.customerId,
+        amount: amt,
+        paymentDate: _paymentDate,
+        paymentMode: _paymentMode,
+        paymentType: _paymentType,
+        additionalCategory: _paymentType == PaymentType.additional ? _additionalCategory : null,
+        referenceNumber: _refCtrl.text.trim(),
+        remarks: _remarksCtrl.text.trim(),
+      );
+
+      widget.onSaved();
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment updated and balances recalculated!'),
+            backgroundColor: Color(0xFF059669),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating payment: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.edit, color: Color(0xFF0284C7)),
+          SizedBox(width: 8),
+          Text('Edit Payment'),
+        ],
+      ),
+      content: SizedBox(
+        width: 480,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Customer: ${widget.transaction.customerName ?? widget.transaction.consumerNo}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              Text(
+                'Consumer No: ${widget.transaction.consumerNo}',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontFamily: 'monospace'),
+              ),
+              const SizedBox(height: 14),
+
+              // Payment Type
+              const Text('Payment Type*', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const SizedBox(height: 6),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: PaymentType.contract, label: Text('Contract')),
+                  ButtonSegment(value: PaymentType.additional, label: Text('Additional')),
+                ],
+                selected: {_paymentType},
+                onSelectionChanged: (set) => setState(() => _paymentType = set.first),
+              ),
+              if (_paymentType == PaymentType.additional) ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: _additionalCategory,
+                  decoration: const InputDecoration(
+                    labelText: 'Additional Category*',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: AdditionalPaymentCategory.allCategories.map((c) {
+                    return DropdownMenuItem(
+                      value: c,
+                      child: Text(AdditionalPaymentCategory.displayName(c)),
+                    );
+                  }).toList(),
+                  onChanged: (v) => setState(() => _additionalCategory = v!),
+                ),
+              ],
+              const SizedBox(height: 14),
+
+              Row(
                 children: [
-                  Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
-                  const SizedBox(height: 2),
-                  Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
+                  Expanded(
+                    flex: 3,
+                    child: TextFormField(
+                      controller: _amountCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Payment Amount (₹)*',
+                        prefixText: '₹ ',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) return 'Enter amount';
+                        final n = double.tryParse(val.trim());
+                        if (n == null || n <= 0) return 'Invalid amount';
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _paymentDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now().add(const Duration(days: 1)),
+                        );
+                        if (picked != null) {
+                          setState(() => _paymentDate = picked);
+                        }
+                      },
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Payment Date*',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                          suffixIcon: Icon(Icons.calendar_today, size: 16),
+                        ),
+                        child: Text(DateFormat('dd/MM/yyyy').format(_paymentDate)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: DropdownButtonFormField<String>(
+                      value: _paymentMode,
+                      decoration: const InputDecoration(
+                        labelText: 'Payment Mode*',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'Cash', child: Text('Cash')),
+                        DropdownMenuItem(value: 'UPI', child: Text('UPI')),
+                        DropdownMenuItem(value: 'Bank Transfer', child: Text('Bank Transfer')),
+                        DropdownMenuItem(value: 'Cheque', child: Text('Cheque')),
+                        DropdownMenuItem(value: 'Other', child: Text('Other')),
+                      ],
+                      onChanged: (v) => setState(() => _paymentMode = v!),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 3,
+                    child: TextFormField(
+                      controller: _refCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Reference Number / UTR',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _remarksCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Remarks',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                maxLines: 2,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _isSaving ? null : _handleUpdate,
+          child: _isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Text('Update Payment'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dialog displaying customer profile payment summary and individual transaction history
+class _CustomerHistoryDialog extends StatefulWidget {
+  final CustomerPaymentRow customer;
+  final VoidCallback onAddPayment;
+  final Function(PaymentTransaction tx) onEditPayment;
+  final VoidCallback onPaymentChanged;
+
+  const _CustomerHistoryDialog({
+    required this.customer,
+    required this.onAddPayment,
+    required this.onEditPayment,
+    required this.onPaymentChanged,
+  });
+
+  @override
+  State<_CustomerHistoryDialog> createState() => _CustomerHistoryDialogState();
+}
+
+class _CustomerHistoryDialogState extends State<_CustomerHistoryDialog> {
+  bool _isLoading = true;
+  List<PaymentTransaction> _transactions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    setState(() => _isLoading = true);
+    final data = await AdminPaymentService.fetchCustomerPaymentProfile(widget.customer.customerId);
+    if (mounted) {
+      setState(() {
+        _transactions = (data?['transactions'] as List<PaymentTransaction>?) ?? [];
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat('#,##,###');
+
+    return AlertDialog(
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.account_balance_wallet, color: Color(0xFF059669)),
+              const SizedBox(width: 8),
+              Text('${widget.customer.customerName} — Payment History'),
+            ],
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('+ Add Payment', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.of(context).pop();
+              widget.onAddPayment();
+            },
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 700,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Balance Summary
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Contract Amount', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                            Text('₹${currency.format(widget.customer.totalAmount)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Contract Paid', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                            Text('₹${currency.format(widget.customer.paidAmount)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF059669))),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Contract Pending', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                            Text('₹${currency.format(widget.customer.pendingAmount)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFFDC2626))),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Additional Paid: ₹${currency.format(widget.customer.additionalPaid)}',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF7C3AED)),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          'Total Received: ₹${currency.format(widget.customer.totalReceived)}',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            const Text('Payment Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 8),
+
+            // Transactions list
+            _isLoading
+                ? const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+                : _transactions.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text('No payment transactions recorded for this customer yet.', style: TextStyle(color: Colors.grey)),
+                        ),
+                      )
+                    : Container(
+                        constraints: const BoxConstraints(maxHeight: 280),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade200),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: _transactions.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (ctx, idx) {
+                            final tx = _transactions[idx];
+                            return ListTile(
+                              dense: true,
+                              leading: CircleAvatar(
+                                radius: 16,
+                                backgroundColor: tx.isAdditional
+                                    ? const Color(0xFF8B5CF6).withValues(alpha: 0.15)
+                                    : const Color(0xFF059669).withValues(alpha: 0.1),
+                                child: Icon(
+                                  tx.isAdditional
+                                      ? AdditionalPaymentCategory.getCategoryIcon(tx.additionalCategory ?? '')
+                                      : PaymentMode.getModeIcon(tx.paymentMode),
+                                  size: 16,
+                                  color: tx.isAdditional ? const Color(0xFF7C3AED) : const Color(0xFF059669),
+                                ),
+                              ),
+                              title: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text('₹${currency.format(tx.amount)} • ${tx.paymentMode}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: tx.isAdditional
+                                              ? const Color(0xFF8B5CF6).withValues(alpha: 0.1)
+                                              : const Color(0xFF0284C7).withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          tx.isAdditional ? tx.categoryDisplayName : 'Contract',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: tx.isAdditional ? const Color(0xFF7C3AED) : const Color(0xFF0284C7),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(DateFormat('dd/MM/yyyy').format(tx.paymentDate), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                ],
+                              ),
+                              subtitle: Text(
+                                '${tx.referenceNumber?.isNotEmpty == true ? "Ref: ${tx.referenceNumber} • " : ""}${tx.remarks?.isNotEmpty == true ? tx.remarks : "No remarks"}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.edit_outlined, size: 16),
+                                tooltip: 'Edit',
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                  widget.onEditPayment(tx);
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      ),
           ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
+}
 
-  Widget _buildDropdownFilter({
-    required String label,
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
+/// Dialog showing additional payments category-wise analytics and breakdown
+class _AdditionalPaymentReportDialog extends StatefulWidget {
+  const _AdditionalPaymentReportDialog();
+
+  @override
+  State<_AdditionalPaymentReportDialog> createState() => _AdditionalPaymentReportDialogState();
+}
+
+class _AdditionalPaymentReportDialogState extends State<_AdditionalPaymentReportDialog> {
+  bool _isLoading = true;
+  Map<String, double> _breakdown = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final res = await AdminPaymentService.fetchCategoryPaymentBreakdown();
+    if (mounted) {
+      setState(() {
+        _breakdown = res;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat('#,##,###');
+    final totalAdditional = _breakdown.values.fold<double>(0.0, (sum, val) => sum + val);
+
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.analytics_rounded, color: Color(0xFF6366F1)),
+          SizedBox(width: 8),
+          Text('Additional Payment Report'),
+        ],
       ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isDense: true,
-          items: items.map((i) => DropdownMenuItem(value: i, child: Text(i, style: const TextStyle(fontSize: 12)))).toList(),
-          onChanged: onChanged,
+      content: SizedBox(
+        width: 520,
+        child: _isLoading
+            ? const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Total summary card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Total Additional Collections',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF4338CA)),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '₹${currency.format(totalAdditional)}',
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF4338CA)),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Collections beyond contract quotation (materials, extra work, transport)',
+                          style: TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Category-wise Breakdown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 8),
+
+                  ...AdditionalPaymentCategory.allCategories.map((cat) {
+                    final amt = _breakdown[cat] ?? 0.0;
+                    final pct = totalAdditional > 0 ? (amt / totalAdditional) : 0.0;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(AdditionalPaymentCategory.getCategoryIcon(cat), size: 18, color: const Color(0xFF6366F1)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              AdditionalPaymentCategory.displayName(cat),
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: pct,
+                                minHeight: 8,
+                                backgroundColor: Colors.grey.shade200,
+                                valueColor: const AlwaysStoppedAnimation(Color(0xFF6366F1)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 90,
+                            child: Text(
+                              '₹${currency.format(amt)}',
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
         ),
-      ),
+      ],
     );
   }
 }

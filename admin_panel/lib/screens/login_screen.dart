@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/supabase_service.dart';
 import 'dashboard_screen.dart';
 
@@ -15,6 +17,11 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  static const String _prefKeyRememberPassword = 'siya_admin_remember_password';
+  static const String _prefKeySavedEmail = 'siya_admin_saved_email';
+  static const String _prefKeySavedPassword = 'siya_admin_saved_password';
+
+  bool _rememberPassword = true;
   bool _isLoading = false;
   String _loadingMessage = 'Signing In...';
   bool _obscurePassword = true;
@@ -23,7 +30,39 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSavedCredentials();
     _validateExistingSession();
+  }
+
+  /// Loads remembered email and password if available
+  Future<void> _loadSavedCredentials() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final remember = prefs.getBool(_prefKeyRememberPassword) ?? true;
+      if (remember) {
+        final savedEmail = prefs.getString(_prefKeySavedEmail) ?? '';
+        final savedPassword = prefs.getString(_prefKeySavedPassword) ?? '';
+        if (mounted) {
+          setState(() {
+            _rememberPassword = true;
+            if (savedEmail.isNotEmpty && _emailController.text.isEmpty) {
+              _emailController.text = savedEmail;
+            }
+            if (savedPassword.isNotEmpty && _passwordController.text.isEmpty) {
+              _passwordController.text = savedPassword;
+            }
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _rememberPassword = false;
+          });
+        }
+      }
+    } catch (_) {
+      // Non-fatal if SharedPreferences is unavailable
+    }
   }
 
   @override
@@ -189,6 +228,24 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         userId: user.id,
         details: 'Admin web portal login successful',
       );
+
+      // Save or clear credentials based on Remember Password preference
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        if (_rememberPassword) {
+          await prefs.setBool(_prefKeyRememberPassword, true);
+          await prefs.setString(_prefKeySavedEmail, email);
+          await prefs.setString(_prefKeySavedPassword, password);
+        } else {
+          await prefs.setBool(_prefKeyRememberPassword, false);
+          await prefs.remove(_prefKeySavedEmail);
+          await prefs.remove(_prefKeySavedPassword);
+        }
+      } catch (_) {
+        // Non-fatal if persistence fails
+      }
+
+      TextInput.finishAutofillContext();
 
       // 6. Navigate to Admin Dashboard
       if (mounted) {
@@ -428,91 +485,152 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                         const SizedBox(height: 18),
                       ],
 
-                      // Field 1: Email Address
-                      TextFormField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        enabled: !_isLoading,
-                        decoration: InputDecoration(
-                          labelText: 'Email Address',
-                          hintText: 'admin@siyasolar.com',
-                          prefixIcon: const Icon(Icons.email_outlined),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Please enter your email';
-                          }
-                          if (!value.contains('@') || !value.contains('.')) {
-                            return 'Please enter a valid email address';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Field 2: Password
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        textInputAction: TextInputAction.done,
-                        enabled: !_isLoading,
-                        onFieldSubmitted: (_) => _isLoading ? null : _handleLogin(),
-                        decoration: InputDecoration(
-                          labelText: 'Password',
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
+                      AutofillGroup(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Field 1: Email Address
+                            TextFormField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              textInputAction: TextInputAction.next,
+                              autofillHints: const [AutofillHints.email, AutofillHints.username],
+                              enabled: !_isLoading,
+                              decoration: InputDecoration(
+                                labelText: 'Email Address',
+                                hintText: 'admin@siyasolar.com',
+                                prefixIcon: const Icon(Icons.email_outlined),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Please enter your email';
+                                }
+                                if (!value.contains('@') || !value.contains('.')) {
+                                  return 'Please enter a valid email address';
+                                }
+                                return null;
+                              },
                             ),
-                            tooltip: _obscurePassword ? 'Show password' : 'Hide password',
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                          ),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter your password';
-                          }
-                          if (value.length < 6) {
-                            return 'Password must be at least 6 characters';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 8),
+                            const SizedBox(height: 16),
 
-                      // Forgot Password Link
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: _isLoading ? null : _handleForgotPassword,
-                          style: TextButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          ),
-                          child: Text(
-                            'Forgot Password?',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: theme.colorScheme.primary,
+                            // Field 2: Password
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: _obscurePassword,
+                              textInputAction: TextInputAction.done,
+                              autofillHints: const [AutofillHints.password],
+                              enabled: !_isLoading,
+                              onFieldSubmitted: (_) => _isLoading ? null : _handleLogin(),
+                              decoration: InputDecoration(
+                                labelText: 'Password',
+                                prefixIcon: const Icon(Icons.lock_outline),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                  ),
+                                  tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscurePassword = !_obscurePassword;
+                                    });
+                                  },
+                                ),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your password';
+                                }
+                                if (value.length < 6) {
+                                  return 'Password must be at least 6 characters';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Remember Password & Forgot Password Row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: _isLoading
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        _rememberPassword = !_rememberPassword;
+                                      });
+                                    },
+                              borderRadius: BorderRadius.circular(6),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: Checkbox(
+                                        value: _rememberPassword,
+                                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        visualDensity: VisualDensity.compact,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        onChanged: _isLoading
+                                            ? null
+                                            : (val) {
+                                                setState(() {
+                                                  _rememberPassword = val ?? false;
+                                                });
+                                              },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        'Remember Password',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                          color: theme.colorScheme.onSurface,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                          TextButton(
+                            onPressed: _isLoading ? null : _handleForgotPassword,
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            ),
+                            child: Text(
+                              'Forgot Password?',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
 
                       // Action Button: Sign In to Admin Panel
                       FilledButton(

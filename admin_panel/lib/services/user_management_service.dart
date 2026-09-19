@@ -43,9 +43,45 @@ class UserManagementService {
           ? temporaryPassword.trim()
           : 'Siya@${mobile.length >= 4 ? mobile.substring(mobile.length - 4) : "2026"}';
 
-      // 1. Sign up user using Supabase Auth.
-      // Note: Pass legacy role ('admin' or 'staff') in data metadata to ensure
-      // compatibility with existing handle_new_user() triggers that cast to app_role enum.
+      final perms = permissions ?? UserRole.defaultPermissions(role);
+
+      // Primary approach: Admin RPC to create user directly in auth.users & profiles
+      // Pre-confirms email and bypasses public GoTrue MX DNS lookup checks on internal domains
+      try {
+        await _client.rpc('admin_create_staff_user', params: {
+          'p_email': email.trim(),
+          'p_password': effectivePassword,
+          'p_full_name': fullName.trim(),
+          'p_mobile': mobile.trim(),
+          'p_role': role,
+          'p_employee_id': employeeId?.trim().isEmpty == true ? null : employeeId?.trim(),
+          'p_department': department?.trim().isEmpty == true ? null : department?.trim(),
+          'p_status': status,
+          'p_permissions': perms,
+          'p_remarks': remarks?.trim().isEmpty == true ? null : remarks?.trim(),
+        });
+
+        // Log to audit_logs
+        await _logAudit(
+          action: 'USER_CREATED',
+          targetUser: fullName.trim(),
+          fieldName: 'account',
+          oldVal: null,
+          newVal: 'Role: $role, Mobile: $mobile, Status: $status',
+          changedBy: currentAdmin?.id,
+        );
+        return;
+      } catch (rpcError) {
+        final errStr = rpcError.toString();
+        // If it's a specific validation/conflict exception from the RPC, throw user-friendly error
+        if (errStr.contains('already exists') || errStr.contains('Unauthorized') || errStr.contains('Password must be')) {
+          rethrow;
+        }
+        // ignore: avoid_print
+        print('admin_create_staff_user RPC unavailable or failed, falling back to signUp: $rpcError');
+      }
+
+      // Fallback: standard GoTrue signUp
       final legacyRole = (role == 'admin' || role == 'super_admin' || role == 'owner') ? 'admin' : 'staff';
 
       final authResponse = await _client.auth.signUp(
@@ -60,8 +96,7 @@ class UserManagementService {
 
       final newUserId = authResponse.user?.id;
       if (newUserId != null) {
-        // 2. Upsert profile with full metadata and the exact granular role
-        final perms = permissions ?? UserRole.defaultPermissions(role);
+        // Upsert profile with full metadata and the exact granular role
         await _client.from('profiles').upsert({
           'id': newUserId,
           'email': email.trim(),
@@ -79,7 +114,7 @@ class UserManagementService {
           'updated_at': DateTime.now().toIso8601String(),
         });
 
-        // 3. Log to audit_logs
+        // Log to audit_logs
         await _logAudit(
           action: 'USER_CREATED',
           targetUser: fullName.trim(),
@@ -94,6 +129,17 @@ class UserManagementService {
       print('Error in UserManagementService.createUser: $e\n$stack');
       rethrow;
     }
+  }
+
+  /// Directly set / reset user password (Admin operation)
+  static Future<void> setUserPassword(String userId, String newPassword) async {
+    if (newPassword.trim().length < 6) {
+      throw Exception('Password must be at least 6 characters long.');
+    }
+    await _client.rpc('admin_set_user_password', params: {
+      'p_target_user_id': userId,
+      'p_new_password': newPassword.trim(),
+    });
   }
 
   /// Update existing user profile, permissions, status, etc.

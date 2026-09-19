@@ -280,7 +280,7 @@
     <h1 class="app-title">Siya Solar Staff</h1>
     <p class="app-subtitle">Official Android Application for Staff & Field Operations</p>
     <div class="badges">
-      <span class="badge badge-version" id="versionBadge">Version 1.0.17</span>
+      <span class="badge badge-version" id="versionBadge">Version 1.0.18</span>
       <span class="badge badge-status">● Production Release</span>
     </div>
   </div>
@@ -288,13 +288,13 @@
   <!-- Download & Details Card -->
   <div class="release-card">
     <!-- Primary APK Download -->
-    <a href="./siya-solar-v1.0.17.apk" download="siya-solar-v1.0.17.apk" class="btn-download-primary" id="primaryDownloadBtn">
+    <a href="./siya-solar-v1.0.18.apk" download="siya-solar-v1.0.18.apk" class="btn-download-primary" id="primaryDownloadBtn">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      <span id="btnText">DOWNLOAD APK (61.4 MB)</span>
+      <span id="btnText">DOWNLOAD APK (61.9 MB)</span>
     </a>
 
     <!-- Secondary GitHub Release Link -->
@@ -313,11 +313,11 @@
     <div class="meta-grid">
       <div class="meta-box">
         <div class="meta-label">Version</div>
-        <div class="meta-value" id="metaVersion">1.0.17 (Build 18)</div>
+        <div class="meta-value" id="metaVersion">1.0.18 (Build 19)</div>
       </div>
       <div class="meta-box">
         <div class="meta-label">Release Date</div>
-        <div class="meta-value" id="metaDate">2026-09-18</div>
+        <div class="meta-value" id="metaDate">2026-09-19</div>
       </div>
       <div class="meta-box">
         <div class="meta-label">Target OS</div>
@@ -332,15 +332,15 @@
     <!-- What's New -->
     <div class="changelog-section">
       <div class="changelog-title">
-        <span>✨</span> Highlights in v1.0.17
+        <span>✨</span> Highlights in v1.0.18
       </div>
       <ul class="changelog-list" id="changelogList">
-        <li><strong>Global Android Back Navigation &amp; Safety Policy</strong> — Uniform PopScope back button handling across all 15+ screens, unsaved form changes guard ([Stay] / [Discard]), active upload protection, and 2-second double-back exit safety on Home screen.</li>
-        <li><strong>Admin Panel Production Login Security</strong> — Complete elimination of "Dev Preview (Skip Auth)", strictly enforced Supabase authentication, account status verification (is_active / Suspended check), and automated audit logs.</li>
-        <li><strong>Self-Service Password Reset</strong> — Added streamlined Forgot Password flow with instant password reset dispatch via Supabase.</li>
-        <li><strong>Separate Payment Module Architecture</strong> — Dedicated offline-first Payment Hub in Android App with real-time balance calculations, overpayment defense, and WhatsApp receipt generation.</li>
-        <li><strong>Admin Panel Reports Enhancements</strong> — Advanced multi-stage filtering, customizable <code>ReportFilterOptions</code>, and <code>RecordDiff</code> audit trail tracking.</li>
-        <li><strong>Periodic Background Sync Engine</strong> — Automated 8-minute background data synchronization keeping field staff continuously updated while online.</li>
+        <li><strong>Dedicated Office Staff Task Assignment System</strong> — End-to-end task workflow: <code>Admin → Office Staff → Customer → Task → Update</code>. Assign tasks specifically to active office staff with 14 specialized task categories.</li>
+        <li><strong>Mobile App: MY TASKS (माझी कामे)</strong> — 4 dedicated tabs with dynamic counts (Today's Tasks, Pending, Overdue, Completed). Full action suite: [Start], [Hold], [Complete] with photo/document upload, [Add Note], and direct [Customer Profile] view.</li>
+        <li><strong>Admin Panel Office Tasks Management</strong> — Dedicated Office Tasks screen, Action Center <code>+ Create Task</code> button, team reassignment with audit history, and "Who worked on which customer/task?" timeline.</li>
+        <li><strong>Offline SQLite Persistence (DB v4)</strong> — <code>cached_office_tasks</code> and <code>cached_task_assignments</code> keep all pending work visible across app closes and device reboots without internet.</li>
+        <li><strong>Contract &amp; Additional Payments Module</strong> — Record Contract Payments alongside Additional Payments (Extra Material, Extra Work, Additional Installation, Transport, Service Charge, Other) while strictly maintaining contract pending balance.</li>
+        <li><strong>Secure Admin Staff Creation</strong> — Instant staff account creation through Supabase RPC without compromising current admin session.</li>
       </ul>
     </div>
 
@@ -358,15 +358,15 @@
 
   <script>
     const REPO = 'siyainfotechsolar/siya-data';
-    const DIRECT_APK = './siya-solar-v1.0.17.apk';
-    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.17.apk`;
+    const DIRECT_APK = './siya-solar-v1.0.18.apk';
+    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.18.apk`;
 
     const primaryBtn = document.getElementById('primaryDownloadBtn');
     const btnText = document.getElementById('btnText');
 
     // Default immediate direct link
     primaryBtn.href = DIRECT_APK;
-    primaryBtn.setAttribute('download', 'siya-solar-v1.0.17.apk');
+    primaryBtn.setAttribute('download', 'siya-solar-v1.0.18.apk');
 
     // Ensure fallback to raw GitHub if relative link is blocked
     primaryBtn.addEventListener('error', () => {

@@ -16,6 +16,7 @@ import 'leads_screen.dart';
 import 'settings_screen.dart';
 import 'whatsapp_tasks_screen.dart';
 import 'payments_screen.dart';
+import 'office_tasks_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -35,6 +36,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final List<_NavDestination> _destinations = [
     _NavDestination('Dashboard', Icons.dashboard_outlined, Icons.dashboard),
     _NavDestination('Action Center', Icons.bolt_outlined, Icons.bolt),
+    _NavDestination('Office Tasks', Icons.assignment_ind_outlined, Icons.assignment_ind),
     _NavDestination('WhatsApp Tasks', Icons.share_rounded, Icons.share),
     _NavDestination('Leads', Icons.leaderboard_outlined, Icons.leaderboard),
     _NavDestination('Duplicate Finder', Icons.find_in_page_outlined, Icons.find_in_page),
@@ -201,29 +203,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           initialPriorityFilter: _selectedPriorityFilter,
         );
       case 2:
-        return const WhatsAppTasksScreen();
+        return const OfficeTasksScreen();
       case 3:
-        return const LeadsScreen();
+        return const WhatsAppTasksScreen();
       case 4:
-        return const DuplicateFinderScreen();
+        return const LeadsScreen();
       case 5:
+        return const DuplicateFinderScreen();
+      case 6:
         return RecordsScreen(
           key: ValueKey(_selectedQueueFilter),
           initialWorkflowQueue: _selectedQueueFilter,
         );
-      case 6:
-        return const PaymentsScreen();
       case 7:
-        return _buildImportLandingView();
+        return const PaymentsScreen();
       case 8:
-        return const HistoryScreen();
+        return _buildImportLandingView();
       case 9:
-        return const RecycleBinScreen();
+        return const HistoryScreen();
       case 10:
-        return const UsersScreen();
+        return const RecycleBinScreen();
       case 11:
-        return const ReportsScreen();
+        return const UsersScreen();
       case 12:
+        return const ReportsScreen();
+      case 13:
         return const SettingsScreen();
       default:
         return _buildDashboardView();

@@ -42,6 +42,11 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   late final TextEditingController _remarksController;
   late final TextEditingController _assignedStaffController;
 
+  List<Map<String, String>> _staffMembers = [];
+  bool _isLoadingStaff = true;
+  String? _selectedStaffName;
+  bool _isCustomStaff = false;
+
   String _selectedDocType = TaskDocumentType.other;
   String _selectedPriority = TaskPriority.normal;
   DateTime _selectedDueDate = DateTime.now().add(const Duration(days: 2));
@@ -58,8 +63,71 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     final user = SupabaseService.currentUser;
     final staffName = user?.email?.split('@').first ?? 'Staff';
     _assignedStaffController = TextEditingController(text: staffName);
+    _selectedStaffName = staffName;
 
+    _loadStaffList();
     _processDocumentAndMatch();
+  }
+
+  Future<void> _loadStaffList() async {
+    try {
+      final res = await SupabaseService.client
+          .from('profiles')
+          .select('id, full_name, email, role, status')
+          .order('full_name', ascending: true);
+
+      final List<Map<String, String>> list = [];
+      for (final item in res) {
+        final status = (item['status'] as String? ?? 'Active').toLowerCase();
+        if (status == 'inactive' || status == 'suspended') continue;
+
+        final fullName = (item['full_name'] as String?)?.trim();
+        final email = (item['email'] as String?)?.trim() ?? '';
+        final role = (item['role'] as String?)?.trim() ?? 'staff';
+        final displayName = (fullName != null && fullName.isNotEmpty)
+            ? fullName
+            : (email.isNotEmpty ? email.split('@').first : 'Staff');
+
+        list.add({
+          'name': displayName,
+          'email': email,
+          'role': role,
+        });
+      }
+
+      if (mounted) {
+        setState(() {
+          _staffMembers = list;
+          _isLoadingStaff = false;
+
+          final currentEmail = SupabaseService.currentUser?.email?.toLowerCase();
+          final currentMatch = list.firstWhere(
+            (s) => s['email']?.toLowerCase() == currentEmail,
+            orElse: () => list.isNotEmpty
+                ? list.first
+                : {'name': 'Staff', 'email': '', 'role': 'staff'},
+          );
+
+          _selectedStaffName = currentMatch['name'];
+          _assignedStaffController.text = _selectedStaffName ?? 'Staff';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading staff list: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingStaff = false;
+          final fallbackName = SupabaseService.currentUser?.email?.split('@').first ?? 'Staff';
+          if (_staffMembers.isEmpty) {
+            _staffMembers = [
+              {'name': fallbackName, 'email': '', 'role': 'staff'}
+            ];
+          }
+          _selectedStaffName ??= fallbackName;
+          _assignedStaffController.text = _selectedStaffName!;
+        });
+      }
+    }
   }
 
   @override
@@ -837,15 +905,128 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
         ),
         const SizedBox(height: 12),
 
-        // Assigned Staff
-        TextField(
-          controller: _assignedStaffController,
-          decoration: const InputDecoration(
-            labelText: 'Assigned To',
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        // Assigned Staff Selection
+        if (_isLoadingStaff) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF059669)),
+                ),
+                SizedBox(width: 10),
+                Text('Loading staff members...', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
           ),
-        ),
+        ] else ...[
+          DropdownButtonFormField<String>(
+            value: _isCustomStaff
+                ? '__custom__'
+                : (_staffMembers.any((s) => s['name'] == _selectedStaffName)
+                    ? _selectedStaffName
+                    : (_staffMembers.isNotEmpty ? _staffMembers.first['name'] : null)),
+            decoration: InputDecoration(
+              labelText: 'Assign Staff * (जबाबदार कर्मचारी)',
+              prefixIcon: const Icon(Icons.assignment_ind_rounded, color: Color(0xFF059669)),
+              border: const OutlineInputBorder(),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              suffixIcon: _isCustomStaff
+                  ? IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      tooltip: 'Select from staff list',
+                      onPressed: () {
+                        setState(() {
+                          _isCustomStaff = false;
+                          _selectedStaffName = _staffMembers.isNotEmpty ? _staffMembers.first['name'] : 'Staff';
+                          _assignedStaffController.text = _selectedStaffName!;
+                        });
+                      },
+                    )
+                  : null,
+            ),
+            items: [
+              ..._staffMembers.map((staff) {
+                final name = staff['name'] ?? 'Staff';
+                final role = staff['role'] ?? 'staff';
+                return DropdownMenuItem<String>(
+                  value: name,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.person_outline, size: 16, color: Color(0xFF059669)),
+                      const SizedBox(width: 8),
+                      Text(
+                        name,
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Text(
+                          role.replaceAll('_', ' '),
+                          style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const DropdownMenuItem<String>(
+                value: '__custom__',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.person_add_alt_1_outlined, size: 16, color: Colors.blue),
+                    SizedBox(width: 8),
+                    Text(
+                      '+ Enter Other Staff Name...',
+                      style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            onChanged: (val) {
+              if (val == '__custom__') {
+                setState(() {
+                  _isCustomStaff = true;
+                  _assignedStaffController.clear();
+                });
+              } else if (val != null) {
+                setState(() {
+                  _isCustomStaff = false;
+                  _selectedStaffName = val;
+                  _assignedStaffController.text = val;
+                });
+              }
+            },
+          ),
+          if (_isCustomStaff) ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _assignedStaffController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Enter Custom Staff Name *',
+                hintText: 'e.g. Ramesh Patil',
+                prefixIcon: Icon(Icons.person_add_outlined),
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+              onChanged: (val) {
+                _selectedStaffName = val.trim();
+              },
+            ),
+          ],
+        ],
         const SizedBox(height: 12),
 
         // Remarks

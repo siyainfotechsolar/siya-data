@@ -2,10 +2,75 @@ import 'package:flutter/material.dart';
 
 /// Payment Types supported
 class PaymentType {
-  static const String offline = 'Offline';
-  static const String online = 'Online';
+  static const String contract = 'CONTRACT';
+  static const String additional = 'ADDITIONAL';
 
-  static const List<String> allTypes = [offline, online];
+  // Backward compatibility aliases
+  static const String offline = 'CONTRACT';
+  static const String online = 'CONTRACT';
+
+  static const List<String> allTypes = [contract, additional];
+
+  static String displayName(String type) {
+    if (type.toUpperCase() == 'ADDITIONAL') {
+      return 'Additional Payment';
+    }
+    return 'Contract Payment';
+  }
+}
+
+/// Additional Payment Categories
+class AdditionalPaymentCategory {
+  static const String extraMaterial = 'EXTRA_MATERIAL';
+  static const String extraWork = 'EXTRA_WORK';
+  static const String additionalInstallation = 'ADDITIONAL_INSTALLATION';
+  static const String transport = 'TRANSPORT';
+  static const String serviceCharge = 'SERVICE_CHARGE';
+  static const String other = 'OTHER';
+
+  static const List<String> allCategories = [
+    extraMaterial,
+    extraWork,
+    additionalInstallation,
+    transport,
+    serviceCharge,
+    other,
+  ];
+
+  static String displayName(String cat) {
+    switch (cat.toUpperCase()) {
+      case 'EXTRA_MATERIAL':
+        return 'Extra Material';
+      case 'EXTRA_WORK':
+        return 'Extra Work';
+      case 'ADDITIONAL_INSTALLATION':
+        return 'Additional Installation';
+      case 'TRANSPORT':
+        return 'Transport';
+      case 'SERVICE_CHARGE':
+        return 'Service Charge';
+      case 'OTHER':
+      default:
+        return 'Other';
+    }
+  }
+
+  static IconData getCategoryIcon(String cat) {
+    switch (cat.toUpperCase()) {
+      case 'EXTRA_MATERIAL':
+        return Icons.inventory_2_rounded;
+      case 'EXTRA_WORK':
+        return Icons.construction_rounded;
+      case 'ADDITIONAL_INSTALLATION':
+        return Icons.solar_power_rounded;
+      case 'TRANSPORT':
+        return Icons.local_shipping_rounded;
+      case 'SERVICE_CHARGE':
+        return Icons.room_service_rounded;
+      default:
+        return Icons.more_horiz_rounded;
+    }
+  }
 }
 
 /// Payment Modes supported
@@ -132,7 +197,8 @@ class PaymentTransaction {
   final String consumerNo;
   final double amount;
   final DateTime paymentDate;
-  final String paymentType; // 'Online', 'Offline'
+  final String paymentType; // 'CONTRACT', 'ADDITIONAL'
+  final String? additionalCategory;
   final String paymentMode;
   final String? referenceNumber;
   final String? receivedBy;
@@ -166,7 +232,8 @@ class PaymentTransaction {
     required this.consumerNo,
     required this.amount,
     required this.paymentDate,
-    this.paymentType = PaymentType.offline,
+    this.paymentType = PaymentType.contract,
+    this.additionalCategory,
     required this.paymentMode,
     this.referenceNumber,
     this.receivedBy,
@@ -198,6 +265,13 @@ class PaymentTransaction {
   bool get isPendingSync => syncStatus == 'Pending Sync';
   bool get isVerified => verificationStatus == PaymentVerificationStatus.verified;
 
+  bool get isAdditional => paymentType.toUpperCase() == 'ADDITIONAL';
+  bool get isContract => !isAdditional;
+
+  String get typeDisplayName => PaymentType.displayName(paymentType);
+  String get categoryDisplayName =>
+      additionalCategory != null ? AdditionalPaymentCategory.displayName(additionalCategory!) : '—';
+
   PaymentTransaction copyWith({
     String? id,
     String? clientTxId,
@@ -207,6 +281,7 @@ class PaymentTransaction {
     double? amount,
     DateTime? paymentDate,
     String? paymentType,
+    String? additionalCategory,
     String? paymentMode,
     String? referenceNumber,
     String? receivedBy,
@@ -241,6 +316,7 @@ class PaymentTransaction {
       amount: amount ?? this.amount,
       paymentDate: paymentDate ?? this.paymentDate,
       paymentType: paymentType ?? this.paymentType,
+      additionalCategory: additionalCategory ?? this.additionalCategory,
       paymentMode: paymentMode ?? this.paymentMode,
       referenceNumber: referenceNumber ?? this.referenceNumber,
       receivedBy: receivedBy ?? this.receivedBy,
@@ -281,7 +357,8 @@ class PaymentTransaction {
       paymentDate: json['payment_date'] != null
           ? DateTime.tryParse(json['payment_date'].toString()) ?? DateTime.now()
           : DateTime.now(),
-      paymentType: json['payment_type']?.toString() ?? PaymentType.offline,
+      paymentType: json['payment_type']?.toString() ?? PaymentType.contract,
+      additionalCategory: json['additional_category']?.toString(),
       paymentMode: json['payment_mode']?.toString() ?? PaymentMode.other,
       referenceNumber: json['reference_number']?.toString(),
       receivedBy: json['received_by']?.toString(),
@@ -327,6 +404,7 @@ class PaymentTransaction {
       'amount': amount,
       'payment_date': paymentDate.toIso8601String().split('T')[0],
       'payment_type': paymentType,
+      if (additionalCategory != null) 'additional_category': additionalCategory,
       'payment_mode': paymentMode,
       if (referenceNumber != null) 'reference_number': referenceNumber,
       if (receivedBy != null) 'received_by': receivedBy,
@@ -355,11 +433,13 @@ class PaymentTransaction {
   }
 }
 
-/// Summary helper for customer balance calculations
+/// Summary helper for customer balance calculations with strict Contract vs Additional separation
 class CustomerPaymentSummary {
-  final double totalAmount;
-  final double paidAmount;
-  final double pendingAmount;
+  final double contractAmount;
+  final double contractPaid;
+  final double contractPending;
+  final double additionalPaid;
+  final double totalReceived;
   final String paymentStatus;
   final DateTime? paymentDueDate;
   final DateTime? lastPaymentDate;
@@ -368,16 +448,30 @@ class CustomerPaymentSummary {
   final int pendingSyncCount;
 
   const CustomerPaymentSummary({
-    required this.totalAmount,
-    required this.paidAmount,
-    required this.pendingAmount,
+    double? contractAmount,
+    double? contractPaid,
+    double? contractPending,
+    this.additionalPaid = 0.0,
+    double? totalReceived,
     required this.paymentStatus,
     this.paymentDueDate,
     this.lastPaymentDate,
     this.lastPaymentAmount,
     this.totalTransactionsCount = 0,
     this.pendingSyncCount = 0,
-  });
+    // Backward compatibility parameter aliases
+    double? totalAmount,
+    double? paidAmount,
+    double? pendingAmount,
+  })  : contractAmount = contractAmount ?? totalAmount ?? 0.0,
+        contractPaid = contractPaid ?? paidAmount ?? 0.0,
+        contractPending = contractPending ?? pendingAmount ?? 0.0,
+        totalReceived = totalReceived ?? ((contractPaid ?? paidAmount ?? 0.0) + additionalPaid);
+
+  // Backward compatibility getters
+  double get totalAmount => contractAmount;
+  double get paidAmount => contractPaid;
+  double get pendingAmount => contractPending;
 
   bool get isPaid => paymentStatus == PaymentStatus.paid;
   bool get isOverdue => paymentStatus == PaymentStatus.overdue;
@@ -385,7 +479,75 @@ class CustomerPaymentSummary {
   bool get isPending => paymentStatus == PaymentStatus.pending;
   bool get hasPendingSync => pendingSyncCount > 0;
   String get status => paymentStatus;
-  double get paidPercentage => totalAmount > 0 ? ((paidAmount / totalAmount) * 100).clamp(0.0, 100.0) : 0.0;
+  double get paidPercentage =>
+      contractAmount > 0 ? ((contractPaid / contractAmount) * 100).clamp(0.0, 100.0) : 0.0;
+
+  /// Pure deterministic balance computation formula with Contract vs Additional separation
+  static CustomerPaymentSummary calculate({
+    required double totalAmount,
+    required List<PaymentTransaction> transactions,
+    DateTime? dueDate,
+  }) {
+    double contractPaid = 0;
+    double additionalPaid = 0;
+    DateTime? lastPayment;
+    double? lastAmt;
+    int pendingSync = 0;
+
+    for (final tx in transactions) {
+      if (tx.isValid && tx.verificationStatus != PaymentVerificationStatus.rejected) {
+        if (tx.isAdditional) {
+          additionalPaid += tx.amount;
+        } else {
+          contractPaid += tx.amount;
+        }
+
+        if (lastPayment == null || tx.paymentDate.isAfter(lastPayment)) {
+          lastPayment = tx.paymentDate;
+          lastAmt = tx.amount;
+        }
+      }
+      if (tx.isPendingSync) {
+        pendingSync++;
+      }
+    }
+
+    // CRITICAL ACCOUNTING RULE:
+    // Contract Pending = max(0, Contract Amount - Contract Payments)
+    // Additional payments do NOT reduce Contract Pending!
+    final contractPending = (totalAmount - contractPaid).clamp(0.0, double.infinity);
+    final totalReceived = contractPaid + additionalPaid;
+
+    String status;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    if (totalAmount > 0 && contractPaid >= totalAmount) {
+      status = PaymentStatus.paid;
+    } else if (dueDate != null &&
+        DateTime(dueDate.year, dueDate.month, dueDate.day).isBefore(today) &&
+        contractPending > 0) {
+      status = PaymentStatus.overdue;
+    } else if (contractPaid > 0 && contractPending > 0) {
+      status = PaymentStatus.partiallyPaid;
+    } else {
+      status = PaymentStatus.pending;
+    }
+
+    return CustomerPaymentSummary(
+      contractAmount: totalAmount,
+      contractPaid: contractPaid,
+      contractPending: contractPending,
+      additionalPaid: additionalPaid,
+      totalReceived: totalReceived,
+      paymentStatus: status,
+      paymentDueDate: dueDate,
+      lastPaymentDate: lastPayment,
+      lastPaymentAmount: lastAmt,
+      totalTransactionsCount: transactions.length,
+      pendingSyncCount: pendingSync,
+    );
+  }
 }
 
 /// Installation Milestone Rule linking Installation stage to financial requirements
@@ -459,6 +621,9 @@ class PaymentDashboardSummary {
   final double totalContractAmount;
   final double totalPaidAmount;
   final double totalPendingAmount;
+  final double contractCollection;
+  final double additionalCollection;
+  final double totalReceivedAmount;
   final int todayPaymentsCount;
   final int pendingPaymentsCount;
   final int pendingSyncCount;
@@ -471,12 +636,15 @@ class PaymentDashboardSummary {
     required this.totalContractAmount,
     required this.totalPaidAmount,
     required this.totalPendingAmount,
+    this.contractCollection = 0.0,
+    this.additionalCollection = 0.0,
+    double? totalReceivedAmount,
     required this.todayPaymentsCount,
     required this.pendingPaymentsCount,
     required this.pendingSyncCount,
     required this.activeFollowupsCount,
     this.unverifiedPaymentsCount = 0,
-  });
+  }) : totalReceivedAmount = totalReceivedAmount ?? (contractCollection > 0 || additionalCollection > 0 ? (contractCollection + additionalCollection) : totalPaidAmount);
 
   factory PaymentDashboardSummary.empty() {
     return const PaymentDashboardSummary(
@@ -485,6 +653,9 @@ class PaymentDashboardSummary {
       totalContractAmount: 0.0,
       totalPaidAmount: 0.0,
       totalPendingAmount: 0.0,
+      contractCollection: 0.0,
+      additionalCollection: 0.0,
+      totalReceivedAmount: 0.0,
       todayPaymentsCount: 0,
       pendingPaymentsCount: 0,
       pendingSyncCount: 0,
@@ -530,6 +701,46 @@ class PaymentFollowupRecord {
   }
 }
 
+/// Customer Payment Summary Row for Customer-level Ledger Table
+class CustomerPaymentRow {
+  final String customerId;
+  final String customerName;
+  final String consumerNo;
+  final String village;
+  final String mobileNumber;
+  final double totalAmount; // Contract Amount
+  final double paidAmount; // Contract Paid
+  final double pendingAmount; // Contract Pending
+  final double additionalPaid; // Additional Paid
+  final double totalReceived; // Total Received = Contract Paid + Additional Paid
+  final String paymentStatus;
+  final DateTime? lastPaymentDate;
+  final double? lastPaymentAmount;
+  final String? lastPaymentMode;
+  final String? lastPaymentType;
+  final String? lastAdditionalCategory;
+
+  const CustomerPaymentRow({
+    required this.customerId,
+    required this.customerName,
+    required this.consumerNo,
+    this.village = '',
+    this.mobileNumber = '',
+    required this.totalAmount,
+    required this.paidAmount,
+    required this.pendingAmount,
+    this.additionalPaid = 0.0,
+    double? totalReceived,
+    required this.paymentStatus,
+    this.lastPaymentDate,
+    this.lastPaymentAmount,
+    this.lastPaymentMode,
+    this.lastPaymentType,
+    this.lastAdditionalCategory,
+  }) : totalReceived = totalReceived ?? (paidAmount + additionalPaid);
+}
+
 /// Backward compatibility and naming aliases
 typedef CustomerPaymentTransaction = PaymentTransaction;
 typedef CustomerPaymentCalculation = CustomerPaymentSummary;
+

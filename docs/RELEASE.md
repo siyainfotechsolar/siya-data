@@ -115,6 +115,14 @@ For internal testing and GitHub release distribution, standard release signing i
 
 ## 📌 Release History
 
+### Release v1.0.18 (Build 19) - 2026-09-19
+- **Dedicated Office Staff Task Assignment System**: Full end-to-end task workflow: `Admin → Office Staff → Customer → Task → Update`. Tasks are assignable specifically to active Office Staff (`role IN ('office_staff', 'staff', 'admin')`).
+- **Mobile App: MY TASKS (माझी कामे)**: 4 dedicated tabs with real-time badges (Today's Tasks, Pending, Overdue, Completed). Complete task cards with customer, village, due date, priority, and one-tap actions: `[Start]`, `[Hold]` (with hold reason), `[Complete]` (completion note + camera/gallery photo upload), `[Add Note]`, and `[Customer Profile]`.
+- **Admin Panel: Office Tasks Portal**: Integrated into Action Center with `+ Create Task` button, dedicated Office Tasks screen, active office staff filter, reassignments (`Pooja → Rahul`) with full audit trail, and Work Log timeline showing *"Who worked on which customer/task?"*.
+- **Offline SQLite Task Persistence**: Local SQLite tables `cached_office_tasks` and `cached_task_assignments` (DB v4) ensure pending tasks remain intact when the app is closed or restarted without internet.
+- **Contract & Additional Payments Module**: Flexible payment logging supporting Contract Payments and Additional Payments (Extra Material, Extra Work, Additional Installation, Transport, Service Charge, Other). Enforces strict accounting rule where additional payments never reduce contract pending amount.
+- **Admin Staff Creation RPC**: Built and secured `admin_create_staff_user` Supabase function, enabling admins to create new staff accounts directly from the panel without invalidating their own session.
+
 ### Release v1.0.17 (Build 18) - 2026-09-18
 - **Global Android Back Navigation & Safety Policy**: Unified `PopScope` back-button navigation across all 15+ screens and dialogs. Unsaved form changes protection (`[Stay]` / `[Discard]`), in-flight upload protection, and 2-second double-back exit safety on root Home screen.
 - **Admin Panel Production-Ready Login Screen**: Complete eradication of `Dev Preview (Skip Auth)`. Strictly enforced Supabase Auth flow, user profile status check (`is_active` / Suspended), dynamic progress indicators, and self-service Forgot Password flow.

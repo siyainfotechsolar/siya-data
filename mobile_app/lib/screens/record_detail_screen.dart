@@ -1699,9 +1699,35 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                             ),
                           ],
                         ),
-                        subtitle: Text(
-                          '${DateFormat('dd MMM yyyy').format(tx.paymentDate)} • ${tx.paymentMode} ${tx.referenceNumber != null ? "(${tx.referenceNumber})" : ""}',
-                          style: const TextStyle(fontSize: 12),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 2),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: tx.isAdditional
+                                    ? const Color(0xFF7C3AED).withValues(alpha: 0.12)
+                                    : const Color(0xFF0284C7).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                tx.isAdditional
+                                    ? 'Additional: ${AdditionalPaymentCategory.displayName(tx.additionalCategory ?? "")}'
+                                    : 'Contract Payment',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: tx.isAdditional ? const Color(0xFF7C3AED) : const Color(0xFF0284C7),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${DateFormat('dd MMM yyyy').format(tx.paymentDate)} • ${tx.paymentMode} ${tx.referenceNumber != null ? "(${tx.referenceNumber})" : ""}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ],
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,

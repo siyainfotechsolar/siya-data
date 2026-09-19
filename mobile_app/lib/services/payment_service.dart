@@ -95,7 +95,8 @@ class PaymentService {
     required double amount,
     required DateTime paymentDate,
     required String paymentMode,
-    String paymentType = PaymentType.offline,
+    String paymentType = PaymentType.contract,
+    String? additionalCategory,
     String? referenceNumber,
     String? receivedBy,
     String? remarks,
@@ -112,18 +113,32 @@ class PaymentService {
     final clientTxId = 'ptx_${now.microsecondsSinceEpoch}';
     final idempotencyKey = 'idem_${customerId}_${paymentDate.toIso8601String().split('T')[0]}_${amount.toStringAsFixed(2)}_${paymentMode.trim()}_$clientTxId';
 
-    // 1. Fetch customer to validate overpayment & update local balances
+    final isAdditional = paymentType.toUpperCase() == 'ADDITIONAL';
+
+    // 1. Fetch customer to validate balances & enforce strict accounting rules
     final customer = await AppDatabase.getConsumerRecordById(customerId);
     final contractTotal = customer?.totalAmount ?? 0.0;
     final currentPaid = customer?.paidAmount ?? 0.0;
-    final newPaid = currentPaid + amount;
-    final newPending = (contractTotal > 0) ? (contractTotal - newPaid).clamp(0.0, double.infinity) : 0.0;
 
-    String newStatus = PaymentStatus.pending;
-    if (contractTotal > 0 && newPaid >= contractTotal) {
-      newStatus = PaymentStatus.paid;
-    } else if (newPaid > 0) {
-      newStatus = PaymentStatus.partiallyPaid;
+    // CRITICAL ACCOUNTING RULE:
+    // Contract Pending = max(0, Contract Amount - Contract Payments)
+    // Additional payments do NOT reduce Contract Pending!
+    final double newPaid;
+    final double newPending;
+    String newStatus = customer?.paymentStatus ?? PaymentStatus.pending;
+
+    if (isAdditional) {
+      newPaid = currentPaid;
+      newPending = customer?.pendingAmount ??
+          ((contractTotal > 0) ? (contractTotal - currentPaid).clamp(0.0, double.infinity) : 0.0);
+    } else {
+      newPaid = currentPaid + amount;
+      newPending = (contractTotal > 0) ? (contractTotal - newPaid).clamp(0.0, double.infinity) : 0.0;
+      if (contractTotal > 0 && newPaid >= contractTotal) {
+        newStatus = PaymentStatus.paid;
+      } else if (newPaid > 0) {
+        newStatus = PaymentStatus.partiallyPaid;
+      }
     }
 
     final tx = PaymentTransaction(
@@ -134,7 +149,8 @@ class PaymentService {
       consumerNo: consumerNo,
       amount: amount,
       paymentDate: paymentDate,
-      paymentType: paymentType,
+      paymentType: isAdditional ? PaymentType.additional : PaymentType.contract,
+      additionalCategory: isAdditional ? (additionalCategory ?? AdditionalPaymentCategory.other) : null,
       paymentMode: paymentMode,
       referenceNumber: referenceNumber?.trim(),
       receivedBy: receivedBy ?? userName,
@@ -186,7 +202,8 @@ class PaymentService {
       customerName: customer?.name ?? consumerNo,
       staffName: userName,
       action: 'PAYMENT_RECORDED',
-      remarks: '₹${amount.toStringAsFixed(0)} via $paymentMode (${tx.syncStatus})${proofMismatch ? " [Mismatch Flagged]" : ""}',
+      remarks:
+          '₹${amount.toStringAsFixed(0)} via $paymentMode [${isAdditional ? "Additional: ${additionalCategory ?? "OTHER"}" : "Contract"}] (${tx.syncStatus})${proofMismatch ? " [Mismatch Flagged]" : ""}',
     );
 
     // 6. Trigger sync if online

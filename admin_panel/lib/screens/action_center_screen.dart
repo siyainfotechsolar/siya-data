@@ -19,6 +19,7 @@ import '../widgets/payment_dialog.dart';
 import '../widgets/export_excel_button.dart';
 import '../services/excel_export_service.dart';
 import '../services/export_definitions.dart';
+import '../widgets/create_office_task_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ActionCenterScreen extends StatefulWidget {
@@ -1304,6 +1305,28 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
               ),
               Row(
                 children: [
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                    icon: const Icon(Icons.add_task_rounded, size: 18),
+                    label: const Text('+ Create Task', style: TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: () async {
+                      final created = await CreateOfficeTaskDialog.show(context);
+                      if (created != null && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Task assigned to ${created.assignedToName}!'),
+                            backgroundColor: const Color(0xFF059669),
+                          ),
+                        );
+                        _loadActionCenterRecords();
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 10),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF0F766E),

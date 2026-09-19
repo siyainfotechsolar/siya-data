@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/customer_payment.dart';
 import '../models/consumer_record.dart';
 import 'supabase_service.dart';
 import 'activity_log_service.dart';
+import 'excel_export_service.dart';
 
 class AdminPaymentService {
   static SupabaseClient get _client => SupabaseService.client;
@@ -15,7 +17,7 @@ class AdminPaymentService {
       // 1. Fetch transactions for calculation
       final txRes = await _client
           .from('customer_payment_transactions')
-          .select('amount, payment_date, status, verification_status, sync_status, payment_type');
+          .select('amount, payment_date, status, verification_status, sync_status, payment_type, additional_category');
 
       final txList = txRes as List;
       final now = DateTime.now();
@@ -23,6 +25,8 @@ class AdminPaymentService {
       final currentMonth = now.month;
       final currentYear = now.year;
 
+      double contractCollection = 0;
+      double additionalCollection = 0;
       double totalCollection = 0;
       double todayCollection = 0;
       double monthCollection = 0;
@@ -36,12 +40,18 @@ class AdminPaymentService {
         final vStatus = map['verification_status']?.toString() ?? 'Pending';
         final syncStatus = map['sync_status']?.toString() ?? 'Synced';
         final dateStr = map['payment_date']?.toString() ?? '';
+        final pType = map['payment_type']?.toString() ?? PaymentType.contract;
         final amount = (map['amount'] is num)
             ? (map['amount'] as num).toDouble()
             : double.tryParse(map['amount']?.toString() ?? '0') ?? 0.0;
 
         if (status == 'Valid' && vStatus != 'Rejected' && vStatus != 'Void') {
           totalCollection += amount;
+          if (pType.toUpperCase() == 'ADDITIONAL') {
+            additionalCollection += amount;
+          } else {
+            contractCollection += amount;
+          }
 
           if (dateStr == todayStr) {
             todayCollection += amount;
@@ -94,6 +104,8 @@ class AdminPaymentService {
       }
 
       return AdminPaymentMetrics(
+        contractCollection: contractCollection,
+        additionalCollection: additionalCollection,
         totalCollection: totalCollection,
         todayCollection: todayCollection,
         monthCollection: monthCollection,
@@ -116,7 +128,8 @@ class AdminPaymentService {
     String dateFilter = 'All', // 'All', 'Today', 'This Week', 'This Month'
     DateTime? startDate,
     DateTime? endDate,
-    String paymentType = 'All', // 'All', 'Online', 'Offline'
+    String paymentType = 'All', // 'All', 'CONTRACT', 'ADDITIONAL'
+    String additionalCategory = 'All', // 'All', 'EXTRA_MATERIAL', etc.
     String paymentMode = 'All', // 'All', 'UPI', 'Cash', 'Bank Transfer', etc.
     String verificationStatus = 'All', // 'All', 'Pending', 'Verified', 'Rejected', 'Void'
     String syncStatus = 'All', // 'All', 'Synced', 'Pending', 'Local', 'Failed'
@@ -159,6 +172,11 @@ class AdminPaymentService {
       // Payment Type filter
       if (paymentType != 'All') {
         query = query.eq('payment_type', paymentType);
+      }
+
+      // Additional Category filter
+      if (additionalCategory != 'All') {
+        query = query.eq('additional_category', additionalCategory);
       }
 
       // Payment Mode filter
@@ -459,4 +477,418 @@ class AdminPaymentService {
 
     return buffer.toString();
   }
+
+  /// Recalculate customer paid_amount and pending_amount deterministically
+  /// STRICT RULE: Additional payments do NOT reduce Contract Pending.
+  static Future<void> recalculateAndUpdateCustomerBalance(String customerId) async {
+    try {
+      final cust = await _client
+          .from('consumer_records')
+          .select('total_amount, payment_due_date')
+          .eq('id', customerId)
+          .maybeSingle();
+
+      if (cust == null) return;
+
+      final totalAmount = (cust['total_amount'] is num)
+          ? (cust['total_amount'] as num).toDouble()
+          : double.tryParse(cust['total_amount']?.toString() ?? '0') ?? 0.0;
+
+      final txRes = await _client
+          .from('customer_payment_transactions')
+          .select('amount, status, verification_status, deleted, payment_type')
+          .eq('customer_id', customerId);
+
+      double contractPaid = 0.0;
+      double additionalPaid = 0.0;
+
+      for (final row in (txRes as List)) {
+        final m = row as Map<String, dynamic>;
+        final status = m['status']?.toString() ?? 'Valid';
+        final vStatus = m['verification_status']?.toString() ?? 'Pending';
+        final deleted = m['deleted'] == true;
+        if (status == 'Valid' && !deleted && vStatus != 'Rejected' && vStatus != 'Void') {
+          final amt = (m['amount'] is num)
+              ? (m['amount'] as num).toDouble()
+              : double.tryParse(m['amount']?.toString() ?? '0') ?? 0.0;
+          final pType = m['payment_type']?.toString() ?? PaymentType.contract;
+          if (pType.toUpperCase() == 'ADDITIONAL') {
+            additionalPaid += amt;
+          } else {
+            contractPaid += amt;
+          }
+        }
+      }
+
+      // CRITICAL ACCOUNTING RULE:
+      // Contract Pending = max(0, Contract Amount - Contract Payments)
+      // Additional payments do NOT reduce Contract Pending!
+      final contractPending = (totalAmount > 0) ? (totalAmount - contractPaid).clamp(0.0, double.infinity) : 0.0;
+      final totalReceived = contractPaid + additionalPaid;
+
+      String newStatus = PaymentStatus.pending;
+      if (totalAmount > 0 && contractPaid >= totalAmount) {
+        newStatus = PaymentStatus.paid;
+      } else if (contractPaid > 0) {
+        newStatus = PaymentStatus.partiallyPaid;
+      }
+
+      await _client.from('consumer_records').update({
+        'paid_amount': contractPaid,
+        'pending_amount': contractPending,
+        'additional_paid_amount': additionalPaid,
+        'total_received_amount': totalReceived,
+        'payment_status': newStatus,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', customerId);
+    } catch (e) {
+      debugPrint('Error recalculating customer balance: $e');
+    }
+  }
+
+  /// Record a payment transaction from Admin Panel
+  static Future<PaymentTransaction> recordPayment({
+    required String customerId,
+    required String consumerNo,
+    required double amount,
+    required DateTime paymentDate,
+    required String paymentMode,
+    String paymentType = PaymentType.contract,
+    String? additionalCategory,
+    String? referenceNumber,
+    String? remarks,
+  }) async {
+    try {
+      final user = SupabaseService.currentUser;
+      final userName = user?.userMetadata?['name'] as String? ?? user?.email?.split('@')[0] ?? 'Admin';
+      final dateStr = paymentDate.toIso8601String().split('T')[0];
+
+      final res = await _client.from('customer_payment_transactions').insert({
+        'customer_id': customerId,
+        'consumer_no': consumerNo,
+        'amount': amount,
+        'payment_date': dateStr,
+        'payment_type': paymentType,
+        if (additionalCategory != null) 'additional_category': additionalCategory,
+        'payment_mode': paymentMode,
+        'reference_number': referenceNumber?.trim(),
+        'remarks': remarks?.trim(),
+        'received_by': userName,
+        'status': 'Valid',
+        'sync_status': 'Synced',
+        'verification_status': 'Verified',
+        'verified_by': user?.id,
+        'verified_by_name': userName,
+        'verified_at': DateTime.now().toUtc().toIso8601String(),
+        'created_by': user?.id,
+        'created_by_name': userName,
+      }).select().single();
+
+      final tx = PaymentTransaction.fromJson(res);
+
+      // Auto-recalculate customer's Contract Paid, Contract Pending, and Additional Paid
+      await recalculateAndUpdateCustomerBalance(customerId);
+
+      // Audit Log
+      await ActivityLogService.logActivity(
+        recordId: customerId,
+        consumerNo: consumerNo,
+        customerName: 'Customer',
+        module: 'Payment Module',
+        action: 'PAYMENT_RECORDED',
+        newValue: '₹${amount.toStringAsFixed(0)} ($paymentType) via $paymentMode',
+        remarks: remarks ?? 'Payment recorded via Admin Panel',
+      );
+
+      return tx;
+    } catch (e) {
+      debugPrint('AdminPaymentService.recordPayment error: $e');
+      rethrow;
+    }
+  }
+
+  /// Simple update of payment transaction from Admin Panel
+  static Future<bool> updatePaymentSimple({
+    required String paymentId,
+    required String customerId,
+    required double amount,
+    required DateTime paymentDate,
+    required String paymentMode,
+    String paymentType = PaymentType.contract,
+    String? additionalCategory,
+    String? referenceNumber,
+    String? remarks,
+  }) async {
+    try {
+      final user = SupabaseService.currentUser;
+      final userName = user?.userMetadata?['name'] as String? ?? user?.email?.split('@')[0] ?? 'Admin';
+      final dateStr = paymentDate.toIso8601String().split('T')[0];
+
+      await _client.from('customer_payment_transactions').update({
+        'amount': amount,
+        'payment_date': dateStr,
+        'payment_type': paymentType,
+        'additional_category': additionalCategory,
+        'payment_mode': paymentMode,
+        'reference_number': referenceNumber?.trim(),
+        'remarks': remarks?.trim(),
+        'updated_by': user?.id,
+        'updated_by_name': userName,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', paymentId);
+
+      // Recalculate customer's balance
+      await recalculateAndUpdateCustomerBalance(customerId);
+
+      // Audit Log
+      await ActivityLogService.logActivity(
+        recordId: customerId,
+        consumerNo: paymentId,
+        customerName: 'Customer',
+        module: 'Payment Module',
+        action: 'PAYMENT_UPDATED',
+        newValue: '₹${amount.toStringAsFixed(0)} ($paymentType) via $paymentMode',
+        remarks: remarks ?? 'Payment updated by $userName',
+      );
+
+      return true;
+    } catch (e) {
+      debugPrint('AdminPaymentService.updatePaymentSimple error: $e');
+      return false;
+    }
+  }
+
+  /// Fetch Customer-wise Payment Summaries for the primary table
+  static Future<List<CustomerPaymentRow>> fetchCustomerPaymentSummaries({
+    String? searchQuery,
+    String statusFilter = 'All',
+  }) async {
+    try {
+      var query = _client.from('consumer_records').select('''
+        id,
+        customer_name,
+        consumer_no,
+        village,
+        mobile_number,
+        total_amount,
+        paid_amount,
+        pending_amount,
+        additional_paid_amount,
+        total_received_amount,
+        payment_status,
+        payments:customer_payment_transactions(
+          amount,
+          payment_date,
+          payment_type,
+          additional_category,
+          payment_mode,
+          status,
+          verification_status,
+          deleted
+        )
+      ''').eq('deleted', false).eq('is_merged', false);
+
+      if (statusFilter != 'All') {
+        query = query.eq('payment_status', statusFilter);
+      }
+
+      final res = await query.order('customer_name', ascending: true).limit(500);
+
+      final List<CustomerPaymentRow> rows = [];
+      for (final r in (res as List)) {
+        final m = r as Map<String, dynamic>;
+        final id = m['id']?.toString() ?? '';
+        final name = m['customer_name']?.toString() ?? 'Unnamed';
+        final cNo = m['consumer_no']?.toString() ?? '';
+        final village = m['village']?.toString() ?? '';
+        final mobile = m['mobile_number']?.toString() ?? '';
+
+        final contractTotal = (m['total_amount'] is num)
+            ? (m['total_amount'] as num).toDouble()
+            : double.tryParse(m['total_amount']?.toString() ?? '0') ?? 0.0;
+        double contractPaid = (m['paid_amount'] is num)
+            ? (m['paid_amount'] as num).toDouble()
+            : double.tryParse(m['paid_amount']?.toString() ?? '0') ?? 0.0;
+        double contractPending = (m['pending_amount'] is num)
+            ? (m['pending_amount'] as num).toDouble()
+            : double.tryParse(m['pending_amount']?.toString() ?? '0') ?? 0.0;
+        double additionalPaid = (m['additional_paid_amount'] is num)
+            ? (m['additional_paid_amount'] as num).toDouble()
+            : double.tryParse(m['additional_paid_amount']?.toString() ?? '0') ?? 0.0;
+        double totalReceived = (m['total_received_amount'] is num)
+            ? (m['total_received_amount'] as num).toDouble()
+            : double.tryParse(m['total_received_amount']?.toString() ?? '0') ?? (contractPaid + additionalPaid);
+        final status = m['payment_status']?.toString() ?? 'Pending';
+
+        DateTime? lastDate;
+        double? lastAmt;
+        String? lastMode;
+        String? lastType;
+        String? lastCat;
+
+        final txList = m['payments'] as List?;
+        if (txList != null && txList.isNotEmpty) {
+          double computedContractPaid = 0.0;
+          double computedAdditionalPaid = 0.0;
+          for (final tx in txList) {
+            final txMap = tx as Map<String, dynamic>;
+            if (txMap['status'] == 'Valid' &&
+                txMap['deleted'] != true &&
+                txMap['verification_status'] != 'Rejected' &&
+                txMap['verification_status'] != 'Void') {
+              final amt = (txMap['amount'] is num)
+                  ? (txMap['amount'] as num).toDouble()
+                  : double.tryParse(txMap['amount']?.toString() ?? '0') ?? 0.0;
+              final pType = txMap['payment_type']?.toString() ?? PaymentType.contract;
+              if (pType.toUpperCase() == 'ADDITIONAL') {
+                computedAdditionalPaid += amt;
+              } else {
+                computedContractPaid += amt;
+              }
+
+              final dateStr = txMap['payment_date']?.toString();
+              final dt = dateStr != null ? DateTime.tryParse(dateStr) : null;
+              if (dt != null && (lastDate == null || dt.isAfter(lastDate))) {
+                lastDate = dt;
+                lastAmt = amt;
+                lastMode = txMap['payment_mode']?.toString();
+                lastType = pType;
+                lastCat = txMap['additional_category']?.toString();
+              }
+            }
+          }
+          contractPaid = computedContractPaid;
+          additionalPaid = computedAdditionalPaid;
+          contractPending = (contractTotal - contractPaid).clamp(0.0, double.infinity);
+          totalReceived = contractPaid + additionalPaid;
+        }
+
+        rows.add(CustomerPaymentRow(
+          customerId: id,
+          customerName: name,
+          consumerNo: cNo,
+          village: village,
+          mobileNumber: mobile,
+          totalAmount: contractTotal,
+          paidAmount: contractPaid,
+          pendingAmount: contractPending,
+          additionalPaid: additionalPaid,
+          totalReceived: totalReceived,
+          paymentStatus: status,
+          lastPaymentDate: lastDate,
+          lastPaymentAmount: lastAmt,
+          lastPaymentMode: lastMode,
+          lastPaymentType: lastType,
+          lastAdditionalCategory: lastCat,
+        ));
+      }
+
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        final q = searchQuery.toLowerCase().trim();
+        return rows.where((row) {
+          return row.customerName.toLowerCase().contains(q) ||
+              row.consumerNo.toLowerCase().contains(q) ||
+              row.mobileNumber.toLowerCase().contains(q) ||
+              row.village.toLowerCase().contains(q);
+        }).toList();
+      }
+
+      return rows;
+    } catch (e) {
+      debugPrint('AdminPaymentService.fetchCustomerPaymentSummaries error: $e');
+      return [];
+    }
+  }
+
+  /// Fetch category-wise breakdown for additional payments
+  static Future<Map<String, double>> fetchCategoryPaymentBreakdown() async {
+    try {
+      final res = await _client
+          .from('customer_payment_transactions')
+          .select('amount, additional_category, status, verification_status')
+          .eq('payment_type', PaymentType.additional);
+
+      final Map<String, double> breakdown = {
+        AdditionalPaymentCategory.extraMaterial: 0.0,
+        AdditionalPaymentCategory.extraWork: 0.0,
+        AdditionalPaymentCategory.additionalInstallation: 0.0,
+        AdditionalPaymentCategory.transport: 0.0,
+        AdditionalPaymentCategory.serviceCharge: 0.0,
+        AdditionalPaymentCategory.other: 0.0,
+      };
+
+      for (final row in (res as List)) {
+        final m = row as Map<String, dynamic>;
+        final status = m['status']?.toString() ?? 'Valid';
+        final vStatus = m['verification_status']?.toString() ?? 'Pending';
+        if (status == 'Valid' && vStatus != 'Rejected' && vStatus != 'Void') {
+          final cat = m['additional_category']?.toString() ?? AdditionalPaymentCategory.other;
+          final amt = (m['amount'] is num)
+              ? (m['amount'] as num).toDouble()
+              : double.tryParse(m['amount']?.toString() ?? '0') ?? 0.0;
+          breakdown[cat] = (breakdown[cat] ?? 0.0) + amt;
+        }
+      }
+      return breakdown;
+    } catch (e) {
+      debugPrint('Error fetching category breakdown: $e');
+      return {};
+    }
+  }
+
+  /// Export Customer Payment summary list to Excel (.xlsx) with separated Contract and Additional sums
+  static Future<bool> exportCustomerPaymentsToExcel(List<CustomerPaymentRow> rows) async {
+    final columns = [
+      ExcelColumnDef<CustomerPaymentRow>(
+        header: 'Customer',
+        valueExtractor: (r) => r.customerName,
+      ),
+      ExcelColumnDef<CustomerPaymentRow>(
+        header: 'Consumer No',
+        valueExtractor: (r) => r.consumerNo,
+      ),
+      ExcelColumnDef<CustomerPaymentRow>(
+        header: 'Contract Amount',
+        valueExtractor: (r) => r.totalAmount,
+        isCurrency: true,
+      ),
+      ExcelColumnDef<CustomerPaymentRow>(
+        header: 'Contract Paid',
+        valueExtractor: (r) => r.paidAmount,
+        isCurrency: true,
+      ),
+      ExcelColumnDef<CustomerPaymentRow>(
+        header: 'Contract Pending',
+        valueExtractor: (r) => r.pendingAmount,
+        isCurrency: true,
+      ),
+      ExcelColumnDef<CustomerPaymentRow>(
+        header: 'Additional Paid',
+        valueExtractor: (r) => r.additionalPaid,
+        isCurrency: true,
+      ),
+      ExcelColumnDef<CustomerPaymentRow>(
+        header: 'Total Received',
+        valueExtractor: (r) => r.totalReceived,
+        isCurrency: true,
+      ),
+      ExcelColumnDef<CustomerPaymentRow>(
+        header: 'Payment Date',
+        valueExtractor: (r) => r.lastPaymentDate != null ? DateFormat('dd/MM/yyyy').format(r.lastPaymentDate!) : '—',
+      ),
+      ExcelColumnDef<CustomerPaymentRow>(
+        header: 'Payment Mode',
+        valueExtractor: (r) => r.lastPaymentMode ?? '—',
+      ),
+    ];
+
+    return await ExcelExportService.exportAndSave<CustomerPaymentRow>(
+      filePrefix: 'Siya_Payments_Ledger',
+      sheetName: 'Payments Ledger',
+      columns: columns,
+      items: rows,
+      reportTitle: 'Siya Solar Connect — Customer Payment Ledger',
+    );
+  }
 }
+

@@ -11,7 +11,9 @@ import '../services/realtime_service.dart';
 import '../widgets/hold_reason_dialog.dart';
 import '../widgets/followup_dialog.dart';
 import '../widgets/followup_done_dialog.dart';
+import '../widgets/create_office_task_bottom_sheet.dart';
 import 'record_detail_screen.dart';
+import 'my_tasks_screen.dart';
 
 class ActionCenterScreen extends StatefulWidget {
   final String? initialStageFilter;
@@ -894,15 +896,56 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Icon(Icons.bolt_rounded, color: theme.colorScheme.primary, size: 26),
-                          const SizedBox(width: 8),
-                          Text(
-                            'ACTION CENTER',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
+                          Row(
+                            children: [
+                              Icon(Icons.bolt_rounded, color: theme.colorScheme.primary, size: 26),
+                              const SizedBox(width: 8),
+                              Text(
+                                'ACTION CENTER',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.assignment_ind_rounded, color: Color(0xFF4F46E5), size: 22),
+                                tooltip: 'My Tasks (माझी कामे)',
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const MyTasksScreen()),
+                                  );
+                                },
+                              ),
+                              FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2563EB),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                icon: const Icon(Icons.add_task_rounded, size: 14),
+                                label: const Text('+ Task', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                onPressed: () async {
+                                  final task = await CreateOfficeTaskBottomSheet.show(context);
+                                  if (task != null && mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Task assigned to ${task.assignedToName}!'),
+                                        backgroundColor: const Color(0xFF059669),
+                                      ),
+                                    );
+                                    _loadActionCenterData();
+                                  }
+                                },
+                              ),
+                            ],
                           ),
                         ],
                       ),

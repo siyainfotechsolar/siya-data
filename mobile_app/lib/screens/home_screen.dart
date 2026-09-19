@@ -19,6 +19,7 @@ import 'create_task_screen.dart';
 import 'tasks_list_screen.dart';
 import 'sync_center_screen.dart';
 import 'payment_dashboard_screen.dart';
+import 'my_tasks_screen.dart';
 import '../widgets/sync_status_indicator.dart';
 import '../services/connectivity_service.dart';
 
@@ -490,6 +491,60 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
             ),
             const SizedBox(height: 16),
           ],
+
+          // OFFICE STAFF MY TASKS (माझी कामे)
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MyTasksScreen()),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Card(
+              elevation: 0,
+              color: const Color(0xFFEEF2FF), // Soft indigo
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Color(0xFFC7D2FE)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14.0),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Color(0xFF4F46E5), // Indigo
+                      child: Icon(Icons.assignment_ind_rounded, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'MY TASKS (माझी कामे)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Color(0xFF312E81),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Assigned customer calls, agreements, follow-ups & documents',
+                            style: TextStyle(fontSize: 11, color: Colors.indigo.shade900.withValues(alpha: 0.8)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Color(0xFF4F46E5)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
 
           // WHATSAPP DOCUMENT TASKS PORTAL
           InkWell(

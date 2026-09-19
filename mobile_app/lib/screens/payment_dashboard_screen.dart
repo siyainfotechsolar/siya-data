@@ -27,6 +27,8 @@ class _PaymentDashboardScreenState extends State<PaymentDashboardScreen> with Si
 
   bool _isLoading = true;
   String _selectedModeFilter = 'All';
+  String _selectedTypeFilter = 'All';
+  String _selectedCategoryFilter = 'All';
   String _selectedVerificationFilter = 'All';
 
   @override
@@ -50,6 +52,10 @@ class _PaymentDashboardScreenState extends State<PaymentDashboardScreen> with Si
       final summary = await PaymentService.fetchDashboardSummary();
       final txs = await AppDatabase.getAllPayments(
         modeFilter: _selectedModeFilter,
+        typeFilter: _selectedTypeFilter == 'All'
+            ? null
+            : (_selectedTypeFilter == 'Contract' ? 'CONTRACT' : 'ADDITIONAL'),
+        categoryFilter: _selectedCategoryFilter == 'All' ? null : _selectedCategoryFilter,
         verificationFilter: _selectedVerificationFilter,
       );
 
@@ -318,50 +324,61 @@ class _PaymentDashboardScreenState extends State<PaymentDashboardScreen> with Si
   Widget _buildSummaryCards(ThemeData theme, bool isDark) {
     return Column(
       children: [
-        // Primary Revenue Row
+        // Primary Financial Summary Row (Contract Collection, Additional Collection, Total Collection)
         Row(
           children: [
             Expanded(
               child: _statCard(
-                title: "Today's Collection",
-                value: '₹${NumberFormat('#,##,###').format(_summary.todayCollection)}',
-                subtitle: '${_summary.todayPaymentsCount} payments today',
-                color: const Color(0xFF059669),
-                icon: Icons.today_rounded,
+                title: "Contract",
+                value: '₹${NumberFormat('#,##,###').format(_summary.contractCollection > 0 ? _summary.contractCollection : _summary.totalPaidAmount)}',
+                subtitle: 'Contract Collection',
+                color: const Color(0xFF0284C7), // Blue
+                icon: Icons.receipt_long_rounded,
                 isDark: isDark,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Expanded(
               child: _statCard(
-                title: "This Month",
-                value: '₹${NumberFormat('#,##,###').format(_summary.monthCollection)}',
-                subtitle: DateFormat('MMMM yyyy').format(DateTime.now()),
-                color: const Color(0xFF0284C7),
-                icon: Icons.calendar_month_rounded,
+                title: "Additional",
+                value: '₹${NumberFormat('#,##,###').format(_summary.additionalCollection)}',
+                subtitle: 'Extra Material/Work',
+                color: const Color(0xFF7C3AED), // Purple
+                icon: Icons.add_circle_outline_rounded,
+                isDark: isDark,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _statCard(
+                title: "Total Received",
+                value: '₹${NumberFormat('#,##,###').format(_summary.totalReceivedAmount)}',
+                subtitle: 'Total Collection',
+                color: const Color(0xFF059669), // Green
+                icon: Icons.check_circle_outline_rounded,
                 isDark: isDark,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
 
-        // Financial Health Row
+        // Balance & Run-rate Row (Contract Pending, Today, Month)
         Row(
           children: [
             Expanded(
               child: _miniStatCard(
-                title: 'Total Contract',
-                value: '₹${NumberFormat('#,##,###').format(_summary.totalContractAmount)}',
-                color: Colors.grey,
+                title: "Contract Pending",
+                value: '₹${NumberFormat('#,##,###').format(_summary.totalPendingAmount)}',
+                color: const Color(0xFFDC2626),
                 isDark: isDark,
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: _miniStatCard(
-                title: 'Total Collected',
-                value: '₹${NumberFormat('#,##,###').format(_summary.totalPaidAmount)}',
+                title: "Today's Collection",
+                value: '₹${NumberFormat('#,##,###').format(_summary.todayCollection)} (${_summary.todayPaymentsCount})',
                 color: const Color(0xFF059669),
                 isDark: isDark,
               ),
@@ -369,9 +386,9 @@ class _PaymentDashboardScreenState extends State<PaymentDashboardScreen> with Si
             const SizedBox(width: 8),
             Expanded(
               child: _miniStatCard(
-                title: 'Total Pending',
-                value: '₹${NumberFormat('#,##,###').format(_summary.totalPendingAmount)}',
-                color: const Color(0xFFDC2626),
+                title: 'This Month',
+                value: '₹${NumberFormat('#,##,###').format(_summary.monthCollection)}',
+                color: const Color(0xFFD97706),
                 isDark: isDark,
               ),
             ),
@@ -506,6 +523,46 @@ class _PaymentDashboardScreenState extends State<PaymentDashboardScreen> with Si
           ),
         ),
         const SizedBox(height: 8),
+        // Type Filters (Contract vs Additional)
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _filterChip('All Types', _selectedTypeFilter == 'All' ? 'All Types' : _selectedTypeFilter, (val) {
+                setState(() {
+                  _selectedTypeFilter = 'All';
+                  _selectedCategoryFilter = 'All';
+                });
+                _loadDashboardData();
+              }),
+              _filterChip('Contract', _selectedTypeFilter, (val) {
+                setState(() {
+                  _selectedTypeFilter = val;
+                  _selectedCategoryFilter = 'All';
+                });
+                _loadDashboardData();
+              }),
+              _filterChip('Additional', _selectedTypeFilter, (val) {
+                setState(() => _selectedTypeFilter = val);
+                _loadDashboardData();
+              }),
+              if (_selectedTypeFilter == 'Additional') ...[
+                ...AdditionalPaymentCategory.allCategories.map((c) {
+                  return _filterChip(
+                    AdditionalPaymentCategory.displayName(c),
+                    _selectedCategoryFilter == c ? AdditionalPaymentCategory.displayName(c) : '',
+                    (val) {
+                      setState(() => _selectedCategoryFilter = _selectedCategoryFilter == c ? 'All' : c);
+                      _loadDashboardData();
+                    },
+                  );
+                }),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        // Mode Filters
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -613,13 +670,54 @@ class _PaymentDashboardScreenState extends State<PaymentDashboardScreen> with Si
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const SizedBox(height: 4),
+                // Payment Type & Category Badge
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: tx.isAdditional
+                            ? const Color(0xFF7C3AED).withValues(alpha: 0.12)
+                            : const Color(0xFF0284C7).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (tx.isAdditional) ...[
+                            Icon(
+                              AdditionalPaymentCategory.getCategoryIcon(tx.additionalCategory ?? ''),
+                              size: 11,
+                              color: const Color(0xFF7C3AED),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            tx.isAdditional
+                                ? 'Additional: ${AdditionalPaymentCategory.displayName(tx.additionalCategory ?? "")}'
+                                : 'Contract Payment',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: tx.isAdditional ? const Color(0xFF7C3AED) : const Color(0xFF0284C7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Text(
-                  '${tx.consumerNo} • ${tx.paymentMode} ${tx.referenceNumber != null ? "(${tx.referenceNumber})" : ""}',
-                  style: const TextStyle(fontSize: 12),
+                  '${DateFormat("dd/MM/yyyy").format(tx.paymentDate)} — ₹${NumberFormat("#,##,###").format(tx.amount)} — ${tx.paymentMode}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 ),
                 Text(
-                  DateFormat('dd MMM yyyy').format(tx.paymentDate),
+                  '${tx.consumerNo}${tx.remarks != null && tx.remarks!.isNotEmpty ? " • ${tx.remarks}" : ""}${tx.referenceNumber != null && tx.referenceNumber!.isNotEmpty ? " • Ref: ${tx.referenceNumber}" : ""}',
                   style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),

@@ -2,10 +2,75 @@ import 'package:flutter/material.dart';
 
 /// Payment Types supported
 class PaymentType {
-  static const String offline = 'Offline';
-  static const String online = 'Online';
+  static const String contract = 'CONTRACT';
+  static const String additional = 'ADDITIONAL';
 
-  static const List<String> allTypes = [offline, online];
+  // Backward compatibility aliases
+  static const String offline = 'CONTRACT';
+  static const String online = 'CONTRACT';
+
+  static const List<String> allTypes = [contract, additional];
+
+  static String displayName(String type) {
+    if (type.toUpperCase() == 'ADDITIONAL') {
+      return 'Additional Payment';
+    }
+    return 'Contract Payment';
+  }
+}
+
+/// Additional Payment Categories
+class AdditionalPaymentCategory {
+  static const String extraMaterial = 'EXTRA_MATERIAL';
+  static const String extraWork = 'EXTRA_WORK';
+  static const String additionalInstallation = 'ADDITIONAL_INSTALLATION';
+  static const String transport = 'TRANSPORT';
+  static const String serviceCharge = 'SERVICE_CHARGE';
+  static const String other = 'OTHER';
+
+  static const List<String> allCategories = [
+    extraMaterial,
+    extraWork,
+    additionalInstallation,
+    transport,
+    serviceCharge,
+    other,
+  ];
+
+  static String displayName(String cat) {
+    switch (cat.toUpperCase()) {
+      case 'EXTRA_MATERIAL':
+        return 'Extra Material';
+      case 'EXTRA_WORK':
+        return 'Extra Work';
+      case 'ADDITIONAL_INSTALLATION':
+        return 'Additional Installation';
+      case 'TRANSPORT':
+        return 'Transport';
+      case 'SERVICE_CHARGE':
+        return 'Service Charge';
+      case 'OTHER':
+      default:
+        return 'Other';
+    }
+  }
+
+  static IconData getCategoryIcon(String cat) {
+    switch (cat.toUpperCase()) {
+      case 'EXTRA_MATERIAL':
+        return Icons.inventory_2_rounded;
+      case 'EXTRA_WORK':
+        return Icons.construction_rounded;
+      case 'ADDITIONAL_INSTALLATION':
+        return Icons.solar_power_rounded;
+      case 'TRANSPORT':
+        return Icons.local_shipping_rounded;
+      case 'SERVICE_CHARGE':
+        return Icons.room_service_rounded;
+      default:
+        return Icons.more_horiz_rounded;
+    }
+  }
 }
 
 /// Payment Modes supported
@@ -105,7 +170,7 @@ class PaymentVerificationStatus {
     voided,
   ];
 
-  static Color badgeColor(String status) {
+  static Color statusColor(String status) {
     switch (status) {
       case verified:
         return const Color(0xFF059669);
@@ -143,6 +208,7 @@ class PaymentTransaction {
   final double amount;
   final DateTime paymentDate;
   final String paymentType;
+  final String? additionalCategory;
   final String paymentMode;
   final String? referenceNumber;
   final String? receivedBy;
@@ -179,7 +245,8 @@ class PaymentTransaction {
     this.mobileNumber,
     required this.amount,
     required this.paymentDate,
-    this.paymentType = PaymentType.offline,
+    this.paymentType = PaymentType.contract,
+    this.additionalCategory,
     required this.paymentMode,
     this.referenceNumber,
     this.receivedBy,
@@ -214,6 +281,13 @@ class PaymentTransaction {
   bool get isRejected => verificationStatus == PaymentVerificationStatus.rejected;
   bool get isSynced => syncStatus == 'Synced';
 
+  bool get isAdditional => paymentType.toUpperCase() == 'ADDITIONAL';
+  bool get isContract => !isAdditional;
+
+  String get typeDisplayName => PaymentType.displayName(paymentType);
+  String get categoryDisplayName =>
+      additionalCategory != null ? AdditionalPaymentCategory.displayName(additionalCategory!) : '—';
+
   factory PaymentTransaction.fromJson(Map<String, dynamic> json) {
     return PaymentTransaction(
       id: json['id']?.toString(),
@@ -230,7 +304,8 @@ class PaymentTransaction {
       paymentDate: json['payment_date'] != null
           ? DateTime.tryParse(json['payment_date'].toString()) ?? DateTime.now()
           : DateTime.now(),
-      paymentType: json['payment_type']?.toString() ?? PaymentType.offline,
+      paymentType: json['payment_type']?.toString() ?? PaymentType.contract,
+      additionalCategory: json['additional_category']?.toString(),
       paymentMode: json['payment_mode']?.toString() ?? PaymentMode.other,
       referenceNumber: json['reference_number']?.toString(),
       receivedBy: json['received_by']?.toString(),
@@ -272,6 +347,7 @@ class PaymentTransaction {
       'amount': amount,
       'payment_date': paymentDate.toIso8601String().split('T')[0],
       'payment_type': paymentType,
+      if (additionalCategory != null) 'additional_category': additionalCategory,
       'payment_mode': paymentMode,
       if (referenceNumber != null) 'reference_number': referenceNumber,
       if (receivedBy != null) 'received_by': receivedBy,
@@ -311,6 +387,7 @@ class PaymentTransaction {
     double? amount,
     DateTime? paymentDate,
     String? paymentType,
+    String? additionalCategory,
     String? paymentMode,
     String? referenceNumber,
     String? receivedBy,
@@ -348,6 +425,7 @@ class PaymentTransaction {
       amount: amount ?? this.amount,
       paymentDate: paymentDate ?? this.paymentDate,
       paymentType: paymentType ?? this.paymentType,
+      additionalCategory: additionalCategory ?? this.additionalCategory,
       paymentMode: paymentMode ?? this.paymentMode,
       referenceNumber: referenceNumber ?? this.referenceNumber,
       receivedBy: receivedBy ?? this.receivedBy,
@@ -376,27 +454,39 @@ class PaymentTransaction {
   }
 }
 
-/// Summary helper for customer balance calculations
+/// Summary helper for customer balance calculations with strict Contract vs Additional separation
 class CustomerPaymentSummary {
-  final double totalAmount;
-  final double paidAmount;
-  final double onlinePaidAmount;
-  final double offlinePaidAmount;
-  final double pendingAmount;
+  final double contractAmount;
+  final double contractPaid;
+  final double contractPending;
+  final double additionalPaid;
+  final double totalReceived;
   final String paymentStatus;
   final DateTime? paymentDueDate;
   final DateTime? lastPaymentDate;
 
   const CustomerPaymentSummary({
-    required this.totalAmount,
-    required this.paidAmount,
-    this.onlinePaidAmount = 0.0,
-    this.offlinePaidAmount = 0.0,
-    required this.pendingAmount,
+    double? contractAmount,
+    double? contractPaid,
+    double? contractPending,
+    this.additionalPaid = 0.0,
+    double? totalReceived,
     required this.paymentStatus,
     this.paymentDueDate,
     this.lastPaymentDate,
-  });
+    // Backward compatibility parameter aliases
+    double? totalAmount,
+    double? paidAmount,
+    double? pendingAmount,
+  })  : contractAmount = contractAmount ?? totalAmount ?? 0.0,
+        contractPaid = contractPaid ?? paidAmount ?? 0.0,
+        contractPending = contractPending ?? pendingAmount ?? 0.0,
+        totalReceived = totalReceived ?? ((contractPaid ?? paidAmount ?? 0.0) + additionalPaid);
+
+  // Backward compatibility getters
+  double get totalAmount => contractAmount;
+  double get paidAmount => contractPaid;
+  double get pendingAmount => contractPending;
 
   bool get isPaid => paymentStatus == PaymentStatus.paid;
   bool get isOverdue => paymentStatus == PaymentStatus.overdue;
@@ -404,55 +494,60 @@ class CustomerPaymentSummary {
   bool get isPending => paymentStatus == PaymentStatus.pending;
   String get status => paymentStatus;
 
-  /// Pure deterministic balance computation formula
+  /// Pure deterministic balance computation formula with Contract vs Additional separation
   static CustomerPaymentSummary calculate({
-    required double totalAmount,
+    required double totalAmount, // Contract total
     required List<PaymentTransaction> transactions,
     DateTime? dueDate,
   }) {
-    double validPaid = 0;
-    double onlinePaid = 0;
-    double offlinePaid = 0;
+    double contractPaid = 0;
+    double additionalPaid = 0;
     DateTime? lastPayment;
 
     for (final tx in transactions) {
-      if (tx.isValid && tx.verificationStatus != PaymentVerificationStatus.rejected && tx.verificationStatus != PaymentVerificationStatus.voided) {
-        validPaid += tx.amount;
-        if (tx.paymentType == PaymentType.online) {
-          onlinePaid += tx.amount;
+      if (tx.isValid &&
+          tx.verificationStatus != PaymentVerificationStatus.rejected &&
+          tx.verificationStatus != PaymentVerificationStatus.voided) {
+        if (tx.isAdditional) {
+          additionalPaid += tx.amount;
         } else {
-          offlinePaid += tx.amount;
+          contractPaid += tx.amount;
         }
+
         if (lastPayment == null || tx.paymentDate.isAfter(lastPayment)) {
           lastPayment = tx.paymentDate;
         }
       }
     }
 
-    final pending = (totalAmount - validPaid).clamp(0.0, double.infinity);
+    // CRITICAL ACCOUNTING RULE:
+    // Contract Pending = max(0, Contract Amount - Contract Payments)
+    // Additional payments do NOT reduce Contract Pending!
+    final contractPending = (totalAmount - contractPaid).clamp(0.0, double.infinity);
+    final totalReceived = contractPaid + additionalPaid;
 
     String status;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
-    if (totalAmount > 0 && validPaid >= totalAmount) {
+    if (totalAmount > 0 && contractPaid >= totalAmount) {
       status = PaymentStatus.paid;
     } else if (dueDate != null &&
         DateTime(dueDate.year, dueDate.month, dueDate.day).isBefore(today) &&
-        pending > 0) {
+        contractPending > 0) {
       status = PaymentStatus.overdue;
-    } else if (validPaid > 0 && pending > 0) {
+    } else if (contractPaid > 0 && contractPending > 0) {
       status = PaymentStatus.partiallyPaid;
     } else {
       status = PaymentStatus.pending;
     }
 
     return CustomerPaymentSummary(
-      totalAmount: totalAmount,
-      paidAmount: validPaid,
-      onlinePaidAmount: onlinePaid,
-      offlinePaidAmount: offlinePaid,
-      pendingAmount: pending,
+      contractAmount: totalAmount,
+      contractPaid: contractPaid,
+      contractPending: contractPending,
+      additionalPaid: additionalPaid,
+      totalReceived: totalReceived,
       paymentStatus: status,
       paymentDueDate: dueDate,
       lastPaymentDate: lastPayment,
@@ -462,6 +557,8 @@ class CustomerPaymentSummary {
 
 /// Admin Payment Dashboard Summary Metrics
 class AdminPaymentMetrics {
+  final double contractCollection;
+  final double additionalCollection;
   final double totalCollection;
   final double todayCollection;
   final double monthCollection;
@@ -473,6 +570,8 @@ class AdminPaymentMetrics {
   final int totalTransactionsCount;
 
   const AdminPaymentMetrics({
+    this.contractCollection = 0.0,
+    this.additionalCollection = 0.0,
     this.totalCollection = 0.0,
     this.todayCollection = 0.0,
     this.monthCollection = 0.0,
@@ -485,6 +584,45 @@ class AdminPaymentMetrics {
   });
 
   static AdminPaymentMetrics empty() => const AdminPaymentMetrics();
+}
+
+/// Customer Payment Summary Row for Customer-level Ledger Table
+class CustomerPaymentRow {
+  final String customerId;
+  final String customerName;
+  final String consumerNo;
+  final String village;
+  final String mobileNumber;
+  final double totalAmount; // Contract Amount
+  final double paidAmount; // Contract Paid
+  final double pendingAmount; // Contract Pending
+  final double additionalPaid; // Additional Paid
+  final double totalReceived; // Total Received = Contract Paid + Additional Paid
+  final String paymentStatus;
+  final DateTime? lastPaymentDate;
+  final double? lastPaymentAmount;
+  final String? lastPaymentMode;
+  final String? lastPaymentType;
+  final String? lastAdditionalCategory;
+
+  const CustomerPaymentRow({
+    required this.customerId,
+    required this.customerName,
+    required this.consumerNo,
+    this.village = '',
+    this.mobileNumber = '',
+    required this.totalAmount,
+    required this.paidAmount,
+    required this.pendingAmount,
+    this.additionalPaid = 0.0,
+    double? totalReceived,
+    required this.paymentStatus,
+    this.lastPaymentDate,
+    this.lastPaymentAmount,
+    this.lastPaymentMode,
+    this.lastPaymentType,
+    this.lastAdditionalCategory,
+  }) : totalReceived = totalReceived ?? (paidAmount + additionalPaid);
 }
 
 /// Backward compatibility and naming aliases

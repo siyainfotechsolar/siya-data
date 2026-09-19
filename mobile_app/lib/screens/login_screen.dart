@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/supabase_service.dart';
 import 'home_screen.dart';
 
@@ -14,9 +16,51 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
+  static const String _prefKeyRememberPassword = 'siya_mobile_remember_password';
+  static const String _prefKeySavedEmail = 'siya_mobile_saved_email';
+  static const String _prefKeySavedPassword = 'siya_mobile_saved_password';
+
+  bool _rememberPassword = true;
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final remember = prefs.getBool(_prefKeyRememberPassword) ?? true;
+      if (remember) {
+        final savedEmail = prefs.getString(_prefKeySavedEmail) ?? '';
+        final savedPassword = prefs.getString(_prefKeySavedPassword) ?? '';
+        if (mounted) {
+          setState(() {
+            _rememberPassword = true;
+            if (savedEmail.isNotEmpty && _emailController.text.isEmpty) {
+              _emailController.text = savedEmail;
+            }
+            if (savedPassword.isNotEmpty && _passwordController.text.isEmpty) {
+              _passwordController.text = savedPassword;
+            }
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _rememberPassword = false;
+          });
+        }
+      }
+    } catch (_) {
+      // Non-fatal if storage read fails
+    }
+  }
 
   @override
   void dispose() {
@@ -34,10 +78,31 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     });
 
     try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+
       await SupabaseService.signInWithEmailPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
+        email: email,
+        password: password,
       );
+
+      // Persist or clear credentials
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        if (_rememberPassword) {
+          await prefs.setBool(_prefKeyRememberPassword, true);
+          await prefs.setString(_prefKeySavedEmail, email);
+          await prefs.setString(_prefKeySavedPassword, password);
+        } else {
+          await prefs.setBool(_prefKeyRememberPassword, false);
+          await prefs.remove(_prefKeySavedEmail);
+          await prefs.remove(_prefKeySavedPassword);
+        }
+      } catch (_) {
+        // Non-fatal
+      }
+
+      TextInput.finishAutofillContext();
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -213,53 +278,115 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Staff Email',
-                      prefixIcon: Icon(Icons.person_outline),
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (val) =>
-                        (val == null || !val.contains('@')) ? 'Valid email required' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                  AutofillGroup(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          autofillHints: const [AutofillHints.email, AutofillHints.username],
+                          decoration: const InputDecoration(
+                            labelText: 'Staff Email',
+                            prefixIcon: Icon(Icons.person_outline),
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (val) =>
+                              (val == null || !val.contains('@')) ? 'Valid email required' : null,
                         ),
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                      ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          autofillHints: const [AutofillHints.password],
+                          onFieldSubmitted: (_) => _isLoading ? null : _handleLogin(),
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                              ),
+                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            ),
+                          ),
+                          validator: (val) =>
+                              (val == null || val.length < 6) ? 'Min 6 characters' : null,
+                        ),
+                      ],
                     ),
-                    validator: (val) =>
-                        (val == null || val.length < 6) ? 'Min 6 characters' : null,
                   ),
-                  const SizedBox(height: 6),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: _isLoading ? null : _handleForgotPassword,
-                      style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      ),
-                      child: Text(
-                        'Forgot Password?',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: theme.colorScheme.primary,
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: _isLoading
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _rememberPassword = !_rememberPassword;
+                                  });
+                                },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: Checkbox(
+                                    value: _rememberPassword,
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    onChanged: _isLoading
+                                        ? null
+                                        : (val) {
+                                            setState(() {
+                                              _rememberPassword = val ?? false;
+                                            });
+                                          },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    'Remember Password',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: theme.colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      TextButton(
+                        onPressed: _isLoading ? null : _handleForgotPassword,
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        ),
+                        child: Text(
+                          'Forgot Password?',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 14),
                   FilledButton(

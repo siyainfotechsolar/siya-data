@@ -14,6 +14,7 @@ class WhatsAppTasksScreen extends StatefulWidget {
 
 class _WhatsAppTasksScreenState extends State<WhatsAppTasksScreen> {
   List<CustomerTask> _tasks = [];
+  List<Map<String, String>> _staffMembers = [];
   bool _isLoading = true;
   String _statusFilter = 'ALL';
   String _sourceFilter = 'WhatsApp Share';
@@ -24,6 +25,40 @@ class _WhatsAppTasksScreenState extends State<WhatsAppTasksScreen> {
   void initState() {
     super.initState();
     _fetchTasks();
+    _fetchStaffMembers();
+  }
+
+  Future<void> _fetchStaffMembers() async {
+    try {
+      final res = await SupabaseService.client
+          .from('profiles')
+          .select('id, full_name, email, role, status')
+          .eq('status', 'Active')
+          .order('full_name', ascending: true);
+
+      final List<Map<String, String>> list = [];
+      for (final item in res) {
+        final fullName = (item['full_name'] as String?)?.trim();
+        final email = (item['email'] as String?)?.trim() ?? '';
+        final role = (item['role'] as String?)?.trim() ?? 'staff';
+        final displayName = (fullName != null && fullName.isNotEmpty)
+            ? fullName
+            : (email.isNotEmpty ? email.split('@').first : 'Staff');
+
+        list.add({
+          'id': item['id']?.toString() ?? '',
+          'name': displayName,
+          'email': email,
+          'role': role,
+        });
+      }
+
+      if (mounted) {
+        setState(() => _staffMembers = list);
+      }
+    } catch (e) {
+      debugPrint('Error fetching staff members in WhatsAppTasksScreen: $e');
+    }
   }
 
   @override
@@ -298,17 +333,116 @@ class _WhatsAppTasksScreenState extends State<WhatsAppTasksScreen> {
                   const SizedBox(height: 12),
                 ],
 
-                // 5. Assigned Staff & Remarks
-                Row(
-                  children: [
-                    Text('Assigned To: ${task.assignedStaff ?? "Unassigned"}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                    const Spacer(),
-                    if (task.dueDate != null)
-                      Text('Due Date: ${DateFormat('dd-MM-yyyy').format(task.dueDate!)}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
+                // 5. Assigned Staff & Remarks Banner
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.assignment_ind_rounded, color: Color(0xFF2563EB), size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'ASSIGNED STAFF / जबाबदार कर्मचारी',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1E40AF),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              task.assignedStaff ?? "Unassigned",
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                            ),
+                            if (task.dueDate != null)
+                              Text(
+                                'Due Date: ${DateFormat('dd-MM-yyyy').format(task.dueDate!)}',
+                                style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                              ),
+                          ],
+                        ),
+                      ),
+                      PopupMenuButton<String>(
+                        tooltip: 'Reassign Staff',
+                        onSelected: (newStaff) async {
+                          Navigator.of(ctx).pop();
+                          try {
+                            await SupabaseService.client
+                                .from('customer_tasks')
+                                .update({'assigned_staff': newStaff})
+                                .eq('id', task.id);
+                            _fetchTasks();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Task reassigned to $newStaff'),
+                                  backgroundColor: const Color(0xFF059669),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            debugPrint('Staff reassign error: $e');
+                          }
+                        },
+                        itemBuilder: (_) => _staffMembers.map((s) {
+                          return PopupMenuItem(
+                            value: s['name'],
+                            child: Row(
+                              children: [
+                                const Icon(Icons.person_outline, size: 16, color: Color(0xFF059669)),
+                                const SizedBox(width: 8),
+                                Text(s['name'] ?? 'Staff', style: const TextStyle(fontWeight: FontWeight.w600)),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: Colors.grey.shade300),
+                                  ),
+                                  child: Text(
+                                    (s['role'] ?? 'staff').replaceAll('_', ' '),
+                                    style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF3B82F6)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Reassign',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2563EB)),
+                              ),
+                              SizedBox(width: 4),
+                              Icon(Icons.arrow_drop_down, size: 16, color: Color(0xFF2563EB)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 if (task.remarks != null && task.remarks!.isNotEmpty) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 10),
                   Text('Remarks: ${task.remarks}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
                 ],
               ],
