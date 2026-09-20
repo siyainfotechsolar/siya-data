@@ -112,15 +112,15 @@ class WorkCompletionCertificateService {
                       children: [
                         if (logoImage != null)
                           pw.Container(
-                            width: 58,
-                            height: 58,
+                            width: 62,
+                            height: 62,
                             margin: const pw.EdgeInsets.only(right: 14),
                             child: pw.Image(logoImage, fit: pw.BoxFit.contain),
                           )
                         else
                           pw.Container(
-                            width: 54,
-                            height: 54,
+                            width: 58,
+                            height: 58,
                             margin: const pw.EdgeInsets.only(right: 14),
                             decoration: pw.BoxDecoration(
                               color: navyColor,
@@ -132,7 +132,7 @@ class WorkCompletionCertificateService {
                                 style: pw.TextStyle(
                                   color: PdfColors.white,
                                   fontWeight: pw.FontWeight.bold,
-                                  fontSize: 14,
+                                  fontSize: 15,
                                 ),
                               ),
                             ),
@@ -145,26 +145,26 @@ class WorkCompletionCertificateService {
                                 'SIYA INFOTECH & SOLAR ENERGY',
                                 style: pw.TextStyle(
                                   color: navyColor,
-                                  fontSize: 14.5,
+                                  fontSize: 15.5,
                                   fontWeight: pw.FontWeight.bold,
                                   letterSpacing: 0.5,
                                 ),
                               ),
-                              pw.SizedBox(height: 2),
+                              pw.SizedBox(height: 3),
                               pw.Text(
                                 'Solar Solutions & Digital Services',
                                 style: pw.TextStyle(
                                   color: emeraldColor,
-                                  fontSize: 9.0,
+                                  fontSize: 9.5,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
-                              pw.SizedBox(height: 1),
+                              pw.SizedBox(height: 2),
                               pw.Text(
                                 'Govt. Approved MNRE Channel Partner | Rooftop Solar Systems',
                                 style: const pw.TextStyle(
                                   color: slateMutedColor,
-                                  fontSize: 7.2,
+                                  fontSize: 7.8,
                                 ),
                               ),
                             ],
@@ -177,40 +177,40 @@ class WorkCompletionCertificateService {
                               'GSTIN: 27CVTPK6358P1ZD',
                               style: pw.TextStyle(
                                 color: navyColor,
-                                fontSize: 7.8,
+                                fontSize: 8.5,
                                 fontWeight: pw.FontWeight.bold,
                               ),
                             ),
-                            pw.SizedBox(height: 1),
+                            pw.SizedBox(height: 2),
                             pw.Text(
                               'Phone: 7588003220',
                               style: pw.TextStyle(
                                 color: navyColor,
-                                fontSize: 7.8,
+                                fontSize: 8.5,
                                 fontWeight: pw.FontWeight.bold,
                               ),
                             ),
-                            pw.SizedBox(height: 1),
+                            pw.SizedBox(height: 2),
                             pw.Text(
                               'Email: siyainfodigital@gmail.com',
                               style: const pw.TextStyle(
                                 color: slateBodyColor,
-                                fontSize: 7.2,
+                                fontSize: 7.8,
                               ),
                             ),
-                            pw.SizedBox(height: 1),
+                            pw.SizedBox(height: 2),
                             pw.Text(
                               '21, Mudavad Road, Betawad,',
                               style: const pw.TextStyle(
                                 color: slateMutedColor,
-                                fontSize: 6.8,
+                                fontSize: 7.2,
                               ),
                             ),
                             pw.Text(
                               'Tal. Shindkheda, Dist. Dhule - 425403',
                               style: const pw.TextStyle(
                                 color: slateMutedColor,
-                                fontSize: 6.8,
+                                fontSize: 7.2,
                               ),
                             ),
                           ],
@@ -218,30 +218,30 @@ class WorkCompletionCertificateService {
                       ],
                     ),
 
-                    pw.SizedBox(height: 10),
+                    pw.SizedBox(height: 14),
 
                     // Decorative Dual-Tone Separator
                     pw.Row(
                       children: [
                         pw.Expanded(
                           flex: 7,
-                          child: pw.Container(height: 2, color: navyColor),
+                          child: pw.Container(height: 2.2, color: navyColor),
                         ),
                         pw.Expanded(
                           flex: 3,
-                          child: pw.Container(height: 2, color: lightGreenColor),
+                          child: pw.Container(height: 2.2, color: lightGreenColor),
                         ),
                       ],
                     ),
 
-                    pw.SizedBox(height: 12),
+                    pw.SizedBox(height: 16),
 
                     // ==================================================
                     // 2. CERTIFICATE TITLE BOX
                     // ==================================================
                     pw.Container(
                       width: double.infinity,
-                      padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                      padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 14),
                       decoration: pw.BoxDecoration(
                         color: navyColor,
                         borderRadius: pw.BorderRadius.circular(4),
@@ -257,17 +257,17 @@ class WorkCompletionCertificateService {
                                 'WORK COMPLETION CERTIFICATE',
                                 style: pw.TextStyle(
                                   color: PdfColors.white,
-                                  fontSize: 12.5,
+                                  fontSize: 13.5,
                                   fontWeight: pw.FontWeight.bold,
                                   letterSpacing: 1.0,
                                 ),
                               ),
-                              pw.SizedBox(height: 1),
+                              pw.SizedBox(height: 2),
                               pw.Text(
                                 'For Bank / Financial Institution Submission',
                                 style: pw.TextStyle(
                                   color: lightGreenColor,
-                                  fontSize: 7.5,
+                                  fontSize: 8.2,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
@@ -280,15 +280,15 @@ class WorkCompletionCertificateService {
                                 'Ref: SIYA-WCR-${consumerNo.isNotEmpty ? consumerNo : "GEN"}',
                                 style: const pw.TextStyle(
                                   color: PdfColors.white,
-                                  fontSize: 7.5,
+                                  fontSize: 8.2,
                                 ),
                               ),
-                              pw.SizedBox(height: 1),
+                              pw.SizedBox(height: 2),
                               pw.Text(
                                 'Date: $issueDateStr',
                                 style: const pw.TextStyle(
                                   color: PdfColors.white,
-                                  fontSize: 7.5,
+                                  fontSize: 8.2,
                                 ),
                               ),
                             ],
@@ -297,7 +297,7 @@ class WorkCompletionCertificateService {
                       ),
                     ),
 
-                    pw.SizedBox(height: 12),
+                    pw.SizedBox(height: 16),
 
                     // ==================================================
                     // 3. STRICT 5-FIELD CUSTOMER SPECIFICATIONS TABLE
@@ -311,7 +311,7 @@ class WorkCompletionCertificateService {
                         children: [
                           // Table Header
                           pw.Container(
-                            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                             decoration: const pw.BoxDecoration(
                               color: navyColor,
                               borderRadius: pw.BorderRadius.only(
@@ -325,7 +325,7 @@ class WorkCompletionCertificateService {
                                   'PROJECT & BENEFICIARY DETAILS',
                                   style: pw.TextStyle(
                                     color: PdfColors.white,
-                                    fontSize: 8.5,
+                                    fontSize: 9.0,
                                     fontWeight: pw.FontWeight.bold,
                                     letterSpacing: 0.5,
                                   ),
@@ -352,13 +352,13 @@ class WorkCompletionCertificateService {
                       ),
                     ),
 
-                    pw.SizedBox(height: 12),
+                    pw.SizedBox(height: 16),
 
                     // ==================================================
                     // 4. OFFICIAL COMPLETION DECLARATION
                     // ==================================================
                     pw.Container(
-                      padding: const pw.EdgeInsets.all(10),
+                      padding: const pw.EdgeInsets.all(12),
                       decoration: pw.BoxDecoration(
                         color: zebraBgColor,
                         border: pw.Border.all(color: tableBorderColor, width: 0.8),
@@ -370,52 +370,52 @@ class WorkCompletionCertificateService {
                           pw.Row(
                             children: [
                               pw.Container(
-                                width: 5,
-                                height: 5,
+                                width: 6,
+                                height: 6,
                                 decoration: const pw.BoxDecoration(
                                   color: emeraldColor,
                                   shape: pw.BoxShape.circle,
                                 ),
                               ),
-                              pw.SizedBox(width: 5),
+                              pw.SizedBox(width: 6),
                               pw.Text(
                                 'OFFICIAL WORK COMPLETION DECLARATION',
                                 style: pw.TextStyle(
                                   color: navyColor,
-                                  fontSize: 8.5,
+                                  fontSize: 9.0,
                                   fontWeight: pw.FontWeight.bold,
                                   letterSpacing: 0.4,
                                 ),
                               ),
                             ],
                           ),
-                          pw.SizedBox(height: 5),
+                          pw.SizedBox(height: 6),
                           pw.Text(
                             'This is to certify that the Rooftop Solar Photovoltaic (PV) System for the aforementioned customer has been successfully installed, commissioned, and tested in full accordance with the approved scheme, technical specifications, and safety guidelines prescribed by the Ministry of New and Renewable Energy (MNRE) and the State Power Distribution Utility (DISCOM).',
                             style: const pw.TextStyle(
                               color: slateBodyColor,
-                              fontSize: 7.8,
-                              lineSpacing: 1.3,
+                              fontSize: 8.5,
+                              lineSpacing: 1.4,
                             ),
                           ),
-                          pw.SizedBox(height: 4),
+                          pw.SizedBox(height: 6),
                           pw.Text(
                             'The solar PV modules, inverter, structure, earthing, AC/DC protection units, and interconnecting cables have been physically verified, tested, and found completely operational, energised, and ready for regular grid-tied electricity generation and net-metering synchronisation.',
                             style: const pw.TextStyle(
                               color: slateBodyColor,
-                              fontSize: 7.8,
-                              lineSpacing: 1.3,
+                              fontSize: 8.5,
+                              lineSpacing: 1.4,
                             ),
                           ),
                         ],
                       ),
                     ),
 
-                    pw.SizedBox(height: 10),
+                    pw.SizedBox(height: 14),
 
                     // Key Technical Compliance Metrics (Compact Grid)
                     pw.Container(
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: pw.BoxDecoration(
                         border: pw.Border.all(color: tableBorderColor, width: 0.8),
                         borderRadius: pw.BorderRadius.circular(4),
@@ -424,17 +424,17 @@ class WorkCompletionCertificateService {
                         mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                         children: [
                           _buildComplianceChip('Grid Compliance', 'Verified & Safe'),
-                          pw.Container(width: 1, height: 22, color: tableBorderColor),
+                          pw.Container(width: 1, height: 24, color: tableBorderColor),
                           _buildComplianceChip('Inverter Testing', 'Passed 100%'),
-                          pw.Container(width: 1, height: 22, color: tableBorderColor),
+                          pw.Container(width: 1, height: 24, color: tableBorderColor),
                           _buildComplianceChip('Earthing & Lightning', 'Properly Grounded'),
-                          pw.Container(width: 1, height: 22, color: tableBorderColor),
+                          pw.Container(width: 1, height: 24, color: tableBorderColor),
                           _buildComplianceChip('Physical Installation', 'Fully Completed'),
                         ],
                       ),
                     ),
 
-                    pw.SizedBox(height: 16),
+                    pw.Spacer(),
 
                     // ==================================================
                     // 5. SIGNATURE & STAMP BLOCK (RIGHT ALIGNED)
@@ -443,7 +443,7 @@ class WorkCompletionCertificateService {
                       mainAxisAlignment: pw.MainAxisAlignment.end,
                       children: [
                         pw.Container(
-                          width: 220,
+                          width: 230,
                           child: pw.Column(
                             crossAxisAlignment: pw.CrossAxisAlignment.center,
                             children: [
@@ -451,16 +451,16 @@ class WorkCompletionCertificateService {
                                 'For SIYA INFOTECH & SOLAR ENERGY',
                                 style: pw.TextStyle(
                                   color: navyColor,
-                                  fontSize: 9.0,
+                                  fontSize: 9.5,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
-                              pw.SizedBox(height: 6),
+                              pw.SizedBox(height: 8),
 
                               // Seal / Stamp designated box
                               pw.Container(
-                                width: 140,
-                                height: 54,
+                                width: 150,
+                                height: 62,
                                 decoration: pw.BoxDecoration(
                                   color: zebraBgColor,
                                   border: pw.Border.all(color: tableBorderColor, width: 0.8, style: pw.BorderStyle.dashed),
@@ -471,21 +471,21 @@ class WorkCompletionCertificateService {
                                     '[ OFFICIAL STAMP / SEAL ]',
                                     style: pw.TextStyle(
                                       color: slateMutedColor,
-                                      fontSize: 7.5,
+                                      fontSize: 8.0,
                                       fontWeight: pw.FontWeight.bold,
                                     ),
                                   ),
                                 ),
                               ),
 
-                              pw.SizedBox(height: 6),
-                              pw.Container(width: 140, height: 1, color: navyColor),
-                              pw.SizedBox(height: 3),
+                              pw.SizedBox(height: 8),
+                              pw.Container(width: 150, height: 1, color: navyColor),
+                              pw.SizedBox(height: 4),
                               pw.Text(
                                 'Authorized Signatory',
                                 style: pw.TextStyle(
                                   color: darkTextColor,
-                                  fontSize: 8.5,
+                                  fontSize: 9.0,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
@@ -493,7 +493,7 @@ class WorkCompletionCertificateService {
                                 'Project Manager / Managing Director',
                                 style: const pw.TextStyle(
                                   color: slateMutedColor,
-                                  fontSize: 7.0,
+                                  fontSize: 7.5,
                                 ),
                               ),
                             ],
@@ -502,23 +502,23 @@ class WorkCompletionCertificateService {
                       ],
                     ),
 
-                    pw.SizedBox(height: 10),
+                    pw.SizedBox(height: 14),
 
                     // ==================================================
                     // 6. FOOTER
                     // ==================================================
                     pw.Container(height: 1, color: tableBorderColor),
-                    pw.SizedBox(height: 4),
+                    pw.SizedBox(height: 5),
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
                         pw.Text(
                           'GSTIN: 27CVTPK6358P1ZD | Helpline: 7588003220 | Email: siyainfodigital@gmail.com',
-                          style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.6),
+                          style: const pw.TextStyle(color: slateMutedColor, fontSize: 7.0),
                         ),
                         pw.Text(
                           'Official Bank & DISCOM Submission Document',
-                          style: pw.TextStyle(color: navyColor, fontSize: 6.6, fontWeight: pw.FontWeight.bold),
+                          style: pw.TextStyle(color: navyColor, fontSize: 7.0, fontWeight: pw.FontWeight.bold),
                         ),
                       ],
                     ),
@@ -542,7 +542,7 @@ class WorkCompletionCertificateService {
     bool isLast = false,
   }) {
     return pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 7.0),
       decoration: pw.BoxDecoration(
         color: isZebra ? zebraBgColor : PdfColors.white,
         border: isLast
@@ -555,23 +555,23 @@ class WorkCompletionCertificateService {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.SizedBox(
-            width: 140,
+            width: 150,
             child: pw.Text(
               label,
               style: pw.TextStyle(
                 color: navyColor,
-                fontSize: 8.2,
+                fontSize: 8.8,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
           ),
-          pw.Text(':  ', style: pw.TextStyle(color: slateMutedColor, fontSize: 8.2, fontWeight: pw.FontWeight.bold)),
+          pw.Text(':  ', style: pw.TextStyle(color: slateMutedColor, fontSize: 8.8, fontWeight: pw.FontWeight.bold)),
           pw.Expanded(
             child: pw.Text(
               value.isNotEmpty ? value : '—',
               style: pw.TextStyle(
                 color: isBoldValue ? darkTextColor : slateBodyColor,
-                fontSize: 8.2,
+                fontSize: 8.8,
                 fontWeight: isBoldValue ? pw.FontWeight.bold : pw.FontWeight.normal,
               ),
             ),
@@ -587,14 +587,14 @@ class WorkCompletionCertificateService {
       children: [
         pw.Text(
           label,
-          style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.8),
+          style: const pw.TextStyle(color: slateMutedColor, fontSize: 7.5),
         ),
-        pw.SizedBox(height: 1),
+        pw.SizedBox(height: 2),
         pw.Text(
           status,
           style: pw.TextStyle(
             color: emeraldColor,
-            fontSize: 7.2,
+            fontSize: 8.2,
             fontWeight: pw.FontWeight.bold,
           ),
         ),

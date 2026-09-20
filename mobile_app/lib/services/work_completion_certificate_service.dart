@@ -31,201 +31,72 @@ class WorkCompletionCertificateService {
     const double pageHeight = 841.89;
 
     // Fonts
-    final PdfFont titleFont = PdfStandardFont(PdfFontFamily.helvetica, 18, style: PdfFontStyle.bold);
-    final PdfFont certificateTitleFont = PdfStandardFont(PdfFontFamily.helvetica, 15, style: PdfFontStyle.bold);
-    final PdfFont sectionHeaderFont = PdfStandardFont(PdfFontFamily.helvetica, 11, style: PdfFontStyle.bold);
-    final PdfFont bodyFont = PdfStandardFont(PdfFontFamily.helvetica, 9.5);
-    final PdfFont bodyBoldFont = PdfStandardFont(PdfFontFamily.helvetica, 9.5, style: PdfFontStyle.bold);
-    final PdfFont smallFont = PdfStandardFont(PdfFontFamily.helvetica, 8.5);
-    final PdfFont smallBoldFont = PdfStandardFont(PdfFontFamily.helvetica, 8.5, style: PdfFontStyle.bold);
-    final PdfFont footerBrandFont = PdfStandardFont(PdfFontFamily.helvetica, 10, style: PdfFontStyle.bold);
+    final PdfFont companyTitleFont = PdfStandardFont(PdfFontFamily.helvetica, 14.5, style: PdfFontStyle.bold);
+    final PdfFont certTitleFont = PdfStandardFont(PdfFontFamily.helvetica, 12.5, style: PdfFontStyle.bold);
+    final PdfFont certSubTitleFont = PdfStandardFont(PdfFontFamily.helvetica, 7.5, style: PdfFontStyle.bold);
+    final PdfFont tableHeaderFont = PdfStandardFont(PdfFontFamily.helvetica, 8.5, style: PdfFontStyle.bold);
+    final PdfFont labelFont = PdfStandardFont(PdfFontFamily.helvetica, 8.2, style: PdfFontStyle.bold);
+    final PdfFont valueBoldFont = PdfStandardFont(PdfFontFamily.helvetica, 8.2, style: PdfFontStyle.bold);
+    final PdfFont valueFont = PdfStandardFont(PdfFontFamily.helvetica, 8.2);
+    final PdfFont declHeaderFont = PdfStandardFont(PdfFontFamily.helvetica, 8.5, style: PdfFontStyle.bold);
+    final PdfFont bodyFont = PdfStandardFont(PdfFontFamily.helvetica, 7.8);
+    final PdfFont chipLabelFont = PdfStandardFont(PdfFontFamily.helvetica, 6.8);
+    final PdfFont chipStatusFont = PdfStandardFont(PdfFontFamily.helvetica, 7.2, style: PdfFontStyle.bold);
+    final PdfFont signHeaderFont = PdfStandardFont(PdfFontFamily.helvetica, 9.0, style: PdfFontStyle.bold);
+    final PdfFont signTitleFont = PdfStandardFont(PdfFontFamily.helvetica, 8.5, style: PdfFontStyle.bold);
+    final PdfFont signSubFont = PdfStandardFont(PdfFontFamily.helvetica, 7.0);
+    final PdfFont stampFont = PdfStandardFont(PdfFontFamily.helvetica, 7.5, style: PdfFontStyle.bold);
+    final PdfFont footerFont = PdfStandardFont(PdfFontFamily.helvetica, 6.6);
+    final PdfFont footerBoldFont = PdfStandardFont(PdfFontFamily.helvetica, 6.6, style: PdfFontStyle.bold);
+    final PdfFont headerRightBoldFont = PdfStandardFont(PdfFontFamily.helvetica, 7.8, style: PdfFontStyle.bold);
+    final PdfFont headerRightFont = PdfStandardFont(PdfFontFamily.helvetica, 7.2);
+    final PdfFont headerRightMutedFont = PdfStandardFont(PdfFontFamily.helvetica, 6.8);
 
-    // Color Palette (Deep Navy Blue #0D2B6F + Growth Green #2BB673)
-    final PdfColor deepNavy = PdfColor(13, 43, 111); // #0D2B6F
-    final PdfColor emeraldGreen = PdfColor(43, 182, 115); // #2BB673
-    final PdfColor lightGreenAccent = PdfColor(16, 185, 129); // #10B981
-    final PdfColor slateDark = PdfColor(15, 23, 42); // #0F172A
-    final PdfColor slateBody = PdfColor(51, 65, 85); // #334155
-    final PdfColor slateMuted = PdfColor(100, 116, 139); // #64748B
-    final PdfColor slateLight = PdfColor(241, 245, 249); // #F1F5F9
-    final PdfColor cardBg = PdfColor(248, 250, 252); // #F8FAFC
-    final PdfColor borderLight = PdfColor(203, 213, 225); // #CBD5E1
+    // Color Palette matching design
+    final PdfColor navyColor = PdfColor(13, 43, 111); // #0D2B6F
+    final PdfColor emeraldColor = PdfColor(43, 182, 115); // #2BB673
+    final PdfColor lightGreenColor = PdfColor(16, 185, 129); // #10B981
+    final PdfColor darkTextColor = PdfColor(15, 23, 42); // #0F172A
+    final PdfColor slateBodyColor = PdfColor(51, 65, 85); // #334155
+    final PdfColor slateMutedColor = PdfColor(100, 116, 139); // #64748B
+    final PdfColor tableBorderColor = PdfColor(203, 213, 225); // #CBD5E1
+    final PdfColor zebraBgColor = PdfColor(248, 250, 252); // #F8FAFC
+    final PdfColor whiteColor = PdfColor(255, 255, 255);
 
-    final PdfBrush deepNavyBrush = PdfSolidBrush(deepNavy);
-    final PdfBrush emeraldBrush = PdfSolidBrush(emeraldGreen);
-    final PdfBrush slateDarkBrush = PdfSolidBrush(slateDark);
-    final PdfBrush slateBodyBrush = PdfSolidBrush(slateBody);
-    final PdfBrush slateMutedBrush = PdfSolidBrush(slateMuted);
-    final PdfBrush whiteBrush = PdfSolidBrush(PdfColor(255, 255, 255));
+    final PdfBrush navyBrush = PdfSolidBrush(navyColor);
+    final PdfBrush emeraldBrush = PdfSolidBrush(emeraldColor);
+    final PdfBrush lightGreenBrush = PdfSolidBrush(lightGreenColor);
+    final PdfBrush darkTextBrush = PdfSolidBrush(darkTextColor);
+    final PdfBrush slateBodyBrush = PdfSolidBrush(slateBodyColor);
+    final PdfBrush slateMutedBrush = PdfSolidBrush(slateMutedColor);
+    final PdfBrush zebraBgBrush = PdfSolidBrush(zebraBgColor);
+    final PdfBrush whiteBrush = PdfSolidBrush(whiteColor);
 
-    final PdfPen outerNavyPen = PdfPen(deepNavy, width: 1.5);
-    final PdfPen innerGreenPen = PdfPen(lightGreenAccent, width: 0.5);
-    final PdfPen separatorPen = PdfPen(deepNavy, width: 1.2);
-    final PdfPen tableBorderPen = PdfPen(borderLight, width: 0.8);
+    final PdfPen navyOuterPen = PdfPen(navyColor, width: 1.5);
+    final PdfPen greenInnerPen = PdfPen(lightGreenColor, width: 0.6);
+    final PdfPen borderPen = PdfPen(tableBorderColor, width: 0.8);
+    final PdfPen thinBorderPen = PdfPen(tableBorderColor, width: 0.6);
 
     // ==========================================
-    // 1. THIN DECORATIVE OUTER BORDER
+    // 1. DUAL BORDER (Outer Navy 1.5 + Inner Green 0.6)
     // ==========================================
-    const double outerMargin = 22;
+    const double outerMargin = 18;
     graphics.drawRectangle(
-      pen: outerNavyPen,
+      pen: navyOuterPen,
       bounds: const Rect.fromLTWH(outerMargin, outerMargin, pageWidth - (outerMargin * 2), pageHeight - (outerMargin * 2)),
     );
 
-    const double innerMargin = 25.5;
+    const double innerMargin = 21.5;
     graphics.drawRectangle(
-      pen: innerGreenPen,
+      pen: greenInnerPen,
       bounds: const Rect.fromLTWH(innerMargin, innerMargin, pageWidth - (innerMargin * 2), pageHeight - (innerMargin * 2)),
     );
 
-    const double contentLeft = 40;
-    const double contentWidth = pageWidth - (contentLeft * 2); // 515.28
+    const double contentLeft = 44;
+    const double contentWidth = pageWidth - (contentLeft * 2); // 507.28
+    const double contentRight = contentLeft + contentWidth;
 
-    // ==========================================
-    // 2. HEADER: LOGO & COMPANY BRANDING
-    // ==========================================
-    double y = 40;
-
-    // Load and render company logo
-    PdfBitmap? logoBitmap;
-    try {
-      final ByteData logoData = await rootBundle.load('assets/images/logo.png');
-      final Uint8List logoBytes = logoData.buffer.asUint8List();
-      logoBitmap = PdfBitmap(logoBytes);
-    } catch (e) {
-      debugPrint('Logo load error in certificate service: $e');
-    }
-
-    if (logoBitmap != null) {
-      graphics.drawImage(
-        logoBitmap,
-        Rect.fromLTWH(contentLeft, y, 62, 62),
-      );
-    } else {
-      // Elegant fallback icon block
-      graphics.drawRectangle(
-        brush: PdfSolidBrush(deepNavy),
-        bounds: Rect.fromLTWH(contentLeft, y, 62, 62),
-      );
-      graphics.drawString(
-        'SIYA\nSOLAR',
-        smallBoldFont,
-        brush: whiteBrush,
-        format: PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.middle),
-        bounds: Rect.fromLTWH(contentLeft, y, 62, 62),
-      );
-    }
-
-    // Company Header Text
-    final double headerTextLeft = contentLeft + 72;
-    final double headerTextWidth = contentWidth - 72;
-
-    graphics.drawString(
-      'SIYA INFOTECH & SOLAR ENERGY',
-      titleFont,
-      brush: deepNavyBrush,
-      bounds: Rect.fromLTWH(headerTextLeft, y + 4, headerTextWidth, 22),
-    );
-
-    graphics.drawString(
-      'Solar Solutions & Digital Services',
-      sectionHeaderFont,
-      brush: emeraldBrush,
-      bounds: Rect.fromLTWH(headerTextLeft, y + 27, headerTextWidth, 16),
-    );
-
-    graphics.drawString(
-      'Govt. Approved MNRE Channel Partner | GSTIN: 27CVTPK6358P1ZD',
-      smallFont,
-      brush: slateMutedBrush,
-      bounds: Rect.fromLTWH(headerTextLeft, y + 45, headerTextWidth, 14),
-    );
-
-    y += 74;
-
-    // Thin Blue + Green Separator Line
-    graphics.drawLine(
-      separatorPen,
-      Offset(contentLeft, y),
-      Offset(contentLeft + contentWidth, y),
-    );
-    graphics.drawLine(
-      PdfPen(lightGreenAccent, width: 2.0),
-      Offset(contentLeft, y + 2.5),
-      Offset(contentLeft + (contentWidth * 0.35), y + 2.5),
-    );
-
-    y += 18;
-
-    // ==========================================
-    // 3. TITLE: LARGE DARK-BLUE BOX
-    // ==========================================
-    const double titleBoxHeight = 36;
-    graphics.drawRectangle(
-      brush: deepNavyBrush,
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, titleBoxHeight),
-    );
-
-    graphics.drawString(
-      'WORK COMPLETION CERTIFICATE',
-      certificateTitleFont,
-      brush: whiteBrush,
-      format: PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.middle),
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, titleBoxHeight),
-    );
-
-    y += titleBoxHeight + 8;
-
-    // Below Title: Submission note & Completion Date
-    final DateTime? actualCompletionDate = customer.installationDate ?? customer.rtsCompletionDate ?? customer.rtsDate;
-    final String dateFormatted = actualCompletionDate != null
-        ? DateFormat('dd / MM / yyyy').format(actualCompletionDate)
-        : '____ / ____ / ______';
-
-    graphics.drawString(
-      'For Bank / Financial Institution Submission',
-      smallBoldFont,
-      brush: slateBodyBrush,
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth * 0.6, 16),
-    );
-
-    graphics.drawString(
-      'Date: $dateFormatted',
-      smallBoldFont,
-      brush: slateDarkBrush,
-      format: PdfStringFormat(alignment: PdfTextAlignment.right),
-      bounds: Rect.fromLTWH(contentLeft + (contentWidth * 0.4), y, contentWidth * 0.6, 16),
-    );
-
-    y += 24;
-
-    // ==========================================
-    // 4. CUSTOMER & PROJECT DETAILS SECTION
-    // ==========================================
-    // Section Header Banner
-    const double sectionBannerHeight = 22;
-    graphics.drawRectangle(
-      brush: PdfSolidBrush(slateLight),
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, sectionBannerHeight),
-    );
-    graphics.drawRectangle(
-      brush: deepNavyBrush,
-      bounds: Rect.fromLTWH(contentLeft, y, 4, sectionBannerHeight),
-    );
-    graphics.drawString(
-      'CUSTOMER & PROJECT DETAILS',
-      sectionHeaderFont,
-      brush: deepNavyBrush,
-      bounds: Rect.fromLTWH(contentLeft + 12, y + 4, contentWidth - 20, 16),
-    );
-
-    y += sectionBannerHeight + 4;
-
-    // Clean Two-Column Table with ONLY required 5 fields
-    const double col1Width = 195;
-    final double col2Width = contentWidth - col1Width; // 320.28
-
-    // Derive fields cleanly (with custom override support)
+    // Resolve Customer Data
     final String customerName = (customCustomerName != null && customCustomerName.trim().isNotEmpty)
         ? customCustomerName.trim()
         : customer.name.trim();
@@ -234,294 +105,451 @@ class WorkCompletionCertificateService {
         ? customConsumerNo.trim()
         : customer.consumerNo.trim();
 
-    final String projectAddress = (customAddress != null && customAddress.trim().isNotEmpty)
-        ? customAddress.trim()
-        : ((customer.address != null && customer.address!.trim().isNotEmpty)
-            ? customer.address!.trim()
-            : ((customer.village != null && customer.village!.trim().isNotEmpty) ? customer.village!.trim() : ''));
+    final DateTime completionDate = customCompletionDate ??
+        customer.installationDate ??
+        customer.rtsCompletionDate ??
+        customer.submitDate ??
+        DateTime.now();
+    final String formattedCompletionDate = DateFormat('dd MMMM yyyy').format(completionDate);
+    final String issueDateStr = DateFormat('dd-MM-yyyy').format(DateTime.now());
 
-    // Capacity detection
-    String capacity = (customCapacity != null && customCapacity.trim().isNotEmpty)
+    String capacityDisplay = (customCapacity != null && customCapacity.trim().isNotEmpty)
         ? customCapacity.trim()
         : '';
-    if (capacity.isEmpty && customer.remarks != null && customer.remarks!.trim().isNotEmpty) {
+    if (capacityDisplay.isEmpty && customer.remarks != null && customer.remarks!.trim().isNotEmpty) {
       final match = RegExp(r'(\d+(?:\.\d+)?\s*(?:kw|kW|KW|Kw))').firstMatch(customer.remarks!);
-      if (match != null) capacity = match.group(1)!;
+      if (match != null) capacityDisplay = match.group(1)!;
     }
-    if (capacity.isEmpty) capacity = '3.0 kW Rooftop Solar PV';
+    if (capacityDisplay.isEmpty) {
+      capacityDisplay = '3 kW';
+    }
 
-    final DateTime? effectiveDate = customCompletionDate ?? actualCompletionDate;
-    final String completionDateText = effectiveDate != null
-        ? DateFormat('dd-MM-yyyy').format(effectiveDate)
-        : DateFormat('dd-MM-yyyy').format(DateTime.now());
+    String addressDisplay = (customAddress != null && customAddress.trim().isNotEmpty)
+        ? customAddress.trim()
+        : '';
+    if (addressDisplay.isEmpty) {
+      if (customer.address != null && customer.address!.trim().isNotEmpty) {
+        addressDisplay = customer.address!.trim();
+      } else if (customer.village != null && customer.village!.trim().isNotEmpty) {
+        addressDisplay = customer.village!.trim();
+      }
+    }
+    if (addressDisplay.isEmpty) addressDisplay = 'Project site as per consumer record';
 
-    final List<MapEntry<String, String>> tableRows = [
-      MapEntry('Customer Name:', customerName),
-      MapEntry('Consumer No.:', consumerNo),
-      MapEntry('Project Address:', projectAddress),
-      MapEntry('Solar System Capacity:', capacity),
-      MapEntry('Installation / Completion Date:', completionDateText),
+    // ==========================================
+    // 2. HEADER: BRANDING & CONTACT INFO
+    // ==========================================
+    double y = 38;
+
+    PdfBitmap? logoBitmap;
+    try {
+      final ByteData logoData = await rootBundle.load('assets/images/logo.png');
+      final Uint8List logoBytes = logoData.buffer.asUint8List();
+      logoBitmap = PdfBitmap(logoBytes);
+    } catch (e) {
+      debugPrint('Logo load error in mobile WCR service: $e');
+    }
+
+    if (logoBitmap != null) {
+      graphics.drawImage(logoBitmap, Rect.fromLTWH(contentLeft, y, 56, 56));
+    } else {
+      graphics.drawRectangle(
+        brush: navyBrush,
+        bounds: Rect.fromLTWH(contentLeft, y, 54, 54),
+      );
+      graphics.drawString(
+        'SIYA',
+        PdfStandardFont(PdfFontFamily.helvetica, 14, style: PdfFontStyle.bold),
+        brush: whiteBrush,
+        format: PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.middle),
+        bounds: Rect.fromLTWH(contentLeft, y, 54, 54),
+      );
+    }
+
+    final double headerTextLeft = contentLeft + 68;
+
+    graphics.drawString(
+      'SIYA INFOTECH & SOLAR ENERGY',
+      companyTitleFont,
+      brush: navyBrush,
+      bounds: Rect.fromLTWH(headerTextLeft, y + 2, 260, 18),
+    );
+
+    graphics.drawString(
+      'Solar Solutions & Digital Services',
+      tableHeaderFont,
+      brush: emeraldBrush,
+      bounds: Rect.fromLTWH(headerTextLeft, y + 22, 260, 14),
+    );
+
+    graphics.drawString(
+      'Govt. Approved MNRE Channel Partner | Rooftop Solar Systems',
+      headerRightMutedFont,
+      brush: slateMutedBrush,
+      bounds: Rect.fromLTWH(headerTextLeft, y + 38, 260, 12),
+    );
+
+    // Header Right Contacts
+    graphics.drawString(
+      'GSTIN: 27CVTPK6358P1ZD',
+      headerRightBoldFont,
+      brush: navyBrush,
+      format: PdfStringFormat(alignment: PdfTextAlignment.right),
+      bounds: Rect.fromLTWH(contentRight - 200, y, 200, 12),
+    );
+
+    graphics.drawString(
+      'Phone: 7588003220',
+      headerRightBoldFont,
+      brush: navyBrush,
+      format: PdfStringFormat(alignment: PdfTextAlignment.right),
+      bounds: Rect.fromLTWH(contentRight - 200, y + 12, 200, 12),
+    );
+
+    graphics.drawString(
+      'Email: siyainfodigital@gmail.com',
+      headerRightFont,
+      brush: slateBodyBrush,
+      format: PdfStringFormat(alignment: PdfTextAlignment.right),
+      bounds: Rect.fromLTWH(contentRight - 200, y + 24, 200, 12),
+    );
+
+    graphics.drawString(
+      '21, Mudavad Road, Betawad,',
+      headerRightMutedFont,
+      brush: slateMutedBrush,
+      format: PdfStringFormat(alignment: PdfTextAlignment.right),
+      bounds: Rect.fromLTWH(contentRight - 200, y + 35, 200, 11),
+    );
+
+    graphics.drawString(
+      'Tal. Shindkheda, Dist. Dhule - 425403',
+      headerRightMutedFont,
+      brush: slateMutedBrush,
+      format: PdfStringFormat(alignment: PdfTextAlignment.right),
+      bounds: Rect.fromLTWH(contentRight - 200, y + 45, 200, 11),
+    );
+
+    y += 62;
+
+    // Dual-Tone Separator
+    graphics.drawLine(
+      PdfPen(navyColor, width: 2.0),
+      Offset(contentLeft, y),
+      Offset(contentLeft + (contentWidth * 0.7), y),
+    );
+    graphics.drawLine(
+      PdfPen(lightGreenColor, width: 2.0),
+      Offset(contentLeft + (contentWidth * 0.7), y),
+      Offset(contentRight, y),
+    );
+
+    y += 12;
+
+    // ==========================================
+    // 3. TITLE: DARK NAVY BANNER
+    // ==========================================
+    const double titleBoxHeight = 36;
+    graphics.drawRectangle(
+      brush: navyBrush,
+      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, titleBoxHeight),
+    );
+
+    graphics.drawString(
+      'WORK COMPLETION CERTIFICATE',
+      certTitleFont,
+      brush: whiteBrush,
+      bounds: Rect.fromLTWH(contentLeft + 12, y + 5, 300, 16),
+    );
+
+    graphics.drawString(
+      'For Bank / Financial Institution Submission',
+      certSubTitleFont,
+      brush: lightGreenBrush,
+      bounds: Rect.fromLTWH(contentLeft + 12, y + 21, 300, 12),
+    );
+
+    graphics.drawString(
+      'Ref: SIYA-WCR-${consumerNo.isNotEmpty ? consumerNo : "GEN"}',
+      certSubTitleFont,
+      brush: whiteBrush,
+      format: PdfStringFormat(alignment: PdfTextAlignment.right),
+      bounds: Rect.fromLTWH(contentRight - 200, y + 6, 188, 12),
+    );
+
+    graphics.drawString(
+      'Date: $issueDateStr',
+      certSubTitleFont,
+      brush: whiteBrush,
+      format: PdfStringFormat(alignment: PdfTextAlignment.right),
+      bounds: Rect.fromLTWH(contentRight - 200, y + 20, 188, 12),
+    );
+
+    y += titleBoxHeight + 12;
+
+    // ==========================================
+    // 4. PROJECT & BENEFICIARY DETAILS TABLE
+    // ==========================================
+    const double tableHeaderHeight = 20;
+    graphics.drawRectangle(
+      brush: navyBrush,
+      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, tableHeaderHeight),
+    );
+    graphics.drawString(
+      'PROJECT & BENEFICIARY DETAILS',
+      tableHeaderFont,
+      brush: whiteBrush,
+      bounds: Rect.fromLTWH(contentLeft + 10, y + 4, contentWidth - 20, 14),
+    );
+
+    y += tableHeaderHeight;
+
+    final List<Map<String, String>> rows = [
+      {'label': '1. Customer Name', 'val': customerName, 'isBold': 'true', 'zebra': 'false'},
+      {'label': '2. Consumer Number', 'val': consumerNo, 'isBold': 'true', 'zebra': 'true'},
+      {'label': '3. Project Address', 'val': addressDisplay, 'isBold': 'false', 'zebra': 'false'},
+      {'label': '4. Solar System Capacity', 'val': capacityDisplay, 'isBold': 'true', 'zebra': 'true'},
+      {'label': '5. Installation Date', 'val': formattedCompletionDate, 'isBold': 'true', 'zebra': 'false'},
     ];
 
-    for (int i = 0; i < tableRows.length; i++) {
-      final entry = tableRows[i];
-      final bool isAddress = i == 2;
-      final double rowHeight = isAddress && entry.value.length > 45 ? 32 : 24;
+    const double col1Width = 140;
 
-      // Alternating row background
-      if (i % 2 == 0) {
+    for (int i = 0; i < rows.length; i++) {
+      final r = rows[i];
+      final bool isZebra = r['zebra'] == 'true';
+      final bool isBold = r['isBold'] == 'true';
+      final double rHeight = (i == 2 && addressDisplay.length > 50) ? 30.0 : 22.0;
+
+      if (isZebra) {
         graphics.drawRectangle(
-          brush: PdfSolidBrush(cardBg),
-          bounds: Rect.fromLTWH(contentLeft, y, contentWidth, rowHeight),
+          brush: zebraBgBrush,
+          bounds: Rect.fromLTWH(contentLeft, y, contentWidth, rHeight),
         );
       }
 
-      // Cell Border
       graphics.drawRectangle(
-        pen: tableBorderPen,
-        bounds: Rect.fromLTWH(contentLeft, y, contentWidth, rowHeight),
-      );
-      graphics.drawLine(
-        tableBorderPen,
-        Offset(contentLeft + col1Width, y),
-        Offset(contentLeft + col1Width, y + rowHeight),
+        pen: thinBorderPen,
+        bounds: Rect.fromLTWH(contentLeft, y, contentWidth, rHeight),
       );
 
-      // Col 1: Label
+      // Label
       graphics.drawString(
-        entry.key,
-        bodyBoldFont,
-        brush: slateDarkBrush,
-        bounds: Rect.fromLTWH(contentLeft + 10, y + (isAddress ? 6 : 5), col1Width - 15, rowHeight - 6),
+        r['label']!,
+        labelFont,
+        brush: navyBrush,
+        bounds: Rect.fromLTWH(contentLeft + 10, y + (rHeight > 22 ? 6 : 4.5), col1Width, rHeight),
       );
 
-      // Col 2: Value
+      // Colon
       graphics.drawString(
-        entry.value,
-        bodyFont,
-        brush: slateDarkBrush,
-        bounds: Rect.fromLTWH(contentLeft + col1Width + 10, y + (isAddress ? 6 : 5), col2Width - 15, rowHeight - 6),
+        ':',
+        labelFont,
+        brush: slateMutedBrush,
+        bounds: Rect.fromLTWH(contentLeft + col1Width + 2, y + (rHeight > 22 ? 6 : 4.5), 10, rHeight),
       );
 
-      y += rowHeight;
+      // Value
+      graphics.drawString(
+        r['val']!,
+        isBold ? valueBoldFont : valueFont,
+        brush: isBold ? darkTextBrush : slateBodyBrush,
+        bounds: Rect.fromLTWH(contentLeft + col1Width + 14, y + (rHeight > 22 ? 6 : 4.5), contentWidth - col1Width - 20, rHeight - 6),
+      );
+
+      y += rHeight;
     }
 
-    y += 20;
+    y += 12;
 
     // ==========================================
-    // 5. PROJECT COMPLETION STATUS SECTION
+    // 5. OFFICIAL WORK COMPLETION DECLARATION
     // ==========================================
+    const double declBoxHeight = 112;
     graphics.drawRectangle(
-      brush: PdfSolidBrush(slateLight),
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, sectionBannerHeight),
+      brush: zebraBgBrush,
+      pen: borderPen,
+      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, declBoxHeight),
     );
-    graphics.drawRectangle(
-      brush: PdfSolidBrush(lightGreenAccent),
-      bounds: Rect.fromLTWH(contentLeft, y, 4, sectionBannerHeight),
+
+    // Green bullet dot
+    graphics.drawEllipse(
+      Rect.fromLTWH(contentLeft + 10, y + 10, 5, 5),
+      brush: emeraldBrush,
     );
+
     graphics.drawString(
-      'PROJECT COMPLETION STATUS',
-      sectionHeaderFont,
-      brush: deepNavyBrush,
-      bounds: Rect.fromLTWH(contentLeft + 12, y + 4, contentWidth - 20, 16),
+      'OFFICIAL WORK COMPLETION DECLARATION',
+      declHeaderFont,
+      brush: navyBrush,
+      bounds: Rect.fromLTWH(contentLeft + 20, y + 7, contentWidth - 30, 14),
     );
 
-    y += sectionBannerHeight + 6;
+    const String declP1 =
+        'This is to certify that the Rooftop Solar Photovoltaic (PV) System for the aforementioned customer has been successfully installed, commissioned, and tested in full accordance with the approved scheme, technical specifications, and safety guidelines prescribed by the Ministry of New and Renewable Energy (MNRE) and the State Power Distribution Utility (DISCOM).';
 
-    // Certificate Declaration Text Card
-    const double certBoxHeight = 145;
-    graphics.drawRectangle(
-      brush: PdfSolidBrush(cardBg),
-      pen: PdfPen(borderLight, width: 0.8),
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, certBoxHeight),
-    );
-    // Left decorative emerald bar
-    graphics.drawRectangle(
-      brush: PdfSolidBrush(lightGreenAccent),
-      bounds: Rect.fromLTWH(contentLeft, y, 3.5, certBoxHeight),
-    );
+    const String declP2 =
+        'The solar PV modules, inverter, structure, earthing, AC/DC protection units, and interconnecting cables have been physically verified, tested, and found completely operational, energised, and ready for regular grid-tied electricity generation and net-metering synchronisation.';
 
-    const String certificateParagraph1 =
-        'This is to certify that the Solar Rooftop Project of the above-mentioned customer has been successfully completed and the solar PV system has been installed, tested and commissioned at the customer\'s premises.';
+    final PdfStringFormat declFormat = PdfStringFormat(lineSpacing: 2);
 
-    const String certificateParagraph2 =
-        'The project work has been completed as per the agreed scope of work and the system has been handed over to the customer.';
-
-    const String certificateParagraph3 =
-        'This certificate is issued for submission to the concerned Bank / Financial Institution towards confirmation of completion of the solar project.';
-
-    final PdfStringFormat certFormat = PdfStringFormat(lineSpacing: 3);
-    const double textPadding = 14;
-    final double textWidth = contentWidth - (textPadding * 2);
-
-    double textY = y + 12;
     graphics.drawString(
-      certificateParagraph1,
+      declP1,
       bodyFont,
       brush: slateBodyBrush,
-      format: certFormat,
-      bounds: Rect.fromLTWH(contentLeft + textPadding, textY, textWidth, 42),
+      format: declFormat,
+      bounds: Rect.fromLTWH(contentLeft + 10, y + 24, contentWidth - 20, 42),
     );
 
-    textY += 46;
     graphics.drawString(
-      certificateParagraph2,
+      declP2,
       bodyFont,
       brush: slateBodyBrush,
-      format: certFormat,
-      bounds: Rect.fromLTWH(contentLeft + textPadding, textY, textWidth, 32),
+      format: declFormat,
+      bounds: Rect.fromLTWH(contentLeft + 10, y + 68, contentWidth - 20, 40),
     );
 
-    textY += 36;
-    graphics.drawString(
-      certificateParagraph3,
-      bodyFont,
-      brush: slateBodyBrush,
-      format: certFormat,
-      bounds: Rect.fromLTWH(contentLeft + textPadding, textY, textWidth, 36),
-    );
+    y += declBoxHeight + 10;
 
-    y += certBoxHeight + 14;
-
-    // Key Technical Compliance Metrics (4 Chips Grid)
-    const double complianceBoxHeight = 36;
+    // ==========================================
+    // 6. TECHNICAL COMPLIANCE METRICS (4 CHIPS)
+    // ==========================================
+    const double chipBoxHeight = 34;
     graphics.drawRectangle(
-      pen: PdfPen(borderLight, width: 0.8),
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, complianceBoxHeight),
+      pen: borderPen,
+      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, chipBoxHeight),
     );
 
-    final double chipWidth = contentWidth / 4;
-    final List<MapEntry<String, String>> metrics = [
+    final double cWidth = contentWidth / 4;
+    final List<MapEntry<String, String>> chips = [
       const MapEntry('Grid Compliance', 'Verified & Safe'),
       const MapEntry('Inverter Testing', 'Passed 100%'),
-      const MapEntry('Earthing & Lightning', 'Grounded'),
-      const MapEntry('Physical Install', 'Completed'),
+      const MapEntry('Earthing & Lightning', 'Properly Grounded'),
+      const MapEntry('Physical Installation', 'Fully Completed'),
     ];
 
-    for (int i = 0; i < metrics.length; i++) {
-      final double chipLeft = contentLeft + (i * chipWidth);
+    for (int i = 0; i < chips.length; i++) {
+      final double cLeft = contentLeft + (i * cWidth);
       if (i > 0) {
         graphics.drawLine(
-          PdfPen(borderLight, width: 0.8),
-          Offset(chipLeft, y + 4),
-          Offset(chipLeft, y + complianceBoxHeight - 4),
+          borderPen,
+          Offset(cLeft, y + 5),
+          Offset(cLeft, y + chipBoxHeight - 5),
         );
       }
       graphics.drawString(
-        metrics[i].key,
-        smallFont,
+        chips[i].key,
+        chipLabelFont,
         brush: slateMutedBrush,
         format: PdfStringFormat(alignment: PdfTextAlignment.center),
-        bounds: Rect.fromLTWH(chipLeft, y + 5, chipWidth, 12),
+        bounds: Rect.fromLTWH(cLeft, y + 5, cWidth, 11),
       );
       graphics.drawString(
-        metrics[i].value,
-        smallBoldFont,
-        brush: deepNavyBrush,
+        chips[i].value,
+        chipStatusFont,
+        brush: emeraldBrush,
         format: PdfStringFormat(alignment: PdfTextAlignment.center),
-        bounds: Rect.fromLTWH(chipLeft, y + 18, chipWidth, 12),
+        bounds: Rect.fromLTWH(cLeft, y + 17, cWidth, 12),
       );
     }
 
-    y += complianceBoxHeight + 20;
+    y += chipBoxHeight + 16;
 
     // ==========================================
-    // 6. SIGNATURE & COMPANY SEAL
+    // 7. SIGNATURE BLOCK (RIGHT ALIGNED AT BOTTOM AREA)
     // ==========================================
-    final double signBlockWidth = 230;
-    final double signBlockLeft = contentLeft + contentWidth - signBlockWidth;
+    const double signWidth = 230;
+    final double signLeft = contentRight - signWidth;
+    double signY = pageHeight - 200;
 
     graphics.drawString(
       'For SIYA INFOTECH & SOLAR ENERGY',
-      sectionHeaderFont,
-      brush: deepNavyBrush,
+      signHeaderFont,
+      brush: navyBrush,
       format: PdfStringFormat(alignment: PdfTextAlignment.center),
-      bounds: Rect.fromLTWH(signBlockLeft, y, signBlockWidth, 16),
+      bounds: Rect.fromLTWH(signLeft, signY, signWidth, 14),
     );
 
-    y += 18;
+    signY += 18;
 
-    // Company Seal / Stamp Frame with ample physical stamp/signature space
-    final double sealBoxWidth = 110;
-    final double sealBoxHeight = 58;
-    final double sealLeft = signBlockLeft + ((signBlockWidth - sealBoxWidth) / 2);
+    // Dashed Stamp Box
+    const double stampW = 150;
+    const double stampH = 62;
+    final double stampL = signLeft + ((signWidth - stampW) / 2);
+
+    final PdfPen dashPen = PdfPen(tableBorderColor, width: 0.8);
+    dashPen.dashStyle = PdfDashStyle.dash;
 
     graphics.drawRectangle(
-      pen: PdfPen(PdfColor(148, 163, 184), width: 1.0, dashStyle: PdfDashStyle.dash),
-      bounds: Rect.fromLTWH(sealLeft, y, sealBoxWidth, sealBoxHeight),
+      brush: zebraBgBrush,
+      pen: dashPen,
+      bounds: Rect.fromLTWH(stampL, signY, stampW, stampH),
     );
 
     graphics.drawString(
-      'OFFICIAL\nCOMPANY SEAL',
-      smallFont,
+      '[ OFFICIAL STAMP / SEAL ]',
+      stampFont,
       brush: slateMutedBrush,
       format: PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.middle),
-      bounds: Rect.fromLTWH(sealLeft, y, sealBoxWidth, sealBoxHeight),
+      bounds: Rect.fromLTWH(stampL, signY, stampW, stampH),
     );
 
-    y += sealBoxHeight + 24;
+    signY += stampH + 10;
 
-    // Signature Line
+    // Solid Line
     graphics.drawLine(
-      PdfPen(deepNavy, width: 1.0),
-      Offset(signBlockLeft + 20, y),
-      Offset(signBlockLeft + signBlockWidth - 20, y),
+      PdfPen(navyColor, width: 1.0),
+      Offset(stampL, signY),
+      Offset(stampL + stampW, signY),
     );
 
-    y += 5;
+    signY += 5;
 
     graphics.drawString(
       'Authorized Signatory',
-      bodyBoldFont,
-      brush: slateDarkBrush,
+      signTitleFont,
+      brush: darkTextBrush,
       format: PdfStringFormat(alignment: PdfTextAlignment.center),
-      bounds: Rect.fromLTWH(signBlockLeft, y, signBlockWidth, 14),
+      bounds: Rect.fromLTWH(signLeft, signY, signWidth, 14),
     );
 
     graphics.drawString(
-      'Company Seal',
-      smallFont,
+      'Project Manager / Managing Director',
+      signSubFont,
       brush: slateMutedBrush,
       format: PdfStringFormat(alignment: PdfTextAlignment.center),
-      bounds: Rect.fromLTWH(signBlockLeft, y + 14, signBlockWidth, 14),
+      bounds: Rect.fromLTWH(signLeft, signY + 14, signWidth, 12),
     );
 
     // ==========================================
-    // 7. FOOTER SECTION
+    // 8. FOOTER
     // ==========================================
-    const double footerY = pageHeight - 48;
+    const double footerY = pageHeight - 40;
 
-    // Thin separator above footer
     graphics.drawLine(
-      PdfPen(borderLight, width: 0.8),
-      Offset(contentLeft, footerY - 8),
-      Offset(contentLeft + contentWidth, footerY - 8),
+      borderPen,
+      Offset(contentLeft, footerY - 6),
+      Offset(contentRight, footerY - 6),
     );
 
-    // Bottom-left: Official Contact Info
     graphics.drawString(
-      'GSTIN: 27CVTPK6358P1ZD | 7588003220 | siyainfodigital@gmail.com',
-      smallFont,
+      'GSTIN: 27CVTPK6358P1ZD | Helpline: 7588003220 | Email: siyainfodigital@gmail.com',
+      footerFont,
       brush: slateMutedBrush,
-      bounds: Rect.fromLTWH(contentLeft, footerY, contentWidth * 0.55, 18),
+      bounds: Rect.fromLTWH(contentLeft, footerY, contentWidth * 0.65, 12),
     );
 
-    // Bottom-right: System note
     graphics.drawString(
       'Official Bank & DISCOM Submission Document',
-      smallFont,
-      brush: deepNavyBrush,
+      footerBoldFont,
+      brush: navyBrush,
       format: PdfStringFormat(alignment: PdfTextAlignment.right),
-      bounds: Rect.fromLTWH(contentLeft + (contentWidth * 0.45), footerY, contentWidth * 0.55, 16),
+      bounds: Rect.fromLTWH(contentLeft + (contentWidth * 0.4), footerY, contentWidth * 0.6, 12),
     );
 
-    // ==========================================
-    // SAVE TO FILE
-    // ==========================================
+    // Save File
     final List<int> bytes = await document.save();
     document.dispose();
 
-    // Sanitize customer name for filename
     final safeCustomerName = customer.name
         .trim()
         .replaceAll(RegExp(r'[^\w\s-]'), '')
@@ -594,3 +622,4 @@ class WorkCompletionCertificateService {
     return sourceFile;
   }
 }
+

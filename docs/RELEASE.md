@@ -115,6 +115,14 @@ For internal testing and GitHub release distribution, standard release signing i
 
 ## 📌 Release History
 
+### Release v1.0.27 (Build 28) - 2026-09-21
+- **Work Completion Certificate Design & Spacing Perfection**:
+  - **Single-Page A4 Bank Submission Layout**: Formatted dual outer border (`#0D2B6F` & `#10B981`), header branding with official GSTIN, phone, email, and Dhule office address details.
+  - **Dynamic Page Vertical Spacing**: Added `pw.Spacer()` and bottom-anchored signature block positioning (`pageHeight - 200`) so the document fills the A4 page without upper-half cramping or blank lower gaps.
+  - **Typography & Cell Padding Polish**: Adjusted table padding (`12px × 7px`) and typography (`8.8pt`), declaration text line spacing (`1.4`), and stamp box dimensions (`150px × 62px`).
+  - **Platform Parity**: Synchronized Syncfusion PDF generator (`mobile_app`) and Dart PDF generator (`admin_panel`) to produce identical certificates.
+- **Version Bump**: Mobile App `1.0.27+28`, Admin Panel `1.0.27+28`.
+
 ### Release v1.0.23 (Build 24) - 2026-09-20
 - **Unified Task Module & WhatsApp Share Integration**:
   - **Single Task Architecture**: Eliminated separate WhatsApp task module/dashboard/database. WhatsApp is integrated as an intake shortcut directly into the standard `OfficeTask` system.

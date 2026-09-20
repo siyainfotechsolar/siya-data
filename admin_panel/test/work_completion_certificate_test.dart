@@ -28,7 +28,7 @@ void main() {
 
       // Save sample PDF to artifact directory for user preview
       try {
-        final artifactPdf = File('C:/Users/Admin/.gemini/antigravity-ide/brain/ecc0cc6d-4f1e-4aeb-a1d3-08471c43d06b/sample_wcr_certificate.pdf');
+        final artifactPdf = File('C:/Users/Admin/.gemini/antigravity-ide/brain/952df3d3-7f7c-4be3-883e-a1081818c5e7/sample_work_completion_certificate.pdf');
         artifactPdf.writeAsBytesSync(pdfBytes);
       } catch (e) {
         // Ignore file save error in CI
