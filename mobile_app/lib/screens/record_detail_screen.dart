@@ -1741,6 +1741,40 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
               ),
             ),
 
+            // Loan Sanctioned Amount badge (shown only when set)
+            if (_record.loanSanctionedAmount > 0) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E3A5F) : const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF93C5FD)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.account_balance_rounded, size: 15, color: Color(0xFF2563EB)),
+                        SizedBox(width: 6),
+                        Text(
+                          'Loan Approved',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF2563EB), fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '₹${currency.format(_record.loanSanctionedAmount)}',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1D4ED8)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+
             // If LOAN CUSTOMER: show 1st Payment, 2nd Payment, Additional Payment
             if (isLoan) ...[
               const SizedBox(height: 12),
@@ -2053,6 +2087,10 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     final secondCtrl = TextEditingController(
       text: _record.secondPaymentAmount > 0 ? _record.secondPaymentAmount.toStringAsFixed(0) : '',
     );
+    final loanCtrl = TextEditingController(
+      text: _record.loanSanctionedAmount > 0 ? _record.loanSanctionedAmount.toStringAsFixed(0) : '',
+    );
+    final isLoan = _record.isLoanCustomer;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -2074,20 +2112,52 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                 children: [
                   Text('Customer: ${_record.name} (${_record.consumerNo})', style: const TextStyle(fontWeight: FontWeight.w500)),
                   const SizedBox(height: 14),
+
+                  // Total Final Amount
                   TextField(
                     controller: totalCtrl,
                     keyboardType: TextInputType.number,
                     autofocus: true,
                     decoration: const InputDecoration(
-                      labelText: 'Total Payment (₹) *',
+                      labelText: 'Total / Final Amount (₹) *',
+                      hintText: 'Total contract amount',
                       prefixText: '₹ ',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: (val) {
-                      setDialogState(() {});
-                    },
+                    onChanged: (val) => setDialogState(() {}),
                   ),
                   const SizedBox(height: 12),
+
+                  // Loan Sanctioned Amount (always visible, useful for all customers)
+                  TextField(
+                    controller: loanCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Loan Approved Amount (₹)',
+                      hintText: isLoan ? 'Bank sanctioned loan amount' : 'Leave 0 if no loan',
+                      prefixText: '₹ ',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.account_balance_rounded, size: 18, color: Color(0xFF2563EB)),
+                    ),
+                    onChanged: (val) => setDialogState(() {}),
+                  ),
+                  const SizedBox(height: 6),
+                  if (isLoan)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF93C5FD)),
+                      ),
+                      child: const Text(
+                        'ℹ️ Loan Customer: Enter bank-approved loan amount.',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF1D4ED8)),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+
+                  // 1st Payment Amount
                   TextField(
                     controller: firstCtrl,
                     keyboardType: TextInputType.number,
@@ -2096,11 +2166,11 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                       prefixText: '₹ ',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: (val) {
-                      setDialogState(() {});
-                    },
+                    onChanged: (val) => setDialogState(() {}),
                   ),
                   const SizedBox(height: 12),
+
+                  // 2nd Payment Amount
                   TextField(
                     controller: secondCtrl,
                     keyboardType: TextInputType.number,
@@ -2124,7 +2194,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Note: Set 1st & 2nd payment target amounts.',
+                    'Note: Set 1st & 2nd payment target amounts for loan breakdown.',
                     style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                   ),
                 ],
@@ -2147,12 +2217,14 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       final newTotal = double.tryParse(totalCtrl.text.trim()) ?? 0.0;
       final newFirst = double.tryParse(firstCtrl.text.trim()) ?? 0.0;
       final newSecond = double.tryParse(secondCtrl.text.trim()) ?? 0.0;
+      final newLoan = double.tryParse(loanCtrl.text.trim()) ?? 0.0;
 
       final updated = await PaymentService.updatePaymentSettings(
         customerId: _record.id!,
         newTotalAmount: newTotal,
         firstPaymentAmount: newFirst,
         secondPaymentAmount: newSecond,
+        loanSanctionedAmount: newLoan,
       );
 
       if (updated != null && mounted) {

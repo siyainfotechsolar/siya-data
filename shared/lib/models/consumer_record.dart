@@ -150,6 +150,7 @@ class ConsumerRecord {
   final double secondPaymentAmount;
   final double firstPaymentReceived;
   final double secondPaymentReceived;
+  final double loanSanctionedAmount; // Loan Approved Amount from bank
   final String paymentStatus; // 'Pending', 'Partially Paid', 'Paid', 'Overdue', 'Refunded', 'Cancelled'
   final DateTime? paymentDueDate;
 
@@ -240,6 +241,7 @@ class ConsumerRecord {
     this.secondPaymentAmount = 0.0,
     this.firstPaymentReceived = 0.0,
     this.secondPaymentReceived = 0.0,
+    this.loanSanctionedAmount = 0.0,
     this.paymentStatus = 'Pending',
     this.paymentDueDate,
   });
@@ -519,6 +521,9 @@ class ConsumerRecord {
       secondPaymentReceived: (json['second_payment_received'] is num)
           ? (json['second_payment_received'] as num).toDouble()
           : double.tryParse(json['second_payment_received']?.toString() ?? '0') ?? 0.0,
+      loanSanctionedAmount: (json['loan_sanctioned_amount'] is num)
+          ? (json['loan_sanctioned_amount'] as num).toDouble()
+          : double.tryParse(json['loan_sanctioned_amount']?.toString() ?? '0') ?? 0.0,
       paymentStatus: json['payment_status'] as String? ?? 'Pending',
       paymentDueDate: json['payment_due_date'] != null
           ? DateTime.tryParse(json['payment_due_date'].toString())
@@ -574,6 +579,7 @@ class ConsumerRecord {
       'second_payment_amount': secondPaymentAmount,
       'first_payment_received': firstPaymentReceived,
       'second_payment_received': secondPaymentReceived,
+      'loan_sanctioned_amount': loanSanctionedAmount,
       'payment_status': paymentStatus,
     };
 
@@ -691,6 +697,7 @@ class ConsumerRecord {
     double? secondPaymentAmount,
     double? firstPaymentReceived,
     double? secondPaymentReceived,
+    double? loanSanctionedAmount,
     String? paymentStatus,
     DateTime? paymentDueDate,
   }) {
@@ -769,6 +776,7 @@ class ConsumerRecord {
       secondPaymentAmount: secondPaymentAmount ?? this.secondPaymentAmount,
       firstPaymentReceived: firstPaymentReceived ?? this.firstPaymentReceived,
       secondPaymentReceived: secondPaymentReceived ?? this.secondPaymentReceived,
+      loanSanctionedAmount: loanSanctionedAmount ?? this.loanSanctionedAmount,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentDueDate: paymentDueDate ?? this.paymentDueDate,
     );

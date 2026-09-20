@@ -520,12 +520,13 @@ class PaymentService {
     }
   }
 
-  /// Update customer's Payment Settings (Total Payment, 1st Payment Amount, 2nd Payment Amount)
+  /// Update customer's Payment Settings (Total Payment, 1st Payment Amount, 2nd Payment Amount, Loan Sanctioned Amount)
   static Future<ConsumerRecord?> updatePaymentSettings({
     required String customerId,
     required double newTotalAmount,
     double? firstPaymentAmount,
     double? secondPaymentAmount,
+    double? loanSanctionedAmount,
   }) async {
     final customer = await AppDatabase.getConsumerRecordById(customerId);
     if (customer == null) return null;
@@ -534,6 +535,7 @@ class PaymentService {
       totalAmount: newTotalAmount,
       firstPaymentAmount: firstPaymentAmount ?? customer.firstPaymentAmount,
       secondPaymentAmount: secondPaymentAmount ?? customer.secondPaymentAmount,
+      loanSanctionedAmount: loanSanctionedAmount ?? customer.loanSanctionedAmount,
       updatedAt: DateTime.now(),
     );
 
@@ -557,6 +559,7 @@ class PaymentService {
           'contract_amount': newTotalAmount,
           'first_payment_amount': recalculated?.firstPaymentAmount ?? newTotalAmount,
           'second_payment_amount': recalculated?.secondPaymentAmount ?? 0.0,
+          'loan_sanctioned_amount': loanSanctionedAmount ?? recalculated?.loanSanctionedAmount ?? 0.0,
           'pending_amount': recalculated?.pendingAmount ?? 0.0,
           'paid_amount': recalculated?.paidAmount ?? 0.0,
           'payment_status': recalculated?.paymentStatus ?? 'Pending',

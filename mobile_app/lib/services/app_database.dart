@@ -188,7 +188,8 @@ class AppDatabase {
   ///   v3 — Added: additional_category column to cached_payments for Additional Payments support
   ///   v4 — Added: cached_office_tasks and cached_task_assignments for Office Staff Tasks support
   ///   v5 — Added: completed_by and completed_by_name to cached_office_tasks
-  static const int _dbVersion = 5;
+  ///   v6 — Added: loan_sanctioned_amount to consumer_records (raw_json field, no ALTER needed)
+  static const int _dbVersion = 6;
 
   static Database? _database;
   static Database? _testDatabase;
@@ -630,6 +631,19 @@ class AppDatabase {
       } catch (_) {}
       try {
         batch.execute('ALTER TABLE cached_office_tasks ADD COLUMN completed_by_name TEXT');
+      } catch (_) {}
+    }
+
+    // -------------------------------------------------------------------------
+    // v5 → v6: loan_sanctioned_amount added to ConsumerRecord model.
+    // Data is stored in raw_json, no ALTER TABLE needed.
+    // Just mark a metadata note for debugging purposes.
+    // -------------------------------------------------------------------------
+    if (oldVersion < 6) {
+      try {
+        batch.execute(
+          "INSERT OR REPLACE INTO sync_metadata (key, value) VALUES ('schema_v6_note', 'loan_sanctioned_amount added to model raw_json')",
+        );
       } catch (_) {}
     }
 
