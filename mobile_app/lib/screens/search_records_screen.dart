@@ -186,55 +186,50 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
         _clearSearch();
       },
       child: Scaffold(
+        appBar: canPop
+            ? AppBar(
+                title: Text(
+                  widget.initialFilter ?? 'Search Records',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                actions: const [
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: SyncStatusIndicator(compact: true),
+                  ),
+                  SizedBox(width: 8),
+                ],
+              )
+            : null,
         body: SafeArea(
+          top: !canPop,
           child: Column(
             children: [
-              // Search Input Card
+              // Search Input Card (Full Width)
               Padding(
                 padding: const EdgeInsets.fromLTRB(14.0, 10.0, 14.0, 8.0),
-                child: Row(
-                  children: [
-                    if (canPop) ...[
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back),
-                        tooltip: 'Back',
-                        onPressed: () {
-                          if (_isSearchActive && widget.initialRecords == null) {
-                            _clearSearch();
-                          } else {
-                            Navigator.of(context).pop();
-                          }
-                        },
-                      ),
-                      const SizedBox(width: 4),
-                    ],
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        autofocus: widget.initialRecords == null && widget.initialFilter == null,
-                        onChanged: _onSearchChanged,
-                        decoration: InputDecoration(
-                          hintText: 'Search Consumer No, Name, Mobile, Village...',
-                          hintStyle: const TextStyle(fontSize: 13),
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    _onSearchChanged('');
-                                  },
-                                )
-                              : null,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          filled: true,
-                          fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const SyncStatusIndicator(compact: true),
-                  ],
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: widget.initialRecords == null && widget.initialFilter == null,
+                  onChanged: _onSearchChanged,
+                  decoration: InputDecoration(
+                    hintText: 'Search Consumer No, Name, Mobile, Village...',
+                    hintStyle: const TextStyle(fontSize: 13),
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              _onSearchChanged('');
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
                 ),
               ),
 
