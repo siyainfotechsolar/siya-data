@@ -263,7 +263,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     return RefreshIndicator(
       onRefresh: _loadSummary,
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.only(bottom: 90),
         children: [
           // ── Hero greeting header ──────────────────────────────────────
           Container(

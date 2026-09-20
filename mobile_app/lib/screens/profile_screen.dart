@@ -118,12 +118,19 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
     final fullName = _profile?['full_name'] ?? 'Solar Field Technician';
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Profile', style: TextStyle(fontWeight: FontWeight.w700)),
+        elevation: 0,
+        scrolledUnderElevation: 1,
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
+          : SafeArea(
+              child: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
+
                   // Profile Header Card
                   Card(
                     elevation: 0,
@@ -298,6 +305,7 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
                   ),
                 ],
               ),
+            ),
             ),
     );
   }

@@ -413,7 +413,11 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
                         onRefresh: _loadRecords,
                         child: ListView.builder(
                           controller: _scrollController,
-                          padding: const EdgeInsets.only(left: 14, right: 14, bottom: 24),
+                          padding: EdgeInsets.only(
+                            left: 14,
+                            right: 14,
+                            bottom: MediaQuery.of(context).padding.bottom + 90,
+                          ),
                           itemCount: _records.length + (_isLoadingMore ? 1 : 0),
                           itemBuilder: (context, index) {
                             if (index == _records.length) {

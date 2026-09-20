@@ -154,7 +154,10 @@ class _MobileLeadsScreenState extends State<MobileLeadsScreen> {
                         ),
                       )
                     : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
+                        padding: EdgeInsets.fromLTRB(
+                          16, 4, 16,
+                          MediaQuery.of(context).padding.bottom + 90,
+                        ),
                         itemCount: _leads.length,
                         itemBuilder: (ctx, idx) => _buildLeadCard(_leads[idx]),
                       ),
