@@ -557,12 +557,13 @@ class AdminPaymentService {
     }
   }
 
-  /// Update customer payment amounts (Total, 1st, 2nd) and recalculate
+  /// Update customer payment amounts (Total, 1st, 2nd, Loan Sanctioned) and recalculate
   static Future<void> updatePaymentSettings({
     required String customerId,
     required double totalAmount,
     double? firstPaymentAmount,
     double? secondPaymentAmount,
+    double? loanSanctionedAmount,
   }) async {
     final updateMap = <String, dynamic>{
       'total_amount': totalAmount,
@@ -570,6 +571,7 @@ class AdminPaymentService {
     };
     if (firstPaymentAmount != null) updateMap['first_payment_amount'] = firstPaymentAmount;
     if (secondPaymentAmount != null) updateMap['second_payment_amount'] = secondPaymentAmount;
+    if (loanSanctionedAmount != null) updateMap['loan_sanctioned_amount'] = loanSanctionedAmount;
 
     await _client.from('consumer_records').update(updateMap).eq('id', customerId);
     await recalculateAndUpdateCustomerBalance(customerId);
@@ -760,6 +762,9 @@ class AdminPaymentService {
             ? (m['second_payment_received'] as num).toDouble()
             : double.tryParse(m['second_payment_received']?.toString() ?? '0') ?? 0.0;
         final isLoan = m['loan_required']?.toString().toLowerCase() == 'yes';
+        final loanSanctionedAmount = (m['loan_sanctioned_amount'] is num)
+            ? (m['loan_sanctioned_amount'] as num).toDouble()
+            : double.tryParse(m['loan_sanctioned_amount']?.toString() ?? '0') ?? 0.0;
 
         double additionalPaid = (m['additional_paid_amount'] is num)
             ? (m['additional_paid_amount'] as num).toDouble()
@@ -834,6 +839,7 @@ class AdminPaymentService {
           firstPaymentReceived: firstPaymentReceived,
           secondPaymentReceived: secondPaymentReceived,
           isLoanCustomer: isLoan,
+          loanSanctionedAmount: loanSanctionedAmount,
           additionalPaid: additionalPaid,
           totalReceived: totalReceived,
           paymentStatus: status,

@@ -2734,10 +2734,11 @@ class RecordService {
     }).eq('id', transactionId);
   }
 
-  /// Update customer total contract amount & payment due date
+  /// Update customer total contract amount, loan approved amount & payment due date
   static Future<void> updateCustomerPaymentProfile({
     required String customerId,
     required double totalAmount,
+    double? loanSanctionedAmount,
     DateTime? paymentDueDate,
   }) async {
     final user = SupabaseService.currentUser;
@@ -2747,6 +2748,9 @@ class RecordService {
       'total_amount': totalAmount,
       'updated_at': nowIso,
     };
+    if (loanSanctionedAmount != null) {
+      updateMap['loan_sanctioned_amount'] = loanSanctionedAmount;
+    }
     if (paymentDueDate != null) {
       updateMap['payment_due_date'] = paymentDueDate.toIso8601String().split('T')[0];
     }

@@ -900,6 +900,7 @@ class CustomerPaymentRow {
   final double firstPaymentReceived;
   final double secondPaymentReceived;
   final bool isLoanCustomer;
+  final double loanSanctionedAmount;
   final double additionalPaid; // Additional Paid
   final double totalReceived; // Total Received = Contract Paid + Additional Paid
   final String paymentStatus;
@@ -926,6 +927,7 @@ class CustomerPaymentRow {
     this.firstPaymentReceived = 0.0,
     this.secondPaymentReceived = 0.0,
     this.isLoanCustomer = false,
+    this.loanSanctionedAmount = 0.0,
     this.additionalPaid = 0.0,
     double? totalReceived,
     required this.paymentStatus,

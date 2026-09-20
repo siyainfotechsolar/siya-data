@@ -206,6 +206,9 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
     final totalCtrl = TextEditingController(
       text: row.totalAmount > 0 ? row.totalAmount.toStringAsFixed(0) : '',
     );
+    final loanCtrl = TextEditingController(
+      text: row.loanSanctionedAmount > 0 ? row.loanSanctionedAmount.toStringAsFixed(0) : '',
+    );
     final firstCtrl = TextEditingController(
       text: row.firstPaymentAmount > 0 ? row.firstPaymentAmount.toStringAsFixed(0) : '',
     );
@@ -238,9 +241,21 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
                     autofocus: true,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Total Payment (₹) *',
+                      labelText: 'Total Deal / Final Amount (₹) *',
                       prefixText: '₹ ',
                       border: OutlineInputBorder(),
+                    ),
+                    onChanged: (val) => setDialogState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: loanCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Loan Sanctioned / Approved Amount (₹)',
+                      prefixText: '₹ ',
+                      border: OutlineInputBorder(),
+                      helperText: 'Enter approved bank loan amount if applicable',
                     ),
                     onChanged: (val) => setDialogState(() {}),
                   ),
@@ -279,7 +294,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Note: Set 1st & 2nd payment target amounts.',
+                    'Note: Set total deal, loan approved, and installment target amounts.',
                     style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                   ),
                 ],
@@ -300,6 +315,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
 
     if (confirmed == true && mounted) {
       final newTotal = double.tryParse(totalCtrl.text.trim()) ?? 0.0;
+      final newLoan = double.tryParse(loanCtrl.text.trim()) ?? 0.0;
       final newFirst = double.tryParse(firstCtrl.text.trim()) ?? 0.0;
       final newSecond = double.tryParse(secondCtrl.text.trim()) ?? 0.0;
       try {
@@ -308,6 +324,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
           totalAmount: newTotal,
           firstPaymentAmount: newFirst,
           secondPaymentAmount: newSecond,
+          loanSanctionedAmount: newLoan,
         );
         _loadAll();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -752,12 +769,23 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
                   DataCell(
                     InkWell(
                       onTap: () => _openEditTotalPaymentDialog(row),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('₹${currency.format(row.totalAmount)}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                          const SizedBox(width: 4),
-                          Icon(Icons.edit_outlined, size: 12, color: Colors.grey.shade600),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('₹${currency.format(row.totalAmount)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                              const SizedBox(width: 4),
+                              Icon(Icons.edit_outlined, size: 12, color: Colors.grey.shade600),
+                            ],
+                          ),
+                          if (row.loanSanctionedAmount > 0)
+                            Text(
+                              'Loan: ₹${currency.format(row.loanSanctionedAmount)}',
+                              style: const TextStyle(fontSize: 10, color: Color(0xFF2563EB), fontWeight: FontWeight.w500),
+                            ),
                         ],
                       ),
                     ),

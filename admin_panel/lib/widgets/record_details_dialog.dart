@@ -1947,74 +1947,106 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.green.shade100),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Total Payment (editable)
-                  InkWell(
-                    onTap: _showEditTotalPaymentDialog,
-                    borderRadius: BorderRadius.circular(4),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Total Payment (editable)
+                      InkWell(
+                        onTap: _showEditTotalPaymentDialog,
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Total Payment', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                              const SizedBox(width: 4),
-                              Icon(Icons.edit_outlined, size: 13, color: Colors.green.shade800),
+                              Row(
+                                children: [
+                                  const Text('Total Payment', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.edit_outlined, size: 13, color: Colors.green.shade800),
+                                ],
+                              ),
+                              Text(
+                                '₹${_record.totalAmount.toStringAsFixed(0)}',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                              ),
                             ],
                           ),
+                        ),
+                      ),
+
+                      // Paid
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Paid', style: TextStyle(fontSize: 11, color: Colors.black54)),
                           Text(
-                            '₹${_record.totalAmount.toStringAsFixed(0)}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                            '₹${_record.paidAmount.toStringAsFixed(0)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF059669)),
+                          ),
+                        ],
+                      ),
+
+                      // Pending
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Pending', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                          Text(
+                            '₹${_record.pendingAmount.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: _record.pendingAmount > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Additional (if any)
+                      if (hasAdditional)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Additional', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                            Text(
+                              '₹${_record.additionalPaidAmount.toStringAsFixed(0)}',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF7C3AED)),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  if (_record.loanSanctionedAmount > 0) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(5),
+                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.account_balance_outlined, size: 13, color: Color(0xFF1D4ED8)),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Loan Approved: ₹${_record.loanSanctionedAmount.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1D4ED8),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-
-                  // Paid
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Paid', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                      Text(
-                        '₹${_record.paidAmount.toStringAsFixed(0)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF059669)),
-                      ),
-                    ],
-                  ),
-
-                  // Pending
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Pending', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                      Text(
-                        '₹${_record.pendingAmount.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: _record.pendingAmount > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // Additional (if any)
-                  if (hasAdditional)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Additional', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                        Text(
-                          '₹${_record.additionalPaidAmount.toStringAsFixed(0)}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF7C3AED)),
-                        ),
-                      ],
-                    ),
+                  ],
                 ],
               ),
             ),
@@ -2282,24 +2314,38 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     final totalCtrl = TextEditingController(
       text: _record.totalAmount > 0 ? _record.totalAmount.toStringAsFixed(0) : '',
     );
+    final loanCtrl = TextEditingController(
+      text: _record.loanSanctionedAmount > 0 ? _record.loanSanctionedAmount.toStringAsFixed(0) : '',
+    );
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Edit Total Payment'),
+        title: const Text('Edit Deal & Loan Settings'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Customer: ${_record.name} (${_record.consumerNo})'),
+            Text('Customer: ${_record.name} (${_record.consumerNo})', style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
             TextField(
               controller: totalCtrl,
               autofocus: true,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Total Payment (₹) *',
+                labelText: 'Total Deal / Final Amount (₹) *',
                 prefixText: '₹ ',
                 border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: loanCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Loan Sanctioned / Approved Amount (₹)',
+                prefixText: '₹ ',
+                border: OutlineInputBorder(),
+                helperText: 'Bank loan sanctioned amount if applicable',
               ),
             ),
           ],
@@ -2309,7 +2355,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Save'),
+            child: const Text('Save Settings'),
           ),
         ],
       ),
@@ -2317,10 +2363,12 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
 
     if (confirmed == true && mounted) {
       final newTotal = double.tryParse(totalCtrl.text.trim()) ?? 0.0;
+      final newLoan = double.tryParse(loanCtrl.text.trim()) ?? 0.0;
       try {
         await RecordService.updateCustomerPaymentProfile(
           customerId: _record.id!,
           totalAmount: newTotal,
+          loanSanctionedAmount: newLoan,
         );
         final updated = await RecordService.fetchRecordById(_record.id!);
         if (updated != null && mounted) setState(() => _record = updated);
@@ -2328,7 +2376,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
         widget.onRecordUpdated?.call();
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating Total Payment: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating Payment Settings: $e')));
         }
       }
     }
