@@ -431,49 +431,10 @@ class WorkCompletionCertificateService {
                     // 5. SIGNATURE & STAMP BLOCK (RIGHT ALIGNED)
                     // ==================================================
                     pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      mainAxisAlignment: pw.MainAxisAlignment.end,
                       children: [
-                        // Left: Official Verification Note & Customer Acknowledgement
-                        pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Container(
-                              padding: const pw.EdgeInsets.all(6),
-                              decoration: pw.BoxDecoration(
-                                border: pw.Border.all(color: tableBorderColor, width: 0.8),
-                                borderRadius: pw.BorderRadius.circular(4),
-                              ),
-                              child: pw.Column(
-                                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                                children: [
-                                  pw.Text(
-                                    'BENEFICIARY ACKNOWLEDGEMENT',
-                                    style: pw.TextStyle(
-                                      color: navyColor,
-                                      fontSize: 7.5,
-                                      fontWeight: pw.FontWeight.bold,
-                                    ),
-                                  ),
-                                  pw.SizedBox(height: 2),
-                                  pw.Text(
-                                    'I confirm that the solar plant has been installed at my premises\nto my complete satisfaction and is generating power.',
-                                    style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.5),
-                                  ),
-                                  pw.SizedBox(height: 18),
-                                  pw.Text(
-                                    'Customer Signature: _______________________',
-                                    style: pw.TextStyle(color: darkTextColor, fontSize: 7, fontWeight: pw.FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        // Right: Official Company Seal & Signatory
                         pw.Container(
-                          width: 200,
+                          width: 220,
                           child: pw.Column(
                             crossAxisAlignment: pw.CrossAxisAlignment.center,
                             children: [
@@ -481,16 +442,16 @@ class WorkCompletionCertificateService {
                                 'For SIYA INFOTECH & SOLAR ENERGY',
                                 style: pw.TextStyle(
                                   color: navyColor,
-                                  fontSize: 8.5,
+                                  fontSize: 9.0,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
-                              pw.SizedBox(height: 4),
+                              pw.SizedBox(height: 6),
 
                               // Seal / Stamp designated box
                               pw.Container(
                                 width: 140,
-                                height: 50,
+                                height: 54,
                                 decoration: pw.BoxDecoration(
                                   color: zebraBgColor,
                                   border: pw.Border.all(color: tableBorderColor, width: 0.8, style: pw.BorderStyle.dashed),
@@ -501,21 +462,21 @@ class WorkCompletionCertificateService {
                                     '[ OFFICIAL STAMP / SEAL ]',
                                     style: pw.TextStyle(
                                       color: slateMutedColor,
-                                      fontSize: 7,
+                                      fontSize: 7.5,
                                       fontWeight: pw.FontWeight.bold,
                                     ),
                                   ),
                                 ),
                               ),
 
-                              pw.SizedBox(height: 4),
+                              pw.SizedBox(height: 6),
                               pw.Container(width: 140, height: 1, color: navyColor),
-                              pw.SizedBox(height: 2),
+                              pw.SizedBox(height: 3),
                               pw.Text(
                                 'Authorized Signatory',
                                 style: pw.TextStyle(
                                   color: darkTextColor,
-                                  fontSize: 8,
+                                  fontSize: 8.5,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
@@ -523,7 +484,7 @@ class WorkCompletionCertificateService {
                                 'Project Manager / Managing Director',
                                 style: const pw.TextStyle(
                                   color: slateMutedColor,
-                                  fontSize: 6.8,
+                                  fontSize: 7.0,
                                 ),
                               ),
                             ],
