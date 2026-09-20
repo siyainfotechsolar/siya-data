@@ -164,7 +164,7 @@ class MobileSettingsScreen extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   subtitle: const Text(
-                    'Version 1.0.25 (Build 26)',
+                    'Version 1.0.26 (Build 27)',
                     style: TextStyle(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
@@ -190,7 +190,7 @@ class MobileSettingsScreen extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   subtitle: const Text(
-                    'Download latest APK (v1.0.25)',
+                    'Download latest APK (v1.0.26)',
                     style: TextStyle(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.open_in_new_rounded, size: 16),

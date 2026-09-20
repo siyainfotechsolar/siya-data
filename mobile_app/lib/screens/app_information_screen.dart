@@ -287,7 +287,7 @@ class _AppInformationScreenState extends State<AppInformationScreen> {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text(
-                    'v1.0.25 LATEST',
+                    'v1.0.26 LATEST',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
                   ),
                 ),
@@ -295,7 +295,7 @@ class _AppInformationScreenState extends State<AppInformationScreen> {
             ),
             const SizedBox(height: 12),
             const Text(
-              'Clean & Simple Payment Module release. 1st Payment, 2nd Payment, and Additional Payment support. Zero percentage calculations.',
+              'Work Completion Certificate (A4 PDF for Bank Submission) & Loan Approved Amount tracking release.',
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 12),
@@ -309,7 +309,7 @@ class _AppInformationScreenState extends State<AppInformationScreen> {
                   }
                 },
                 icon: const Icon(Icons.download_rounded, size: 18),
-                label: const Text('Download Latest APK (v1.0.25)', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: const Text('Download Latest APK (v1.0.26)', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF059669),
                   foregroundColor: Colors.white,

@@ -185,6 +185,33 @@ For internal testing and GitHub release distribution, standard release signing i
     - Flat card elevation (`0`) with subtle outline borders (`colorScheme.outlineVariant`).
     - Standardized Google Fonts Inter typography across both mobile and web clients.
 
+### Release v1.0.26 (Build 27) - 2026-09-20
+- **Work Completion Certificate (Customer-wise Single-Page A4 PDF)**:
+  - **Direct Access**: Integrated inside **Customer Profile → Reports → Work Completion Certificate** (both in the AppBar menu and in-page Customer Reports section).
+  - **A4 Single-Page Bank Submission Design**:
+    - Built to strict corporate standards with deep navy blue (`#0F2D69`) and vibrant emerald green (`#059669` / `#10B981`) styling and thin decorative outer border.
+    - Company branding with official Siya Infotech & Solar Energy logo, subtitle, and dual-tone separator line.
+    - Large dark-blue title box: `WORK COMPLETION CERTIFICATE` with date and bank submission note.
+  - **Clean 2-Column Table (Strict 5 Fields)**:
+    - Customer Name, Consumer No., Project Address, Solar System Capacity, Installation / Completion Date.
+    - Strictly excludes loan account numbers, application IDs, and irrelevant data.
+  - **Official Completion Declaration**:
+    - Legally structured project completion certification for Bank / Financial Institution submission.
+  - **Signature & Stamp Block**:
+    - Right-aligned block for *SIYA INFOTECH & SOLAR ENERGY* with designated official company seal / stamp boundary and authorized signatory line.
+  - **Preview, Share & Download**:
+    - `[ Preview PDF ]`: Opens instantly in native full-screen PDF viewer (`OpenFilex`).
+    - `[ Share PDF ]`: Android Share Sheet integration via `share_plus` (WhatsApp, Email, Drive, etc.).
+    - `[ Download PDF ]`: Saves directly to device storage with auto-naming `Work_Completion_Certificate_[CustomerName].pdf`.
+- **Loan Approved Amount & Quotation Settings**:
+  - Added `loanSanctionedAmount` to domain models, SQLite schema (v6 migration), and cloud sync.
+  - Interactive "Edit Payment Settings" modal allows setting Total Deal Amount, Loan Approved Amount, and milestone targets.
+  - Payment Cards in Mobile App and Admin Panel display prominent `🏛️ Loan Approved: ₹...` badge.
+- **Android Mobile UI Overlap Fixes**:
+  - Fixed small-screen chip clipping and text overflow issues with responsive `Wrap` layouts.
+  - Enhanced payment accounting: `additionalReceived` correctly included in Total Paid calculations without altering contract pending.
+- **Version Bump**: Mobile App `1.0.26+27`, Admin Panel `1.0.26+27`.
+
 ### Release v1.0.25 (Build 26) - 2026-09-20
 - **In-App Update Checker**:
   - Added **"Check for Updates"** tile in Settings → About Siya Solar section. Tapping opens the official download page in the browser.
