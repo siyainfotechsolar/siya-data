@@ -280,7 +280,7 @@
     <h1 class="app-title">Siya Solar Staff</h1>
     <p class="app-subtitle">Official Android Application for Staff & Field Operations</p>
     <div class="badges">
-      <span class="badge badge-version" id="versionBadge">Version 1.0.25</span>
+      <span class="badge badge-version" id="versionBadge">Version 1.0.27</span>
       <span class="badge badge-status">● Production Release</span>
     </div>
   </div>
@@ -288,13 +288,13 @@
   <!-- Download & Details Card -->
   <div class="release-card">
     <!-- Primary APK Download -->
-    <a href="./siya-solar-v1.0.25.apk" download="siya-solar-v1.0.25.apk" class="btn-download-primary" id="primaryDownloadBtn">
+    <a href="https://github.com/siyainfotechsolar/siya-data/releases/download/v1.0.27/siya-solar-v1.0.27.apk" download="siya-solar-v1.0.27.apk" class="btn-download-primary" id="primaryDownloadBtn">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      <span id="btnText">DOWNLOAD APK (v1.0.25)</span>
+      <span id="btnText">DOWNLOAD APK (v1.0.27)</span>
     </a>
 
     <!-- Secondary GitHub Release Link -->
@@ -313,11 +313,11 @@
     <div class="meta-grid">
       <div class="meta-box">
         <div class="meta-label">Version</div>
-        <div class="meta-value" id="metaVersion">1.0.25 (Build 26)</div>
+        <div class="meta-value" id="metaVersion">1.0.27 (Build 28)</div>
       </div>
       <div class="meta-box">
         <div class="meta-label">Release Date</div>
-        <div class="meta-value" id="metaDate">2026-09-20</div>
+        <div class="meta-value" id="metaDate">2026-09-21</div>
       </div>
       <div class="meta-box">
         <div class="meta-label">Target OS</div>
@@ -332,14 +332,14 @@
     <!-- What's New -->
     <div class="changelog-section">
       <div class="changelog-title">
-        <span>✨</span> Highlights in v1.0.25
+        <span>✨</span> Highlights in v1.0.27
       </div>
       <ul class="changelog-list" id="changelogList">
-        <li><strong>🔔 In-App Update Checker</strong> — New "Check for Updates" button in Settings. Tap to open the download page and install the latest APK instantly.</li>
-        <li><strong>💰 Clean &amp; Simple Payment Module</strong> — Zero percentages (no 60%/40%). Clean <strong>1st Payment</strong>, <strong>2nd Payment</strong>, and <strong>Additional Payment</strong> milestones.</li>
-        <li><strong>📊 Normal &amp; Loan Customer Layouts</strong> — Normal customer: Total, Paid, Pending. Loan customer: detailed 1st &amp; 2nd payment breakdowns + Additional Payment totals.</li>
-        <li><strong>⚡ Deterministic Accounting</strong> — Total Pending strictly calculated from 1st &amp; 2nd payments. Additional payments never reduce original pending balances.</li>
-        <li><strong>💾 Offline &amp; Background Sync</strong> — 100% offline payment recording with automatic conflict-free sync when internet reconnects.</li>
+        <li><strong>📄 Work Completion Certificate</strong> — Single-page A4 PDF generator formatted according to bank &amp; DISCOM submission specifications.</li>
+        <li><strong>✨ Perfect Page Spacing &amp; Alignment</strong> — Balanced typography, custom cell padding, and bottom-anchored signature stamp block (150px × 62px).</li>
+        <li><strong>📤 Multi-Channel Sharing</strong> — 1-click PDF preview, native Android Share Sheet (WhatsApp, Email), device download, and Admin Panel row shortcuts.</li>
+        <li><strong>🏛️ Loan Approved Amount Tracking</strong> — Prominent loan sanction badge, interactive payment settings modal, and milestone accounting.</li>
+        <li><strong>💰 Deterministic Payment Accounting</strong> — Zero percentages; clean 1st, 2nd, and Additional payment tracking with full offline SQLite sync.</li>
       </ul>
     </div>
 
@@ -357,15 +357,15 @@
 
   <script>
     const REPO = 'siyainfotechsolar/siya-data';
-    const DIRECT_APK = './siya-solar-v1.0.25.apk';
-    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.25.apk`;
+    const DIRECT_APK = 'https://github.com/siyainfotechsolar/siya-data/releases/download/v1.0.27/siya-solar-v1.0.27.apk';
+    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.27.apk`;
 
     const primaryBtn = document.getElementById('primaryDownloadBtn');
     const btnText = document.getElementById('btnText');
 
     // Default immediate direct link
     primaryBtn.href = DIRECT_APK;
-    primaryBtn.setAttribute('download', 'siya-solar-v1.0.25.apk');
+    primaryBtn.setAttribute('download', 'siya-solar-v1.0.27.apk');
 
     // Ensure fallback to raw GitHub if relative link is blocked
     primaryBtn.addEventListener('error', () => {
