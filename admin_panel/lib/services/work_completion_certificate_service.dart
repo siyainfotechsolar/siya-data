@@ -434,7 +434,7 @@ class WorkCompletionCertificateService {
                       ),
                     ),
 
-                    pw.Spacer(),
+                    pw.SizedBox(height: 16),
 
                     // ==================================================
                     // 5. SIGNATURE & STAMP BLOCK (RIGHT ALIGNED)

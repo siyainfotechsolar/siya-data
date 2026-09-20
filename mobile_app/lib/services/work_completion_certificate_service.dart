@@ -381,7 +381,49 @@ class WorkCompletionCertificateService {
       bounds: Rect.fromLTWH(contentLeft + textPadding, textY, textWidth, 36),
     );
 
-    y += certBoxHeight + 24;
+    y += certBoxHeight + 14;
+
+    // Key Technical Compliance Metrics (4 Chips Grid)
+    const double complianceBoxHeight = 36;
+    graphics.drawRectangle(
+      pen: PdfPen(borderLight, width: 0.8),
+      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, complianceBoxHeight),
+    );
+
+    final double chipWidth = contentWidth / 4;
+    final List<MapEntry<String, String>> metrics = [
+      const MapEntry('Grid Compliance', 'Verified & Safe'),
+      const MapEntry('Inverter Testing', 'Passed 100%'),
+      const MapEntry('Earthing & Lightning', 'Grounded'),
+      const MapEntry('Physical Install', 'Completed'),
+    ];
+
+    for (int i = 0; i < metrics.length; i++) {
+      final double chipLeft = contentLeft + (i * chipWidth);
+      if (i > 0) {
+        graphics.drawLine(
+          PdfPen(borderLight, width: 0.8),
+          Offset(chipLeft, y + 4),
+          Offset(chipLeft, y + complianceBoxHeight - 4),
+        );
+      }
+      graphics.drawString(
+        metrics[i].key,
+        smallFont,
+        brush: slateMutedBrush,
+        format: PdfStringFormat(alignment: PdfTextAlignment.center),
+        bounds: Rect.fromLTWH(chipLeft, y + 5, chipWidth, 12),
+      );
+      graphics.drawString(
+        metrics[i].value,
+        smallBoldFont,
+        brush: deepNavyBrush,
+        format: PdfStringFormat(alignment: PdfTextAlignment.center),
+        bounds: Rect.fromLTWH(chipLeft, y + 18, chipWidth, 12),
+      );
+    }
+
+    y += complianceBoxHeight + 20;
 
     // ==========================================
     // 6. SIGNATURE & COMPANY SEAL
@@ -397,7 +439,7 @@ class WorkCompletionCertificateService {
       bounds: Rect.fromLTWH(signBlockLeft, y, signBlockWidth, 16),
     );
 
-    y += 24;
+    y += 18;
 
     // Company Seal / Stamp Frame with ample physical stamp/signature space
     final double sealBoxWidth = 110;
