@@ -15,6 +15,7 @@ import '../widgets/no_action_reason_dialog.dart';
 import '../widgets/customer_timeline_widget.dart';
 import '../widgets/add_payment_dialog.dart';
 import '../widgets/create_office_task_bottom_sheet.dart';
+import '../widgets/work_completion_certificate_dialog.dart';
 import '../utils/back_navigation_helper.dart';
 import 'task_details_screen.dart';
 
@@ -1045,6 +1046,29 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(_hasChanged),
           ),
+          actions: [
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.description_outlined),
+              tooltip: 'Reports',
+              onSelected: (val) {
+                if (val == 'work_completion_certificate') {
+                  WorkCompletionCertificateDialog.show(context, customer: _record);
+                }
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(
+                  value: 'work_completion_certificate',
+                  child: Row(
+                    children: [
+                      Icon(Icons.workspace_premium_rounded, color: Color(0xFF1D4ED8), size: 20),
+                      SizedBox(width: 10),
+                      Text('Work Completion Certificate', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -1488,6 +1512,63 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         icon: Icons.notes,
                         label: 'Field Remarks',
                         value: _record.remarks ?? 'No notes available',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Customer Reports Card
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.assignment_outlined, size: 20, color: theme.colorScheme.primary),
+                              const SizedBox(width: 8),
+                              Text('Customer Reports', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFFBFDBFE)),
+                            ),
+                            child: const Text('A4 PDF', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF1D4ED8))),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 20),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: const Icon(Icons.workspace_premium_rounded, color: Color(0xFF1D4ED8), size: 24),
+                        ),
+                        title: const Text('Work Completion Certificate', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        subtitle: const Text('Official A4 single-page PDF for Bank / Financial Institution submission', style: TextStyle(fontSize: 12)),
+                        trailing: FilledButton.tonal(
+                          onPressed: () => WorkCompletionCertificateDialog.show(context, customer: _record),
+                          child: const Text('Open'),
+                        ),
+                        onTap: () => WorkCompletionCertificateDialog.show(context, customer: _record),
                       ),
                     ],
                   ),
