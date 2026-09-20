@@ -358,19 +358,12 @@
   <script>
     const REPO = 'siyainfotechsolar/siya-data';
     const DIRECT_APK = 'https://github.com/siyainfotechsolar/siya-data/releases/download/v1.0.27/siya-solar-v1.0.27.apk';
-    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.27.apk`;
 
     const primaryBtn = document.getElementById('primaryDownloadBtn');
-    const btnText = document.getElementById('btnText');
-
-    // Default immediate direct link
-    primaryBtn.href = DIRECT_APK;
-    primaryBtn.setAttribute('download', 'siya-solar-v1.0.27.apk');
-
-    // Ensure fallback to raw GitHub if relative link is blocked
-    primaryBtn.addEventListener('error', () => {
-      primaryBtn.href = GITHUB_RAW_APK;
-    });
+    if (primaryBtn) {
+      primaryBtn.href = DIRECT_APK;
+      primaryBtn.setAttribute('download', 'siya-solar-v1.0.27.apk');
+    }
   </script>
 </body>
 </html>
