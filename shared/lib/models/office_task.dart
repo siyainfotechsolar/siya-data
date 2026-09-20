@@ -134,6 +134,8 @@ class OfficeTask {
   final String? createdByName;
   final DateTime? startedAt;
   final DateTime? completedAt;
+  final String? completedBy;
+  final String? completedByName;
   final String? completionNote;
   final String? holdReason;
   final String? attachmentUrl;
@@ -158,6 +160,8 @@ class OfficeTask {
     this.createdByName,
     this.startedAt,
     this.completedAt,
+    this.completedBy,
+    this.completedByName,
     this.completionNote,
     this.holdReason,
     this.attachmentUrl,
@@ -170,6 +174,14 @@ class OfficeTask {
   bool get isInProgress => status == OfficeTaskStatus.inProgress;
   bool get isHold => status == OfficeTaskStatus.hold;
   bool get isPending => status == OfficeTaskStatus.pending;
+  bool get hasAttachment => attachmentUrl != null && attachmentUrl!.trim().isNotEmpty;
+
+  String get effectiveCompletedByName {
+    if (completedByName != null && completedByName!.trim().isNotEmpty) {
+      return completedByName!.trim();
+    }
+    return assignedToName;
+  }
 
   bool get isOverdue {
     if (isCompleted || dueDate == null) return false;
@@ -215,6 +227,8 @@ class OfficeTask {
       completedAt: map['completed_at'] != null
           ? DateTime.tryParse(map['completed_at'].toString())
           : null,
+      completedBy: map['completed_by']?.toString(),
+      completedByName: map['completed_by_name']?.toString(),
       completionNote: map['completion_note']?.toString(),
       holdReason: map['hold_reason']?.toString(),
       attachmentUrl: map['attachment_url']?.toString(),
@@ -246,6 +260,8 @@ class OfficeTask {
       'created_by_name': createdByName,
       'started_at': startedAt?.toIso8601String(),
       'completed_at': completedAt?.toIso8601String(),
+      'completed_by': completedBy,
+      'completed_by_name': completedByName,
       'completion_note': completionNote,
       'hold_reason': holdReason,
       'attachment_url': attachmentUrl,
@@ -265,6 +281,8 @@ class OfficeTask {
     String? assignedToName,
     DateTime? startedAt,
     DateTime? completedAt,
+    String? completedBy,
+    String? completedByName,
     String? completionNote,
     String? holdReason,
     String? attachmentUrl,
@@ -287,6 +305,8 @@ class OfficeTask {
       createdByName: createdByName,
       startedAt: startedAt ?? this.startedAt,
       completedAt: completedAt ?? this.completedAt,
+      completedBy: completedBy ?? this.completedBy,
+      completedByName: completedByName ?? this.completedByName,
       completionNote: completionNote ?? this.completionNote,
       holdReason: holdReason ?? this.holdReason,
       attachmentUrl: attachmentUrl ?? this.attachmentUrl,

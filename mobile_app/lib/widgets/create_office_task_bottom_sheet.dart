@@ -10,15 +10,21 @@ import 'customer_search_dialog.dart';
 
 class CreateOfficeTaskBottomSheet extends StatefulWidget {
   final ConsumerRecord? preselectedCustomer;
+  final File? initialAttachedFile;
+  final String? initialAttachedFileName;
 
   const CreateOfficeTaskBottomSheet({
     super.key,
     this.preselectedCustomer,
+    this.initialAttachedFile,
+    this.initialAttachedFileName,
   });
 
   static Future<OfficeTask?> show(
     BuildContext context, {
     ConsumerRecord? preselectedCustomer,
+    File? initialAttachedFile,
+    String? initialAttachedFileName,
   }) {
     return showModalBottomSheet<OfficeTask>(
       context: context,
@@ -26,6 +32,8 @@ class CreateOfficeTaskBottomSheet extends StatefulWidget {
       backgroundColor: Colors.transparent,
       builder: (ctx) => CreateOfficeTaskBottomSheet(
         preselectedCustomer: preselectedCustomer,
+        initialAttachedFile: initialAttachedFile,
+        initialAttachedFileName: initialAttachedFileName,
       ),
     );
   }
@@ -61,6 +69,9 @@ class _CreateOfficeTaskBottomSheetState
   void initState() {
     super.initState();
     _selectedCustomer = widget.preselectedCustomer;
+    _attachedFile = widget.initialAttachedFile;
+    _attachedFileName = widget.initialAttachedFileName ??
+        widget.initialAttachedFile?.path.split(Platform.pathSeparator).last;
     _updateDefaultTitle();
     _loadStaff();
   }
@@ -359,7 +370,7 @@ class _CreateOfficeTaskBottomSheetState
                 ),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
-                  value: _taskType,
+                  initialValue: _taskType,
                   decoration: InputDecoration(
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 10),
@@ -424,7 +435,7 @@ class _CreateOfficeTaskBottomSheetState
                   )
                 else
                   DropdownButtonFormField<String>(
-                    value: _selectedStaffId,
+                    initialValue: _selectedStaffId,
                     decoration: InputDecoration(
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 10),
@@ -497,7 +508,7 @@ class _CreateOfficeTaskBottomSheetState
                           ),
                           const SizedBox(height: 6),
                           DropdownButtonFormField<String>(
-                            value: _priority,
+                            initialValue: _priority,
                             decoration: InputDecoration(
                               contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 10),

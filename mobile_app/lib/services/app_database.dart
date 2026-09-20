@@ -187,7 +187,8 @@ class AppDatabase {
   ///          whatsapp_docs cleanup tracking metadata key
   ///   v3 — Added: additional_category column to cached_payments for Additional Payments support
   ///   v4 — Added: cached_office_tasks and cached_task_assignments for Office Staff Tasks support
-  static const int _dbVersion = 4;
+  ///   v5 — Added: completed_by and completed_by_name to cached_office_tasks
+  static const int _dbVersion = 5;
 
   static Database? _database;
   static Database? _testDatabase;
@@ -422,6 +423,8 @@ class AppDatabase {
         created_by_name TEXT,
         started_at TEXT,
         completed_at TEXT,
+        completed_by TEXT,
+        completed_by_name TEXT,
         completion_note TEXT,
         hold_reason TEXT,
         attachment_url TEXT,
@@ -616,6 +619,18 @@ class AppDatabase {
         )
       ''');
       batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_assign_task ON cached_task_assignments(task_id)');
+    }
+
+    // -------------------------------------------------------------------------
+    // v4 -> v5: Add completed_by and completed_by_name to cached_office_tasks
+    // -------------------------------------------------------------------------
+    if (oldVersion < 5) {
+      try {
+        batch.execute('ALTER TABLE cached_office_tasks ADD COLUMN completed_by TEXT');
+      } catch (_) {}
+      try {
+        batch.execute('ALTER TABLE cached_office_tasks ADD COLUMN completed_by_name TEXT');
+      } catch (_) {}
     }
 
     await batch.commit(noResult: true);
@@ -1613,29 +1628,41 @@ class AppDatabase {
 
   static Future<List<OfficeTask>> getCachedOfficeTasks({
     String? staffName,
+    String? staffId,
     String? status,
+    bool onlyPending = false,
+    bool onlyCompleted = false,
   }) async {
     final db = await database;
-    String? whereClause;
+    List<String> whereClauses = [];
     List<dynamic> whereArgs = [];
 
-    if (staffName != null && staffName.isNotEmpty && staffName != 'ALL') {
-      whereClause = 'assigned_to_name = ?';
+    if (staffId != null && staffId.isNotEmpty && staffName != null && staffName.isNotEmpty && staffName != 'ALL') {
+      whereClauses.add('(assigned_to_id = ? OR assigned_to_name = ?)');
+      whereArgs.add(staffId);
+      whereArgs.add(staffName);
+    } else if (staffId != null && staffId.isNotEmpty) {
+      whereClauses.add('assigned_to_id = ?');
+      whereArgs.add(staffId);
+    } else if (staffName != null && staffName.isNotEmpty && staffName != 'ALL') {
+      whereClauses.add('assigned_to_name = ?');
       whereArgs.add(staffName);
     }
 
-    if (status != null && status.isNotEmpty && status != 'ALL') {
-      if (whereClause != null) {
-        whereClause += ' AND status = ?';
-      } else {
-        whereClause = 'status = ?';
-      }
+    if (onlyPending) {
+      whereClauses.add("status IN ('Pending', 'In Progress', 'Hold')");
+    } else if (onlyCompleted) {
+      whereClauses.add("status = 'Completed'");
+    } else if (status != null && status.isNotEmpty && status != 'ALL') {
+      whereClauses.add('status = ?');
       whereArgs.add(status);
     }
 
+    final where = whereClauses.isNotEmpty ? whereClauses.join(' AND ') : null;
+
     final res = await db.query(
       'cached_office_tasks',
-      where: whereClause,
+      where: where,
       whereArgs: whereArgs.isNotEmpty ? whereArgs : null,
       orderBy: 'created_at DESC',
     );

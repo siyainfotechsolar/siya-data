@@ -4,16 +4,19 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../models/consumer_record.dart';
 import '../models/customer_payment.dart';
+import '../models/office_task.dart';
 import '../services/record_service.dart';
 import '../services/workflow_engine.dart';
 import '../services/payment_service.dart';
-import '../services/payment_receipt_service.dart';
 import '../services/app_database.dart';
 import '../services/app_intelligence_service.dart';
+import '../services/office_task_service.dart';
 import '../widgets/no_action_reason_dialog.dart';
 import '../widgets/customer_timeline_widget.dart';
 import '../widgets/add_payment_dialog.dart';
+import '../widgets/create_office_task_bottom_sheet.dart';
 import '../utils/back_navigation_helper.dart';
+import 'task_details_screen.dart';
 
 class RecordDetailScreen extends StatefulWidget {
   final ConsumerRecord record;
@@ -32,11 +35,36 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
   late ConsumerRecord _record;
   bool _hasChanged = false;
   bool _isSaving = false;
+  List<OfficeTask> _customerTasks = [];
+  bool _isLoadingCustomerTasks = true;
 
   @override
   void initState() {
     super.initState();
     _record = widget.record;
+    _loadCustomerTasks();
+  }
+
+  Future<void> _loadCustomerTasks() async {
+    if (!mounted) return;
+    setState(() => _isLoadingCustomerTasks = true);
+    try {
+      final tasks = await MobileOfficeTaskService.fetchCustomerTasks(
+        customerId: _record.id,
+        consumerNo: _record.consumerNo,
+      );
+      if (mounted) {
+        setState(() {
+          _customerTasks = tasks;
+          _isLoadingCustomerTasks = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading customer tasks: $e');
+      if (mounted) {
+        setState(() => _isLoadingCustomerTasks = false);
+      }
+    }
   }
 
   Future<void> _showEditConsumerNameDialog() async {
@@ -1445,6 +1473,11 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                 ),
               ),
 
+              const SizedBox(height: 16),
+
+              // Customer Tasks (Standard Office Tasks)
+              _buildCustomerTasksCard(theme),
+
               const SizedBox(height: 24),
 
               // Action Buttons
@@ -1890,6 +1923,219 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                     );
                   },
                 ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomerTasksCard(ThemeData theme) {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.assignment_outlined, size: 20, color: Color(0xFF0284C7)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Tasks',
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${_customerTasks.length}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0284C7),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    final created = await CreateOfficeTaskBottomSheet.show(
+                      context,
+                      preselectedCustomer: _record,
+                    );
+                    if (created != null) {
+                      _loadCustomerTasks();
+                    }
+                  },
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Add Task', style: TextStyle(fontSize: 13)),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 18),
+            if (_isLoadingCustomerTasks)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  ),
+                ),
+              )
+            else if (_customerTasks.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12.0),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.task_alt_outlined, size: 36, color: Colors.grey.shade400),
+                      const SizedBox(height: 6),
+                      Text(
+                        'No tasks for this customer',
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _customerTasks.length,
+                separatorBuilder: (context, index) => const Divider(height: 12),
+                itemBuilder: (context, index) {
+                  final task = _customerTasks[index];
+                  final isDone = task.isCompleted;
+
+                  Color statusColor;
+                  switch (task.status.toUpperCase()) {
+                    case 'COMPLETED':
+                      statusColor = const Color(0xFF059669);
+                      break;
+                    case 'IN PROGRESS':
+                      statusColor = const Color(0xFF0284C7);
+                      break;
+                    case 'ON HOLD':
+                      statusColor = const Color(0xFFD97706);
+                      break;
+                    default:
+                      statusColor = const Color(0xFF6B7280);
+                  }
+
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TaskDetailsScreen(task: task),
+                        ),
+                      );
+                      _loadCustomerTasks();
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            isDone ? Icons.check_circle : Icons.radio_button_unchecked,
+                            size: 18,
+                            color: isDone ? const Color(0xFF059669) : Colors.grey.shade400,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        task.title,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                          decoration: isDone ? TextDecoration.lineThrough : null,
+                                          color: isDone ? Colors.grey.shade600 : null,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (task.hasAttachment) ...[
+                                      const SizedBox(width: 4),
+                                      const Icon(Icons.attach_file, size: 14, color: Color(0xFF0284C7)),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: statusColor.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        task.status,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: statusColor,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Assigned: ${task.assignedToName}',
+                                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (task.dueDate != null) ...[
+                                      Text(
+                                        DateFormat('dd MMM').format(task.dueDate!),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: task.isOverdue ? Colors.red.shade600 : Colors.grey.shade600,
+                                          fontWeight: task.isOverdue ? FontWeight.bold : FontWeight.normal,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(Icons.chevron_right, size: 16, color: Colors.grey.shade400),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
           ],
         ),

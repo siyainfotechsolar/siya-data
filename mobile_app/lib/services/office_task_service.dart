@@ -162,16 +162,17 @@ class MobileOfficeTaskService {
         ? staffName.trim()
         : (email?.split('@').first ?? 'Staff');
 
-    return await fetchTasks(staffName: effectiveName);
+    return await fetchTasks(staffName: effectiveName, staffId: user?.id);
   }
 
   /// Fetch all tasks with optional filters (Supabase with SQLite caching)
   static Future<List<OfficeTask>> fetchTasks({
     String? staffName,
+    String? staffId,
     String? status,
     String? taskType,
     String? searchQuery,
-    int limit = 150,
+    int limit = 200,
   }) async {
     if (ConnectivityService.isOnline) {
       try {
@@ -183,7 +184,9 @@ class MobileOfficeTaskService {
         if (taskType != null && taskType != 'ALL' && taskType.isNotEmpty) {
           query = query.eq('task_type', taskType);
         }
-        if (staffName != null && staffName != 'ALL' && staffName.isNotEmpty) {
+        if (staffId != null && staffId.isNotEmpty && staffName != null && staffName != 'ALL' && staffName.isNotEmpty) {
+          query = query.or('assigned_to_id.eq.$staffId,assigned_to_name.eq.$staffName');
+        } else if (staffName != null && staffName != 'ALL' && staffName.isNotEmpty) {
           query = query.eq('assigned_to_name', staffName);
         }
 
@@ -202,6 +205,7 @@ class MobileOfficeTaskService {
     // Offline: load from SQLite cache
     final cached = await AppDatabase.getCachedOfficeTasks(
       staffName: staffName,
+      staffId: staffId,
       status: status,
     );
     return _filterTasksLocally(cached, searchQuery);
@@ -219,6 +223,42 @@ class MobileOfficeTaskService {
     }).toList();
   }
 
+  /// Fetch all tasks for a specific customer or consumer number (online + SQLite fallback)
+  static Future<List<OfficeTask>> fetchCustomerTasks({
+    String? customerId,
+    String? consumerNo,
+  }) async {
+    final cId = customerId?.trim();
+    final cNo = consumerNo?.trim();
+
+    if (ConnectivityService.isOnline) {
+      try {
+        var query = _client.from('tasks').select();
+        if (cId != null && cId.isNotEmpty && cNo != null && cNo.isNotEmpty) {
+          query = query.or('customer_id.eq.$cId,consumer_no.eq.$cNo');
+        } else if (cId != null && cId.isNotEmpty) {
+          query = query.eq('customer_id', cId);
+        } else if (cNo != null && cNo.isNotEmpty) {
+          query = query.eq('consumer_no', cNo);
+        }
+        final res = await query.order('created_at', ascending: false);
+        final list = (res as List).map((m) => OfficeTask.fromMap(m)).toList();
+        await AppDatabase.upsertOfficeTasks(list);
+        return list;
+      } catch (e) {
+        debugPrint('Failed to fetch customer tasks online: $e');
+      }
+    }
+
+    // Offline fallback from SQLite cache
+    final cached = await AppDatabase.getCachedOfficeTasks();
+    return cached.where((t) {
+      if (cId != null && cId.isNotEmpty && t.customerId == cId) return true;
+      if (cNo != null && cNo.isNotEmpty && t.consumerNo.trim() == cNo) return true;
+      return false;
+    }).toList();
+  }
+
   /// Update task status (Start, Hold, Complete, Add Note)
   static Future<OfficeTask> updateTaskStatus({
     required OfficeTask task,
@@ -231,20 +271,25 @@ class MobileOfficeTaskService {
     String? staffId,
   }) async {
     final now = DateTime.now();
+    final effectiveStaffId = staffId ?? SupabaseService.currentUser?.id;
+
     final updatedTask = task.copyWith(
       status: newStatus,
       startedAt: (newStatus == OfficeTaskStatus.inProgress && task.startedAt == null)
           ? now
           : task.startedAt,
       completedAt: newStatus == OfficeTaskStatus.completed ? now : task.completedAt,
+      completedBy: newStatus == OfficeTaskStatus.completed ? effectiveStaffId : task.completedBy,
+      completedByName: newStatus == OfficeTaskStatus.completed ? staffName : task.completedByName,
       completionNote: completionNote ?? task.completionNote,
       holdReason: holdReason ?? task.holdReason,
       attachmentUrl: attachmentUrl ?? task.attachmentUrl,
     );
 
-    // Save locally immediately
+    // Save locally immediately for offline persistence
     await AppDatabase.upsertOfficeTask(updatedTask);
 
+    bool serverUpdated = false;
     // Update server if online
     if (ConnectivityService.isOnline) {
       try {
@@ -257,6 +302,8 @@ class MobileOfficeTaskService {
           updates['started_at'] = now.toIso8601String();
         } else if (newStatus == OfficeTaskStatus.completed) {
           updates['completed_at'] = now.toIso8601String();
+          if (effectiveStaffId != null) updates['completed_by'] = effectiveStaffId;
+          updates['completed_by_name'] = staffName;
           if (completionNote != null) updates['completion_note'] = completionNote;
           if (attachmentUrl != null) updates['attachment_url'] = attachmentUrl;
         } else if (newStatus == OfficeTaskStatus.hold) {
@@ -268,16 +315,44 @@ class MobileOfficeTaskService {
         // Record assignment/work log entry
         await _client.from('task_assignments').insert({
           'task_id': task.id,
-          'staff_id': staffId ?? task.assignedToId,
+          'staff_id': effectiveStaffId ?? task.assignedToId,
           'staff_name': staffName,
           'status': newStatus,
           'started_at': newStatus == OfficeTaskStatus.inProgress ? now.toIso8601String() : null,
           'completed_at': newStatus == OfficeTaskStatus.completed ? now.toIso8601String() : null,
           'remarks': remarks ?? completionNote ?? holdReason ?? 'Status changed to $newStatus',
         });
+        serverUpdated = true;
       } catch (e) {
-        debugPrint('Failed to update task on server: $e');
+        debugPrint('Failed to update task on server, queueing offline: $e');
       }
+    }
+
+    if (!serverUpdated) {
+      // Enqueue offline operation for SyncEngine
+      final op = OfflineOperation(
+        operationId: 'op_task_${now.millisecondsSinceEpoch}_${task.id}',
+        entityType: 'office_task',
+        action: 'UPDATE_STATUS',
+        entityId: task.id,
+        payload: {
+          'task_id': task.id,
+          'status': newStatus,
+          'staff_id': effectiveStaffId ?? task.assignedToId,
+          'staff_name': staffName,
+          'remarks': remarks ?? completionNote ?? holdReason ?? 'Status changed to $newStatus',
+          'completion_note': completionNote,
+          'hold_reason': holdReason,
+          'attachment_url': attachmentUrl,
+          'completed_at': newStatus == OfficeTaskStatus.completed ? now.toIso8601String() : null,
+          'completed_by': newStatus == OfficeTaskStatus.completed ? effectiveStaffId : null,
+          'completed_by_name': newStatus == OfficeTaskStatus.completed ? staffName : null,
+          'started_at': (newStatus == OfficeTaskStatus.inProgress && task.startedAt == null) ? now.toIso8601String() : null,
+          'updated_at': now.toIso8601String(),
+        },
+        createdAt: now,
+      );
+      await AppDatabase.enqueueOperation(op);
     }
 
     return updatedTask;

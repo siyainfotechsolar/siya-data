@@ -115,6 +115,34 @@ For internal testing and GitHub release distribution, standard release signing i
 
 ## 📌 Release History
 
+### Release v1.0.23 (Build 24) - 2026-09-20
+- **Unified Task Module & WhatsApp Share Integration**:
+  - **Single Task Architecture**: Eliminated separate WhatsApp task module/dashboard/database. WhatsApp is integrated as an intake shortcut directly into the standard `OfficeTask` system.
+  - **WhatsApp Share Sheet Intake**:
+    - Sharing a PDF, image, or document from WhatsApp opens the standard `Create Task` screen with the shared file auto-populated in `Attachment`.
+    - User simply selects customer, title, assigned staff, and due date to create an office task.
+  - **Simplified My Tasks (2 Tabs)**:
+    - Replaced multi-segmented views with strictly **[ PENDING ]** and **[ COMPLETED ]** tabs with live badge counters.
+    - Card tap immediately opens the dedicated `TaskDetailsScreen`.
+  - **Dedicated Task Details Screen**:
+    - Displays full customer summary, consumer number, and a direct `[ View Customer ]` navigation button.
+    - Task details with type, assigned staff, priority, and overdue highlighting.
+    - Prominent `[ View Attachment ]` button for attached PDFs or photos.
+    - Action buttons for pending tasks: `[ Mark Complete ]` (with optional completion note), `[ Hold ]` (with reason prompt), and `[ Add Note ]`.
+    - Completed details banner showing completion timestamp and staff name.
+  - **Customer Profile Tasks Card**:
+    - Embedded a `Tasks` card directly in the customer profile (`RecordDetailScreen`) displaying all tasks associated with that customer.
+    - Included `+ Add Task` shortcut for direct task assignment.
+  - **Offline-First & Database v5**:
+    - Added `completed_by` and `completed_by_name` columns in Supabase `tasks` table and local SQLite `cached_office_tasks` table.
+    - Automatic queueing and background synchronization via `SyncEngine`.
+- **Clean & Simplified Payments Hub (2 Tabs)**:
+  - **Eliminated Clutter & Nested Scroll**: Removed 3 horizontal scrolling rows of filter chips, 5 redundant carousel buttons, and the fixed 520px nested box. The screen now scrolls naturally with full momentum.
+  - **Strictly 2 Clean Tabs**:
+    - **[ RECEIVED ]**: Displays every payment received with big bold green amount, payment mode, 1-tap WhatsApp receipt sharing, and PDF receipt viewer.
+    - **[ PENDING DUES ]**: Displays customers with pending balance, high-visibility red dues amount, and 1-tap Call and `Collect Payment` actions.
+  - **Single Summary & Fast Search**: Top summary banner with Total Received (green) and Pending Dues (red), plus a unified real-time search field.
+
 ### Release v1.0.22 (Build 23) - 2026-09-20
 - **Complete Design System & Comprehensive UI Audit Resolution**:
   - **Global Cross-Platform Design System**:

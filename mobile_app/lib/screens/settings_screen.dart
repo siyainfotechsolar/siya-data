@@ -163,7 +163,7 @@ class MobileSettingsScreen extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   subtitle: const Text(
-                    'Version 1.0.22 (Build 23)',
+                    'Version 1.0.23 (Build 24)',
                     style: TextStyle(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),

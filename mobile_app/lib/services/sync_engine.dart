@@ -184,6 +184,8 @@ class SyncEngine {
         return await _processIssueOp(op);
       case 'customer_followup':
         return await _processFollowupOp(op);
+      case 'office_task':
+        return await _processOfficeTaskOp(op);
       default:
         return 'SUCCESS';
     }
@@ -385,6 +387,51 @@ class SyncEngine {
           .eq('record_id', op.entityId)
           .eq('status', 'PENDING');
     }
+    return 'SUCCESS';
+  }
+
+  static Future<String> _processOfficeTaskOp(OfflineOperation op) async {
+    final payload = Map<String, dynamic>.from(op.payload);
+    final taskId = payload['task_id']?.toString() ?? op.entityId;
+    final status = payload['status']?.toString() ?? 'Pending';
+    final staffId = payload['staff_id']?.toString();
+    final staffName = payload['staff_name']?.toString() ?? 'Staff';
+    final remarks = payload['remarks']?.toString();
+    final completionNote = payload['completion_note']?.toString();
+    final holdReason = payload['hold_reason']?.toString();
+    final attachmentUrl = payload['attachment_url']?.toString();
+    final completedAt = payload['completed_at']?.toString();
+    final completedBy = payload['completed_by']?.toString();
+    final completedByName = payload['completed_by_name']?.toString();
+    final startedAt = payload['started_at']?.toString();
+    final updatedAt = payload['updated_at']?.toString() ?? DateTime.now().toUtc().toIso8601String();
+
+    final updates = <String, dynamic>{
+      'status': status,
+      'updated_at': updatedAt,
+    };
+    if (startedAt != null) updates['started_at'] = startedAt;
+    if (completedAt != null) updates['completed_at'] = completedAt;
+    if (completedBy != null) updates['completed_by'] = completedBy;
+    if (completedByName != null) updates['completed_by_name'] = completedByName;
+    if (completionNote != null) updates['completion_note'] = completionNote;
+    if (holdReason != null) updates['hold_reason'] = holdReason;
+    if (attachmentUrl != null) updates['attachment_url'] = attachmentUrl;
+
+    await _client.from('tasks').update(updates).eq('id', taskId);
+
+    try {
+      await _client.from('task_assignments').insert({
+        'task_id': taskId,
+        'staff_id': staffId,
+        'staff_name': staffName,
+        'status': status,
+        'started_at': startedAt,
+        'completed_at': completedAt,
+        'remarks': remarks ?? completionNote ?? holdReason ?? 'Status changed to $status',
+      });
+    } catch (_) {}
+
     return 'SUCCESS';
   }
 

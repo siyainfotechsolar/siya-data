@@ -14,9 +14,7 @@ import '../services/realtime_service.dart';
 import 'leads_screen.dart';
 import 'settings_screen.dart';
 import '../services/share_intent_service.dart';
-import '../services/offline_task_sync_service.dart';
 import 'create_task_screen.dart';
-import 'tasks_list_screen.dart';
 import 'sync_center_screen.dart';
 import 'payment_dashboard_screen.dart';
 import 'my_tasks_screen.dart';
@@ -408,19 +406,6 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                   ),
                   Divider(height: 1, indent: 58, endIndent: 16, color: cs.outlineVariant.withValues(alpha: 0.5)),
                   _buildModuleTile(
-                    icon: Icons.share_rounded,
-                    iconColor: const Color(0xFF25D366),
-                    title: 'WhatsApp Tasks',
-                    trailing: OfflineTaskSyncService.hasPendingTasks
-                        ? _buildBadge('${OfflineTaskSyncService.pendingCount}', cs.error)
-                        : null,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const TasksListScreen(initialSourceFilter: 'WhatsApp Share')),
-                    ),
-                  ),
-                  Divider(height: 1, indent: 58, endIndent: 16, color: cs.outlineVariant.withValues(alpha: 0.5)),
-                  _buildModuleTile(
                     icon: Icons.currency_rupee_rounded,
                     iconColor: cs.primary,
                     title: 'Payments',
@@ -584,14 +569,6 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildBadge(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
-      child: Text(text, style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
     );
   }
 
