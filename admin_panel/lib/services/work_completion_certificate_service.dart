@@ -513,12 +513,12 @@ class WorkCompletionCertificateService {
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
                         pw.Text(
-                          'GSTIN: 27CVTPK6358P1ZD | Helpline: 7588003220 | Email: siyainfodigital@gmail.com | Betawad, Dist. Dhule - 425403',
-                          style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.8),
+                          'GSTIN: 27CVTPK6358P1ZD | Helpline: 7588003220 | Email: siyainfodigital@gmail.com',
+                          style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.6),
                         ),
                         pw.Text(
-                          'System-generated document issued for Bank & Official Submission',
-                          style: pw.TextStyle(color: navyColor, fontSize: 6.8, fontWeight: pw.FontWeight.bold),
+                          'Official Bank & DISCOM Submission Document',
+                          style: pw.TextStyle(color: navyColor, fontSize: 6.6, fontWeight: pw.FontWeight.bold),
                         ),
                       ],
                     ),

@@ -500,19 +500,19 @@ class WorkCompletionCertificateService {
 
     // Bottom-left: Official Contact Info
     graphics.drawString(
-      'GSTIN: 27CVTPK6358P1ZD | 7588003220 | siyainfodigital@gmail.com | Betawad, Dist. Dhule - 425403',
+      'GSTIN: 27CVTPK6358P1ZD | 7588003220 | siyainfodigital@gmail.com',
       smallFont,
       brush: slateMutedBrush,
-      bounds: Rect.fromLTWH(contentLeft, footerY, contentWidth * 0.6, 18),
+      bounds: Rect.fromLTWH(contentLeft, footerY, contentWidth * 0.55, 18),
     );
 
     // Bottom-right: System note
     graphics.drawString(
-      'Official Work Completion Certificate | Siya Data Management',
+      'Official Bank & DISCOM Submission Document',
       smallFont,
       brush: deepNavyBrush,
       format: PdfStringFormat(alignment: PdfTextAlignment.right),
-      bounds: Rect.fromLTWH(contentLeft + (contentWidth * 0.4), footerY, contentWidth * 0.6, 16),
+      bounds: Rect.fromLTWH(contentLeft + (contentWidth * 0.45), footerY, contentWidth * 0.55, 16),
     );
 
     // ==========================================
