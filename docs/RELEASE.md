@@ -190,7 +190,7 @@ For internal testing and GitHub release distribution, standard release signing i
   - **Direct Access**: Integrated inside **Customer Profile → Reports → Work Completion Certificate** (both in the AppBar menu and in-page Customer Reports section).
   - **A4 Single-Page Bank Submission Design**:
     - Built to strict corporate standards with deep navy blue (`#0F2D69`) and vibrant emerald green (`#059669` / `#10B981`) styling and thin decorative outer border.
-    - Company branding with official Siya Infotech & Solar Energy logo, subtitle, and dual-tone separator line.
+    - Company branding with official Siya Infotech & Solar Energy logo, subtitle, GSTIN (`27CVTPK6358P1ZD`), and dual-tone separator line.
     - Large dark-blue title box: `WORK COMPLETION CERTIFICATE` with date and bank submission note.
   - **Clean 2-Column Table (Strict 5 Fields)**:
     - Customer Name, Consumer No., Project Address, Solar System Capacity, Installation / Completion Date.

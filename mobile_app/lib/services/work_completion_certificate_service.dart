@@ -135,7 +135,7 @@ class WorkCompletionCertificateService {
     );
 
     graphics.drawString(
-      'Govt. Empaneled Solar Rooftop Channel Partner & EPC Contractor',
+      'Govt. Approved MNRE Channel Partner | GSTIN: 27CVTPK6358P1ZD',
       smallFont,
       brush: slateMutedBrush,
       bounds: Rect.fromLTWH(headerTextLeft, y + 45, headerTextWidth, 14),
@@ -458,7 +458,7 @@ class WorkCompletionCertificateService {
 
     // Bottom-left: Official Contact Info
     graphics.drawString(
-      '7588003220 | siyainfodigital@gmail.com | Betawad, Dist. Dhule - 425403',
+      'GSTIN: 27CVTPK6358P1ZD | 7588003220 | siyainfodigital@gmail.com | Betawad, Dist. Dhule - 425403',
       smallFont,
       brush: slateMutedBrush,
       bounds: Rect.fromLTWH(contentLeft, footerY, contentWidth * 0.6, 18),

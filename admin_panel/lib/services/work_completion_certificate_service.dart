@@ -174,10 +174,19 @@ class WorkCompletionCertificateService {
                           crossAxisAlignment: pw.CrossAxisAlignment.end,
                           children: [
                             pw.Text(
+                              'GSTIN: 27CVTPK6358P1ZD',
+                              style: pw.TextStyle(
+                                color: navyColor,
+                                fontSize: 7.8,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.SizedBox(height: 1),
+                            pw.Text(
                               'Phone: 7588003220',
                               style: pw.TextStyle(
                                 color: navyColor,
-                                fontSize: 8.0,
+                                fontSize: 7.8,
                                 fontWeight: pw.FontWeight.bold,
                               ),
                             ),
@@ -504,7 +513,7 @@ class WorkCompletionCertificateService {
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
                         pw.Text(
-                          'Helpline: 7588003220 | Email: siyainfodigital@gmail.com | Betawad, Dist. Dhule - 425403',
+                          'GSTIN: 27CVTPK6358P1ZD | Helpline: 7588003220 | Email: siyainfodigital@gmail.com | Betawad, Dist. Dhule - 425403',
                           style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.8),
                         ),
                         pw.Text(
