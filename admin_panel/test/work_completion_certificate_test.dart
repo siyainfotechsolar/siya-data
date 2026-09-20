@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:admin_panel/models/consumer_record.dart';
 import 'package:admin_panel/services/work_completion_certificate_service.dart';
@@ -24,6 +25,14 @@ void main() {
 
       expect(pdfBytes, isNotEmpty);
       expect(pdfBytes.length, greaterThan(1000));
+
+      // Save sample PDF to artifact directory for user preview
+      try {
+        final artifactPdf = File('C:/Users/Admin/.gemini/antigravity-ide/brain/ecc0cc6d-4f1e-4aeb-a1d3-08471c43d06b/sample_wcr_certificate.pdf');
+        artifactPdf.writeAsBytesSync(pdfBytes);
+      } catch (e) {
+        // Ignore file save error in CI
+      }
 
       // Standard PDF header '%PDF-'
       final header = ascii.decode(pdfBytes.take(5).toList());
