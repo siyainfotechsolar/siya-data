@@ -126,13 +126,15 @@ class PaymentService {
 
     if (isLoan) {
       // Loan Customer:
-      paid = firstReceived + secondReceived + generalReceived;
+      // paid = all received (1st + 2nd + additional + general)
+      // pending = Total - 1st Received - 2nd Received - general (Additional doesn't reduce 1st/2nd debt)
+      paid = firstReceived + secondReceived + additionalReceived + generalReceived;
       pending = (total - firstReceived - secondReceived - generalReceived).clamp(0.0, double.infinity);
     } else {
       // Normal Customer:
-      // Paid = Sum of payments
+      // Paid = Sum of all payments
       // Pending = Total Payment - Paid
-      paid = firstReceived + secondReceived + generalReceived;
+      paid = firstReceived + secondReceived + additionalReceived + generalReceived;
       pending = (total - paid).clamp(0.0, double.infinity);
     }
 

@@ -1819,25 +1819,28 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
 
             const SizedBox(height: 16),
 
-            // Button: [ + Add Payment ]
-            ElevatedButton.icon(
-              icon: const Icon(Icons.add, size: 20),
-              label: const Text(
-                '+ Add Payment',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 0.3),
+            // Button: [ + Add Payment ] — full width
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.add, size: 20),
+                label: const Text(
+                  '+ Add Payment',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 0.3),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: () async {
+                  final res = await AddPaymentDialog.show(context, preselectedCustomer: _record);
+                  if (res == true && mounted) {
+                    await _refreshPaymentData();
+                  }
+                },
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              onPressed: () async {
-                final res = await AddPaymentDialog.show(context, preselectedCustomer: _record);
-                if (res == true && mounted) {
-                  await _refreshPaymentData();
-                }
-              },
             ),
 
             const SizedBox(height: 16),

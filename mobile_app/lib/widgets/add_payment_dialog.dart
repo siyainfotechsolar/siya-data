@@ -355,35 +355,30 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey),
               ),
               const SizedBox(height: 6),
-              Row(
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
                 children: paymentTypes.map((type) {
                   final isSelected = _paymentType == type;
                   final isAdd = type == PaymentType.additional;
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      child: ChoiceChip(
-                        label: Center(
-                          child: Text(
-                            type == PaymentType.additional ? 'Additional' : type,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                              color: isSelected
-                                  ? (isAdd ? Colors.purple.shade900 : const Color(0xFF065F46))
-                                  : null,
-                            ),
-                          ),
-                        ),
-                        selected: isSelected,
-                        selectedColor: isAdd
-                            ? Colors.purple.shade100
-                            : const Color(0xFFD1FAE5),
-                        onSelected: (val) {
-                          if (val) setState(() => _paymentType = type);
-                        },
+                  return ChoiceChip(
+                    label: Text(
+                      type == PaymentType.additional ? 'Additional' : type,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        color: isSelected
+                            ? (isAdd ? Colors.purple.shade900 : const Color(0xFF065F46))
+                            : null,
                       ),
                     ),
+                    selected: isSelected,
+                    selectedColor: isAdd
+                        ? Colors.purple.shade100
+                        : const Color(0xFFD1FAE5),
+                    onSelected: (val) {
+                      if (val) setState(() => _paymentType = type);
+                    },
                   );
                 }).toList(),
               ),
