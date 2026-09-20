@@ -248,6 +248,8 @@ class ExportService {
         return r.subsidyStatus;
       case 'Assigned Staff':
         return r.createdBy ?? r.updatedBy ?? '-';
+      case 'WCR':
+        return r.installationStatus == 'Completed' ? 'Completed' : 'Pending';
       default:
         return '-';
     }

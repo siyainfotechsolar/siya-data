@@ -203,6 +203,11 @@ For internal testing and GitHub release distribution, standard release signing i
     - `[ Preview PDF ]`: Opens instantly in native full-screen PDF viewer (`OpenFilex`).
     - `[ Share PDF ]`: Android Share Sheet integration via `share_plus` (WhatsApp, Email, Drive, etc.).
     - `[ Download PDF ]`: Saves directly to device storage with auto-naming `Work_Completion_Certificate_[CustomerName].pdf`.
+  - **Admin Panel Full Integration**:
+    - **Customer Details Dialog (`RecordDetailsDialog`)**: Prominent **"WCR Certificate"** button in header next to WhatsApp, plus dedicated **"Customer Reports & Certificates"** section with Work Completion Certificate preview and download.
+    - **Records Table (`RecordsScreen`)**: Dedicated **WCR** icon button on every customer row for 1-click certificate generation.
+    - **Reports Table (`ReportsScreen`)**: Dedicated **WCR** column with 1-click certificate generator button.
+    - **Interactive Web & Desktop Preview (`PdfPreview`)**: Live zoomable, print-ready preview with browser printing, PDF downloading, and WhatsApp message generator.
 - **Loan Approved Amount & Quotation Settings**:
   - Added `loanSanctionedAmount` to domain models, SQLite schema (v6 migration), and cloud sync.
   - Interactive "Edit Payment Settings" modal allows setting Total Deal Amount, Loan Approved Amount, and milestone targets.

@@ -11,6 +11,7 @@ import '../services/export_service.dart';
 import '../services/excel_export_service.dart';
 import '../services/realtime_service.dart';
 import '../widgets/record_details_dialog.dart';
+import '../widgets/work_completion_certificate_dialog.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -53,6 +54,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     'RTS Status',
     'Subsidy Status',
     'Assigned Staff',
+    'WCR',
   ];
 
   late Set<String> _visibleColumns;
@@ -1210,6 +1212,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
             r.overallStage,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blue),
           ),
+        );
+      case 'WCR':
+        return OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF0F2D69),
+            side: const BorderSide(color: Color(0xFF0F2D69)),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: () => WorkCompletionCertificateDialog.show(context, r),
+          icon: const Icon(Icons.verified_outlined, size: 13),
+          label: const Text('WCR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
         );
       default:
         return Text(ExportService.getColumnValue(r, col), style: const TextStyle(fontSize: 12));

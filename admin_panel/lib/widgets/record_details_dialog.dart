@@ -13,6 +13,7 @@ import 'misc_action_dialog.dart';
 import 'issue_dialog.dart';
 import 'payment_dialog.dart';
 import 'global_whatsapp_button.dart';
+import 'work_completion_certificate_dialog.dart';
 
 class RecordDetailsDialog extends StatefulWidget {
   final ConsumerRecord record;
@@ -828,6 +829,17 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0F2D69),
+                        side: const BorderSide(color: Color(0xFF0F2D69)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      ),
+                      onPressed: () => WorkCompletionCertificateDialog.show(context, _record),
+                      icon: const Icon(Icons.verified_outlined, size: 16),
+                      label: const Text('WCR Certificate', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                    const SizedBox(width: 8),
                     GlobalWhatsAppButton.outlined(
                       phoneNumber: _record.mobile,
                       customerName: _record.name,
@@ -1435,6 +1447,10 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                     const SizedBox(height: 14),
                     // Module 6: General Issues & Complaints
                     _buildIssuesCard(),
+
+                    const SizedBox(height: 14),
+                    // Module 8: Customer Reports & Certificates (WCR)
+                    _buildCustomerReportsCard(),
                   ],
                 ),
               ),
@@ -2304,6 +2320,104 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                   );
                 }).toList(),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomerReportsCard() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F2D69).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.description_rounded, color: Color(0xFF0F2D69), size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Customer Reports & Certificates',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          'Official single-page certificates for Bank & Financial Institutions',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF059669).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.verified_rounded, color: Color(0xFF059669), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Work Completion Certificate (WCR)',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69)),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'A4 Single-Page Bank Submission PDF • Project specs, completion declaration & stamp block',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F2D69),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onPressed: () => WorkCompletionCertificateDialog.show(context, _record),
+                    icon: const Icon(Icons.visibility_rounded, size: 14),
+                    label: const Text('Preview & Download', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

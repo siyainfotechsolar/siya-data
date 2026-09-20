@@ -9,6 +9,7 @@ import '../widgets/record_details_dialog.dart';
 import '../widgets/import_dialog.dart';
 import '../widgets/export_excel_button.dart';
 import '../widgets/global_whatsapp_button.dart';
+import '../widgets/work_completion_certificate_dialog.dart';
 import '../services/excel_export_service.dart';
 import '../services/export_definitions.dart';
 
@@ -950,6 +951,11 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                                   consumerNo: r.consumerNo,
                                                   currentStage: r.overallStage,
                                                   iconSize: 20,
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.verified_outlined, size: 20, color: Color(0xFF0F2D69)),
+                                                  tooltip: 'Work Completion Certificate (WCR)',
+                                                  onPressed: () => WorkCompletionCertificateDialog.show(context, r),
                                                 ),
                                                 IconButton(
                                                   icon: const Icon(Icons.timeline_rounded, size: 20, color: Color(0xFFD97706)),
