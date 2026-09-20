@@ -10,8 +10,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/consumer_record.dart';
 
 class WorkCompletionCertificateService {
-  static const PdfColor navyColor = PdfColor.fromInt(0xFF0F2D69);
-  static const PdfColor emeraldColor = PdfColor.fromInt(0xFF059669);
+  static const PdfColor navyColor = PdfColor.fromInt(0xFF0D2B6F);
+  static const PdfColor emeraldColor = PdfColor.fromInt(0xFF2BB673);
   static const PdfColor lightGreenColor = PdfColor.fromInt(0xFF10B981);
   static const PdfColor darkTextColor = PdfColor.fromInt(0xFF0F172A);
   static const PdfColor slateBodyColor = PdfColor.fromInt(0xFF334155);

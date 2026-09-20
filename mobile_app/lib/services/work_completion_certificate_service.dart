@@ -40,9 +40,9 @@ class WorkCompletionCertificateService {
     final PdfFont smallBoldFont = PdfStandardFont(PdfFontFamily.helvetica, 8.5, style: PdfFontStyle.bold);
     final PdfFont footerBrandFont = PdfStandardFont(PdfFontFamily.helvetica, 10, style: PdfFontStyle.bold);
 
-    // Color Palette (Deep Navy Blue + Vibrant Green)
-    final PdfColor deepNavy = PdfColor(15, 45, 105); // #0F2D69
-    final PdfColor emeraldGreen = PdfColor(5, 150, 105); // #059669
+    // Color Palette (Deep Navy Blue #0D2B6F + Growth Green #2BB673)
+    final PdfColor deepNavy = PdfColor(13, 43, 111); // #0D2B6F
+    final PdfColor emeraldGreen = PdfColor(43, 182, 115); // #2BB673
     final PdfColor lightGreenAccent = PdfColor(16, 185, 129); // #10B981
     final PdfColor slateDark = PdfColor(15, 23, 42); // #0F172A
     final PdfColor slateBody = PdfColor(51, 65, 85); // #334155
