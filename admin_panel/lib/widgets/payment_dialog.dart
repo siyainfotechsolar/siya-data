@@ -55,7 +55,25 @@ class _PaymentDialogState extends State<PaymentDialog> {
     _selectedMode = ep != null && PaymentMode.allModes.contains(ep.paymentMode)
         ? ep.paymentMode
         : PaymentMode.cash;
-    _paymentType = ep?.isAdditional == true ? PaymentType.additional : PaymentType.contract;
+    if (ep != null) {
+      if (ep.isFirstPayment) {
+        _paymentType = PaymentType.firstPayment;
+      } else if (ep.isSecondPayment) {
+        _paymentType = PaymentType.secondPayment;
+      } else if (ep.isAdditional) {
+        _paymentType = PaymentType.additional;
+      } else {
+        _paymentType = PaymentType.firstPayment;
+      }
+    } else {
+      if (widget.customerRecord.firstPaymentPending > 0) {
+        _paymentType = PaymentType.firstPayment;
+      } else if (widget.customerRecord.secondPaymentPending > 0) {
+        _paymentType = PaymentType.secondPayment;
+      } else {
+        _paymentType = PaymentType.additional;
+      }
+    }
     _paymentDate = ep?.paymentDate ?? DateTime.now();
   }
 
@@ -212,23 +230,36 @@ class _PaymentDialogState extends State<PaymentDialog> {
                 ),
                 const SizedBox(height: 16),
 
-                // Payment Type Toggle (Contract vs Additional)
+                // Payment Type Toggle (1st, 2nd, Additional)
+                const Text('Payment Type *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 6),
                 Row(
                   children: [
                     Expanded(
                       child: ChoiceChip(
-                        label: const Center(child: Text('Contract Payment')),
-                        selected: _paymentType == PaymentType.contract,
-                        selectedColor: const Color(0xFFD1FAE5),
+                        label: const Center(child: Text('1st Payment', style: TextStyle(fontSize: 12))),
+                        selected: _paymentType == PaymentType.firstPayment,
+                        selectedColor: const Color(0xFFDBEAFE),
                         onSelected: (val) {
-                          if (val) setState(() => _paymentType = PaymentType.contract);
+                          if (val) setState(() => _paymentType = PaymentType.firstPayment);
                         },
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: ChoiceChip(
-                        label: const Center(child: Text('Additional Payment')),
+                        label: const Center(child: Text('2nd Payment', style: TextStyle(fontSize: 12))),
+                        selected: _paymentType == PaymentType.secondPayment,
+                        selectedColor: const Color(0xFFE0E7FF),
+                        onSelected: (val) {
+                          if (val) setState(() => _paymentType = PaymentType.secondPayment);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Center(child: Text('Additional', style: TextStyle(fontSize: 12))),
                         selected: _paymentType == PaymentType.additional,
                         selectedColor: const Color(0xFFEDE9FE),
                         onSelected: (val) {
@@ -238,10 +269,32 @@ class _PaymentDialogState extends State<PaymentDialog> {
                     ),
                   ],
                 ),
-                if (_paymentType == PaymentType.additional) ...[
+                if (widget.customerRecord.firstPaymentPending > 0 && _paymentType == PaymentType.firstPayment) ...[
+                  const SizedBox(height: 6),
+                  InkWell(
+                    onTap: () {
+                      _amountCtrl.text = widget.customerRecord.firstPaymentPending.toStringAsFixed(0);
+                    },
+                    child: Text(
+                      'Due 1st Payment: ₹${widget.customerRecord.firstPaymentPending.toStringAsFixed(0)} (tap to fill)',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF2563EB), fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ] else if (widget.customerRecord.secondPaymentPending > 0 && _paymentType == PaymentType.secondPayment) ...[
+                  const SizedBox(height: 6),
+                  InkWell(
+                    onTap: () {
+                      _amountCtrl.text = widget.customerRecord.secondPaymentPending.toStringAsFixed(0);
+                    },
+                    child: Text(
+                      'Due 2nd Payment: ₹${widget.customerRecord.secondPaymentPending.toStringAsFixed(0)} (tap to fill)',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF4F46E5), fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ] else if (_paymentType == PaymentType.additional) ...[
                   const SizedBox(height: 6),
                   Text(
-                    'ℹ️ Additional payment does not reduce Contract Pending.',
+                    'ℹ️ Additional payment does not reduce 1st or 2nd Payment pending amount.',
                     style: TextStyle(fontSize: 11, color: Colors.purple.shade700),
                   ),
                 ],

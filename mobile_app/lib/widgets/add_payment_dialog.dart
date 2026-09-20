@@ -7,20 +7,26 @@ import 'customer_search_dialog.dart';
 
 class AddPaymentDialog extends StatefulWidget {
   final ConsumerRecord? preselectedCustomer;
+  final PaymentTransaction? existingPayment;
   final double? initialAmount;
+  final String? initialPaymentType;
   final VoidCallback? onPaymentRecorded;
 
   const AddPaymentDialog({
     super.key,
     this.preselectedCustomer,
+    this.existingPayment,
     this.initialAmount,
+    this.initialPaymentType,
     this.onPaymentRecorded,
   });
 
   static Future<bool?> show(
     BuildContext context, {
     ConsumerRecord? preselectedCustomer,
+    PaymentTransaction? existingPayment,
     double? initialAmount,
+    String? initialPaymentType,
   }) {
     return showModalBottomSheet<bool>(
       context: context,
@@ -28,7 +34,9 @@ class AddPaymentDialog extends StatefulWidget {
       backgroundColor: Colors.transparent,
       builder: (ctx) => AddPaymentDialog(
         preselectedCustomer: preselectedCustomer,
+        existingPayment: existingPayment,
         initialAmount: initialAmount,
+        initialPaymentType: initialPaymentType,
       ),
     );
   }
@@ -44,21 +52,52 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
   late TextEditingController _amountCtrl;
   late TextEditingController _remarksCtrl;
 
-  String _paymentMode = PaymentMode.cash;
-  String _paymentType = PaymentType.contract;
-  DateTime _paymentDate = DateTime.now();
+  late String _paymentMode;
+  late String _paymentType;
+  late DateTime _paymentDate;
   bool _isSaving = false;
+
+  bool get isEditing => widget.existingPayment != null;
 
   @override
   void initState() {
     super.initState();
+    final ep = widget.existingPayment;
     _selectedCustomer = widget.preselectedCustomer;
-    _amountCtrl = TextEditingController(
-      text: (widget.initialAmount != null && widget.initialAmount! > 0)
-          ? widget.initialAmount!.toStringAsFixed(0)
-          : '',
-    );
-    _remarksCtrl = TextEditingController();
+
+    if (ep != null) {
+      _amountCtrl = TextEditingController(
+        text: ep.amount > 0 ? ep.amount.toStringAsFixed(0) : '',
+      );
+      _remarksCtrl = TextEditingController(text: ep.remarks ?? '');
+      _paymentMode = ep.paymentMode.isNotEmpty ? ep.paymentMode : PaymentMode.cash;
+      _paymentType = ep.paymentType.isNotEmpty ? ep.paymentType : PaymentType.firstPayment;
+      _paymentDate = ep.paymentDate;
+    } else {
+      _amountCtrl = TextEditingController(
+        text: (widget.initialAmount != null && widget.initialAmount! > 0)
+            ? widget.initialAmount!.toStringAsFixed(0)
+            : '',
+      );
+      _remarksCtrl = TextEditingController();
+      _paymentMode = PaymentMode.cash;
+
+      // Smart default payment type based on customer status
+      if (widget.initialPaymentType != null) {
+        _paymentType = widget.initialPaymentType!;
+      } else if (_selectedCustomer?.isLoanCustomer == true) {
+        if (_selectedCustomer!.firstPaymentPending > 0) {
+          _paymentType = PaymentType.firstPayment;
+        } else if (_selectedCustomer!.secondPaymentPending > 0) {
+          _paymentType = PaymentType.secondPayment;
+        } else {
+          _paymentType = PaymentType.firstPayment;
+        }
+      } else {
+        _paymentType = PaymentType.firstPayment;
+      }
+      _paymentDate = DateTime.now();
+    }
   }
 
   @override
@@ -76,12 +115,25 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
     if (result != null) {
       setState(() {
         _selectedCustomer = result;
+        if (_selectedCustomer!.isLoanCustomer) {
+          if (_selectedCustomer!.firstPaymentPending > 0) {
+            _paymentType = PaymentType.firstPayment;
+            if (_amountCtrl.text.isEmpty) {
+              _amountCtrl.text = _selectedCustomer!.firstPaymentPending.toStringAsFixed(0);
+            }
+          } else if (_selectedCustomer!.secondPaymentPending > 0) {
+            _paymentType = PaymentType.secondPayment;
+            if (_amountCtrl.text.isEmpty) {
+              _amountCtrl.text = _selectedCustomer!.secondPaymentPending.toStringAsFixed(0);
+            }
+          }
+        }
       });
     }
   }
 
   Future<void> _submitPayment() async {
-    if (_selectedCustomer == null) {
+    if (_selectedCustomer == null && widget.existingPayment == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a customer')),
       );
@@ -100,25 +152,48 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
 
     setState(() => _isSaving = true);
     try {
-      await PaymentService.recordPayment(
-        customerId: _selectedCustomer!.id!,
-        consumerNo: _selectedCustomer!.consumerNo,
-        amount: amount,
-        paymentDate: _paymentDate,
-        paymentMode: _paymentMode,
-        paymentType: _paymentType,
-        remarks: _remarksCtrl.text.trim().isEmpty ? null : _remarksCtrl.text.trim(),
-      );
-
-      if (mounted) {
-        widget.onPaymentRecorded?.call();
-        Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Payment of ₹${NumberFormat('#,##,###').format(amount)} recorded successfully!'),
-            backgroundColor: const Color(0xFF059669),
-          ),
+      if (isEditing) {
+        final ep = widget.existingPayment!;
+        final updatedTx = ep.copyWith(
+          amount: amount,
+          paymentDate: _paymentDate,
+          paymentMode: _paymentMode,
+          paymentType: _paymentType,
+          remarks: _remarksCtrl.text.trim().isEmpty ? null : _remarksCtrl.text.trim(),
         );
+        await PaymentService.updatePaymentTransaction(updatedTx: updatedTx);
+
+        if (mounted) {
+          widget.onPaymentRecorded?.call();
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment updated successfully!'),
+              backgroundColor: Color(0xFF059669),
+            ),
+          );
+        }
+      } else {
+        await PaymentService.recordPayment(
+          customerId: _selectedCustomer!.id!,
+          consumerNo: _selectedCustomer!.consumerNo,
+          amount: amount,
+          paymentDate: _paymentDate,
+          paymentMode: _paymentMode,
+          paymentType: _paymentType,
+          remarks: _remarksCtrl.text.trim().isEmpty ? null : _remarksCtrl.text.trim(),
+        );
+
+        if (mounted) {
+          widget.onPaymentRecorded?.call();
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Payment of ₹${NumberFormat('#,##,###').format(amount)} recorded successfully!'),
+              backgroundColor: const Color(0xFF059669),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -134,6 +209,13 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
+    final isLoan = _selectedCustomer?.isLoanCustomer ?? false;
+    final paymentTypes = [
+      PaymentType.firstPayment,
+      PaymentType.secondPayment,
+      PaymentType.additional,
+    ];
 
     return Container(
       decoration: BoxDecoration(
@@ -162,18 +244,19 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF059669).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
+                          color: const Color(0xFF059669).withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.payments_rounded, color: Color(0xFF059669), size: 22),
+                        child: Icon(
+                          isEditing ? Icons.edit_note_rounded : Icons.add_card_rounded,
+                          color: const Color(0xFF059669),
+                          size: 22,
+                        ),
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        'Add Payment',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
+                        isEditing ? 'Edit Payment' : 'Add Payment',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -186,7 +269,7 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
               const SizedBox(height: 16),
 
               // Customer Selection
-              if (_selectedCustomer == null)
+              if (!isEditing && _selectedCustomer == null)
                 InkWell(
                   onTap: _pickCustomer,
                   borderRadius: BorderRadius.circular(12),
@@ -213,7 +296,7 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
                     ),
                   ),
                 )
-              else
+              else if (_selectedCustomer != null)
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -232,8 +315,12 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                             ),
                             Text(
-                              _selectedCustomer!.consumerNo,
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              '${_selectedCustomer!.consumerNo}${isLoan ? ' • Loan Customer' : ''}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isLoan ? const Color(0xFF2563EB) : Colors.grey.shade600,
+                                fontWeight: isLoan ? FontWeight.bold : FontWeight.normal,
+                              ),
                             ),
                           ],
                         ),
@@ -262,90 +349,129 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
                 ),
               const SizedBox(height: 16),
 
-              // Payment Type (Contract vs Additional)
+              // Payment Type (1st Payment, 2nd Payment, Additional Payment)
+              const Text(
+                'Payment Type',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey),
+              ),
+              const SizedBox(height: 6),
               Row(
-                children: [
-                  Expanded(
-                    child: ChoiceChip(
-                      label: const Center(child: Text('Contract')),
-                      selected: _paymentType == PaymentType.contract,
-                      selectedColor: const Color(0xFF059669).withValues(alpha: 0.2),
-                      onSelected: (val) {
-                        if (val) setState(() => _paymentType = PaymentType.contract);
-                      },
+                children: paymentTypes.map((type) {
+                  final isSelected = _paymentType == type;
+                  final isAdd = type == PaymentType.additional;
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: ChoiceChip(
+                        label: Center(
+                          child: Text(
+                            type == PaymentType.additional ? 'Additional' : type,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              color: isSelected
+                                  ? (isAdd ? Colors.purple.shade900 : const Color(0xFF065F46))
+                                  : null,
+                            ),
+                          ),
+                        ),
+                        selected: isSelected,
+                        selectedColor: isAdd
+                            ? Colors.purple.shade100
+                            : const Color(0xFFD1FAE5),
+                        onSelected: (val) {
+                          if (val) setState(() => _paymentType = type);
+                        },
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ChoiceChip(
-                      label: const Center(child: Text('Additional')),
-                      selected: _paymentType == PaymentType.additional,
-                      selectedColor: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
-                      onSelected: (val) {
-                        if (val) setState(() => _paymentType = PaymentType.additional);
-                      },
-                    ),
-                  ),
-                ],
+                  );
+                }).toList(),
               ),
               if (_paymentType == PaymentType.additional) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'ℹ️ Additional payment does not reduce Contract Pending.',
-                  style: TextStyle(fontSize: 11, color: Colors.purple.shade600),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.purple.shade200),
+                  ),
+                  child: Text(
+                    'ℹ️ Additional payment does not reduce 1st/2nd Payment pending amount.',
+                    style: TextStyle(fontSize: 11, color: Colors.purple.shade800),
+                  ),
                 ),
               ],
-              // Quick Amount Suggestions
-              if (_selectedCustomer != null && _selectedCustomer!.pendingAmount > 0) ...[
+              const SizedBox(height: 12),
+
+              // Quick Amount Suggestions (Strictly no percentage!)
+              if (_selectedCustomer != null) ...[
                 Wrap(
                   spacing: 8,
                   runSpacing: 4,
                   children: [
-                    ActionChip(
-                      avatar: const Icon(Icons.bolt_rounded, size: 14, color: Color(0xFF059669)),
-                      label: Text(
-                        'Full: ₹${NumberFormat('#,##,###').format(_selectedCustomer!.pendingAmount)}',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _amountCtrl.text = _selectedCustomer!.pendingAmount.toStringAsFixed(0);
-                        });
-                      },
-                    ),
-                    if (_selectedCustomer!.pendingAmount >= 1000)
+                    if (isLoan && _selectedCustomer!.firstPaymentPending > 0)
                       ActionChip(
-                        avatar: const Icon(Icons.pie_chart_outline_rounded, size: 14, color: Color(0xFF2563EB)),
+                        avatar: const Icon(Icons.payment, size: 14, color: Color(0xFF2563EB)),
                         label: Text(
-                          '50%: ₹${NumberFormat('#,##,###').format((_selectedCustomer!.pendingAmount / 2).round())}',
+                          '1st Due: ₹${NumberFormat('#,##,###').format(_selectedCustomer!.firstPaymentPending)}',
                           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
                         ),
                         onPressed: () {
                           setState(() {
-                            _amountCtrl.text = (_selectedCustomer!.pendingAmount / 2).round().toString();
+                            _paymentType = PaymentType.firstPayment;
+                            _amountCtrl.text = _selectedCustomer!.firstPaymentPending.toStringAsFixed(0);
+                          });
+                        },
+                      ),
+                    if (isLoan && _selectedCustomer!.secondPaymentPending > 0)
+                      ActionChip(
+                        avatar: const Icon(Icons.payment, size: 14, color: Color(0xFFD97706)),
+                        label: Text(
+                          '2nd Due: ₹${NumberFormat('#,##,###').format(_selectedCustomer!.secondPaymentPending)}',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _paymentType = PaymentType.secondPayment;
+                            _amountCtrl.text = _selectedCustomer!.secondPaymentPending.toStringAsFixed(0);
+                          });
+                        },
+                      ),
+                    if (_selectedCustomer!.pendingAmount > 0)
+                      ActionChip(
+                        avatar: const Icon(Icons.done_all_rounded, size: 14, color: Color(0xFF059669)),
+                        label: Text(
+                          'Full Pending: ₹${NumberFormat('#,##,###').format(_selectedCustomer!.pendingAmount)}',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _amountCtrl.text = _selectedCustomer!.pendingAmount.toStringAsFixed(0);
                           });
                         },
                       ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
               ],
 
               // 1. Amount
               TextFormField(
                 controller: _amountCtrl,
                 keyboardType: TextInputType.number,
-                autofocus: true,
+                autofocus: !isEditing,
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 decoration: InputDecoration(
-                  labelText: 'Amount (₹) *',
+                  labelText: 'Payment Amount (₹) *',
                   prefixText: '₹ ',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   filled: true,
                   fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
                 ),
                 validator: (val) {
-                  if (val == null || val.trim().isEmpty) return 'Enter amount';
+                  if (val == null || val.trim().isEmpty) return 'Enter payment amount';
                   final n = double.tryParse(val.trim());
                   if (n == null || n <= 0) return 'Must be greater than 0';
                   return null;
@@ -366,7 +492,7 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
                 },
                 child: InputDecorator(
                   decoration: InputDecoration(
-                    labelText: 'Date *',
+                    labelText: 'Payment Date *',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     prefixIcon: const Icon(Icons.calendar_today, size: 18),
                     filled: true,
@@ -382,7 +508,7 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
 
               // 3. Payment Mode (Cash, UPI, Bank Transfer, Cheque, Other)
               DropdownButtonFormField<String>(
-                value: _paymentMode,
+                value: PaymentMode.allModes.contains(_paymentMode) ? _paymentMode : 'Cash',
                 decoration: InputDecoration(
                   labelText: 'Payment Mode *',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -407,7 +533,7 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
                 controller: _remarksCtrl,
                 decoration: InputDecoration(
                   labelText: 'Remarks',
-                  hintText: 'e.g. 1st installment / cash collected on site',
+                  hintText: 'Enter notes or transaction details',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   filled: true,
                   fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
@@ -427,10 +553,10 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Icon(Icons.check_circle_outline, size: 20),
-                  label: const Text(
-                    'Record Payment',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      : Icon(isEditing ? Icons.check_circle_rounded : Icons.add_task_rounded, size: 20),
+                  label: Text(
+                    isEditing ? 'Update Payment' : 'Record Payment',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF059669),

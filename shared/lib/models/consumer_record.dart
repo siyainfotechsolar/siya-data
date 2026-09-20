@@ -141,15 +141,22 @@ class ConsumerRecord {
   final bool hasActiveFollowup;
   final String? assignedStaff;
 
-  // --- Step 7: Payment Tracking ---
+  // --- Step 7: Payment Tracking (Simple & Clean Payment Module) ---
   final double totalAmount;
   final double paidAmount;
   final double pendingAmount;
   final double additionalPaidAmount;
+  final double firstPaymentAmount;
+  final double secondPaymentAmount;
+  final double firstPaymentReceived;
+  final double secondPaymentReceived;
   final String paymentStatus; // 'Pending', 'Partially Paid', 'Paid', 'Overdue', 'Refunded', 'Cancelled'
   final DateTime? paymentDueDate;
 
   bool get isDeleted => deleted;
+  bool get isLoanCustomer => loanRequired.trim().toLowerCase() == 'yes';
+  double get firstPaymentPending => (firstPaymentAmount - firstPaymentReceived).clamp(0.0, double.infinity);
+  double get secondPaymentPending => (secondPaymentAmount - secondPaymentReceived).clamp(0.0, double.infinity);
 
   ConsumerRecord({
     this.id,
@@ -229,6 +236,10 @@ class ConsumerRecord {
     this.paidAmount = 0.0,
     this.pendingAmount = 0.0,
     this.additionalPaidAmount = 0.0,
+    this.firstPaymentAmount = 0.0,
+    this.secondPaymentAmount = 0.0,
+    this.firstPaymentReceived = 0.0,
+    this.secondPaymentReceived = 0.0,
     this.paymentStatus = 'Pending',
     this.paymentDueDate,
   });
@@ -496,6 +507,18 @@ class ConsumerRecord {
       additionalPaidAmount: (json['additional_paid_amount'] is num)
           ? (json['additional_paid_amount'] as num).toDouble()
           : double.tryParse(json['additional_paid_amount']?.toString() ?? '0') ?? 0.0,
+      firstPaymentAmount: (json['first_payment_amount'] is num)
+          ? (json['first_payment_amount'] as num).toDouble()
+          : double.tryParse(json['first_payment_amount']?.toString() ?? '0') ?? 0.0,
+      secondPaymentAmount: (json['second_payment_amount'] is num)
+          ? (json['second_payment_amount'] as num).toDouble()
+          : double.tryParse(json['second_payment_amount']?.toString() ?? '0') ?? 0.0,
+      firstPaymentReceived: (json['first_payment_received'] is num)
+          ? (json['first_payment_received'] as num).toDouble()
+          : double.tryParse(json['first_payment_received']?.toString() ?? '0') ?? 0.0,
+      secondPaymentReceived: (json['second_payment_received'] is num)
+          ? (json['second_payment_received'] as num).toDouble()
+          : double.tryParse(json['second_payment_received']?.toString() ?? '0') ?? 0.0,
       paymentStatus: json['payment_status'] as String? ?? 'Pending',
       paymentDueDate: json['payment_due_date'] != null
           ? DateTime.tryParse(json['payment_due_date'].toString())
@@ -547,6 +570,10 @@ class ConsumerRecord {
       'paid_amount': paidAmount,
       'pending_amount': pendingAmount,
       'additional_paid_amount': additionalPaidAmount,
+      'first_payment_amount': firstPaymentAmount,
+      'second_payment_amount': secondPaymentAmount,
+      'first_payment_received': firstPaymentReceived,
+      'second_payment_received': secondPaymentReceived,
       'payment_status': paymentStatus,
     };
 
@@ -660,6 +687,10 @@ class ConsumerRecord {
     double? paidAmount,
     double? pendingAmount,
     double? additionalPaidAmount,
+    double? firstPaymentAmount,
+    double? secondPaymentAmount,
+    double? firstPaymentReceived,
+    double? secondPaymentReceived,
     String? paymentStatus,
     DateTime? paymentDueDate,
   }) {
@@ -734,6 +765,10 @@ class ConsumerRecord {
       paidAmount: paidAmount ?? this.paidAmount,
       pendingAmount: pendingAmount ?? this.pendingAmount,
       additionalPaidAmount: additionalPaidAmount ?? this.additionalPaidAmount,
+      firstPaymentAmount: firstPaymentAmount ?? this.firstPaymentAmount,
+      secondPaymentAmount: secondPaymentAmount ?? this.secondPaymentAmount,
+      firstPaymentReceived: firstPaymentReceived ?? this.firstPaymentReceived,
+      secondPaymentReceived: secondPaymentReceived ?? this.secondPaymentReceived,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentDueDate: paymentDueDate ?? this.paymentDueDate,
     );

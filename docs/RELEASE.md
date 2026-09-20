@@ -185,6 +185,30 @@ For internal testing and GitHub release distribution, standard release signing i
     - Flat card elevation (`0`) with subtle outline borders (`colorScheme.outlineVariant`).
     - Standardized Google Fonts Inter typography across both mobile and web clients.
 
+### Release v1.0.24 (Build 25) - 2026-09-20
+- **Final Clean & Simple Payment Module (No Percentages, Clean Accounting)**:
+  - **Zero Percentages Rule**: Completely eliminated 60%/40% and all percentage calculations from both Mobile and Admin Panel. Replaced with clean, explicit **1st Payment**, **2nd Payment**, and **Additional Payment**.
+  - **Normal Customer Payment**:
+    - Displays Total Payment, Paid (sum of all payments), and Pending (Total Payment - Paid).
+    - Supports multiple flexible payments/installments.
+  - **Loan Customer Payment Breakdown**:
+    - Primary summary cards: `TOTAL PAYMENT`, `PAID`, `PENDING`.
+    - Detailed milestone breakdown:
+      - **1st Payment**: Configurable target amount, Received, Pending (`1st Payment Amount - 1st Payment Received`).
+      - **2nd Payment**: Configurable target amount, Received, Pending (`2nd Payment Amount - 2nd Payment Received`).
+      - **Additional Payment**: Sum of extra payments (extra work, materials, etc.).
+    - Strict accounting rule: Total Received = `1st Received + 2nd Received + Additional Received`.
+    - Total Pending = `Total Payment - 1st Received - 2nd Received`.
+    - Additional Payment never reduces original 1st or 2nd Payment pending amounts.
+  - **Add & Edit Payment Modals**:
+    - Simple, distraction-free modal with Payment Type (`1st Payment`, `2nd Payment`, `Additional Payment`), Amount, Date, Payment Mode (`Cash`, `UPI`, `Bank Transfer`, `Cheque`, `Other`), and Remarks.
+    - Full support for editing existing payment transactions with instant balance recalculation.
+  - **Admin Configuration**:
+    - Admin can configure and edit Total Payment, 1st Payment amount, and 2nd Payment amount with auto-split balance helpers.
+    - Real-time audit trail and payment history in customer record.
+  - **Offline & Sync Persistence**:
+    - Full SQLite local caching and idempotent sync to Supabase when network reconnects.
+
 ### Release v1.0.20 (Build 21) - 2026-09-19
 - **Simple Payment Module (Android App & Admin Panel)**:
   - **Customer Profile Overview**: Streamlined, prominent summary showing Total Payment, Paid, Pending, and Additional Payment.

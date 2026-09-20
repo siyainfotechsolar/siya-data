@@ -1,21 +1,48 @@
 import 'package:flutter/material.dart';
 
-/// Payment Types
+/// Payment Types (Simple & Clean: 1st Payment, 2nd Payment, Additional Payment)
 class PaymentType {
-  static const String contract = 'CONTRACT';
-  static const String additional = 'ADDITIONAL';
+  static const String firstPayment = '1st Payment';
+  static const String secondPayment = '2nd Payment';
+  static const String additional = 'Additional Payment';
+  static const String general = 'Payment';
 
   // Backward compatibility aliases
-  static const String offline = 'CONTRACT';
-  static const String online = 'CONTRACT';
+  static const String contract = '1st Payment';
+  static const String offline = '1st Payment';
+  static const String online = '1st Payment';
 
-  static const List<String> allTypes = [contract, additional];
+  static const List<String> loanTypes = [firstPayment, secondPayment, additional];
+  static const List<String> normalTypes = [general, additional];
+  static const List<String> allTypes = [firstPayment, secondPayment, additional, general, 'CONTRACT', 'ADDITIONAL'];
 
   static String displayName(String type) {
-    if (type.toUpperCase() == 'ADDITIONAL') {
+    final t = type.trim();
+    if (isAdditionalType(t)) {
       return 'Additional Payment';
     }
-    return 'Contract Payment';
+    if (isFirst(t)) {
+      return '1st Payment';
+    }
+    if (isSecond(t)) {
+      return '2nd Payment';
+    }
+    return t.isNotEmpty ? t : 'Payment';
+  }
+
+  static bool isFirst(String type) {
+    final t = type.trim().toLowerCase();
+    return t == '1st payment' || t == '1st_payment' || t == '1st installment' || t == 'contract';
+  }
+
+  static bool isSecond(String type) {
+    final t = type.trim().toLowerCase();
+    return t == '2nd payment' || t == '2nd_payment' || t == '2nd installment';
+  }
+
+  static bool isAdditionalType(String type) {
+    final t = type.trim().toLowerCase();
+    return t == 'additional' || t == 'additional payment' || t == 'additional_payment';
   }
 }
 
@@ -345,10 +372,12 @@ class PaymentTransaction {
   bool get isSynced => syncStatus == 'Synced';
   bool get isPendingSync => syncStatus == 'Pending Sync';
 
-  bool get isAdditional => paymentType.toUpperCase() == 'ADDITIONAL';
+  bool get isAdditional => PaymentType.isAdditionalType(paymentType);
+  bool get isFirstPayment => PaymentType.isFirst(paymentType);
+  bool get isSecondPayment => PaymentType.isSecond(paymentType);
   bool get isContract => !isAdditional;
 
-  String get typeDisplayName => isAdditional ? 'Additional Payment' : 'Contract Payment';
+  String get typeDisplayName => PaymentType.displayName(paymentType);
   String get categoryDisplayName =>
       additionalCategory != null ? AdditionalPaymentCategory.displayName(additionalCategory!) : '—';
 
@@ -866,6 +895,11 @@ class CustomerPaymentRow {
   final double totalAmount; // Contract Amount
   final double paidAmount; // Contract Paid
   final double pendingAmount; // Contract Pending
+  final double firstPaymentAmount;
+  final double secondPaymentAmount;
+  final double firstPaymentReceived;
+  final double secondPaymentReceived;
+  final bool isLoanCustomer;
   final double additionalPaid; // Additional Paid
   final double totalReceived; // Total Received = Contract Paid + Additional Paid
   final String paymentStatus;
@@ -874,6 +908,9 @@ class CustomerPaymentRow {
   final String? lastPaymentMode;
   final String? lastPaymentType;
   final String? lastAdditionalCategory;
+
+  double get firstPaymentPending => (firstPaymentAmount - firstPaymentReceived).clamp(0.0, double.infinity);
+  double get secondPaymentPending => (secondPaymentAmount - secondPaymentReceived).clamp(0.0, double.infinity);
 
   const CustomerPaymentRow({
     required this.customerId,
@@ -884,6 +921,11 @@ class CustomerPaymentRow {
     required this.totalAmount,
     required this.paidAmount,
     required this.pendingAmount,
+    this.firstPaymentAmount = 0.0,
+    this.secondPaymentAmount = 0.0,
+    this.firstPaymentReceived = 0.0,
+    this.secondPaymentReceived = 0.0,
+    this.isLoanCustomer = false,
     this.additionalPaid = 0.0,
     double? totalReceived,
     required this.paymentStatus,

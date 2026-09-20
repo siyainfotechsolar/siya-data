@@ -37,12 +37,49 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
   bool _isSaving = false;
   List<OfficeTask> _customerTasks = [];
   bool _isLoadingCustomerTasks = true;
+  List<PaymentTransaction> _customerPayments = [];
+  bool _isLoadingCustomerPayments = true;
 
   @override
   void initState() {
     super.initState();
     _record = widget.record;
     _loadCustomerTasks();
+    _loadCustomerPayments();
+  }
+
+  Future<void> _loadCustomerPayments() async {
+    if (_record.id == null) return;
+    try {
+      final payments = await AppDatabase.getCustomerPayments(_record.id!);
+      if (mounted) {
+        setState(() {
+          _customerPayments = payments;
+          _isLoadingCustomerPayments = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading customer payments: $e');
+      if (mounted) {
+        setState(() => _isLoadingCustomerPayments = false);
+      }
+    }
+  }
+
+  Future<void> _refreshPaymentData() async {
+    if (_record.id == null) return;
+    final updated = await AppDatabase.getConsumerRecordById(_record.id!);
+    final payments = await AppDatabase.getCustomerPayments(_record.id!);
+    if (mounted) {
+      setState(() {
+        if (updated != null) {
+          _record = updated;
+          _hasChanged = true;
+        }
+        _customerPayments = payments;
+        _isLoadingCustomerPayments = false;
+      });
+    }
   }
 
   Future<void> _loadCustomerTasks() async {
@@ -1629,10 +1666,15 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
   }
 
   Widget _buildCustomerPaymentProfileCard(ThemeData theme, bool isDark) {
+    final currency = NumberFormat('#,##,###');
     final total = _record.totalAmount;
     final paid = _record.paidAmount;
     final pending = _record.pendingAmount;
+    final isLoan = _record.isLoanCustomer || _record.firstPaymentAmount > 0 || _record.secondPaymentAmount > 0;
     final hasAdditional = _record.additionalPaidAmount > 0;
+    final totalReceived = isLoan
+        ? (_record.firstPaymentReceived + _record.secondPaymentReceived + _record.additionalPaidAmount)
+        : paid;
 
     return Card(
       elevation: 2,
@@ -1640,8 +1682,9 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Header Row: PAYMENT Title + Edit Settings button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -1659,141 +1702,465 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                   ],
                 ),
                 TextButton.icon(
-                  icon: const Icon(Icons.edit_outlined, size: 14),
-                  label: const Text('Edit Total', style: TextStyle(fontSize: 12)),
-                  onPressed: _showEditTotalPaymentDialog,
+                  icon: const Icon(Icons.tune_rounded, size: 14),
+                  label: const Text('Edit Settings', style: TextStyle(fontSize: 12)),
+                  onPressed: _showEditPaymentSettingsDialog,
                 ),
               ],
             ),
             const Divider(height: 16),
 
-            // Metrics: Total Payment, Paid, Pending, Additional
+            // Top Summary Box: TOTAL PAYMENT, PAID, PENDING
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey.shade900 : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _paymentMetricCol(
+                    'TOTAL PAYMENT',
+                    '₹${currency.format(total)}',
+                    isDark ? Colors.white : const Color(0xFF1E293B),
+                    onTap: _showEditPaymentSettingsDialog,
+                  ),
+                  _paymentMetricCol(
+                    'PAID',
+                    '₹${currency.format(paid)}',
+                    const Color(0xFF059669),
+                  ),
+                  _paymentMetricCol(
+                    'PENDING',
+                    '₹${currency.format(pending)}',
+                    pending > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                  ),
+                ],
+              ),
+            ),
+
+            // If LOAN CUSTOMER: show 1st Payment, 2nd Payment, Additional Payment
+            if (isLoan) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey.shade800.withValues(alpha: 0.3) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    // 1st Payment Section
+                    _buildPaymentBreakdownRow(
+                      title: '1st Payment',
+                      targetAmount: _record.firstPaymentAmount,
+                      receivedAmount: _record.firstPaymentReceived,
+                      pendingAmount: _record.firstPaymentPending,
+                      accentColor: const Color(0xFF2563EB),
+                    ),
+                    const Divider(height: 16),
+                    // 2nd Payment Section
+                    _buildPaymentBreakdownRow(
+                      title: '2nd Payment',
+                      targetAmount: _record.secondPaymentAmount,
+                      receivedAmount: _record.secondPaymentReceived,
+                      pendingAmount: _record.secondPaymentPending,
+                      accentColor: const Color(0xFF4F46E5),
+                    ),
+                    if (hasAdditional) ...[
+                      const Divider(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF7C3AED),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'Additional',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            '₹${currency.format(_record.additionalPaidAmount)}',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF7C3AED)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Total Received',
+                            style: TextStyle(fontSize: 11, color: Colors.grey),
+                          ),
+                          Text(
+                            '₹${currency.format(totalReceived)}',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 16),
+
+            // Button: [ + Add Payment ]
+            ElevatedButton.icon(
+              icon: const Icon(Icons.add, size: 20),
+              label: const Text(
+                '+ Add Payment',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 0.3),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: () async {
+                final res = await AddPaymentDialog.show(context, preselectedCustomer: _record);
+                if (res == true && mounted) {
+                  await _refreshPaymentData();
+                }
+              },
+            ),
+
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+
+            // Payment History Section
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _paymentMetricCol(
-                  'Total Payment',
-                  '₹${NumberFormat('#,##,###').format(total)}',
-                  Colors.grey.shade800,
-                  onTap: _showEditTotalPaymentDialog,
+                Text(
+                  'Payment History (${_customerPayments.length})',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
-                _paymentMetricCol(
-                  'Paid',
-                  '₹${NumberFormat('#,##,###').format(paid)}',
-                  const Color(0xFF059669),
-                ),
-                _paymentMetricCol(
-                  'Pending',
-                  '₹${NumberFormat('#,##,###').format(pending)}',
-                  pending > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
-                ),
-                if (hasAdditional)
-                  _paymentMetricCol(
-                    'Additional',
-                    '₹${NumberFormat('#,##,###').format(_record.additionalPaidAmount)}',
-                    const Color(0xFF7C3AED),
+                if (_customerPayments.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: _refreshPaymentData,
+                    icon: const Icon(Icons.refresh, size: 14),
+                    label: const Text('Refresh', style: TextStyle(fontSize: 11)),
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
                   ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
 
-            // Action Buttons: [ + Add Payment ] and [ Payment History ]
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('+ Add Payment', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF059669),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    onPressed: () async {
-                      final res = await AddPaymentDialog.show(context, preselectedCustomer: _record);
-                      if (res == true && mounted) {
-                        final updated = await AppDatabase.getConsumerRecordById(_record.id!);
-                        if (updated != null) {
-                          setState(() {
-                            _record = updated;
-                            _hasChanged = true;
-                          });
-                        }
-                      }
-                    },
+            if (_isLoadingCustomerPayments)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else if (_customerPayments.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey.shade900 : Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Center(
+                  child: Text(
+                    'No recorded payments for this customer yet.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ),
-                const SizedBox(width: 10),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.history_rounded, size: 18),
-                  label: const Text('Payment History', style: TextStyle(fontSize: 13)),
-                  style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  ),
-                  onPressed: _showPaymentHistorySheet,
-                ),
-              ],
-            ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _customerPayments.length,
+                separatorBuilder: (context, index) => const Divider(height: 12),
+                itemBuilder: (context, idx) {
+                  final tx = _customerPayments[idx];
+                  return _buildPaymentHistoryTile(tx, isDark);
+                },
+              ),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _showEditTotalPaymentDialog() async {
-    final totalCtrl = TextEditingController(
-      text: _record.totalAmount > 0 ? _record.totalAmount.toStringAsFixed(0) : '',
-    );
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Total Payment'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildPaymentBreakdownRow({
+    required String title,
+    required double targetAmount,
+    required double receivedAmount,
+    required double pendingAmount,
+    required Color accentColor,
+  }) {
+    final currency = NumberFormat('#,##,###');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Customer: ${_record.name} (${_record.consumerNo})'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: totalCtrl,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Total Payment (₹) *',
-                prefixText: '₹ ',
-                border: OutlineInputBorder(),
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(color: accentColor, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  title,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: accentColor),
+                ),
+              ],
+            ),
+            Text(
+              '₹${currency.format(targetAmount)}',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Received: ₹${currency.format(receivedAmount)}',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF059669), fontWeight: FontWeight.w600),
+            ),
+            Text(
+              'Pending: ₹${currency.format(pendingAmount)}',
+              style: TextStyle(
+                fontSize: 12,
+                color: pendingAmount > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Save'),
+      ],
+    );
+  }
+
+  Widget _buildPaymentHistoryTile(PaymentTransaction tx, bool isDark) {
+    final currency = NumberFormat('#,##,###');
+    Color badgeColor = const Color(0xFF059669);
+    Color badgeBg = const Color(0xFFE8F5E9);
+    if (tx.isFirstPayment) {
+      badgeColor = const Color(0xFF2563EB);
+      badgeBg = const Color(0xFFEFF6FF);
+    } else if (tx.isSecondPayment) {
+      badgeColor = const Color(0xFF4F46E5);
+      badgeBg = const Color(0xFFEEF2FF);
+    } else if (tx.isAdditional) {
+      badgeColor = const Color(0xFF7C3AED);
+      badgeBg = const Color(0xFFEDE9FE);
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        CircleAvatar(
+          radius: 18,
+          backgroundColor: badgeBg,
+          child: Icon(PaymentMode.getModeIcon(tx.paymentMode), size: 16, color: badgeColor),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    '₹${currency.format(tx.amount)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: badgeBg,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      tx.typeDisplayName,
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: badgeColor),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${DateFormat('dd MMM yyyy').format(tx.paymentDate)} • ${tx.paymentMode}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              if (tx.remarks != null && tx.remarks!.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    tx.remarks!.trim(),
+                    style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.black87),
+                  ),
+                ),
+            ],
           ),
-        ],
+        ),
+        TextButton.icon(
+          icon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF059669)),
+          label: const Text('Edit', style: TextStyle(fontSize: 12, color: Color(0xFF059669))),
+          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+          onPressed: () async {
+            final res = await AddPaymentDialog.show(
+              context,
+              existingPayment: tx,
+              preselectedCustomer: _record,
+            );
+            if (res == true && mounted) {
+              await _refreshPaymentData();
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showEditPaymentSettingsDialog() async {
+    final totalCtrl = TextEditingController(
+      text: _record.totalAmount > 0 ? _record.totalAmount.toStringAsFixed(0) : '',
+    );
+    final firstCtrl = TextEditingController(
+      text: _record.firstPaymentAmount > 0 ? _record.firstPaymentAmount.toStringAsFixed(0) : '',
+    );
+    final secondCtrl = TextEditingController(
+      text: _record.secondPaymentAmount > 0 ? _record.secondPaymentAmount.toStringAsFixed(0) : '',
+    );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.tune_rounded, color: Color(0xFF059669)),
+                SizedBox(width: 8),
+                Text('Payment Settings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Customer: ${_record.name} (${_record.consumerNo})', style: const TextStyle(fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: totalCtrl,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Total Payment (₹) *',
+                      prefixText: '₹ ',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (val) {
+                      setDialogState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: firstCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: '1st Payment Amount (₹)',
+                      prefixText: '₹ ',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (val) {
+                      setDialogState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: secondCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: '2nd Payment Amount (₹)',
+                      prefixText: '₹ ',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.auto_fix_high, size: 18),
+                        tooltip: 'Auto calculate: Total - 1st Payment',
+                        onPressed: () {
+                          final tot = double.tryParse(totalCtrl.text.trim()) ?? 0.0;
+                          final fst = double.tryParse(firstCtrl.text.trim()) ?? 0.0;
+                          final rem = (tot - fst).clamp(0.0, double.infinity);
+                          setDialogState(() {
+                            secondCtrl.text = rem.toStringAsFixed(0);
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Note: Set 1st & 2nd payment target amounts.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save Settings'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
-    if (confirmed == true && mounted) {
+    if (confirmed == true && mounted && _record.id != null) {
       final newTotal = double.tryParse(totalCtrl.text.trim()) ?? 0.0;
-      final updated = await PaymentService.updateTotalPayment(
+      final newFirst = double.tryParse(firstCtrl.text.trim()) ?? 0.0;
+      final newSecond = double.tryParse(secondCtrl.text.trim()) ?? 0.0;
+
+      final updated = await PaymentService.updatePaymentSettings(
         customerId: _record.id!,
         newTotalAmount: newTotal,
+        firstPaymentAmount: newFirst,
+        secondPaymentAmount: newSecond,
       );
+
       if (updated != null && mounted) {
         setState(() {
           _record = updated;
           _hasChanged = true;
         });
+        await _refreshPaymentData();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Total Payment updated successfully!'),
+            content: Text('Payment settings updated successfully!'),
             backgroundColor: Color(0xFF059669),
           ),
         );
@@ -1824,110 +2191,6 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       return InkWell(onTap: onTap, child: col);
     }
     return col;
-  }
-
-  void _showPaymentHistorySheet() async {
-    if (_record.id == null) return;
-    final payments = await AppDatabase.getCustomerPayments(_record.id!);
-
-    if (!mounted) return;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Payment History (${payments.length})',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(ctx),
-                ),
-              ],
-            ),
-            const Divider(),
-            if (payments.isEmpty)
-              const Expanded(
-                child: Center(child: Text('No recorded payments for this customer yet.')),
-              )
-            else
-              Expanded(
-                child: ListView.builder(
-                  itemCount: payments.length,
-                  itemBuilder: (context, idx) {
-                    final tx = payments[idx];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: const Color(0xFF059669).withValues(alpha: 0.12),
-                          child: Icon(PaymentMode.getModeIcon(tx.paymentMode), size: 18, color: const Color(0xFF059669)),
-                        ),
-                        title: Row(
-                          children: [
-                            Text(
-                              '₹${NumberFormat('#,##,###').format(tx.amount)}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                            ),
-                            if (tx.isAdditional) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEDE9FE),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Text(
-                                  'Additional',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF7C3AED),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 2),
-                            Text(
-                              '${DateFormat('dd MMM yyyy').format(tx.paymentDate)} • ${tx.paymentMode}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            if (tx.remarks != null && tx.remarks!.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: Text(
-                                  tx.remarks!,
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildCustomerTasksCard(ThemeData theme) {

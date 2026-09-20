@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/customer_payment.dart';
 import '../models/consumer_record.dart';
 import '../services/payment_service.dart';
-import '../services/record_service.dart';
 import '../services/supabase_service.dart';
 
 class PaymentsScreen extends StatefulWidget {
@@ -207,50 +206,119 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
     final totalCtrl = TextEditingController(
       text: row.totalAmount > 0 ? row.totalAmount.toStringAsFixed(0) : '',
     );
+    final firstCtrl = TextEditingController(
+      text: row.firstPaymentAmount > 0 ? row.firstPaymentAmount.toStringAsFixed(0) : '',
+    );
+    final secondCtrl = TextEditingController(
+      text: row.secondPaymentAmount > 0 ? row.secondPaymentAmount.toStringAsFixed(0) : '',
+    );
+
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Total Payment'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Customer: ${row.customerName} (${row.consumerNo})'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: totalCtrl,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Total Payment (₹) *',
-                prefixText: '₹ ',
-                border: OutlineInputBorder(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.tune_rounded, color: Color(0xFF059669)),
+                SizedBox(width: 8),
+                Text('Edit Customer Payment Settings'),
+              ],
+            ),
+            content: SizedBox(
+              width: 400,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Customer: ${row.customerName} (${row.consumerNo})', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: totalCtrl,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Total Payment (₹) *',
+                      prefixText: '₹ ',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (val) => setDialogState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: firstCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: '1st Payment Amount (₹)',
+                      prefixText: '₹ ',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (val) => setDialogState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: secondCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: '2nd Payment Amount (₹)',
+                      prefixText: '₹ ',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.auto_fix_high, size: 18),
+                        tooltip: 'Auto calculate: Total - 1st Payment',
+                        onPressed: () {
+                          final tot = double.tryParse(totalCtrl.text.trim()) ?? 0.0;
+                          final fst = double.tryParse(firstCtrl.text.trim()) ?? 0.0;
+                          final rem = (tot - fst).clamp(0.0, double.infinity);
+                          setDialogState(() {
+                            secondCtrl.text = rem.toStringAsFixed(0);
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Note: Set 1st & 2nd payment target amounts.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Save'),
-          ),
-        ],
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save Settings'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
     if (confirmed == true && mounted) {
       final newTotal = double.tryParse(totalCtrl.text.trim()) ?? 0.0;
+      final newFirst = double.tryParse(firstCtrl.text.trim()) ?? 0.0;
+      final newSecond = double.tryParse(secondCtrl.text.trim()) ?? 0.0;
       try {
-        await RecordService.updateCustomerPaymentProfile(
+        await AdminPaymentService.updatePaymentSettings(
           customerId: row.customerId,
           totalAmount: newTotal,
+          firstPaymentAmount: newFirst,
+          secondPaymentAmount: newSecond,
         );
         _loadAll();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment settings updated successfully!'),
+            backgroundColor: Color(0xFF059669),
+          ),
+        );
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating Total Payment: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating Payment Settings: $e')));
         }
       }
     }
@@ -652,8 +720,26 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(row.customerName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        if (row.village.isNotEmpty)
-                          Text(row.village, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Row(
+                          children: [
+                            if (row.village.isNotEmpty)
+                              Text(row.village, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                            if (row.isLoanCustomer || row.firstPaymentAmount > 0) ...[
+                              const SizedBox(width: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'Loan',
+                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF2563EB)),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -683,12 +769,23 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
                     ),
                   ),
                   DataCell(
-                    Text(
-                      '₹${currency.format(row.pendingAmount)}',
-                      style: TextStyle(
-                        color: isPending ? const Color(0xFFDC2626) : Colors.grey,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '₹${currency.format(row.pendingAmount)}',
+                          style: TextStyle(
+                            color: isPending ? const Color(0xFFDC2626) : Colors.grey,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (row.firstPaymentAmount > 0 || row.secondPaymentAmount > 0)
+                          Text(
+                            '1st Due: ₹${currency.format(row.firstPaymentPending)}',
+                            style: const TextStyle(fontSize: 10, color: Color(0xFF2563EB)),
+                          ),
+                      ],
                     ),
                   ),
                   DataCell(
@@ -895,7 +992,7 @@ class _AdminAddPaymentDialogState extends State<_AdminAddPaymentDialog> {
   double _additionalPaid = 0.0;
   double _totalReceived = 0.0;
 
-  String _paymentType = PaymentType.contract;
+  String _paymentType = PaymentType.firstPayment;
   String _additionalCategory = AdditionalPaymentCategory.extraMaterial;
 
   final TextEditingController _amountCtrl = TextEditingController();
@@ -1194,13 +1291,18 @@ class _AdminAddPaymentDialogState extends State<_AdminAddPaymentDialog> {
                 SegmentedButton<String>(
                   segments: const [
                     ButtonSegment(
-                      value: PaymentType.contract,
-                      label: Text('Contract Payment'),
-                      icon: Icon(Icons.assignment_outlined, size: 16),
+                      value: PaymentType.firstPayment,
+                      label: Text('1st Payment'),
+                      icon: Icon(Icons.looks_one_rounded, size: 16),
+                    ),
+                    ButtonSegment(
+                      value: PaymentType.secondPayment,
+                      label: Text('2nd Payment'),
+                      icon: Icon(Icons.looks_two_rounded, size: 16),
                     ),
                     ButtonSegment(
                       value: PaymentType.additional,
-                      label: Text('Additional Payment'),
+                      label: Text('Additional'),
                       icon: Icon(Icons.add_shopping_cart_rounded, size: 16),
                     ),
                   ],
@@ -1209,6 +1311,34 @@ class _AdminAddPaymentDialogState extends State<_AdminAddPaymentDialog> {
                     setState(() => _paymentType = newSelection.first);
                   },
                 ),
+                if (widget.preselectedCustomer != null) ...[
+                  if (widget.preselectedCustomer!.firstPaymentPending > 0 && _paymentType == PaymentType.firstPayment)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: InkWell(
+                        onTap: () {
+                          _amountCtrl.text = widget.preselectedCustomer!.firstPaymentPending.toStringAsFixed(0);
+                        },
+                        child: Text(
+                          'Due 1st Payment: ₹${widget.preselectedCustomer!.firstPaymentPending.toStringAsFixed(0)} (tap to fill)',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF2563EB), fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    )
+                  else if (widget.preselectedCustomer!.secondPaymentPending > 0 && _paymentType == PaymentType.secondPayment)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: InkWell(
+                        onTap: () {
+                          _amountCtrl.text = widget.preselectedCustomer!.secondPaymentPending.toStringAsFixed(0);
+                        },
+                        child: Text(
+                          'Due 2nd Payment: ₹${widget.preselectedCustomer!.secondPaymentPending.toStringAsFixed(0)} (tap to fill)',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF4F46E5), fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                ],
                 const SizedBox(height: 14),
 
                 // 3. IF ADDITIONAL PAYMENT: CATEGORY DROPDOWN
@@ -1401,9 +1531,15 @@ class _AdminEditPaymentDialogState extends State<_AdminEditPaymentDialog> {
     _paymentMode = ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Other'].contains(widget.transaction.paymentMode)
         ? widget.transaction.paymentMode
         : 'Other';
-    _paymentType = widget.transaction.paymentType.toUpperCase() == 'ADDITIONAL'
-        ? PaymentType.additional
-        : PaymentType.contract;
+    if (widget.transaction.isFirstPayment) {
+      _paymentType = PaymentType.firstPayment;
+    } else if (widget.transaction.isSecondPayment) {
+      _paymentType = PaymentType.secondPayment;
+    } else if (widget.transaction.isAdditional) {
+      _paymentType = PaymentType.additional;
+    } else {
+      _paymentType = PaymentType.firstPayment;
+    }
     _additionalCategory = widget.transaction.additionalCategory ?? AdditionalPaymentCategory.extraMaterial;
   }
 
@@ -1489,7 +1625,8 @@ class _AdminEditPaymentDialogState extends State<_AdminEditPaymentDialog> {
               const SizedBox(height: 6),
               SegmentedButton<String>(
                 segments: const [
-                  ButtonSegment(value: PaymentType.contract, label: Text('Contract')),
+                  ButtonSegment(value: PaymentType.firstPayment, label: Text('1st Payment')),
+                  ButtonSegment(value: PaymentType.secondPayment, label: Text('2nd Payment')),
                   ButtonSegment(value: PaymentType.additional, label: Text('Additional')),
                 ],
                 selected: {_paymentType},

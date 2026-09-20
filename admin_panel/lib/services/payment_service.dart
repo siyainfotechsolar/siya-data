@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/customer_payment.dart';
-import '../models/consumer_record.dart';
 import 'supabase_service.dart';
 import 'activity_log_service.dart';
 import 'excel_export_service.dart';
@@ -479,12 +478,18 @@ class AdminPaymentService {
   }
 
   /// Recalculate customer paid_amount and pending_amount deterministically
-  /// STRICT RULE: Additional payments do NOT reduce Contract Pending.
+  /// STRICT RULES:
+  /// - 1st Payment Pending = 1st Payment Amount - 1st Received
+  /// - 2nd Payment Pending = 2nd Payment Amount - 2nd Received
+  /// - Additional Payment = Sum of Additional Payments
+  /// - Total Received = 1st Received + 2nd Received + Additional Received
+  /// - Total Pending = Total Payment - 1st Received - 2nd Received
+  /// - Additional payments do NOT reduce 1st or 2nd Payment pending!
   static Future<void> recalculateAndUpdateCustomerBalance(String customerId) async {
     try {
       final cust = await _client
           .from('consumer_records')
-          .select('total_amount, payment_due_date')
+          .select('total_amount, payment_due_date, first_payment_amount, second_payment_amount, loan_required')
           .eq('id', customerId)
           .maybeSingle();
 
@@ -499,8 +504,10 @@ class AdminPaymentService {
           .select('amount, status, verification_status, deleted, payment_type')
           .eq('customer_id', customerId);
 
-      double contractPaid = 0.0;
-      double additionalPaid = 0.0;
+      double firstReceived = 0.0;
+      double secondReceived = 0.0;
+      double additionalReceived = 0.0;
+      double generalReceived = 0.0;
 
       for (final row in (txRes as List)) {
         final m = row as Map<String, dynamic>;
@@ -512,31 +519,35 @@ class AdminPaymentService {
               ? (m['amount'] as num).toDouble()
               : double.tryParse(m['amount']?.toString() ?? '0') ?? 0.0;
           final pType = m['payment_type']?.toString() ?? PaymentType.contract;
-          if (pType.toUpperCase() == 'ADDITIONAL') {
-            additionalPaid += amt;
+          if (PaymentType.isAdditionalType(pType)) {
+            additionalReceived += amt;
+          } else if (PaymentType.isFirst(pType)) {
+            firstReceived += amt;
+          } else if (PaymentType.isSecond(pType)) {
+            secondReceived += amt;
           } else {
-            contractPaid += amt;
+            generalReceived += amt;
           }
         }
       }
 
-      // CRITICAL ACCOUNTING RULE:
-      // Contract Pending = max(0, Contract Amount - Contract Payments)
-      // Additional payments do NOT reduce Contract Pending!
-      final contractPending = (totalAmount > 0) ? (totalAmount - contractPaid).clamp(0.0, double.infinity) : 0.0;
-      final totalReceived = contractPaid + additionalPaid;
+      final paidAmount = firstReceived + secondReceived + generalReceived;
+      final pendingAmount = (totalAmount - firstReceived - secondReceived - generalReceived).clamp(0.0, double.infinity);
+      final totalReceived = firstReceived + secondReceived + generalReceived + additionalReceived;
 
       String newStatus = PaymentStatus.pending;
-      if (totalAmount > 0 && contractPaid >= totalAmount) {
+      if (totalAmount > 0 && paidAmount >= totalAmount) {
         newStatus = PaymentStatus.paid;
-      } else if (contractPaid > 0) {
+      } else if (paidAmount > 0) {
         newStatus = PaymentStatus.partiallyPaid;
       }
 
       await _client.from('consumer_records').update({
-        'paid_amount': contractPaid,
-        'pending_amount': contractPending,
-        'additional_paid_amount': additionalPaid,
+        'paid_amount': paidAmount,
+        'pending_amount': pendingAmount,
+        'first_payment_received': firstReceived,
+        'second_payment_received': secondReceived,
+        'additional_paid_amount': additionalReceived,
         'total_received_amount': totalReceived,
         'payment_status': newStatus,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
@@ -544,6 +555,24 @@ class AdminPaymentService {
     } catch (e) {
       debugPrint('Error recalculating customer balance: $e');
     }
+  }
+
+  /// Update customer payment amounts (Total, 1st, 2nd) and recalculate
+  static Future<void> updatePaymentSettings({
+    required String customerId,
+    required double totalAmount,
+    double? firstPaymentAmount,
+    double? secondPaymentAmount,
+  }) async {
+    final updateMap = <String, dynamic>{
+      'total_amount': totalAmount,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+    if (firstPaymentAmount != null) updateMap['first_payment_amount'] = firstPaymentAmount;
+    if (secondPaymentAmount != null) updateMap['second_payment_amount'] = secondPaymentAmount;
+
+    await _client.from('consumer_records').update(updateMap).eq('id', customerId);
+    await recalculateAndUpdateCustomerBalance(customerId);
   }
 
   /// Record a payment transaction from Admin Panel
@@ -673,6 +702,11 @@ class AdminPaymentService {
         total_amount,
         paid_amount,
         pending_amount,
+        first_payment_amount,
+        second_payment_amount,
+        first_payment_received,
+        second_payment_received,
+        loan_required,
         additional_paid_amount,
         total_received_amount,
         payment_status,
@@ -712,6 +746,21 @@ class AdminPaymentService {
         double contractPending = (m['pending_amount'] is num)
             ? (m['pending_amount'] as num).toDouble()
             : double.tryParse(m['pending_amount']?.toString() ?? '0') ?? 0.0;
+
+        final firstPaymentAmount = (m['first_payment_amount'] is num)
+            ? (m['first_payment_amount'] as num).toDouble()
+            : double.tryParse(m['first_payment_amount']?.toString() ?? '0') ?? 0.0;
+        final secondPaymentAmount = (m['second_payment_amount'] is num)
+            ? (m['second_payment_amount'] as num).toDouble()
+            : double.tryParse(m['second_payment_amount']?.toString() ?? '0') ?? 0.0;
+        double firstPaymentReceived = (m['first_payment_received'] is num)
+            ? (m['first_payment_received'] as num).toDouble()
+            : double.tryParse(m['first_payment_received']?.toString() ?? '0') ?? 0.0;
+        double secondPaymentReceived = (m['second_payment_received'] is num)
+            ? (m['second_payment_received'] as num).toDouble()
+            : double.tryParse(m['second_payment_received']?.toString() ?? '0') ?? 0.0;
+        final isLoan = m['loan_required']?.toString().toLowerCase() == 'yes';
+
         double additionalPaid = (m['additional_paid_amount'] is num)
             ? (m['additional_paid_amount'] as num).toDouble()
             : double.tryParse(m['additional_paid_amount']?.toString() ?? '0') ?? 0.0;
@@ -728,7 +777,9 @@ class AdminPaymentService {
 
         final txList = m['payments'] as List?;
         if (txList != null && txList.isNotEmpty) {
-          double computedContractPaid = 0.0;
+          double computedFirstReceived = 0.0;
+          double computedSecondReceived = 0.0;
+          double computedGeneralPaid = 0.0;
           double computedAdditionalPaid = 0.0;
           for (final tx in txList) {
             final txMap = tx as Map<String, dynamic>;
@@ -740,10 +791,14 @@ class AdminPaymentService {
                   ? (txMap['amount'] as num).toDouble()
                   : double.tryParse(txMap['amount']?.toString() ?? '0') ?? 0.0;
               final pType = txMap['payment_type']?.toString() ?? PaymentType.contract;
-              if (pType.toUpperCase() == 'ADDITIONAL') {
+              if (PaymentType.isAdditionalType(pType)) {
                 computedAdditionalPaid += amt;
+              } else if (PaymentType.isFirst(pType)) {
+                computedFirstReceived += amt;
+              } else if (PaymentType.isSecond(pType)) {
+                computedSecondReceived += amt;
               } else {
-                computedContractPaid += amt;
+                computedGeneralPaid += amt;
               }
 
               final dateStr = txMap['payment_date']?.toString();
@@ -757,9 +812,11 @@ class AdminPaymentService {
               }
             }
           }
-          contractPaid = computedContractPaid;
+          firstPaymentReceived = computedFirstReceived;
+          secondPaymentReceived = computedSecondReceived;
+          contractPaid = computedFirstReceived + computedSecondReceived + computedGeneralPaid;
           additionalPaid = computedAdditionalPaid;
-          contractPending = (contractTotal - contractPaid).clamp(0.0, double.infinity);
+          contractPending = (contractTotal - computedFirstReceived - computedSecondReceived - computedGeneralPaid).clamp(0.0, double.infinity);
           totalReceived = contractPaid + additionalPaid;
         }
 
@@ -772,6 +829,11 @@ class AdminPaymentService {
           totalAmount: contractTotal,
           paidAmount: contractPaid,
           pendingAmount: contractPending,
+          firstPaymentAmount: firstPaymentAmount,
+          secondPaymentAmount: secondPaymentAmount,
+          firstPaymentReceived: firstPaymentReceived,
+          secondPaymentReceived: secondPaymentReceived,
+          isLoanCustomer: isLoan,
           additionalPaid: additionalPaid,
           totalReceived: totalReceived,
           paymentStatus: status,

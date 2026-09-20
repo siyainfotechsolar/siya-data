@@ -1098,8 +1098,14 @@ class AppDatabase {
     }
 
     if (typeFilter != null && typeFilter != 'All') {
-      whereClauses.add('payment_type = ?');
-      whereArgs.add(typeFilter);
+      if (typeFilter.toUpperCase() == 'CONTRACT') {
+        whereClauses.add("(payment_type != 'ADDITIONAL' AND payment_type != 'Additional Payment')");
+      } else if (typeFilter.toUpperCase() == 'ADDITIONAL' || typeFilter == PaymentType.additional) {
+        whereClauses.add("(payment_type = 'ADDITIONAL' OR payment_type = 'Additional Payment')");
+      } else {
+        whereClauses.add('payment_type = ?');
+        whereArgs.add(typeFilter);
+      }
     }
 
     if (categoryFilter != null && categoryFilter != 'All') {
@@ -1201,12 +1207,12 @@ class AppDatabase {
 
     // 7. Contract & Additional Collections
     final contractRes = await db.rawQuery(
-      "SELECT SUM(amount) as s FROM cached_payments WHERE payment_type != 'ADDITIONAL'",
+      "SELECT SUM(amount) as s FROM cached_payments WHERE payment_type != 'ADDITIONAL' AND payment_type != 'Additional Payment'",
     );
     final contractCollection = (contractRes.first['s'] as num?)?.toDouble() ?? 0.0;
 
     final addRes = await db.rawQuery(
-      "SELECT SUM(amount) as s FROM cached_payments WHERE payment_type = 'ADDITIONAL'",
+      "SELECT SUM(amount) as s FROM cached_payments WHERE payment_type = 'ADDITIONAL' OR payment_type = 'Additional Payment'",
     );
     final additionalCollection = (addRes.first['s'] as num?)?.toDouble() ?? 0.0;
 

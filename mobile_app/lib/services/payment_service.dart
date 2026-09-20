@@ -88,6 +88,77 @@ class PaymentService {
     } catch (_) {}
   }
 
+  /// Recalculate customer's financial balance strictly adhering to simple accounting:
+  /// - 1st Payment Pending = 1st Payment Amount - 1st Payment Received
+  /// - 2nd Payment Pending = 2nd Payment Amount - 2nd Payment Received
+  /// - Additional Payment = Sum of Additional Payments
+  /// - Total Received = 1st Received + 2nd Received + Additional Received
+  /// - Total Pending = Total Payment - 1st Received - 2nd Received
+  /// - Additional Payment must NOT reduce 1st/2nd Payment pending amount!
+  static Future<ConsumerRecord?> recalculateCustomerBalances(String customerId) async {
+    final customer = await AppDatabase.getConsumerRecordById(customerId);
+    if (customer == null) return null;
+
+    final txs = await AppDatabase.getCustomerPayments(customerId);
+    final validTxs = txs.where((t) => t.isValid && !t.isRejected && !t.isVoid).toList();
+
+    double firstReceived = 0.0;
+    double secondReceived = 0.0;
+    double additionalReceived = 0.0;
+    double generalReceived = 0.0;
+
+    for (final t in validTxs) {
+      if (t.isAdditional) {
+        additionalReceived += t.amount;
+      } else if (t.isFirstPayment) {
+        firstReceived += t.amount;
+      } else if (t.isSecondPayment) {
+        secondReceived += t.amount;
+      } else {
+        generalReceived += t.amount;
+      }
+    }
+
+    final isLoan = customer.isLoanCustomer;
+    final total = customer.totalAmount;
+    final double paid;
+    final double pending;
+
+    if (isLoan) {
+      // Loan Customer:
+      paid = firstReceived + secondReceived + generalReceived;
+      pending = (total - firstReceived - secondReceived - generalReceived).clamp(0.0, double.infinity);
+    } else {
+      // Normal Customer:
+      // Paid = Sum of payments
+      // Pending = Total Payment - Paid
+      paid = firstReceived + secondReceived + generalReceived;
+      pending = (total - paid).clamp(0.0, double.infinity);
+    }
+
+    String status = customer.paymentStatus;
+    if (total > 0 && paid >= total) {
+      status = PaymentStatus.paid;
+    } else if (paid > 0) {
+      status = PaymentStatus.partiallyPaid;
+    } else {
+      status = PaymentStatus.pending;
+    }
+
+    final updated = customer.copyWith(
+      paidAmount: paid,
+      pendingAmount: pending,
+      firstPaymentReceived: firstReceived,
+      secondPaymentReceived: secondReceived,
+      additionalPaidAmount: additionalReceived,
+      paymentStatus: status,
+      updatedAt: DateTime.now(),
+    );
+
+    await AppDatabase.upsertConsumerRecord(updated, syncStatus: 'Pending Sync');
+    return updated;
+  }
+
   /// Record a payment transaction (100% Offline-First)
   static Future<PaymentTransaction> recordPayment({
     required String customerId,
@@ -95,7 +166,7 @@ class PaymentService {
     required double amount,
     required DateTime paymentDate,
     required String paymentMode,
-    String paymentType = PaymentType.contract,
+    String paymentType = PaymentType.firstPayment,
     String? additionalCategory,
     String? referenceNumber,
     String? receivedBy,
@@ -113,33 +184,7 @@ class PaymentService {
     final clientTxId = 'ptx_${now.microsecondsSinceEpoch}';
     final idempotencyKey = 'idem_${customerId}_${paymentDate.toIso8601String().split('T')[0]}_${amount.toStringAsFixed(2)}_${paymentMode.trim()}_$clientTxId';
 
-    final isAdditional = paymentType.toUpperCase() == 'ADDITIONAL';
-
-    // 1. Fetch customer to validate balances & enforce strict accounting rules
-    final customer = await AppDatabase.getConsumerRecordById(customerId);
-    final contractTotal = customer?.totalAmount ?? 0.0;
-    final currentPaid = customer?.paidAmount ?? 0.0;
-
-    // CRITICAL ACCOUNTING RULE:
-    // Contract Pending = max(0, Contract Amount - Contract Payments)
-    // Additional payments do NOT reduce Contract Pending!
-    final double newPaid;
-    final double newPending;
-    String newStatus = customer?.paymentStatus ?? PaymentStatus.pending;
-
-    if (isAdditional) {
-      newPaid = currentPaid;
-      newPending = customer?.pendingAmount ??
-          ((contractTotal > 0) ? (contractTotal - currentPaid).clamp(0.0, double.infinity) : 0.0);
-    } else {
-      newPaid = currentPaid + amount;
-      newPending = (contractTotal > 0) ? (contractTotal - newPaid).clamp(0.0, double.infinity) : 0.0;
-      if (contractTotal > 0 && newPaid >= contractTotal) {
-        newStatus = PaymentStatus.paid;
-      } else if (newPaid > 0) {
-        newStatus = PaymentStatus.partiallyPaid;
-      }
-    }
+    final isAdditional = PaymentType.isAdditionalType(paymentType);
 
     final tx = PaymentTransaction(
       id: clientTxId,
@@ -149,7 +194,7 @@ class PaymentService {
       consumerNo: consumerNo,
       amount: amount,
       paymentDate: paymentDate,
-      paymentType: isAdditional ? PaymentType.additional : PaymentType.contract,
+      paymentType: paymentType,
       additionalCategory: isAdditional ? (additionalCategory ?? AdditionalPaymentCategory.other) : null,
       paymentMode: paymentMode,
       referenceNumber: referenceNumber?.trim(),
@@ -168,21 +213,13 @@ class PaymentService {
       createdAt: now,
     );
 
-    // 2. Immediate Local Persistence
+    // 1. Save payment locally in SQLite
     await AppDatabase.upsertPayment(tx, syncStatus: tx.syncStatus);
 
-    // 3. Update customer record in local database
-    if (customer != null) {
-      final updatedCustomer = customer.copyWith(
-        paidAmount: newPaid,
-        pendingAmount: newPending,
-        paymentStatus: newStatus,
-        updatedAt: now,
-      );
-      await AppDatabase.upsertConsumerRecord(updatedCustomer, syncStatus: 'Pending Sync');
-    }
+    // 2. Recalculate customer's balance using standard accounting rules
+    final customer = await recalculateCustomerBalances(customerId);
 
-    // 4. Enqueue offline operation for deterministic sync
+    // 3. Enqueue offline operation for deterministic sync
     await AppDatabase.enqueueOperation(
       OfflineOperation(
         operationId: clientTxId,
@@ -195,7 +232,7 @@ class PaymentService {
       ),
     );
 
-    // 5. Log financial audit trail
+    // 4. Log financial audit trail
     await AppDatabase.logOfflineActivity(
       recordId: customerId,
       consumerNo: consumerNo,
@@ -203,11 +240,59 @@ class PaymentService {
       staffName: userName,
       action: 'PAYMENT_RECORDED',
       remarks:
-          '₹${amount.toStringAsFixed(0)} via $paymentMode [${isAdditional ? "Additional: ${additionalCategory ?? "OTHER"}" : "Contract"}] (${tx.syncStatus})${proofMismatch ? " [Mismatch Flagged]" : ""}',
+          '₹${amount.toStringAsFixed(0)} via $paymentMode [${PaymentType.displayName(paymentType)}] (${tx.syncStatus})',
     );
 
-    // 6. Trigger sync if online
+    // 5. Trigger sync if online
     if (ConnectivityService.isOnline) {
+      SyncEngine.syncNow().catchError((_) => const SyncResult(success: false));
+    }
+
+    return tx;
+  }
+
+  /// Update an existing payment transaction (Edit Payment)
+  static Future<PaymentTransaction> updatePaymentTransaction({
+    required PaymentTransaction updatedTx,
+  }) async {
+    final now = DateTime.now();
+    final isOnline = ConnectivityService.isOnline;
+
+    final tx = updatedTx.copyWith(
+      updatedAt: now,
+      syncStatus: isOnline ? 'Synced' : 'Pending Sync',
+    );
+
+    // 1. Update in local SQLite
+    await AppDatabase.upsertPayment(tx, syncStatus: tx.syncStatus);
+
+    // 2. Recalculate customer balances immediately
+    await recalculateCustomerBalances(tx.customerId);
+
+    // 3. Queue offline sync
+    final user = SupabaseService.currentUser;
+    await AppDatabase.enqueueOperation(
+      OfflineOperation(
+        operationId: 'upd_${tx.clientTxId ?? tx.id ?? now.microsecondsSinceEpoch}',
+        entityType: 'payment',
+        entityId: tx.clientTxId ?? tx.id ?? '',
+        action: 'ADD_PAYMENT',
+        payload: tx.toJson(),
+        userId: user?.id,
+        createdAt: now,
+      ),
+    );
+
+    // 4. If online, sync directly
+    if (isOnline) {
+      try {
+        if (tx.id != null) {
+          await _client
+              .from('customer_payment_transactions')
+              .update(tx.toJson())
+              .eq('id', tx.id!);
+        }
+      } catch (_) {}
       SyncEngine.syncNow().catchError((_) => const SyncResult(success: false));
     }
 
@@ -433,39 +518,34 @@ class PaymentService {
     }
   }
 
-  /// Update customer's Total Payment (contract amount)
-  static Future<ConsumerRecord?> updateTotalPayment({
+  /// Update customer's Payment Settings (Total Payment, 1st Payment Amount, 2nd Payment Amount)
+  static Future<ConsumerRecord?> updatePaymentSettings({
     required String customerId,
     required double newTotalAmount,
+    double? firstPaymentAmount,
+    double? secondPaymentAmount,
   }) async {
     final customer = await AppDatabase.getConsumerRecordById(customerId);
     if (customer == null) return null;
 
-    final newPending = (newTotalAmount - customer.paidAmount).clamp(0.0, double.infinity);
-    String newStatus = customer.paymentStatus;
-    if (newTotalAmount > 0 && customer.paidAmount >= newTotalAmount) {
-      newStatus = PaymentStatus.paid;
-    } else if (customer.paidAmount > 0) {
-      newStatus = PaymentStatus.partiallyPaid;
-    } else {
-      newStatus = PaymentStatus.pending;
-    }
-
     final updated = customer.copyWith(
       totalAmount: newTotalAmount,
-      pendingAmount: newPending,
-      paymentStatus: newStatus,
+      firstPaymentAmount: firstPaymentAmount ?? customer.firstPaymentAmount,
+      secondPaymentAmount: secondPaymentAmount ?? customer.secondPaymentAmount,
       updatedAt: DateTime.now(),
     );
 
-    // 1. Save locally in SQLite
+    // Save locally
     await AppDatabase.upsertConsumerRecord(updated, syncStatus: 'Pending Sync');
 
-    // 2. Queue offline sync
+    // Recalculate balances
+    final recalculated = await recalculateCustomerBalances(customerId);
+
+    // Queue offline sync
     final user = SupabaseService.currentUser;
     await AppDatabase.enqueueOperation(
       OfflineOperation(
-        operationId: 'total_${DateTime.now().microsecondsSinceEpoch}',
+        operationId: 'settings_${DateTime.now().microsecondsSinceEpoch}',
         entityType: 'consumer_record',
         entityId: customerId,
         action: 'UPDATE_RECORD',
@@ -473,8 +553,11 @@ class PaymentService {
           'id': customerId,
           'total_amount': newTotalAmount,
           'contract_amount': newTotalAmount,
-          'pending_amount': newPending,
-          'payment_status': newStatus,
+          'first_payment_amount': recalculated?.firstPaymentAmount ?? newTotalAmount,
+          'second_payment_amount': recalculated?.secondPaymentAmount ?? 0.0,
+          'pending_amount': recalculated?.pendingAmount ?? 0.0,
+          'paid_amount': recalculated?.paidAmount ?? 0.0,
+          'payment_status': recalculated?.paymentStatus ?? 'Pending',
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         },
         userId: user?.id,
@@ -482,11 +565,22 @@ class PaymentService {
       ),
     );
 
-    // 3. Sync if online
+    // Sync if online
     if (ConnectivityService.isOnline) {
       SyncEngine.syncNow().catchError((_) => const SyncResult(success: false));
     }
 
-    return updated;
+    return recalculated ?? updated;
+  }
+
+  /// Update customer's Total Payment (contract amount) - backward compatibility
+  static Future<ConsumerRecord?> updateTotalPayment({
+    required String customerId,
+    required double newTotalAmount,
+  }) async {
+    return updatePaymentSettings(
+      customerId: customerId,
+      newTotalAmount: newTotalAmount,
+    );
   }
 }

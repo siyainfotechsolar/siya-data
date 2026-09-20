@@ -140,5 +140,57 @@ void main() {
       expect(summary.additionalPaid, 10000.0);
       expect(summary.totalReceived, 100000.0);
     });
+
+    test('5. Loan Customer Calculations: 1st, 2nd, and Additional accounting match prompt specs', () {
+      final loanCustomer = ConsumerRecord(
+        id: 'cust-loan',
+        consumerNo: '998877665544',
+        name: 'Rajesh Patil',
+        loanRequired: 'Yes',
+        totalAmount: 200000.0,
+        firstPaymentAmount: 120000.0,
+        secondPaymentAmount: 80000.0,
+        firstPaymentReceived: 120000.0,
+        secondPaymentReceived: 0.0,
+        paidAmount: 120000.0,
+        pendingAmount: 80000.0,
+        additionalPaidAmount: 10000.0,
+      );
+
+      expect(loanCustomer.isLoanCustomer, true);
+      expect(loanCustomer.firstPaymentPending, 0.0);
+      expect(loanCustomer.secondPaymentPending, 80000.0);
+      expect(loanCustomer.totalAmount, 200000.0);
+      expect(loanCustomer.paidAmount, 120000.0);
+      expect(loanCustomer.pendingAmount, 80000.0);
+      expect(loanCustomer.additionalPaidAmount, 10000.0);
+
+      // Verify Additional payment does NOT reduce original 1st or 2nd Payment pending
+      final tx1 = PaymentTransaction(
+        id: 'tx-1',
+        customerId: loanCustomer.id!,
+        consumerNo: loanCustomer.consumerNo,
+        amount: 120000.0,
+        paymentDate: DateTime(2026, 9, 10),
+        paymentMode: 'Bank Transfer',
+        paymentType: PaymentType.firstPayment,
+      );
+      final txAdd = PaymentTransaction(
+        id: 'tx-add',
+        customerId: loanCustomer.id!,
+        consumerNo: loanCustomer.consumerNo,
+        amount: 10000.0,
+        paymentDate: DateTime(2026, 9, 15),
+        paymentMode: 'UPI',
+        paymentType: PaymentType.additional,
+      );
+
+      expect(tx1.isFirstPayment, true);
+      expect(tx1.isSecondPayment, false);
+      expect(tx1.isAdditional, false);
+      expect(txAdd.isFirstPayment, false);
+      expect(txAdd.isSecondPayment, false);
+      expect(txAdd.isAdditional, true);
+    });
   });
 }

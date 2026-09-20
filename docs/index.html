@@ -280,7 +280,7 @@
     <h1 class="app-title">Siya Solar Staff</h1>
     <p class="app-subtitle">Official Android Application for Staff & Field Operations</p>
     <div class="badges">
-      <span class="badge badge-version" id="versionBadge">Version 1.0.23</span>
+      <span class="badge badge-version" id="versionBadge">Version 1.0.24</span>
       <span class="badge badge-status">● Production Release</span>
     </div>
   </div>
@@ -288,13 +288,13 @@
   <!-- Download & Details Card -->
   <div class="release-card">
     <!-- Primary APK Download -->
-    <a href="./siya-solar-v1.0.23.apk" download="siya-solar-v1.0.23.apk" class="btn-download-primary" id="primaryDownloadBtn">
+    <a href="./siya-solar-v1.0.24.apk" download="siya-solar-v1.0.24.apk" class="btn-download-primary" id="primaryDownloadBtn">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      <span id="btnText">DOWNLOAD APK (v1.0.23)</span>
+      <span id="btnText">DOWNLOAD APK (v1.0.24)</span>
     </a>
 
     <!-- Secondary GitHub Release Link -->
@@ -313,7 +313,7 @@
     <div class="meta-grid">
       <div class="meta-box">
         <div class="meta-label">Version</div>
-        <div class="meta-value" id="metaVersion">1.0.23 (Build 24)</div>
+        <div class="meta-value" id="metaVersion">1.0.24 (Build 25)</div>
       </div>
       <div class="meta-box">
         <div class="meta-label">Release Date</div>
@@ -332,15 +332,14 @@
     <!-- What's New -->
     <div class="changelog-section">
       <div class="changelog-title">
-        <span>✨</span> Highlights in v1.0.23
+        <span>✨</span> Highlights in v1.0.24
       </div>
       <ul class="changelog-list" id="changelogList">
-        <li><strong>💳 Clean &amp; Simplified Payments Hub (2 Tabs)</strong> — Completely eliminated cluttered filter dropdowns and nested scroll boxes. Clean 2-tab view (<strong>Received</strong> &amp; <strong>Pending Dues</strong>) with live 1-tap WhatsApp and PDF receipts.</li>
-        <li><strong>🚀 Unified Task Module &amp; WhatsApp Share Integration</strong> — Direct sharing of WhatsApp documents/photos/PDFs into existing Create Task with auto-attachment. Zero duplicate screens or modules.</li>
-        <li><strong>📋 Simplified My Tasks (2 Tabs)</strong> — Streamlined into strictly <strong>Pending</strong> and <strong>Completed</strong> tabs with one-tap full card navigation.</li>
-        <li><strong>🔍 Dedicated Task Details Screen</strong> — Complete customer info, direct [View Customer] navigation, document viewer, and inline action buttons ([Mark Complete], [Hold], [Add Note]).</li>
-        <li><strong>👤 Customer Profile Tasks Card</strong> — View all linked office tasks directly inside Customer Profile with real-time status and quick [Add Task] launcher.</li>
-        <li><strong>💾 Offline Persistence &amp; SQLite v5</strong> — Local offline caching for instant loading and background sync when connection is restored.</li>
+        <li><strong>💰 Final Clean &amp; Simple Payment Module</strong> — Zero percentages (no 60%/40%). Clean, explicit <strong>1st Payment</strong>, <strong>2nd Payment</strong>, and <strong>Additional Payment</strong> milestones.</li>
+        <li><strong>📊 Normal &amp; Loan Customer Layouts</strong> — Normal customer shows Total, Paid, Pending with flexible installments. Loan customer displays detailed 1st &amp; 2nd payment breakdowns + Additional Payment totals.</li>
+        <li><strong>⚡ Deterministic Accounting</strong> — Total Pending strictly calculated from 1st &amp; 2nd payments. Additional payments never reduce original pending balances.</li>
+        <li><strong>✏️ Edit Payments &amp; Inline Admin Tools</strong> — Ability to edit any existing payment transaction, adjust Total and milestone payment amounts with live instant recalculation.</li>
+        <li><strong>💾 Offline &amp; Background Sync</strong> — 100% offline payment recording with automatic conflict-free sync when internet reconnects.</li>
       </ul>
     </div>
 
@@ -358,15 +357,15 @@
 
   <script>
     const REPO = 'siyainfotechsolar/siya-data';
-    const DIRECT_APK = './siya-solar-v1.0.23.apk';
-    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.23.apk`;
+    const DIRECT_APK = './siya-solar-v1.0.24.apk';
+    const GITHUB_RAW_APK = `https://github.com/${REPO}/raw/main/docs/siya-solar-v1.0.24.apk`;
 
     const primaryBtn = document.getElementById('primaryDownloadBtn');
     const btnText = document.getElementById('btnText');
 
     // Default immediate direct link
     primaryBtn.href = DIRECT_APK;
-    primaryBtn.setAttribute('download', 'siya-solar-v1.0.23.apk');
+    primaryBtn.setAttribute('download', 'siya-solar-v1.0.24.apk');
 
     // Ensure fallback to raw GitHub if relative link is blocked
     primaryBtn.addEventListener('error', () => {
