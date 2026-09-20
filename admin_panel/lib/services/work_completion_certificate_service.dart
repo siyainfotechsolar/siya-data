@@ -20,7 +20,14 @@ class WorkCompletionCertificateService {
   static const PdfColor zebraBgColor = PdfColor.fromInt(0xFFF8FAFC);
 
   /// Generate Single-Page A4 PDF bytes for the Customer Work Completion Certificate
-  static Future<Uint8List> generateCertificatePdfBytes(ConsumerRecord customer) async {
+  static Future<Uint8List> generateCertificatePdfBytes(
+    ConsumerRecord customer, {
+    String? customCustomerName,
+    String? customConsumerNo,
+    String? customAddress,
+    String? customCapacity,
+    DateTime? customCompletionDate,
+  }) async {
     final pdf = pw.Document();
 
     // Load Company Logo from Assets
@@ -32,8 +39,17 @@ class WorkCompletionCertificateService {
       debugPrint('Logo load error in admin WCR service: $e');
     }
 
+    final String customerName = (customCustomerName != null && customCustomerName.trim().isNotEmpty)
+        ? customCustomerName.trim()
+        : customer.name.trim();
+
+    final String consumerNo = (customConsumerNo != null && customConsumerNo.trim().isNotEmpty)
+        ? customConsumerNo.trim()
+        : customer.consumerNo.trim();
+
     // Resolve customer installation/completion date
-    final DateTime completionDate = customer.installationDate ??
+    final DateTime completionDate = customCompletionDate ??
+        customer.installationDate ??
         customer.rtsCompletionDate ??
         customer.submitDate ??
         DateTime.now();
@@ -41,8 +57,10 @@ class WorkCompletionCertificateService {
     final String issueDateStr = DateFormat('dd-MM-yyyy').format(DateTime.now());
 
     // Resolve capacity display string
-    String capacityDisplay = '';
-    if (customer.remarks != null && customer.remarks!.trim().isNotEmpty) {
+    String capacityDisplay = (customCapacity != null && customCapacity.trim().isNotEmpty)
+        ? customCapacity.trim()
+        : '';
+    if (capacityDisplay.isEmpty && customer.remarks != null && customer.remarks!.trim().isNotEmpty) {
       final match = RegExp(r'(\d+(?:\.\d+)?\s*(?:kw|kW|KW|Kw))').firstMatch(customer.remarks!);
       if (match != null) capacityDisplay = match.group(1)!;
     }
@@ -51,11 +69,15 @@ class WorkCompletionCertificateService {
     }
 
     // Resolve address display string
-    String addressDisplay = '';
-    if (customer.address != null && customer.address!.trim().isNotEmpty) {
-      addressDisplay = customer.address!.trim();
-    } else if (customer.village != null && customer.village!.trim().isNotEmpty) {
-      addressDisplay = customer.village!.trim();
+    String addressDisplay = (customAddress != null && customAddress.trim().isNotEmpty)
+        ? customAddress.trim()
+        : '';
+    if (addressDisplay.isEmpty) {
+      if (customer.address != null && customer.address!.trim().isNotEmpty) {
+        addressDisplay = customer.address!.trim();
+      } else if (customer.village != null && customer.village!.trim().isNotEmpty) {
+        addressDisplay = customer.village!.trim();
+      }
     }
     if (addressDisplay.isEmpty) addressDisplay = 'Project site as per consumer record';
 
@@ -123,7 +145,7 @@ class WorkCompletionCertificateService {
                                 'SIYA INFOTECH & SOLAR ENERGY',
                                 style: pw.TextStyle(
                                   color: navyColor,
-                                  fontSize: 15,
+                                  fontSize: 14.5,
                                   fontWeight: pw.FontWeight.bold,
                                   letterSpacing: 0.5,
                                 ),
@@ -133,20 +155,56 @@ class WorkCompletionCertificateService {
                                 'Solar Solutions & Digital Services',
                                 style: pw.TextStyle(
                                   color: emeraldColor,
-                                  fontSize: 9.5,
+                                  fontSize: 9.0,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
                               pw.SizedBox(height: 1),
                               pw.Text(
-                                'Govt. Approved MNRE Channel Partner | Rooftop Solar Systems & EPC Contractor',
+                                'Govt. Approved MNRE Channel Partner | Rooftop Solar Systems',
                                 style: const pw.TextStyle(
                                   color: slateMutedColor,
-                                  fontSize: 7.5,
+                                  fontSize: 7.2,
                                 ),
                               ),
                             ],
                           ),
+                        ),
+                        pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.end,
+                          children: [
+                            pw.Text(
+                              'Phone: 7588003220',
+                              style: pw.TextStyle(
+                                color: navyColor,
+                                fontSize: 8.0,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.SizedBox(height: 1),
+                            pw.Text(
+                              'Email: siyainfodigital@gmail.com',
+                              style: const pw.TextStyle(
+                                color: slateBodyColor,
+                                fontSize: 7.2,
+                              ),
+                            ),
+                            pw.SizedBox(height: 1),
+                            pw.Text(
+                              '21, Mudavad Road, Betawad,',
+                              style: const pw.TextStyle(
+                                color: slateMutedColor,
+                                fontSize: 6.8,
+                              ),
+                            ),
+                            pw.Text(
+                              'Tal. Shindkheda, Dist. Dhule - 425403',
+                              style: const pw.TextStyle(
+                                color: slateMutedColor,
+                                fontSize: 6.8,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -210,7 +268,7 @@ class WorkCompletionCertificateService {
                             crossAxisAlignment: pw.CrossAxisAlignment.end,
                             children: [
                               pw.Text(
-                                'Ref: SIYA-WCR-${customer.consumerNo.isNotEmpty ? customer.consumerNo : "GEN"}',
+                                'Ref: SIYA-WCR-${consumerNo.isNotEmpty ? consumerNo : "GEN"}',
                                 style: const pw.TextStyle(
                                   color: PdfColors.white,
                                   fontSize: 7.5,
@@ -268,10 +326,10 @@ class WorkCompletionCertificateService {
                           ),
 
                           // Row 1: Customer Name
-                          _buildTableRow('1. Customer Name', customer.name, isZebra: false, isBoldValue: true),
+                          _buildTableRow('1. Customer Name', customerName, isZebra: false, isBoldValue: true),
 
                           // Row 2: Consumer Number
-                          _buildTableRow('2. Consumer Number', customer.consumerNo, isZebra: true, isBoldValue: true),
+                          _buildTableRow('2. Consumer Number', consumerNo, isZebra: true, isBoldValue: true),
 
                           // Row 3: Project Address
                           _buildTableRow('3. Project Address', addressDisplay, isZebra: false),
@@ -485,7 +543,7 @@ class WorkCompletionCertificateService {
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
                         pw.Text(
-                          'Helpline: +91 94220 89201 | Email: siyainfotechsolar@gmail.com | Web: siyadata.in',
+                          'Helpline: 7588003220 | Email: siyainfodigital@gmail.com | Betawad, Dist. Dhule - 425403',
                           style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.8),
                         ),
                         pw.Text(
@@ -575,11 +633,32 @@ class WorkCompletionCertificateService {
   }
 
   /// Download the Certificate directly to device / browser storage
-  static Future<void> downloadCertificatePdf(BuildContext context, ConsumerRecord customer) async {
+  static Future<void> downloadCertificatePdf(
+    BuildContext context,
+    ConsumerRecord customer, {
+    String? customCustomerName,
+    String? customConsumerNo,
+    String? customAddress,
+    String? customCapacity,
+    DateTime? customCompletionDate,
+  }) async {
     try {
-      final bytes = await generateCertificatePdfBytes(customer);
-      final safeName = customer.name.trim().replaceAll(RegExp(r'[^\w\s-]'), '').replaceAll(RegExp(r'\s+'), '_');
-      final fileName = 'Work_Completion_Certificate_${safeName}_${customer.consumerNo}.pdf';
+      final bytes = await generateCertificatePdfBytes(
+        customer,
+        customCustomerName: customCustomerName,
+        customConsumerNo: customConsumerNo,
+        customAddress: customAddress,
+        customCapacity: customCapacity,
+        customCompletionDate: customCompletionDate,
+      );
+      final effectiveName = (customCustomerName != null && customCustomerName.trim().isNotEmpty)
+          ? customCustomerName.trim()
+          : customer.name.trim();
+      final effectiveConsumerNo = (customConsumerNo != null && customConsumerNo.trim().isNotEmpty)
+          ? customConsumerNo.trim()
+          : customer.consumerNo.trim();
+      final safeName = effectiveName.replaceAll(RegExp(r'[^\w\s-]'), '').replaceAll(RegExp(r'\s+'), '_');
+      final fileName = 'Work_Completion_Certificate_${safeName}_$effectiveConsumerNo.pdf';
 
       final result = await FilePicker.platform.saveFile(
         dialogTitle: 'Download Work Completion Certificate',
@@ -610,12 +689,29 @@ class WorkCompletionCertificateService {
   }
 
   /// Trigger Direct Print / Browser Print Layout
-  static Future<void> printCertificate(ConsumerRecord customer) async {
+  static Future<void> printCertificate(
+    ConsumerRecord customer, {
+    String? customCustomerName,
+    String? customConsumerNo,
+    String? customAddress,
+    String? customCapacity,
+    DateTime? customCompletionDate,
+  }) async {
+    final effectiveConsumerNo = (customConsumerNo != null && customConsumerNo.trim().isNotEmpty)
+        ? customConsumerNo.trim()
+        : customer.consumerNo.trim();
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async {
-        return generateCertificatePdfBytes(customer);
+        return generateCertificatePdfBytes(
+          customer,
+          customCustomerName: customCustomerName,
+          customConsumerNo: customConsumerNo,
+          customAddress: customAddress,
+          customCapacity: customCapacity,
+          customCompletionDate: customCompletionDate,
+        );
       },
-      name: 'Work_Completion_Certificate_${customer.consumerNo}',
+      name: 'Work_Completion_Certificate_$effectiveConsumerNo',
     );
   }
 
@@ -652,8 +748,9 @@ Congratulations! Your Rooftop Solar PV System ($capacityDisplay) installation ha
 Your official Work Completion Certificate has been generated for bank / financial institution submission.
 
 For any questions, contact us:
-📞 +91 94220 89201
-🌐 siyadata.in
+📞 7588003220
+✉ siyainfodigital@gmail.com
+📍 21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule - 425403
 ''';
 
     final uri = Uri.parse('https://wa.me/$phone?text=${Uri.encodeComponent(message)}');

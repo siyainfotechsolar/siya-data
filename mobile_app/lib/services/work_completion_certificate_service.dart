@@ -12,6 +12,11 @@ class WorkCompletionCertificateService {
   /// Generate a professional single-page A4 Work Completion Certificate
   static Future<File> generateCertificatePdf({
     required ConsumerRecord customer,
+    String? customCustomerName,
+    String? customConsumerNo,
+    String? customAddress,
+    String? customCapacity,
+    DateTime? customCompletionDate,
     Directory? outputDirectory,
   }) async {
     // 1. Initialize A4 Document (Single Page, Portrait)
@@ -220,23 +225,35 @@ class WorkCompletionCertificateService {
     const double col1Width = 195;
     final double col2Width = contentWidth - col1Width; // 320.28
 
-    // Derive fields cleanly
-    final String customerName = customer.name.trim();
-    final String consumerNo = customer.consumerNo.trim();
-    final String projectAddress = (customer.address != null && customer.address!.trim().isNotEmpty)
-        ? customer.address!.trim()
-        : ((customer.village != null && customer.village!.trim().isNotEmpty) ? customer.village!.trim() : '');
+    // Derive fields cleanly (with custom override support)
+    final String customerName = (customCustomerName != null && customCustomerName.trim().isNotEmpty)
+        ? customCustomerName.trim()
+        : customer.name.trim();
+
+    final String consumerNo = (customConsumerNo != null && customConsumerNo.trim().isNotEmpty)
+        ? customConsumerNo.trim()
+        : customer.consumerNo.trim();
+
+    final String projectAddress = (customAddress != null && customAddress.trim().isNotEmpty)
+        ? customAddress.trim()
+        : ((customer.address != null && customer.address!.trim().isNotEmpty)
+            ? customer.address!.trim()
+            : ((customer.village != null && customer.village!.trim().isNotEmpty) ? customer.village!.trim() : ''));
 
     // Capacity detection
-    String capacity = '';
-    if (customer.remarks != null && customer.remarks!.trim().isNotEmpty) {
+    String capacity = (customCapacity != null && customCapacity.trim().isNotEmpty)
+        ? customCapacity.trim()
+        : '';
+    if (capacity.isEmpty && customer.remarks != null && customer.remarks!.trim().isNotEmpty) {
       final match = RegExp(r'(\d+(?:\.\d+)?\s*(?:kw|kW|KW|Kw))').firstMatch(customer.remarks!);
       if (match != null) capacity = match.group(1)!;
     }
+    if (capacity.isEmpty) capacity = '3.0 kW Rooftop Solar PV';
 
-    final String completionDateText = actualCompletionDate != null
-        ? DateFormat('dd-MM-yyyy').format(actualCompletionDate)
-        : '';
+    final DateTime? effectiveDate = customCompletionDate ?? actualCompletionDate;
+    final String completionDateText = effectiveDate != null
+        ? DateFormat('dd-MM-yyyy').format(effectiveDate)
+        : DateFormat('dd-MM-yyyy').format(DateTime.now());
 
     final List<MapEntry<String, String>> tableRows = [
       MapEntry('Customer Name:', customerName),
@@ -439,21 +456,21 @@ class WorkCompletionCertificateService {
       Offset(contentLeft + contentWidth, footerY - 8),
     );
 
-    // Bottom-left: CLEAN ENERGY • SMART FUTURE
+    // Bottom-left: Official Contact Info
     graphics.drawString(
-      'CLEAN ENERGY • SMART FUTURE',
-      footerBrandFont,
-      brush: emeraldBrush,
-      bounds: Rect.fromLTWH(contentLeft, footerY, contentWidth * 0.5, 18),
+      '7588003220 | siyainfodigital@gmail.com | Betawad, Dist. Dhule - 425403',
+      smallFont,
+      brush: slateMutedBrush,
+      bounds: Rect.fromLTWH(contentLeft, footerY, contentWidth * 0.6, 18),
     );
 
     // Bottom-right: System note
     graphics.drawString(
-      'Official Work Completion Certificate  |  Siya Data Management',
+      'Official Work Completion Certificate | Siya Data Management',
       smallFont,
-      brush: slateMutedBrush,
+      brush: deepNavyBrush,
       format: PdfStringFormat(alignment: PdfTextAlignment.right),
-      bounds: Rect.fromLTWH(contentLeft + (contentWidth * 0.4), footerY + 2, contentWidth * 0.6, 16),
+      bounds: Rect.fromLTWH(contentLeft + (contentWidth * 0.4), footerY, contentWidth * 0.6, 16),
     );
 
     // ==========================================
