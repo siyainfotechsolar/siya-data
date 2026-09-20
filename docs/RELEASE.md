@@ -142,6 +142,10 @@ For internal testing and GitHub release distribution, standard release signing i
     - **[ RECEIVED ]**: Displays every payment received with big bold green amount, payment mode, 1-tap WhatsApp receipt sharing, and PDF receipt viewer.
     - **[ PENDING DUES ]**: Displays customers with pending balance, high-visibility red dues amount, and 1-tap Call and `Collect Payment` actions.
   - **Single Summary & Fast Search**: Top summary banner with Total Received (green) and Pending Dues (red), plus a unified real-time search field.
+- **Search & Records Screen Polish**:
+  - Wrapped search screen in `SafeArea` so the search bar and Online badge never collide or overlap with the Android status bar / notch (`8:28`, battery, notifications).
+  - Added an intuitive `arrow_back` button for seamless return navigation when pushed from alert chips.
+  - Fixed autofocus behavior to prevent keyboard from intrusively obscuring filtered records.
 
 ### Release v1.0.22 (Build 23) - 2026-09-20
 - **Complete Design System & Comprehensive UI Audit Resolution**:

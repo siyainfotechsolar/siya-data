@@ -177,6 +177,8 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final canPop = Navigator.of(context).canPop();
+
     return PopScope(
       canPop: !_isSearchActive,
       onPopInvokedWithResult: (didPop, result) {
@@ -184,42 +186,57 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
         _clearSearch();
       },
       child: Scaffold(
-      body: Column(
-        children: [
-          // Search Input Card
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14.0, 14.0, 14.0, 8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    autofocus: true,
-                    onChanged: _onSearchChanged,
-                    decoration: InputDecoration(
-                      hintText: 'Search Consumer No, Name, Mobile, Village...',
-                      hintStyle: const TextStyle(fontSize: 13),
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                                _onSearchChanged('');
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Search Input Card
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14.0, 10.0, 14.0, 8.0),
+                child: Row(
+                  children: [
+                    if (canPop) ...[
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        tooltip: 'Back',
+                        onPressed: () {
+                          if (_isSearchActive && widget.initialRecords == null) {
+                            _clearSearch();
+                          } else {
+                            Navigator.of(context).pop();
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        autofocus: widget.initialRecords == null && widget.initialFilter == null,
+                        onChanged: _onSearchChanged,
+                        decoration: InputDecoration(
+                          hintText: 'Search Consumer No, Name, Mobile, Village...',
+                          hintStyle: const TextStyle(fontSize: 13),
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    _onSearchChanged('');
+                                  },
+                                )
+                              : null,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          filled: true,
+                          fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    const SyncStatusIndicator(compact: true),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                const SyncStatusIndicator(compact: true),
-              ],
-            ),
-          ),
+              ),
 
           // Smart Intelligence Filters
           SizedBox(
@@ -228,7 +245,7 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14),
               scrollDirection: Axis.horizontal,
               itemCount: _smartFilters.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (context, index) => const SizedBox(width: 8),
               itemBuilder: (ctx, i) {
                 final filter = _smartFilters[i];
                 final isSelected = _selectedSmartFilter == filter;
@@ -534,7 +551,8 @@ class _SearchRecordsScreenState extends State<SearchRecordsScreen> {
           ),
         ],
       ),
-      ),
+    ),
+    ),
     );
   }
 
