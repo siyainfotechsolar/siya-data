@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/system_info_service.dart';
 
 class AppInformationScreen extends StatefulWidget {
@@ -98,6 +99,10 @@ class _AppInformationScreenState extends State<AppInformationScreen> {
                   children: [
                     // Brand Header Card
                     _buildAppHeaderCard(theme, isDark),
+                    const SizedBox(height: 14),
+
+                    // App Update Card
+                    _buildUpdateCard(theme, isDark),
                     const SizedBox(height: 14),
 
                     // System Health Card
@@ -256,6 +261,66 @@ class _AppInformationScreenState extends State<AppInformationScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// App Update Card
+  Widget _buildUpdateCard(ThemeData theme, bool isDark) {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.system_update_rounded, color: theme.colorScheme.primary, size: 20),
+                const SizedBox(width: 8),
+                const Text('APP UPDATES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF059669).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'v1.0.25 LATEST',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Clean & Simple Payment Module release. 1st Payment, 2nd Payment, and Additional Payment support. Zero percentage calculations.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final uri = Uri.parse('https://siyainfotechsolar.github.io/siya-data/');
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                icon: const Icon(Icons.download_rounded, size: 18),
+                label: const Text('Download Latest APK (v1.0.25)', style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

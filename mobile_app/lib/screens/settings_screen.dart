@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'app_information_screen.dart';
 import 'sync_center_screen.dart';
 
@@ -163,7 +164,7 @@ class MobileSettingsScreen extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   subtitle: const Text(
-                    'Version 1.0.23 (Build 24)',
+                    'Version 1.0.25 (Build 26)',
                     style: TextStyle(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
@@ -172,6 +173,32 @@ class MobileSettingsScreen extends StatelessWidget {
                       context,
                       MaterialPageRoute(builder: (_) => const AppInformationScreen()),
                     );
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF059669).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.system_update_rounded, color: Color(0xFF059669), size: 22),
+                  ),
+                  title: const Text(
+                    'Check for Updates',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    'Download latest APK (v1.0.25)',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.open_in_new_rounded, size: 16),
+                  onTap: () async {
+                    final uri = Uri.parse('https://siyainfotechsolar.github.io/siya-data/');
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
                   },
                 ),
               ],

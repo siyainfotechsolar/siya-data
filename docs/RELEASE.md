@@ -185,6 +185,13 @@ For internal testing and GitHub release distribution, standard release signing i
     - Flat card elevation (`0`) with subtle outline borders (`colorScheme.outlineVariant`).
     - Standardized Google Fonts Inter typography across both mobile and web clients.
 
+### Release v1.0.25 (Build 26) - 2026-09-20
+- **In-App Update Checker**:
+  - Added **"Check for Updates"** tile in Settings → About Siya Solar section. Tapping opens the official download page in the browser.
+  - Added **App Updates Card** in App Information screen showing current version (`v1.0.25 LATEST`) and a green **"Download Latest APK"** button linking to the download portal.
+  - Updated version strings in `system_info_service.dart`, `settings_screen.dart` (Mobile), and `settings_screen.dart` (Admin Panel).
+- **Version Bump**: Mobile App `1.0.25+26`, Admin Panel `1.0.25+26`.
+
 ### Release v1.0.24 (Build 25) - 2026-09-20
 - **Final Clean & Simple Payment Module (No Percentages, Clean Accounting)**:
   - **Zero Percentages Rule**: Completely eliminated 60%/40% and all percentage calculations from both Mobile and Admin Panel. Replaced with clean, explicit **1st Payment**, **2nd Payment**, and **Additional Payment**.
