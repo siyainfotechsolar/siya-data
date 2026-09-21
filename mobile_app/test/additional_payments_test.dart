@@ -3,7 +3,6 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:mobile_app/models/customer_payment.dart';
 import 'package:mobile_app/models/consumer_record.dart';
 import 'package:mobile_app/services/app_database.dart';
-import 'package:mobile_app/services/payment_service.dart';
 
 void main() {
   setUpAll(() {
@@ -140,6 +139,7 @@ void main() {
                 priority TEXT,
                 assigned_staff_id TEXT,
                 assigned_staff_name TEXT,
+                site_type TEXT DEFAULT 'Subsidy',
                 raw_json TEXT NOT NULL,
                 sync_status TEXT NOT NULL DEFAULT 'SYNCED',
                 last_modified_at TEXT

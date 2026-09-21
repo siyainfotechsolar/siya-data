@@ -348,11 +348,32 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                 else if (_summaryCounts != null)
                   Row(
                     children: [
-                      _buildHeroMetric('Active', '${_summaryCounts!['total'] ?? 0}'),
-                      const SizedBox(width: 10),
-                      _buildHeroMetric('Pending', '${_summaryCounts!['pending'] ?? 0}'),
-                      const SizedBox(width: 10),
-                      _buildHeroMetric('Actions', '${_summaryCounts!['action_center'] ?? 0}'),
+                      _buildHeroMetric(
+                        'Total Sites',
+                        '${_summaryCounts!['total'] ?? 0}',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ConsumerRecordsScreen(initialSiteType: 'All')),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildHeroMetric(
+                        'Subsidy',
+                        '${_summaryCounts!['subsidy_count'] ?? 0}',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ConsumerRecordsScreen(initialSiteType: 'Subsidy')),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildHeroMetric(
+                        'Non-Subsidy',
+                        '${_summaryCounts!['non_subsidy_count'] ?? 0}',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ConsumerRecordsScreen(initialSiteType: 'Non-Subsidy')),
+                        ),
+                      ),
                     ],
                   ),
               ],
@@ -466,22 +487,39 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     Navigator.push(context, MaterialPageRoute(builder: (_) => ActionCenterScreen(initialStageFilter: stage)));
   }
 
-  Widget _buildHeroMetric(String label, String value) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
-            Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.8), fontWeight: FontWeight.w500)),
-          ],
-        ),
+  Widget _buildHeroMetric(String label, String value, {VoidCallback? onTap}) {
+    final content = Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.85), fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+
+    return Expanded(
+      child: onTap != null
+          ? Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(10),
+                child: content,
+              ),
+            )
+          : content,
     );
   }
 

@@ -46,6 +46,10 @@ class DashboardMetrics {
   final int completedCount;
   final int noActionCount;
 
+  // Site Type Counts
+  final int subsidySitesCount;
+  final int nonSubsidySitesCount;
+
   // Today's Work Counts
   int get loanFollowupsCount => loanPendingCount;
   int get installationsCount => installationPendingCount;
@@ -67,6 +71,8 @@ class DashboardMetrics {
     this.subsidyPendingCount = 0,
     this.completedCount = 0,
     this.noActionCount = 0,
+    this.subsidySitesCount = 0,
+    this.nonSubsidySitesCount = 0,
   });
 }
 
@@ -113,6 +119,7 @@ class RecordService {
     int pageSize = 15,
     String? searchQuery,
     String? statusFilter,
+    String? siteTypeFilter,
     String? workflowQueueFilter, // 'Agreement Pending', 'Loan Pending', 'Installation Pending', 'RTS Pending', 'Subsidy Pending', 'Subsidy Processing', 'Completed'
     String workQueueScope = 'Active', // 'Active', 'Completed', 'Old Applications', 'All'
     String sortBy = 'updated_at',
@@ -145,6 +152,10 @@ class RecordService {
 
       if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {
         filterBuilder = filterBuilder.eq('status', statusFilter);
+      }
+
+      if (siteTypeFilter != null && siteTypeFilter.isNotEmpty && siteTypeFilter != 'All') {
+        filterBuilder = filterBuilder.eq('site_type', siteTypeFilter);
       }
 
       // Workflow Queue filter
@@ -198,7 +209,7 @@ class RecordService {
         final rawTerm = '%${searchQuery.trim()}%';
         final normTerm = '%${ConsumerNoNormalizer.normalize(searchQuery)}%';
         filterBuilder = filterBuilder.or(
-          'consumer_no.ilike.$rawTerm,consumer_no.ilike.$normTerm,name.ilike.$rawTerm,mobile.ilike.$rawTerm,application_id.ilike.$rawTerm',
+          'consumer_no.ilike.$rawTerm,consumer_no.ilike.$normTerm,name.ilike.$rawTerm,mobile.ilike.$rawTerm,application_id.ilike.$rawTerm,address.ilike.$rawTerm',
         );
       }
 
@@ -890,6 +901,21 @@ class RecordService {
         }
       } catch (_) {}
 
+      // Site type counts
+      int subsidySitesCount = 0;
+      int nonSubsidySitesCount = 0;
+      try {
+        final nonSubsidyRes = await _client
+            .from('consumer_records')
+            .select('id')
+            .eq('deleted', false)
+            .eq('is_merged', false)
+            .eq('site_type', 'Non-Subsidy')
+            .count(CountOption.exact);
+        nonSubsidySitesCount = nonSubsidyRes.count;
+        subsidySitesCount = (totalRecords - nonSubsidySitesCount).clamp(0, totalRecords);
+      } catch (_) {}
+
       return DashboardMetrics(
         totalRecords: totalRecords,
         activeUsers: 1,
@@ -904,6 +930,8 @@ class RecordService {
         subsidyPendingCount: subsidyPending,
         completedCount: completedCount,
         noActionCount: noActionCount,
+        subsidySitesCount: subsidySitesCount,
+        nonSubsidySitesCount: nonSubsidySitesCount,
       );
     } catch (_) {
       return DashboardMetrics(

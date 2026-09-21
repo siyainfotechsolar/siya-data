@@ -118,5 +118,53 @@ void main() {
       expect(filtered.length, equals(1));
       expect(filtered.first.consumerNo, equals('SI002'));
     });
+
+    test('Filter by siteType separates Subsidy and Non-Subsidy sites', () {
+      final nsRec = ConsumerRecord(
+        id: '6',
+        consumerNo: 'SI006',
+        name: 'Ganesh Shinde',
+        address: 'Kavathe Mahankal',
+        siteType: 'Non-Subsidy',
+        systemCapacity: '5 kW',
+        systemType: 'On-Grid',
+      );
+
+      final combined = [...testRecords, nsRec];
+
+      final subsidyOnly = ReportService.applyFilters(
+        combined,
+        const ReportFilterOptions(customerScope: 'All', siteType: 'Subsidy'),
+      );
+      expect(subsidyOnly.length, equals(3));
+      expect(subsidyOnly.any((r) => r.isNonSubsidy), isFalse);
+
+      final nonSubsidyOnly = ReportService.applyFilters(
+        combined,
+        const ReportFilterOptions(customerScope: 'All', siteType: 'Non-Subsidy'),
+      );
+      expect(nonSubsidyOnly.length, equals(1));
+      expect(nonSubsidyOnly.first.consumerNo, equals('SI006'));
+      expect(nonSubsidyOnly.first.isNonSubsidy, isTrue);
+    });
+
+    test('Filter by searchQuery matches address or village', () {
+      final villageRec = ConsumerRecord(
+        id: '7',
+        consumerNo: 'SI007',
+        name: 'Arun Kulkarni',
+        address: 'Barsi, Taluka Solapur',
+        siteType: 'Non-Subsidy',
+      );
+
+      final combined = [...testRecords, villageRec];
+
+      final searchResults = ReportService.applyFilters(
+        combined,
+        const ReportFilterOptions(searchQuery: 'barsi'),
+      );
+      expect(searchResults.length, equals(1));
+      expect(searchResults.first.consumerNo, equals('SI007'));
+    });
   });
 }

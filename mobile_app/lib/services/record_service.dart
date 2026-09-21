@@ -38,24 +38,27 @@ class PaginatedResult<T> {
 class MobileRecordService {
   static SupabaseClient get _client => SupabaseService.client;
 
-  /// Fetch active consumer records with optional status filter and search query (Offline-First)
+  /// Fetch active consumer records with optional status filter, site_type filter and search query (Offline-First)
   static Future<PaginatedResult<ConsumerRecord>> fetchRecords({
     int page = 1,
     int pageSize = 20,
     String? searchQuery,
     String? statusFilter,
+    String? siteTypeFilter,
   }) async {
     // 1. If currently offline, query SQLite database directly for instant response
     if (ConnectivityService.isOffline) {
       final localItems = await AppDatabase.searchConsumerRecords(
         query: searchQuery,
         statusFilter: statusFilter,
+        siteTypeFilter: siteTypeFilter,
         page: page,
         pageSize: pageSize,
       );
       final totalCount = await AppDatabase.countConsumerRecords(
         query: searchQuery,
         statusFilter: statusFilter,
+        siteTypeFilter: siteTypeFilter,
       );
       return PaginatedResult<ConsumerRecord>(
         items: localItems,
@@ -80,10 +83,14 @@ class MobileRecordService {
         queryBuilder = queryBuilder.eq('status', statusFilter);
       }
 
+      if (siteTypeFilter != null && siteTypeFilter.isNotEmpty && siteTypeFilter != 'All') {
+        queryBuilder = queryBuilder.eq('site_type', siteTypeFilter);
+      }
+
       if (searchQuery != null && searchQuery.trim().isNotEmpty) {
         final term = '%${searchQuery.trim()}%';
         queryBuilder = queryBuilder.or(
-          'consumer_no.ilike.$term,name.ilike.$term,mobile.ilike.$term,application_id.ilike.$term',
+          'consumer_no.ilike.$term,name.ilike.$term,mobile.ilike.$term,application_id.ilike.$term,address.ilike.$term',
         );
       }
 
@@ -114,12 +121,14 @@ class MobileRecordService {
       final localItems = await AppDatabase.searchConsumerRecords(
         query: searchQuery,
         statusFilter: statusFilter,
+        siteTypeFilter: siteTypeFilter,
         page: page,
         pageSize: pageSize,
       );
       final totalCount = await AppDatabase.countConsumerRecords(
         query: searchQuery,
         statusFilter: statusFilter,
+        siteTypeFilter: siteTypeFilter,
       );
       return PaginatedResult<ConsumerRecord>(
         items: localItems,
@@ -598,14 +607,70 @@ class MobileRecordService {
           .eq('status', 'Completed')
           .count(CountOption.exact);
 
+      final subsidyRes = await _client
+          .from('consumer_records')
+          .select('id')
+          .eq('deleted', false)
+          .eq('is_merged', false)
+          .neq('site_type', 'Non-Subsidy')
+          .count(CountOption.exact);
+
+      final nonSubsidyRes = await _client
+          .from('consumer_records')
+          .select('id')
+          .eq('deleted', false)
+          .eq('is_merged', false)
+          .eq('site_type', 'Non-Subsidy')
+          .count(CountOption.exact);
+
       return {
         'total': totalRes.count,
         'inProgress': inProgressRes.count,
         'completed': completedRes.count,
+        'subsidy_count': subsidyRes.count,
+        'non_subsidy_count': nonSubsidyRes.count,
       };
     } catch (_) {
       return await AppDatabase.getDashboardSummary();
     }
+  }
+
+  /// Create a new customer directly from Mobile App
+  static Future<ConsumerRecord?> createCustomerRecord({
+    required String name,
+    required String consumerNo,
+    String? mobile,
+    String? address,
+    String? applicationId,
+    String siteType = 'Subsidy',
+    String? systemCapacity,
+    String? systemType,
+    String? remarks,
+  }) async {
+    final user = _client.auth.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final data = {
+      'name': name.trim(),
+      'consumer_no': consumerNo.trim(),
+      'mobile': mobile?.trim().isEmpty ?? true ? null : mobile?.trim(),
+      'address': address?.trim().isEmpty ?? true ? null : address?.trim(),
+      'application_id': applicationId?.trim().isEmpty ?? true ? null : applicationId?.trim(),
+      'status': 'Pending',
+      'customer_work_state': 'ACTIVE',
+      'site_type': siteType,
+      'system_capacity': systemCapacity?.trim().isEmpty ?? true ? null : systemCapacity?.trim(),
+      'system_type': systemType?.trim().isEmpty ?? true ? null : systemType?.trim(),
+      'remarks': remarks?.trim().isEmpty ?? true ? null : remarks?.trim(),
+      'created_by': user?.id,
+      'updated_by': user?.id,
+      'created_at': nowIso,
+      'updated_at': nowIso,
+    };
+
+    final res = await _client.from('consumer_records').insert(data).select().single();
+    final record = ConsumerRecord.fromJson(res);
+    await AppDatabase.upsertConsumerRecord(record, syncStatus: 'SYNCED');
+    return record;
   }
 
   /// Compute Action Center summary counts directly from persistent local SQLite

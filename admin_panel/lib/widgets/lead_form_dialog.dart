@@ -32,6 +32,7 @@ class _LeadFormDialogState extends State<LeadFormDialog> {
   late String _leadSource;
   late String _interestedIn;
   late String _leadStatus;
+  late String _siteType;
   DateTime? _nextFollowupDate;
   bool _isSaving = false;
 
@@ -87,6 +88,7 @@ class _LeadFormDialogState extends State<LeadFormDialog> {
     _leadSource = (l != null && _sources.contains(l.leadSource)) ? l.leadSource : 'Call';
     _interestedIn = (l != null && _products.contains(l.interestedIn)) ? l.interestedIn : 'On-Grid';
     _leadStatus = (l != null && _statuses.contains(l.leadStatus)) ? l.leadStatus : 'New';
+    _siteType = (l != null && l.siteType.isNotEmpty) ? l.siteType : 'Subsidy';
     _nextFollowupDate = l?.nextFollowupDate ?? DateTime.now().add(const Duration(days: 1));
   }
 
@@ -133,6 +135,7 @@ class _LeadFormDialogState extends State<LeadFormDialog> {
       'district': _districtController.text.trim().isEmpty ? null : _districtController.text.trim(),
       'lead_source': _leadSource,
       'interested_in': _interestedIn,
+      'site_type': _siteType,
       'approx_system_size': _systemSizeController.text.trim().isEmpty ? null : _systemSizeController.text.trim(),
       'monthly_electricity_bill': double.tryParse(_billController.text.trim()),
       'estimated_budget': double.tryParse(_budgetController.text.trim()),
@@ -230,6 +233,27 @@ class _LeadFormDialogState extends State<LeadFormDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Site Type Section
+                      _buildSectionTitle('Site Configuration'),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Text('Site Type:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                          const SizedBox(width: 16),
+                          SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(value: 'Subsidy', label: Text('Subsidy'), icon: Icon(Icons.verified_outlined, size: 16)),
+                              ButtonSegment(value: 'Non-Subsidy', label: Text('Non-Subsidy'), icon: Icon(Icons.business_outlined, size: 16)),
+                            ],
+                            selected: {_siteType},
+                            onSelectionChanged: (val) {
+                              setState(() => _siteType = val.first);
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
                       // Customer Details Section
                       _buildSectionTitle('Customer Contact Information'),
                       const SizedBox(height: 8),

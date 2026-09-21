@@ -16,8 +16,9 @@ import '../utils/responsive.dart';
 
 class RecordsScreen extends StatefulWidget {
   final String? initialWorkflowQueue;
+  final String? initialSiteType;
 
-  const RecordsScreen({super.key, this.initialWorkflowQueue});
+  const RecordsScreen({super.key, this.initialWorkflowQueue, this.initialSiteType});
 
   @override
   State<RecordsScreen> createState() => _RecordsScreenState();
@@ -35,6 +36,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
   int _currentPage = 1;
   final int _pageSize = 15;
   String _selectedStatus = 'All';
+  String _selectedSiteType = 'All';
   String _selectedWorkflowQueue = 'All';
   String _workQueueScope = 'Active'; // 'Active', 'Completed', 'Old Applications', 'All'
   String _sortBy = 'updated_at';
@@ -64,6 +66,9 @@ class _RecordsScreenState extends State<RecordsScreen> {
       if (_selectedWorkflowQueue == 'Completed') {
         _workQueueScope = 'Completed';
       }
+    }
+    if (widget.initialSiteType != null) {
+      _selectedSiteType = widget.initialSiteType!;
     }
     _checkDeletePermission();
     _loadRecords();
@@ -158,6 +163,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
         pageSize: _pageSize,
         searchQuery: _searchController.text,
         statusFilter: _selectedStatus,
+        siteTypeFilter: _selectedSiteType,
         workflowQueueFilter: _selectedWorkflowQueue,
         workQueueScope: _workQueueScope,
         sortBy: _sortBy,
@@ -440,6 +446,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
       pageSize: 10000,
       searchQuery: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
       statusFilter: _selectedStatus == 'All' ? null : _selectedStatus,
+      siteTypeFilter: _selectedSiteType == 'All' ? null : _selectedSiteType,
       workflowQueueFilter: _selectedWorkflowQueue == 'All' ? null : _selectedWorkflowQueue,
       workQueueScope: _workQueueScope,
       sortBy: _sortBy,
@@ -451,8 +458,11 @@ class _RecordsScreenState extends State<RecordsScreen> {
   static final List<ExcelColumnDef<ConsumerRecord>> _consumerExcelColumns = [
     ExcelColumnDef(header: 'Consumer No', valueExtractor: (r) => r.consumerNo),
     ExcelColumnDef(header: 'Customer Name', valueExtractor: (r) => r.name),
+    ExcelColumnDef(header: 'Site Type', valueExtractor: (r) => r.siteType),
     ExcelColumnDef(header: 'Mobile No', valueExtractor: (r) => r.mobile ?? '—'),
     ExcelColumnDef(header: 'Application ID', valueExtractor: (r) => r.applicationId ?? '—'),
+    ExcelColumnDef(header: 'System Capacity', valueExtractor: (r) => r.systemCapacity ?? '—'),
+    ExcelColumnDef(header: 'System Type', valueExtractor: (r) => r.systemType ?? '—'),
     ExcelColumnDef(header: 'Overall Stage', valueExtractor: (r) => r.overallStage),
     ExcelColumnDef(header: 'Application Status', valueExtractor: (r) => r.status),
     ExcelColumnDef(header: 'Agreement Status', valueExtractor: (r) => r.agreementStatus),
@@ -460,7 +470,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
     ExcelColumnDef(header: 'Loan Status', valueExtractor: (r) => r.loanStatus),
     ExcelColumnDef(header: 'Installation Status', valueExtractor: (r) => r.installationStatus),
     ExcelColumnDef(header: 'RTS Status', valueExtractor: (r) => r.rtsStatus),
-    ExcelColumnDef(header: 'Subsidy Status', valueExtractor: (r) => r.subsidyStatus),
+    ExcelColumnDef(header: 'Subsidy Status', valueExtractor: (r) => r.isNonSubsidy ? 'N/A (Non-Subsidy)' : r.subsidyStatus),
     ExcelColumnDef(header: 'Work State', valueExtractor: (r) => r.customerWorkState),
     ExcelColumnDef(header: 'Application Date', valueExtractor: (r) => r.applicationDate),
     ExcelColumnDef(header: 'Submit Date', valueExtractor: (r) => r.submitDate),
@@ -553,6 +563,29 @@ class _RecordsScreenState extends State<RecordsScreen> {
                         if (val != null) {
                           setState(() {
                             _selectedWorkflowQueue = val;
+                            _currentPage = 1;
+                            _selectedRecordIds.clear();
+                          });
+                          setSheetState(() {});
+                          _loadRecords();
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('SITE TYPE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: _selectedSiteType,
+                      decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                      items: const [
+                        DropdownMenuItem(value: 'All', child: Text('All Sites')),
+                        DropdownMenuItem(value: 'Subsidy', child: Text('Subsidy')),
+                        DropdownMenuItem(value: 'Non-Subsidy', child: Text('Non-Subsidy')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _selectedSiteType = val;
                             _currentPage = 1;
                             _selectedRecordIds.clear();
                           });
@@ -851,6 +884,43 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        Text('SITE TYPE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.colorScheme.onSurfaceVariant)),
+                        const SizedBox(height: 2),
+                        DropdownButtonHideUnderline(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.purple.shade400),
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors.purple.shade50.withValues(alpha: 0.3),
+                            ),
+                            child: DropdownButton<String>(
+                              value: _selectedSiteType,
+                              items: const [
+                                DropdownMenuItem(value: 'All', child: Text('All Sites', style: TextStyle(fontWeight: FontWeight.bold))),
+                                DropdownMenuItem(value: 'Subsidy', child: Text('Subsidy')),
+                                DropdownMenuItem(value: 'Non-Subsidy', child: Text('Non-Subsidy')),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    _selectedSiteType = val;
+                                    _currentPage = 1;
+                                    _selectedRecordIds.clear();
+                                  });
+                                  _loadRecords();
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Text('STATUS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.colorScheme.onSurfaceVariant)),
                         const SizedBox(height: 2),
                         DropdownButtonHideUnderline(
@@ -1064,12 +1134,36 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                                 ),
                                               ),
                                               DataCell(
-                                                InkWell(
-                                                  onTap: () => _openDetailsDialog(r),
-                                                  child: Text(
-                                                    r.consumerNo,
-                                                    style: const TextStyle(fontWeight: FontWeight.w500),
-                                                  ),
+                                                Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    InkWell(
+                                                      onTap: () => _openDetailsDialog(r),
+                                                      child: Text(
+                                                        r.consumerNo,
+                                                        style: const TextStyle(fontWeight: FontWeight.w500),
+                                                      ),
+                                                    ),
+                                                    if (r.isNonSubsidy) ...[
+                                                      const SizedBox(width: 6),
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.purple.shade50,
+                                                          borderRadius: BorderRadius.circular(4),
+                                                          border: Border.all(color: Colors.purple.shade200),
+                                                        ),
+                                                        child: Text(
+                                                          'Non-Subsidy',
+                                                          style: TextStyle(
+                                                            fontSize: 10,
+                                                            fontWeight: FontWeight.bold,
+                                                            color: Colors.purple.shade700,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
                                                 ),
                                               ),
                                               DataCell(Text(appDateStr)),
@@ -1250,6 +1344,21 @@ class _RecordsScreenState extends State<RecordsScreen> {
             Row(
               children: [
                 Text('No: ${r.consumerNo}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                if (r.isNonSubsidy) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.purple.shade200),
+                    ),
+                    child: Text(
+                      'Non-Subsidy',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.purple.shade700),
+                    ),
+                  ),
+                ],
                 if (r.village != null && r.village!.isNotEmpty) ...[
                   const SizedBox(width: 8),
                   Expanded(

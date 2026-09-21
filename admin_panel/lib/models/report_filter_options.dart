@@ -12,6 +12,7 @@ class ReportFilterOptions {
   final String? installationStatus;
   final String? rtsStatus;
   final String? subsidyStatus;
+  final String? siteType;
   final String? assignedStaff;
   final String customerScope; // 'Active', 'Completed', 'All'
   final String searchQuery;
@@ -31,6 +32,7 @@ class ReportFilterOptions {
     this.installationStatus,
     this.rtsStatus,
     this.subsidyStatus,
+    this.siteType,
     this.assignedStaff,
     this.customerScope = 'Active',
     this.searchQuery = '',
@@ -51,6 +53,7 @@ class ReportFilterOptions {
       (installationStatus != null && installationStatus!.isNotEmpty) ||
       (rtsStatus != null && rtsStatus!.isNotEmpty) ||
       (subsidyStatus != null && subsidyStatus!.isNotEmpty) ||
+      (siteType != null && siteType!.isNotEmpty && siteType != 'All') ||
       (assignedStaff != null && assignedStaff!.isNotEmpty) ||
       searchQuery.trim().isNotEmpty;
 
@@ -67,6 +70,7 @@ class ReportFilterOptions {
     String? installationStatus,
     String? rtsStatus,
     String? subsidyStatus,
+    String? siteType,
     String? assignedStaff,
     String? customerScope,
     String? searchQuery,
@@ -82,6 +86,7 @@ class ReportFilterOptions {
     bool clearInstallation = false,
     bool clearRts = false,
     bool clearSubsidy = false,
+    bool clearSiteType = false,
     bool clearStaff = false,
   }) {
     return ReportFilterOptions(
@@ -97,6 +102,7 @@ class ReportFilterOptions {
       installationStatus: clearInstallation ? null : (installationStatus ?? this.installationStatus),
       rtsStatus: clearRts ? null : (rtsStatus ?? this.rtsStatus),
       subsidyStatus: clearSubsidy ? null : (subsidyStatus ?? this.subsidyStatus),
+      siteType: clearSiteType ? null : (siteType ?? this.siteType),
       assignedStaff: clearStaff ? null : (assignedStaff ?? this.assignedStaff),
       customerScope: customerScope ?? this.customerScope,
       searchQuery: searchQuery ?? this.searchQuery,

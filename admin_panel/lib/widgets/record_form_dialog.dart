@@ -19,7 +19,10 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
   late TextEditingController _mobileController;
   late TextEditingController _addressController;
   late TextEditingController _applicationIdController;
+  late TextEditingController _capacityController;
+  late TextEditingController _systemTypeController;
   late TextEditingController _remarksController;
+  late String _siteType;
   late String _status;
   bool _isLoading = false;
   String? _errorMessage;
@@ -41,7 +44,10 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
     _mobileController = TextEditingController(text: r?.mobile ?? '');
     _addressController = TextEditingController(text: r?.address ?? '');
     _applicationIdController = TextEditingController(text: r?.applicationId ?? '');
+    _capacityController = TextEditingController(text: r?.systemCapacity ?? '');
+    _systemTypeController = TextEditingController(text: r?.systemType ?? '');
     _remarksController = TextEditingController(text: r?.remarks ?? '');
+    _siteType = r?.siteType ?? 'Subsidy';
     _status = r?.status ?? 'Pending';
   }
 
@@ -52,6 +58,8 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
     _mobileController.dispose();
     _addressController.dispose();
     _applicationIdController.dispose();
+    _capacityController.dispose();
+    _systemTypeController.dispose();
     _remarksController.dispose();
     super.dispose();
   }
@@ -72,6 +80,9 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
         mobile: _mobileController.text.trim().isEmpty ? null : _mobileController.text.trim(),
         address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
         applicationId: _applicationIdController.text.trim().isEmpty ? null : _applicationIdController.text.trim(),
+        siteType: _siteType,
+        systemCapacity: _capacityController.text.trim().isEmpty ? null : _capacityController.text.trim(),
+        systemType: _systemTypeController.text.trim().isEmpty ? null : _systemTypeController.text.trim(),
         status: _status,
         remarks: _remarksController.text.trim().isEmpty ? null : _remarksController.text.trim(),
       );
@@ -163,6 +174,32 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
+                      // Site Type Segmented Button
+                      Row(
+                        children: [
+                          const Text('Site Type: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 12),
+                          SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(
+                                value: 'Subsidy',
+                                label: Text('Subsidy'),
+                                icon: Icon(Icons.verified_outlined, size: 16),
+                              ),
+                              ButtonSegment(
+                                value: 'Non-Subsidy',
+                                label: Text('Non-Subsidy'),
+                                icon: Icon(Icons.business_outlined, size: 16),
+                              ),
+                            ],
+                            selected: {_siteType},
+                            onSelectionChanged: (val) {
+                              setState(() => _siteType = val.first);
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
                       Row(
                         children: [
                           Expanded(
@@ -232,6 +269,32 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
                                   setState(() => _status = val);
                                 }
                               },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _capacityController,
+                              decoration: const InputDecoration(
+                                labelText: 'System Capacity (e.g. 3 kW)',
+                                prefixIcon: Icon(Icons.solar_power_outlined),
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _systemTypeController,
+                              decoration: const InputDecoration(
+                                labelText: 'System Type (e.g. On-Grid)',
+                                prefixIcon: Icon(Icons.settings_input_component_outlined),
+                                border: OutlineInputBorder(),
+                              ),
                             ),
                           ),
                         ],

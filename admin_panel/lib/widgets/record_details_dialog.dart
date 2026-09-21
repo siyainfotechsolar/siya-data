@@ -825,6 +825,38 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                                 ),
                               ),
                             ],
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _record.isNonSubsidy ? Colors.purple.shade50 : Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: _record.isNonSubsidy ? Colors.purple.shade300 : Colors.blue.shade300),
+                              ),
+                              child: Text(
+                                _record.siteType,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: _record.isNonSubsidy ? Colors.purple.shade700 : Colors.blue.shade800,
+                                ),
+                              ),
+                            ),
+                            if (_record.systemCapacity != null && _record.systemCapacity!.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.shade50,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.amber.shade400),
+                                ),
+                                child: Text(
+                                  '${_record.systemCapacity} ${_record.systemType ?? ''}'.trim(),
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber.shade900),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ],
@@ -1385,65 +1417,73 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       ),
                     ),
 
-                    const SizedBox(height: 14),
+                    if (!_record.isNonSubsidy) ...[
+                      const SizedBox(height: 14),
 
-                    // Stage 6: Subsidy
-                    _buildStageCard(
-                      title: '6. Government Subsidy',
-                      icon: Icons.currency_rupee_rounded,
-                      color: const Color(0xFF059669),
-                      isUnlocked: stageStates[WorkflowStage.subsidy]!.isUnlocked,
-                      lockReason: stageStates[WorkflowStage.subsidy]!.lockReason,
-                      content: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Text('Subsidy Status: ', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
-                              const SizedBox(width: 8),
-                              DropdownButton<String>(
-                                value: _safeValue(_record.subsidyStatus, const [
-                                  'Pending',
-                                  'DCR Created',
-                                  'PM Surya Ghar Updated',
-                                  'Install Ack',
-                                  'Done',
-                                  'Not Applied',
-                                  'Applied',
-                                  'Under Process',
-                                  'Approved',
-                                  'Received',
-                                  'Rejected',
-                                ]),
-                                isDense: true,
-                                items: const [
-                                  DropdownMenuItem(value: 'Pending', child: Text('Pending')),
-                                  DropdownMenuItem(value: 'DCR Created', child: Text('DCR Created')),
-                                  DropdownMenuItem(value: 'PM Surya Ghar Updated', child: Text('PM Surya Ghar Updated')),
-                                  DropdownMenuItem(value: 'Install Ack', child: Text('Install Ack')),
-                                  DropdownMenuItem(value: 'Done', child: Text('Done')),
-                                  DropdownMenuItem(value: 'Not Applied', child: Text('Not Applied')),
-                                  DropdownMenuItem(value: 'Applied', child: Text('Applied')),
-                                  DropdownMenuItem(value: 'Under Process', child: Text('Under Process')),
-                                  DropdownMenuItem(value: 'Approved', child: Text('Approved')),
-                                  DropdownMenuItem(value: 'Received', child: Text('Received')),
-                                  DropdownMenuItem(value: 'Rejected', child: Text('Rejected')),
-                                ],
-                                onChanged: (_isSaving || !stageStates[WorkflowStage.subsidy]!.isUnlocked) ? null : (val) => _updateWorkflowField(subsidyStatus: val),
-                              ),
-                            ],
-                          ),
-                          if (_record.isFullyCompleted)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 8),
-                              child: Text(
-                                '🎉 Customer solar journey is 100% Completed!',
-                                style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.bold),
-                              ),
+                      // Stage 6: Subsidy
+                      _buildStageCard(
+                        title: '6. Government Subsidy',
+                        icon: Icons.currency_rupee_rounded,
+                        color: const Color(0xFF059669),
+                        isUnlocked: stageStates[WorkflowStage.subsidy]!.isUnlocked,
+                        lockReason: stageStates[WorkflowStage.subsidy]!.lockReason,
+                        content: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Text('Subsidy Status: ', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
+                                const SizedBox(width: 8),
+                                DropdownButton<String>(
+                                  value: _safeValue(_record.subsidyStatus, const [
+                                    'Pending',
+                                    'DCR Created',
+                                    'PM Surya Ghar Updated',
+                                    'Install Ack',
+                                    'Done',
+                                    'Not Applied',
+                                    'Applied',
+                                    'Under Process',
+                                    'Approved',
+                                    'Received',
+                                    'Rejected',
+                                  ]),
+                                  isDense: true,
+                                  items: const [
+                                    DropdownMenuItem(value: 'Pending', child: Text('Pending')),
+                                    DropdownMenuItem(value: 'DCR Created', child: Text('DCR Created')),
+                                    DropdownMenuItem(value: 'PM Surya Ghar Updated', child: Text('PM Surya Ghar Updated')),
+                                    DropdownMenuItem(value: 'Install Ack', child: Text('Install Ack')),
+                                    DropdownMenuItem(value: 'Done', child: Text('Done')),
+                                    DropdownMenuItem(value: 'Not Applied', child: Text('Not Applied')),
+                                    DropdownMenuItem(value: 'Applied', child: Text('Applied')),
+                                    DropdownMenuItem(value: 'Under Process', child: Text('Under Process')),
+                                    DropdownMenuItem(value: 'Approved', child: Text('Approved')),
+                                    DropdownMenuItem(value: 'Received', child: Text('Received')),
+                                    DropdownMenuItem(value: 'Rejected', child: Text('Rejected')),
+                                  ],
+                                  onChanged: (_isSaving || !stageStates[WorkflowStage.subsidy]!.isUnlocked)
+                                      ? null
+                                      : (val) {
+                                          if (val != null) {
+                                            _updateWorkflowField(subsidyStatus: val);
+                                          }
+                                        },
+                                ),
+                              ],
                             ),
-                        ],
+                            if (_record.isFullyCompleted)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 8),
+                                child: Text(
+                                  '🎉 Customer solar journey is 100% Completed!',
+                                  style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
 
                     const SizedBox(height: 14),
                     // Module 7: Payment & Balance Tracking

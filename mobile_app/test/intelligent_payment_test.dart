@@ -86,6 +86,7 @@ void main() {
                 priority TEXT,
                 assigned_staff_id TEXT,
                 assigned_staff_name TEXT,
+                site_type TEXT DEFAULT 'Subsidy',
                 raw_json TEXT NOT NULL,
                 sync_status TEXT NOT NULL DEFAULT 'SYNCED',
                 last_modified_at TEXT

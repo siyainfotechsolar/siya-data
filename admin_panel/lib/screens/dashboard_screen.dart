@@ -33,6 +33,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   StreamSubscription<ConsumerRecordChangeEvent>? _metricsRealtimeSub;
   String? _selectedStageFilter;
   String? _selectedQueueFilter;
+  String _selectedSiteType = 'All';
 
   final List<_NavItem> _navItems = [
     _NavItem('Dashboard', Icons.home_outlined, Icons.home, true), // 0
@@ -404,7 +405,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildBodyContent() {
     switch (_selectedIndex) {
       case 0: return _buildDashboardView();
-      case 1: return RecordsScreen(key: ValueKey(_selectedQueueFilter), initialWorkflowQueue: _selectedQueueFilter);
+      case 1: return RecordsScreen(
+        key: ValueKey('$_selectedQueueFilter-$_selectedSiteType'),
+        initialWorkflowQueue: _selectedQueueFilter,
+        initialSiteType: _selectedSiteType,
+      );
       case 2: return ActionCenterScreen(key: ValueKey(_selectedStageFilter), initialStageFilter: _selectedStageFilter);
       case 3: return const PaymentsScreen();
       case 4: return const OfficeTasksScreen();
@@ -485,11 +490,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 // Stat chips
                 Row(
                   children: [
-                    Expanded(child: _buildHeroStat('Total Records', '${_metrics?.totalRecords ?? 0}')),
+                    Expanded(child: _buildHeroStat('Total Customers', '${_metrics?.totalRecords ?? 0}', onTap: () {
+                      setState(() {
+                        _selectedSiteType = 'All';
+                        _selectedQueueFilter = 'All';
+                        _selectedIndex = 1;
+                      });
+                    })),
                     const SizedBox(width: 8),
-                    Expanded(child: _buildHeroStat('Updates', '${_metrics?.recentlyUpdated ?? 0}')),
+                    Expanded(child: _buildHeroStat('Subsidy Sites', '${_metrics?.subsidySitesCount ?? 0}', onTap: () {
+                      setState(() {
+                        _selectedSiteType = 'Subsidy';
+                        _selectedQueueFilter = 'All';
+                        _selectedIndex = 1;
+                      });
+                    })),
                     const SizedBox(width: 8),
-                    Expanded(child: _buildHeroStat('Active Users', '${_metrics?.activeUsers ?? 1}')),
+                    Expanded(child: _buildHeroStat('Non-Subsidy Sites', '${_metrics?.nonSubsidySitesCount ?? 0}', onTap: () {
+                      setState(() {
+                        _selectedSiteType = 'Non-Subsidy';
+                        _selectedQueueFilter = 'All';
+                        _selectedIndex = 1;
+                      });
+                    })),
                   ],
                 ),
               ],
@@ -642,8 +665,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildHeroStat(String label, String value) {
-    return Container(
+  Widget _buildHeroStat(String label, String value, {VoidCallback? onTap}) {
+    final card = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.16),
@@ -675,6 +698,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ],
       ),
     );
+
+    if (onTap != null) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: card,
+        ),
+      );
+    }
+    return card;
   }
 
   Widget _sectionHeader(String title, String subtitle) {

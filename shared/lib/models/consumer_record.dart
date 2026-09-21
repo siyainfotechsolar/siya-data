@@ -153,9 +153,14 @@ class ConsumerRecord {
   final double loanSanctionedAmount; // Loan Approved Amount from bank
   final String paymentStatus; // 'Pending', 'Partially Paid', 'Paid', 'Overdue', 'Refunded', 'Cancelled'
   final DateTime? paymentDueDate;
+  final String siteType; // 'Subsidy', 'Non-Subsidy'
+  final String? systemCapacity; // e.g. '3 kW', '5 kW'
+  final String? systemType; // e.g. 'On-Grid', 'Off-Grid', 'Hybrid', 'Solar Pump'
 
   bool get isDeleted => deleted;
   bool get isLoanCustomer => loanRequired.trim().toLowerCase() == 'yes';
+  bool get isNonSubsidy => siteType.trim().toLowerCase() == 'non-subsidy';
+  bool get isSubsidy => !isNonSubsidy;
   double get firstPaymentPending => (firstPaymentAmount - firstPaymentReceived).clamp(0.0, double.infinity);
   double get secondPaymentPending => (secondPaymentAmount - secondPaymentReceived).clamp(0.0, double.infinity);
 
@@ -244,6 +249,9 @@ class ConsumerRecord {
     this.loanSanctionedAmount = 0.0,
     this.paymentStatus = 'Pending',
     this.paymentDueDate,
+    this.siteType = 'Subsidy',
+    this.systemCapacity,
+    this.systemType,
   });
 
   // --- Computed Normalized Keys & Priority Engine ---
@@ -528,6 +536,9 @@ class ConsumerRecord {
       paymentDueDate: json['payment_due_date'] != null
           ? DateTime.tryParse(json['payment_due_date'].toString())
           : null,
+      siteType: json['site_type'] as String? ?? 'Subsidy',
+      systemCapacity: json['system_capacity'] as String?,
+      systemType: json['system_type'] as String?,
     );
   }
 
@@ -581,6 +592,9 @@ class ConsumerRecord {
       'second_payment_received': secondPaymentReceived,
       'loan_sanctioned_amount': loanSanctionedAmount,
       'payment_status': paymentStatus,
+      'site_type': siteType,
+      'system_capacity': systemCapacity,
+      'system_type': systemType,
     };
 
     if (paymentDueDate != null) map['payment_due_date'] = paymentDueDate!.toIso8601String().split('T')[0];
@@ -700,6 +714,9 @@ class ConsumerRecord {
     double? loanSanctionedAmount,
     String? paymentStatus,
     DateTime? paymentDueDate,
+    String? siteType,
+    String? systemCapacity,
+    String? systemType,
   }) {
     return ConsumerRecord(
       id: id ?? this.id,
@@ -779,6 +796,9 @@ class ConsumerRecord {
       loanSanctionedAmount: loanSanctionedAmount ?? this.loanSanctionedAmount,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentDueDate: paymentDueDate ?? this.paymentDueDate,
+      siteType: siteType ?? this.siteType,
+      systemCapacity: systemCapacity ?? this.systemCapacity,
+      systemType: systemType ?? this.systemType,
     );
   }
 }

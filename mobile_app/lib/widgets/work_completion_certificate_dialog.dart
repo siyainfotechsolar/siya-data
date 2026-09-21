@@ -52,7 +52,9 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
     }
 
     String cap = '';
-    if (widget.customer.remarks != null && widget.customer.remarks!.trim().isNotEmpty) {
+    if (widget.customer.systemCapacity != null && widget.customer.systemCapacity!.trim().isNotEmpty) {
+      cap = widget.customer.systemCapacity!.trim();
+    } else if (widget.customer.remarks != null && widget.customer.remarks!.trim().isNotEmpty) {
       final match = RegExp(r'(\d+(?:\.\d+)?\s*(?:kw|kW|KW|Kw))').firstMatch(widget.customer.remarks!);
       if (match != null) cap = match.group(1)!;
     }

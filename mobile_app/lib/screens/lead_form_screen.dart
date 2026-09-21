@@ -32,6 +32,7 @@ class _MobileLeadFormScreenState extends State<MobileLeadFormScreen> {
   late String _leadSource;
   late String _interestedIn;
   late String _leadStatus;
+  late String _siteType;
   DateTime? _nextFollowupDate;
   bool _isSaving = false;
 
@@ -87,6 +88,7 @@ class _MobileLeadFormScreenState extends State<MobileLeadFormScreen> {
     _leadSource = (l != null && _sources.contains(l.leadSource)) ? l.leadSource : 'Call';
     _interestedIn = (l != null && _products.contains(l.interestedIn)) ? l.interestedIn : 'On-Grid';
     _leadStatus = (l != null && _statuses.contains(l.leadStatus)) ? l.leadStatus : 'New';
+    _siteType = (l != null && l.siteType.isNotEmpty) ? l.siteType : 'Subsidy';
     _nextFollowupDate = l?.nextFollowupDate ?? DateTime.now().add(const Duration(days: 1));
   }
 
@@ -133,6 +135,7 @@ class _MobileLeadFormScreenState extends State<MobileLeadFormScreen> {
       'district': _districtController.text.trim().isEmpty ? null : _districtController.text.trim(),
       'lead_source': _leadSource,
       'interested_in': _interestedIn,
+      'site_type': _siteType,
       'approx_system_size': _systemSizeController.text.trim().isEmpty ? null : _systemSizeController.text.trim(),
       'monthly_electricity_bill': double.tryParse(_billController.text.trim()),
       'estimated_budget': double.tryParse(_budgetController.text.trim()),
@@ -186,6 +189,7 @@ class _MobileLeadFormScreenState extends State<MobileLeadFormScreen> {
     if (_assignedStaffController.text.trim() != (l?.assignedStaffName ?? '').trim()) return true;
     if (_remarksController.text.trim() != (l?.remarks ?? '').trim()) return true;
     if (l != null && _leadStatus != l.leadStatus) return true;
+    if (l != null && _siteType != l.siteType) return true;
     return false;
   }
 
@@ -240,6 +244,36 @@ class _MobileLeadFormScreenState extends State<MobileLeadFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Site Type Card
+            _buildCard(
+              title: 'Site Type',
+              icon: Icons.domain,
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'Subsidy',
+                        label: Text('Subsidy'),
+                        icon: Icon(Icons.verified_outlined),
+                      ),
+                      ButtonSegment(
+                        value: 'Non-Subsidy',
+                        label: Text('Non-Subsidy'),
+                        icon: Icon(Icons.business_outlined),
+                      ),
+                    ],
+                    selected: {_siteType},
+                    onSelectionChanged: (newSelection) {
+                      setState(() => _siteType = newSelection.first);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
             // Contact Details Card
             _buildCard(
               title: 'Customer Contact',

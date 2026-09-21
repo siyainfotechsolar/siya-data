@@ -195,6 +195,9 @@ class WorkflowEngine {
   /// Returns true if customer work is 100% completed (Subsidy Received or Mark as Complete)
   static bool isWorkCompleted(ConsumerRecord record) {
     if (record.customerWorkState.toUpperCase() == 'COMPLETED') return true;
+    if (record.isNonSubsidy) {
+      return isInstallationCompleted(record) || record.status.trim().toLowerCase() == 'completed';
+    }
     return isSubsidyCompleted(record);
   }
 
@@ -203,10 +206,13 @@ class WorkflowEngine {
     if (isWorkCompleted(record)) {
       return 'Completed';
     }
-    if (isRtsCompleted(record)) {
+    if (!record.isNonSubsidy && isRtsCompleted(record)) {
       return 'Subsidy';
     }
     if (isInstallationCompleted(record)) {
+      if (record.isNonSubsidy) {
+        return 'Completed';
+      }
       return 'RTS';
     }
 
@@ -498,16 +504,22 @@ class WorkflowEngine {
         : (rtsUnlocked ? StageState.active : StageState.locked);
     final rtsLockReason = rtsUnlocked ? '' : '🔒 Complete Installation first.';
 
-    // Subsidy: Unlocked if RTS done
-    final subsidyUnlocked = rtsDone || isOwnerOverride;
-    final subsidyState = subsidyDone
-        ? StageState.completed
-        : (subsidyUnlocked ? StageState.active : StageState.locked);
-    final subsidyLockReason = subsidyUnlocked ? '' : '🔒 Complete RTS first.';
+    // Subsidy: Unlocked if RTS done (or Skipped if Non-Subsidy)
+    final subsidyUnlocked = !record.isNonSubsidy && (rtsDone || isOwnerOverride);
+    final subsidyState = record.isNonSubsidy
+        ? StageState.skipped
+        : (subsidyDone
+            ? StageState.completed
+            : (subsidyUnlocked ? StageState.active : StageState.locked));
+    final subsidyLockReason = record.isNonSubsidy
+        ? ''
+        : (subsidyUnlocked ? '' : '🔒 Complete RTS first.');
 
     // Completed
-    final completedState = subsidyDone ? StageState.completed : StageState.locked;
-    final completedLockReason = subsidyDone ? '' : '🔒 Complete Subsidy first.';
+    final completedState = (record.isNonSubsidy ? installDone : subsidyDone) ? StageState.completed : StageState.locked;
+    final completedLockReason = (record.isNonSubsidy ? installDone : subsidyDone)
+        ? ''
+        : (record.isNonSubsidy ? '🔒 Complete Installation first.' : '🔒 Complete Subsidy first.');
 
     return {
       WorkflowStage.application: WorkflowStageInfo(
@@ -632,7 +644,8 @@ class WorkflowEngine {
     }
 
     // If attempting to set Subsidy status beyond Not Applied / Pending
-    if (newSubsidyStatus != null &&
+    if (!existing.isNonSubsidy &&
+        newSubsidyStatus != null &&
         newSubsidyStatus.toLowerCase() != 'not applied' &&
         newSubsidyStatus.toLowerCase() != 'pending') {
       final rtsDone = newRtsStatus != null

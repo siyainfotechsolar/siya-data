@@ -556,7 +556,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           if (selectedLoanStatus != _record.loanStatus) return true;
           if (selectedInstallStatus != _record.installationStatus) return true;
           if (selectedRtsStatus != _record.rtsStatus) return true;
-          if (selectedSubsidyStatus != _record.subsidyStatus) return true;
+          if (!_record.isNonSubsidy && selectedSubsidyStatus != _record.subsidyStatus) return true;
           if (remarksController.text.trim() != (_record.remarks ?? '').trim()) return true;
           return false;
         }
@@ -742,29 +742,30 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                       lockReason: stageStates[WorkflowStage.rts]!.lockReason,
                     ),
 
-                    const SizedBox(height: 12),
-
-                    // Stage 6: Subsidy
-                    _buildSheetDropdown(
-                      label: '6. Government Subsidy Status',
-                      value: selectedSubsidyStatus,
-                      items: const [
-                        'Pending',
-                        'DCR Created',
-                        'PM Surya Ghar Updated',
-                        'Install Ack',
-                        'Done',
-                        'Not Applied',
-                        'Applied',
-                        'Under Process',
-                        'Approved',
-                        'Received',
-                        'Rejected',
-                      ],
-                      onChanged: (val) => setSheetState(() => selectedSubsidyStatus = val!),
-                      enabled: stageStates[WorkflowStage.subsidy]!.isUnlocked,
-                      lockReason: stageStates[WorkflowStage.subsidy]!.lockReason,
-                    ),
+                    if (!_record.isNonSubsidy) ...[
+                      const SizedBox(height: 12),
+                      // Stage 6: Subsidy
+                      _buildSheetDropdown(
+                        label: '6. Government Subsidy Status',
+                        value: selectedSubsidyStatus,
+                        items: const [
+                          'Pending',
+                          'DCR Created',
+                          'PM Surya Ghar Updated',
+                          'Install Ack',
+                          'Done',
+                          'Not Applied',
+                          'Applied',
+                          'Under Process',
+                          'Approved',
+                          'Received',
+                          'Rejected',
+                        ],
+                        onChanged: (val) => setSheetState(() => selectedSubsidyStatus = val!),
+                        enabled: stageStates[WorkflowStage.subsidy]!.isUnlocked,
+                        lockReason: stageStates[WorkflowStage.subsidy]!.lockReason,
+                      ),
+                    ],
 
                     const SizedBox(height: 14),
 
@@ -1183,18 +1184,67 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      // Overall Stage Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEFF6FF),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFF2563EB)),
-                        ),
-                        child: Text(
-                          'Stage: ${_record.overallStage}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E40AF), fontSize: 13),
-                        ),
+                      // Site Type, Stage & Capacity Badges Row
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _record.isNonSubsidy ? Colors.purple.shade50 : const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: _record.isNonSubsidy ? Colors.purple.shade300 : const Color(0xFF2563EB),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _record.isNonSubsidy ? Icons.business_outlined : Icons.verified_outlined,
+                                  size: 14,
+                                  color: _record.isNonSubsidy ? Colors.purple.shade700 : const Color(0xFF1E40AF),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _record.siteType,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _record.isNonSubsidy ? Colors.purple.shade700 : const Color(0xFF1E40AF),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFF94A3B8)),
+                            ),
+                            child: Text(
+                              'Stage: ${_record.overallStage}',
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF334155), fontSize: 12),
+                            ),
+                          ),
+                          if (_record.systemCapacity != null && _record.systemCapacity!.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.shade50,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.amber.shade400),
+                              ),
+                              child: Text(
+                                '${_record.systemCapacity} ${_record.systemType ?? ''}'.trim(),
+                                style: TextStyle(fontWeight: FontWeight.w600, color: Colors.amber.shade900, fontSize: 12),
+                              ),
+                            ),
+                        ],
                       ),
                     ],
                   ),
@@ -1250,13 +1300,15 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         step: '5. RTS / Net Meter',
                         status: _record.rtsStatus,
                         isDone: _record.rtsStatus.toLowerCase() == 'completed',
+                        isLast: _record.isNonSubsidy,
                       ),
-                      _buildTimelineItem(
-                        step: '6. Subsidy',
-                        status: _record.subsidyStatus,
-                        isDone: _record.isFullyCompleted,
-                        isLast: true,
-                      ),
+                      if (!_record.isNonSubsidy)
+                        _buildTimelineItem(
+                          step: '6. Subsidy',
+                          status: _record.subsidyStatus,
+                          isDone: _record.isFullyCompleted,
+                          isLast: true,
+                        ),
                     ],
                   ),
                 ),

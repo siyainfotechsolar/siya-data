@@ -189,7 +189,8 @@ class AppDatabase {
   ///   v4 — Added: cached_office_tasks and cached_task_assignments for Office Staff Tasks support
   ///   v5 — Added: completed_by and completed_by_name to cached_office_tasks
   ///   v6 — Added: loan_sanctioned_amount to consumer_records (raw_json field, no ALTER needed)
-  static const int _dbVersion = 6;
+  ///   v7 — Added: site_type column and index to cached_consumer_records and cached_leads
+  static const int _dbVersion = 7;
 
   static Database? _database;
   static Database? _testDatabase;
@@ -237,6 +238,7 @@ class AppDatabase {
         priority TEXT,
         assigned_staff_id TEXT,
         assigned_staff_name TEXT,
+        site_type TEXT DEFAULT 'Subsidy',
         raw_json TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'SYNCED',
         last_modified_at TEXT
@@ -249,6 +251,7 @@ class AppDatabase {
     batch.execute('CREATE INDEX idx_cached_cr_village ON cached_consumer_records(village)');
     batch.execute('CREATE INDEX idx_cached_cr_state ON cached_consumer_records(customer_work_state)');
     batch.execute('CREATE INDEX idx_cached_cr_staff ON cached_consumer_records(assigned_staff_id)');
+    batch.execute('CREATE INDEX idx_cached_cr_site_type ON cached_consumer_records(site_type)');
 
     // 2. Cached Leads Table
     batch.execute('''
@@ -260,6 +263,7 @@ class AppDatabase {
         lead_status TEXT,
         assigned_staff_id TEXT,
         next_followup_date TEXT,
+        site_type TEXT DEFAULT 'Subsidy',
         raw_json TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'SYNCED'
       )
@@ -268,6 +272,7 @@ class AppDatabase {
     batch.execute('CREATE INDEX idx_cached_leads_mobile ON cached_leads(mobile_no)');
     batch.execute('CREATE INDEX idx_cached_leads_village ON cached_leads(village)');
     batch.execute('CREATE INDEX idx_cached_leads_status ON cached_leads(lead_status)');
+    batch.execute('CREATE INDEX idx_cached_leads_site_type ON cached_leads(site_type)');
 
     // 3. Cached Customer Tasks Table
     batch.execute('''
@@ -647,6 +652,24 @@ class AppDatabase {
       } catch (_) {}
     }
 
+    // -------------------------------------------------------------------------
+    // v6 → v7: site_type added to cached_consumer_records and cached_leads.
+    // -------------------------------------------------------------------------
+    if (oldVersion < 7) {
+      try {
+        batch.execute("ALTER TABLE cached_consumer_records ADD COLUMN site_type TEXT DEFAULT 'Subsidy'");
+      } catch (_) {}
+      try {
+        batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_cr_site_type ON cached_consumer_records(site_type)');
+      } catch (_) {}
+      try {
+        batch.execute("ALTER TABLE cached_leads ADD COLUMN site_type TEXT DEFAULT 'Subsidy'");
+      } catch (_) {}
+      try {
+        batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_leads_site_type ON cached_leads(site_type)');
+      } catch (_) {}
+    }
+
     await batch.commit(noResult: true);
     debugPrint('[AppDatabase] Upgrade complete (v$oldVersion → v$newVersion)');
   }
@@ -809,6 +832,7 @@ class AppDatabase {
         'priority': record.priority,
         'assigned_staff_id': record.assignedStaffId,
         'assigned_staff_name': record.assignedStaffName,
+        'site_type': record.siteType,
         'raw_json': rawJson,
         'sync_status': syncStatus,
         'last_modified_at': DateTime.now().toUtc().toIso8601String(),
@@ -838,6 +862,7 @@ class AppDatabase {
           'priority': record.priority,
           'assigned_staff_id': record.assignedStaffId,
           'assigned_staff_name': record.assignedStaffName,
+          'site_type': record.siteType,
           'raw_json': jsonEncode(record.toJson()),
           'sync_status': syncStatus,
           'last_modified_at': nowIso,
@@ -868,6 +893,7 @@ class AppDatabase {
     String? query,
     String? statusFilter,
     String? workStateFilter,
+    String? siteTypeFilter,
     int page = 1,
     int pageSize = 25,
   }) async {
@@ -883,6 +909,11 @@ class AppDatabase {
     if (workStateFilter != null && workStateFilter.isNotEmpty && workStateFilter != 'All') {
       whereClauses.add('customer_work_state = ?');
       whereArgs.add(workStateFilter);
+    }
+
+    if (siteTypeFilter != null && siteTypeFilter.isNotEmpty && siteTypeFilter != 'All') {
+      whereClauses.add('site_type = ?');
+      whereArgs.add(siteTypeFilter);
     }
 
     if (query != null && query.trim().isNotEmpty) {
@@ -916,6 +947,7 @@ class AppDatabase {
     String? query,
     String? statusFilter,
     String? workStateFilter,
+    String? siteTypeFilter,
   }) async {
     final db = await database;
     final whereClauses = <String>[];
@@ -929,6 +961,11 @@ class AppDatabase {
     if (workStateFilter != null && workStateFilter.isNotEmpty && workStateFilter != 'All') {
       whereClauses.add('customer_work_state = ?');
       whereArgs.add(workStateFilter);
+    }
+
+    if (siteTypeFilter != null && siteTypeFilter.isNotEmpty && siteTypeFilter != 'All') {
+      whereClauses.add('site_type = ?');
+      whereArgs.add(siteTypeFilter);
     }
 
     if (query != null && query.trim().isNotEmpty) {
@@ -950,9 +987,13 @@ class AppDatabase {
   }
 
   /// Get all cached consumer records
-  static Future<List<ConsumerRecord>> getAllConsumerRecords() async {
+  static Future<List<ConsumerRecord>> getAllConsumerRecords({String? siteTypeFilter}) async {
     final db = await database;
-    final res = await db.query('cached_consumer_records', orderBy: 'last_modified_at DESC');
+    final String? where = (siteTypeFilter != null && siteTypeFilter.isNotEmpty && siteTypeFilter != 'All')
+        ? 'site_type = ?'
+        : null;
+    final List<dynamic>? whereArgs = (where != null) ? [siteTypeFilter] : null;
+    final res = await db.query('cached_consumer_records', where: where, whereArgs: whereArgs, orderBy: 'last_modified_at DESC');
     return res.map((row) {
       return ConsumerRecord.fromJson(
         jsonDecode(row['raw_json'] as String) as Map<String, dynamic>,
@@ -992,6 +1033,16 @@ class AppDatabase {
     );
     final pendingTasks = Sqflite.firstIntValue(tasksRes) ?? 0;
 
+    final subsidyRes = await db.rawQuery(
+      "SELECT COUNT(*) as c FROM cached_consumer_records WHERE site_type != 'Non-Subsidy' OR site_type IS NULL",
+    );
+    final subsidyCount = Sqflite.firstIntValue(subsidyRes) ?? 0;
+
+    final nonSubsidyRes = await db.rawQuery(
+      "SELECT COUNT(*) as c FROM cached_consumer_records WHERE site_type = 'Non-Subsidy'",
+    );
+    final nonSubsidyCount = Sqflite.firstIntValue(nonSubsidyRes) ?? 0;
+
     return {
       'total': total,
       'active': active,
@@ -999,6 +1050,8 @@ class AppDatabase {
       'on_hold': onHold,
       'active_leads': activeLeads,
       'pending_tasks': pendingTasks,
+      'subsidy_count': subsidyCount,
+      'non_subsidy_count': nonSubsidyCount,
     };
   }
 
@@ -1385,6 +1438,7 @@ class AppDatabase {
         'lead_status': lead.leadStatus,
         'assigned_staff_id': lead.assignedStaffId,
         'next_followup_date': lead.nextFollowupDate?.toIso8601String(),
+        'site_type': lead.siteType,
         'raw_json': jsonEncode(lead.toJson()),
         'sync_status': syncStatus,
       },

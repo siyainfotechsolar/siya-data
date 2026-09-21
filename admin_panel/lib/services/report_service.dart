@@ -175,6 +175,13 @@ class ReportService {
         }
       }
 
+      // Site Type Filter
+      if (options.siteType != null && options.siteType!.isNotEmpty && options.siteType != 'All') {
+        if (r.siteType.toLowerCase() != options.siteType!.toLowerCase()) {
+          return false;
+        }
+      }
+
       // 10. Staff Filter
       if (options.assignedStaff != null && options.assignedStaff!.isNotEmpty) {
         final staffQuery = options.assignedStaff!.toLowerCase();
@@ -192,7 +199,9 @@ class ReportService {
         final matchConsumerNo = r.consumerNo.toLowerCase().contains(q);
         final matchAppId = (r.applicationId ?? '').toLowerCase().contains(q);
         final matchMobile = (r.mobile ?? '').toLowerCase().contains(q);
-        if (!matchName && !matchConsumerNo && !matchAppId && !matchMobile) {
+        final matchVillage = (r.village ?? '').toLowerCase().contains(q);
+        final matchAddress = (r.address ?? '').toLowerCase().contains(q);
+        if (!matchName && !matchConsumerNo && !matchAppId && !matchMobile && !matchVillage && !matchAddress) {
           return false;
         }
       }

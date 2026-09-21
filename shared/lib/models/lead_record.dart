@@ -28,6 +28,10 @@ class LeadRecord {
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? createdBy;
+  final String siteType; // 'Subsidy', 'Non-Subsidy'
+
+  bool get isNonSubsidy => siteType.trim().toLowerCase() == 'non-subsidy';
+  bool get isSubsidy => !isNonSubsidy;
 
   const LeadRecord({
     required this.id,
@@ -59,6 +63,7 @@ class LeadRecord {
     required this.createdAt,
     required this.updatedAt,
     this.createdBy,
+    this.siteType = 'Subsidy',
   });
 
   factory LeadRecord.fromJson(Map<String, dynamic> json) {
@@ -78,7 +83,7 @@ class LeadRecord {
     }
 
     return LeadRecord(
-      id: json['id'] as String,
+      id: (json['id'] as String?) ?? '',
       customerName: json['customer_name'] as String? ?? 'Unnamed',
       mobileNo: json['mobile_no'] as String? ?? '',
       whatsappNo: json['whatsapp_no'] as String?,
@@ -107,6 +112,7 @@ class LeadRecord {
       createdAt: parseDate(json['created_at']) ?? DateTime.now(),
       updatedAt: parseDate(json['updated_at']) ?? DateTime.now(),
       createdBy: json['created_by'] as String?,
+      siteType: json['site_type'] as String? ?? 'Subsidy',
     );
   }
 
@@ -138,6 +144,7 @@ class LeadRecord {
       'customer_id': customerId,
       'deleted': deleted,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
+      'site_type': siteType,
     };
   }
 

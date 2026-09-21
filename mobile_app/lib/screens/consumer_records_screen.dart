@@ -7,9 +7,11 @@ import '../services/realtime_service.dart';
 import '../services/supabase_service.dart';
 import 'login_screen.dart';
 import 'record_detail_screen.dart';
+import '../widgets/add_customer_dialog.dart';
 
 class ConsumerRecordsScreen extends StatefulWidget {
-  const ConsumerRecordsScreen({super.key});
+  final String? initialSiteType;
+  const ConsumerRecordsScreen({super.key, this.initialSiteType});
 
   @override
   State<ConsumerRecordsScreen> createState() => _ConsumerRecordsScreenState();
@@ -25,6 +27,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
   final int _pageSize = 20;
   int _totalCount = 0;
   String _selectedStatus = 'All';
+  late String _selectedSiteType;
 
   final List<String> _statusOptions = [
     'All',
@@ -40,6 +43,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedSiteType = widget.initialSiteType ?? 'All';
     _loadRecords();
     _scrollController.addListener(_onScroll);
     _initRealtime();
@@ -212,6 +216,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
         page: 1,
         pageSize: _pageSize,
         statusFilter: _selectedStatus,
+        siteTypeFilter: _selectedSiteType,
       );
 
       if (mounted) {
@@ -248,6 +253,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
         page: nextPage,
         pageSize: _pageSize,
         statusFilter: _selectedStatus,
+        siteTypeFilter: _selectedSiteType,
       );
 
       if (mounted) {
@@ -270,12 +276,48 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      appBar: Navigator.canPop(context)
+          ? AppBar(
+              title: Text(_selectedSiteType == 'All' ? 'Customer Records' : '$_selectedSiteType Sites'),
+            )
+          : null,
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'fab_add_customer',
+        onPressed: () async {
+          final created = await AddCustomerDialog.show(context);
+          if (created != null && mounted) {
+            _loadRecords();
+          }
+        },
+        icon: const Icon(Icons.person_add_rounded),
+        label: const Text('Add Customer'),
+      ),
       body: Column(
         children: [
-          // Filter Chips Bar
+          // Site Type Segmented Filter Bar
           Container(
-            height: 52,
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+            child: SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'All', label: Text('All Sites')),
+                  ButtonSegment(value: 'Subsidy', label: Text('Subsidy')),
+                  ButtonSegment(value: 'Non-Subsidy', label: Text('Non-Subsidy')),
+                ],
+                selected: {_selectedSiteType},
+                onSelectionChanged: (val) {
+                  setState(() => _selectedSiteType = val.first);
+                  _loadRecords();
+                },
+              ),
+            ),
+          ),
+
+          // Status Filter Chips Bar
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(vertical: 4),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -316,14 +358,17 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
                   'Showing ${_records.length} of $_totalCount records',
                   style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
-                if (_selectedStatus != 'All')
+                if (_selectedStatus != 'All' || _selectedSiteType != 'All')
                   InkWell(
                     onTap: () {
-                      setState(() => _selectedStatus = 'All');
+                      setState(() {
+                        _selectedStatus = 'All';
+                        _selectedSiteType = 'All';
+                      });
                       _loadRecords();
                     },
                     child: Text(
-                      'Clear Filter',
+                      'Clear Filters',
                       style: TextStyle(fontSize: 12, color: theme.colorScheme.primary, fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -504,7 +549,30 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
                       ),
                     ),
                   ),
-                  _buildStatusBadge(record.status),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (record.isNonSubsidy)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          margin: const EdgeInsets.only(right: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.purple.shade200),
+                          ),
+                          child: Text(
+                            'Non-Subsidy',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.purple.shade700,
+                            ),
+                          ),
+                        ),
+                      _buildStatusBadge(record.status),
+                    ],
+                  ),
                 ],
               ),
               const SizedBox(height: 8),

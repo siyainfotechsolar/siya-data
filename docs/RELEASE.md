@@ -115,6 +115,28 @@ For internal testing and GitHub release distribution, standard release signing i
 
 ## 📌 Release History
 
+### Release v1.0.28 (Build 29) - 2026-09-22
+- **Non-Subsidy Site Support & Simple Integration**:
+  - **Zero Duplication Architecture**: Re-uses existing `consumer_records` schema, payment, task, document, and report modules without creating parallel apps or duplicate databases.
+  - **Site Type Switcher**: `[ Subsidy ]` and `[ Non-Subsidy ]` toggles added to Lead creation, Customer registration, and Edit dialogs with system capacity and system type tracking.
+  - **Streamlined Non-Subsidy Experience**:
+    - Keeps standard customer workflow: Name, Mobile, Village, Address, Consumer No., System Capacity, System Type, Installation Details, Payments, Tasks, and Documents.
+    - Hides Stage 6 (PM Surya Ghar Subsidy) timeline step and status selector for Non-Subsidy sites.
+    - `WorkflowEngine` marks Non-Subsidy sites completed once Installation & RTS stages are finished.
+  - **Clean Payment Module**:
+    - Displays Total Payment, Paid, Pending, and Additional Payment with `+ Add Payment` and full history.
+    - Eliminates subsidy deduction or complex subsidy eligibility calculations for Non-Subsidy projects.
+  - **Dashboard Metric Cards & 1-Tap Filter**:
+    - Added Total Customers, Subsidy Sites, and Non-Subsidy Sites cards to Mobile Home Screen and Admin Panel Dashboard.
+    - Tapping Non-Subsidy Sites immediately opens the customer list pre-filtered to Non-Subsidy records.
+  - **Customer List Filters & Village Search**:
+    - `[ All | Subsidy | Non-Subsidy ]` filter bar with high-contrast `Non-Subsidy` badges.
+    - Real-time search across Customer Name, Mobile, Consumer No., and Village / Address (`address.ilike`).
+  - **Reports & Work Completion Certificate**:
+    - Work Completion Certificate functions normally without subsidy references.
+    - Excel and CSV exports include Site Type, System Capacity, and System Type columns.
+- **Version Bump**: Mobile App `1.0.28+29`, Admin Panel `1.0.28+29`.
+
 ### Release v1.0.27 (Build 28) - 2026-09-21
 - **Work Completion Certificate Design & Spacing Perfection**:
   - **Single-Page A4 Bank Submission Layout**: Formatted dual outer border (`#0D2B6F` & `#10B981`), header branding with official GSTIN, phone, email, and Dhule office address details.
