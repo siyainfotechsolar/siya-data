@@ -578,26 +578,22 @@ class MobileRecordService {
   }
 
   /// Summary metrics for Mobile Dashboard (supports Non-Subsidy and Subsidy toggles)
-  static Future<Map<String, dynamic>> fetchDashboardSummary({String siteType = 'Non-Subsidy'}) async {
+  static Future<Map<String, dynamic>> fetchDashboardSummary({String siteType = 'Subsidy'}) async {
     if (ConnectivityService.isOffline) {
       return await AppDatabase.getDashboardSummary(siteType: siteType);
     }
 
     try {
       final isSubsidy = siteType.toLowerCase() == 'subsidy';
-      var query = _client
+      final targetSiteType = isSubsidy ? 'Subsidy' : 'Non-Subsidy';
+
+      final response = await _client
           .from('consumer_records')
           .select('id, consumer_no, total_amount, paid_amount, pending_amount, status, installation_status, subsidy_status, customer_work_state, site_type')
           .eq('deleted', false)
-          .eq('is_merged', false);
+          .eq('is_merged', false)
+          .eq('site_type', targetSiteType);
 
-      if (isSubsidy) {
-        query = query.or('site_type.eq.Subsidy,site_type.is.null');
-      } else {
-        query = query.eq('site_type', 'Non-Subsidy');
-      }
-
-      final response = await query;
       final List<dynamic> rows = response as List<dynamic>;
       final int totalCustomers = rows.length;
 
@@ -642,14 +638,15 @@ class MobileRecordService {
       int completedTasks = 0;
 
       try {
-        if (consumerNos.isNotEmpty) {
-          final tasksRes = await _client
-              .from('tasks')
-              .select('id, status, consumer_no, customer_id')
-              .filter('consumer_no', 'in', consumerNos.toList());
+        final tasksRes = await _client
+            .from('tasks')
+            .select('id, status, consumer_no, customer_id');
 
-          final List<dynamic> taskList = tasksRes as List<dynamic>;
-          for (final t in taskList) {
+        final List<dynamic> taskList = tasksRes as List<dynamic>;
+        for (final t in taskList) {
+          final cNo = t['consumer_no']?.toString() ?? '';
+          final cId = t['customer_id']?.toString() ?? '';
+          if (consumerNos.contains(cNo) || customerIds.contains(cId)) {
             final st = (t['status'] as String? ?? '').toLowerCase();
             if (st == 'completed' || st == 'complete') {
               completedTasks++;
@@ -658,7 +655,9 @@ class MobileRecordService {
             }
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('fetchDashboardSummary tasks error: $e');
+      }
 
       return {
         'total': totalCustomers,
@@ -671,7 +670,8 @@ class MobileRecordService {
         'pending_tasks': pendingTasks,
         'completed_tasks': completedTasks,
       };
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('fetchDashboardSummary failed: $e\n$stack');
       return await AppDatabase.getDashboardSummary(siteType: siteType);
     }
   }

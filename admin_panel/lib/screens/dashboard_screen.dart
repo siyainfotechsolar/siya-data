@@ -34,7 +34,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String? _selectedStageFilter;
   String? _selectedQueueFilter;
   String? _selectedPaymentFilter;
-  String _selectedSiteType = 'Non-Subsidy';
+  String _selectedSiteType = 'Subsidy';
 
   final List<_NavItem> _navItems = [
     _NavItem('Dashboard', Icons.home_outlined, Icons.home, true), // 0

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
 import '../models/customer_misc_action.dart';
@@ -792,23 +793,18 @@ class RecordService {
   }
 
   /// Fetch dashboard metrics for either Non-Subsidy or Subsidy Sites
-  static Future<DashboardMetrics> fetchDashboardMetrics({String siteType = 'Non-Subsidy'}) async {
+  static Future<DashboardMetrics> fetchDashboardMetrics({String siteType = 'Subsidy'}) async {
     try {
       final isSubsidy = siteType.toLowerCase() == 'subsidy';
+      final targetSiteType = isSubsidy ? 'Subsidy' : 'Non-Subsidy';
 
-      var countQuery = _client
+      final recordsCountResponse = await _client
           .from('consumer_records')
           .select('id')
           .eq('deleted', false)
-          .eq('is_merged', false);
-
-      if (isSubsidy) {
-        countQuery = countQuery.or('site_type.eq.Subsidy,site_type.is.null');
-      } else {
-        countQuery = countQuery.eq('site_type', 'Non-Subsidy');
-      }
-
-      final recordsCountResponse = await countQuery.count(CountOption.exact);
+          .eq('is_merged', false)
+          .eq('site_type', targetSiteType)
+          .count(CountOption.exact);
       final totalRecords = recordsCountResponse.count;
 
       int totalImportBatches = 0;
@@ -820,19 +816,12 @@ class RecordService {
         totalImportBatches = importLogsCountResponse.count;
       } catch (_) {}
 
-      var recentQuery = _client
+      final recentResponse = await _client
           .from('consumer_records')
           .select('*')
           .eq('deleted', false)
-          .eq('is_merged', false);
-
-      if (isSubsidy) {
-        recentQuery = recentQuery.or('site_type.eq.Subsidy,site_type.is.null');
-      } else {
-        recentQuery = recentQuery.eq('site_type', 'Non-Subsidy');
-      }
-
-      final recentResponse = await recentQuery
+          .eq('is_merged', false)
+          .eq('site_type', targetSiteType)
           .order('updated_at', ascending: false)
           .limit(5);
 
@@ -854,33 +843,24 @@ class RecordService {
             .from('consumer_records')
             .select('id')
             .eq('deleted', false)
-            .eq('is_merged', false);
+            .eq('is_merged', false)
+            .eq('site_type', targetSiteType);
 
-        if (isSubsidy) {
-          completedQuery = completedQuery
-              .or('site_type.eq.Subsidy,site_type.is.null')
-              .or('customer_work_state.eq.COMPLETED,status.ilike.Completed,subsidy_status.ilike.Received');
-        } else {
-          completedQuery = completedQuery
-              .eq('site_type', 'Non-Subsidy')
-              .or('customer_work_state.eq.COMPLETED,status.ilike.Completed,installation_status.ilike.%completed%');
-        }
+        completedQuery = completedQuery.or(isSubsidy
+            ? 'customer_work_state.eq.COMPLETED,status.ilike.Completed,subsidy_status.ilike.Received'
+            : 'customer_work_state.eq.COMPLETED,status.ilike.Completed,installation_status.ilike.%completed%');
+
         final completedRes = await completedQuery.count(CountOption.exact);
         completedCount = completedRes.count;
 
-        var holdQuery = _client
+        final holdRes = await _client
             .from('consumer_records')
             .select('id')
             .eq('deleted', false)
             .eq('is_merged', false)
-            .inFilter('customer_work_state', ['NO_ACTION_REQUIRED', 'ON_HOLD']);
-
-        if (isSubsidy) {
-          holdQuery = holdQuery.or('site_type.eq.Subsidy,site_type.is.null');
-        } else {
-          holdQuery = holdQuery.eq('site_type', 'Non-Subsidy');
-        }
-        final holdRes = await holdQuery.count(CountOption.exact);
+            .eq('site_type', targetSiteType)
+            .inFilter('customer_work_state', ['NO_ACTION_REQUIRED', 'ON_HOLD'])
+            .count(CountOption.exact);
         noActionCount = holdRes.count;
 
         var activeQuery = _client
@@ -888,17 +868,14 @@ class RecordService {
             .select('id, application_status, application_id, agreement_status, loan_required, loan_status, loan_sub_stage, installation_status, rts_status, subsidy_status, status, customer_work_state, site_type')
             .eq('deleted', false)
             .eq('is_merged', false)
+            .eq('site_type', targetSiteType)
             .neq('customer_work_state', 'COMPLETED')
             .neq('customer_work_state', 'NO_ACTION_REQUIRED')
             .neq('customer_work_state', 'ON_HOLD')
             .neq('status', 'Completed');
 
         if (isSubsidy) {
-          activeQuery = activeQuery
-              .or('site_type.eq.Subsidy,site_type.is.null')
-              .neq('subsidy_status', 'Received');
-        } else {
-          activeQuery = activeQuery.eq('site_type', 'Non-Subsidy');
+          activeQuery = activeQuery.neq('subsidy_status', 'Received');
         }
 
         final List<dynamic> activeData = await activeQuery as List<dynamic>;
@@ -921,12 +898,11 @@ class RecordService {
             case 'Subsidy':
               subsidyPending++;
               break;
-            case 'Completed':
-              completedCount++;
-              break;
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('fetchDashboardMetrics stage calculation error: $e');
+      }
 
       // Status counts
       final statusCounts = <String, int>{
@@ -939,22 +915,19 @@ class RecordService {
 
       try {
         for (final statusKey in statusCounts.keys.toList()) {
-          var sQuery = _client
+          final sRes = await _client
               .from('consumer_records')
               .select('id')
               .eq('deleted', false)
               .eq('is_merged', false)
-              .eq('status', statusKey);
-
-          if (isSubsidy) {
-            sQuery = sQuery.or('site_type.eq.Subsidy,site_type.is.null');
-          } else {
-            sQuery = sQuery.eq('site_type', 'Non-Subsidy');
-          }
-          final sRes = await sQuery.count(CountOption.exact);
+              .eq('site_type', targetSiteType)
+              .eq('status', statusKey)
+              .count(CountOption.exact);
           statusCounts[statusKey] = sRes.count;
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('fetchDashboardMetrics status counts error: $e');
+      }
 
       // Payment Aggregates
       double totalPaymentAmount = 0.0;
@@ -965,19 +938,13 @@ class RecordService {
       final Set<String> targetCustomerIds = {};
 
       try {
-        var payQuery = _client
+        final payRes = await _client
             .from('consumer_records')
             .select('id, consumer_no, total_amount, paid_amount, pending_amount')
             .eq('deleted', false)
-            .eq('is_merged', false);
+            .eq('is_merged', false)
+            .eq('site_type', targetSiteType);
 
-        if (isSubsidy) {
-          payQuery = payQuery.or('site_type.eq.Subsidy,site_type.is.null');
-        } else {
-          payQuery = payQuery.eq('site_type', 'Non-Subsidy');
-        }
-
-        final payRes = await payQuery;
         for (final row in payRes as List<dynamic>) {
           final id = row['id']?.toString() ?? '';
           final cNo = row['consumer_no']?.toString() ?? '';
@@ -993,19 +960,22 @@ class RecordService {
           pendingPaymentAmount += pend;
           if (pend > 0) pendingPaymentsCount++;
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('fetchDashboardMetrics payments error: $e');
+      }
 
       // Task Counts
       int pendingTasksCount = 0;
       int completedTasksCount = 0;
       try {
-        if (targetConsumerNos.isNotEmpty) {
-          final tasksRes = await _client
-              .from('tasks')
-              .select('id, status')
-              .filter('consumer_no', 'in', targetConsumerNos.toList());
+        final tasksRes = await _client
+            .from('tasks')
+            .select('id, status, consumer_no, customer_id');
 
-          for (final t in tasksRes as List<dynamic>) {
+        for (final t in tasksRes as List<dynamic>) {
+          final cNo = t['consumer_no']?.toString() ?? '';
+          final cId = t['customer_id']?.toString() ?? '';
+          if (targetConsumerNos.contains(cNo) || targetCustomerIds.contains(cId)) {
             final st = (t['status'] as String? ?? '').toLowerCase();
             if (st == 'completed' || st == 'complete') {
               completedTasksCount++;
@@ -1014,7 +984,9 @@ class RecordService {
             }
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('fetchDashboardMetrics task counts error: $e');
+      }
 
       return DashboardMetrics(
         totalRecords: totalRecords,
@@ -1039,7 +1011,8 @@ class RecordService {
         pendingTasksCount: pendingTasksCount,
         completedTasksCount: completedTasksCount,
       );
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('fetchDashboardMetrics failed: $e\n$stack');
       return DashboardMetrics(
         totalRecords: 0,
         activeUsers: 1,

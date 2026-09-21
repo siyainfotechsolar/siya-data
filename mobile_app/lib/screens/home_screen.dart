@@ -32,7 +32,7 @@ class MobileHomeScreen extends StatefulWidget {
 
 class _MobileHomeScreenState extends State<MobileHomeScreen> {
   int _currentIndex = 0;
-  String _selectedSiteType = 'Non-Subsidy';
+  String _selectedSiteType = 'Subsidy';
   Map<String, dynamic>? _summaryCounts;
   OperationalInsights? _operationalInsights;
   bool _isLoadingSummary = false;
