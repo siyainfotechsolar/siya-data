@@ -157,7 +157,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
   }
 
   String _getAppBarTitle() {
-    const titles = ['Siya Solar', 'Action Center', 'Records', 'Search', 'Profile'];
+    const titles = ['Siya Solar', 'Action Center', 'Customers', 'Search', 'Profile'];
     return titles[_currentIndex.clamp(0, titles.length - 1)];
   }
 
@@ -236,7 +236,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           destinations: const [
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
             NavigationDestination(icon: Icon(Icons.bolt_outlined), selectedIcon: Icon(Icons.bolt), label: 'Actions'),
-            NavigationDestination(icon: Icon(Icons.assignment_outlined), selectedIcon: Icon(Icons.assignment), label: 'Records'),
+            NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Customers'),
             NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
             NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
           ],

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../models/consumer_record.dart';
 import '../services/record_service.dart';
 import '../services/realtime_service.dart';
@@ -20,6 +19,9 @@ class ConsumerRecordsScreen extends StatefulWidget {
 
 class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounceTimer;
+  String _searchQuery = '';
 
   bool _isLoading = false;
   bool _isLoadingMore = false;
@@ -30,21 +32,13 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
   late String _selectedStatus;
   late String _selectedSiteType;
 
-  final List<String> _statusOptions = [
-    'All',
-    'Pending',
-    'Approved',
-    'In Progress',
-    'Completed',
-    'Rejected',
-  ];
-
   StreamSubscription<MobileRecordChangeEvent>? _realtimeSub;
 
   @override
   void initState() {
     super.initState();
-    _selectedSiteType = widget.initialSiteType ?? 'All';
+    // Default view: Subsidy customers by default
+    _selectedSiteType = widget.initialSiteType ?? 'Subsidy';
     _selectedStatus = widget.initialStatusFilter ?? 'All';
     _loadRecords();
     _scrollController.addListener(_onScroll);
@@ -91,6 +85,8 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
+    _searchController.dispose();
     _realtimeSub?.cancel();
     _scrollController.dispose();
     super.dispose();
@@ -107,105 +103,6 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
 
   String? _errorMessage;
 
-  Future<void> _showEditConsumerNameDialog(ConsumerRecord record) async {
-    final nameCtrl = TextEditingController(text: record.name);
-    final formKey = GlobalKey<FormState>();
-
-    final updatedName = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.edit_note_rounded, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 8),
-            const Text('Edit Consumer Name', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Consumer No: ${record.consumerNo}',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: nameCtrl,
-                autofocus: true,
-                textCapitalization: TextCapitalization.words,
-                decoration: InputDecoration(
-                  labelText: 'Consumer Name *',
-                  hintText: 'Enter full consumer name',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  isDense: true,
-                ),
-                validator: (val) {
-                  if (val == null || val.trim().isEmpty) {
-                    return 'Consumer Name cannot be empty';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF059669),
-            ),
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(ctx, nameCtrl.text.trim());
-              }
-            },
-            child: const Text('Save Name'),
-          ),
-        ],
-      ),
-    );
-
-    if (updatedName != null && updatedName != record.name && record.id != null && mounted) {
-      try {
-        final updated = await MobileRecordService.updateCustomerName(
-          recordId: record.id!,
-          newName: updatedName,
-        );
-        if (mounted) {
-          setState(() {
-            final idx = _records.indexWhere((r) => r.id == record.id);
-            if (idx != -1) {
-              _records[idx] = updated;
-            }
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Consumer name updated to "$updatedName" successfully!'),
-              backgroundColor: const Color(0xFF059669),
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to update consumer name: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    }
-  }
-
   Future<void> _loadRecords() async {
     setState(() {
       _isLoading = true;
@@ -219,6 +116,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
         pageSize: _pageSize,
         statusFilter: _selectedStatus,
         siteTypeFilter: _selectedSiteType,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
       );
 
       if (mounted) {
@@ -237,7 +135,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to load records: $e'),
+            content: Text('Failed to load customers: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 4),
           ),
@@ -256,6 +154,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
         pageSize: _pageSize,
         statusFilter: _selectedStatus,
         siteTypeFilter: _selectedSiteType,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
       );
 
       if (mounted) {
@@ -273,6 +172,17 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
     }
   }
 
+  Future<void> _openRecordDetail(ConsumerRecord record) async {
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => RecordDetailScreen(initialRecord: record),
+      ),
+    );
+    if (updated == true && mounted) {
+      _loadRecords();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -280,7 +190,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
     return Scaffold(
       appBar: Navigator.canPop(context)
           ? AppBar(
-              title: Text(_selectedSiteType == 'All' ? 'Customer Records' : '$_selectedSiteType Sites'),
+              title: const Text('Customers'),
             )
           : null,
       floatingActionButton: FloatingActionButton.extended(
@@ -296,89 +206,110 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
       ),
       body: Column(
         children: [
-          // Site Type Segmented Filter Bar
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-            child: SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'All', label: Text('All Sites')),
-                  ButtonSegment(value: 'Subsidy', label: Text('Subsidy')),
-                  ButtonSegment(value: 'Non-Subsidy', label: Text('Non-Subsidy')),
-                ],
-                selected: {_selectedSiteType},
-                onSelectionChanged: (val) {
-                  setState(() => _selectedSiteType = val.first);
-                  _loadRecords();
-                },
+          // ── Search Bar ──────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search customer, village, mobile, consumer no...',
+                hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                          _debounceTimer?.cancel();
+                          setState(() => _searchQuery = '');
+                          _loadRecords();
+                        },
+                      )
+                    : null,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerLowest,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+                ),
               ),
-            ),
-          ),
-
-          // Status Filter Chips Bar
-          Container(
-            height: 48,
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _statusOptions.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final status = _statusOptions[index];
-                final isSelected = _selectedStatus == status;
-
-                return FilterChip(
-                  label: Text(status),
-                  selected: isSelected,
-                  selectedColor: theme.colorScheme.primaryContainer,
-                  labelStyle: TextStyle(
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? theme.colorScheme.onPrimaryContainer : null,
-                    fontSize: 13,
-                  ),
-                  onSelected: (val) {
-                    if (val) {
-                      setState(() => _selectedStatus = status);
-                      _loadRecords();
-                    }
-                  },
-                );
+              onChanged: (val) {
+                _debounceTimer?.cancel();
+                _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+                  setState(() => _searchQuery = val.trim());
+                  _loadRecords();
+                });
               },
             ),
           ),
-          const Divider(height: 1),
 
-          // Records Count Header
+          // ── Switch Button & Customer Count ──────────────────────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Showing ${_records.length} of $_totalCount records',
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  '$_totalCount customers',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
-                if (_selectedStatus != 'All' || _selectedSiteType != 'All')
-                  InkWell(
-                    onTap: () {
+                if (_selectedSiteType == 'Subsidy')
+                  OutlinedButton.icon(
+                    onPressed: () {
                       setState(() {
-                        _selectedStatus = 'All';
-                        _selectedSiteType = 'All';
+                        _selectedSiteType = 'Non-Subsidy';
+                        _currentPage = 1;
                       });
                       _loadRecords();
                     },
-                    child: Text(
-                      'Clear Filters',
-                      style: TextStyle(fontSize: 12, color: theme.colorScheme.primary, fontWeight: FontWeight.bold),
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                    label: const Text(
+                      'Non-Subsidy Sites',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  )
+                else
+                  FilledButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _selectedSiteType = 'Subsidy';
+                        _currentPage = 1;
+                      });
+                      _loadRecords();
+                    },
+                    icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                    label: const Text(
+                      'Back to Subsidy',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor: theme.colorScheme.primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
               ],
             ),
           ),
+          const Divider(height: 12),
 
-          // Consumer List
+          // ── Customer List ──────────────────────────────────────
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -392,7 +323,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
                               const Icon(Icons.error_outline, size: 56, color: Colors.red),
                               const SizedBox(height: 12),
                               const Text(
-                                'Unable to Load Records',
+                                'Unable to Load Customers',
                                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                               ),
                               const SizedBox(height: 8),
@@ -429,14 +360,16 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
                                   Text(
                                     !SupabaseService.isAuthenticated
                                         ? 'Staff Login Required'
-                                        : 'No records found',
+                                        : 'No customers found',
                                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
                                     !SupabaseService.isAuthenticated
-                                        ? 'You used Dev Demo mode (guest). To view live consumer records, please sign in with your Staff email and password.'
-                                        : 'Try selecting a different status filter.',
+                                        ? 'Please sign in with your Staff email and password.'
+                                        : (_searchQuery.isNotEmpty
+                                            ? 'No customers match your search.'
+                                            : 'No customers available.'),
                                     textAlign: TextAlign.center,
                                     style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
                                   ),
@@ -457,28 +390,28 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
                             ),
                           )
                         : RefreshIndicator(
-                        onRefresh: _loadRecords,
-                        child: ListView.builder(
-                          controller: _scrollController,
-                          padding: EdgeInsets.only(
-                            left: 14,
-                            right: 14,
-                            bottom: MediaQuery.of(context).padding.bottom + 90,
-                          ),
-                          itemCount: _records.length + (_isLoadingMore ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            if (index == _records.length) {
-                              return const Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                              );
-                            }
+                            onRefresh: _loadRecords,
+                            child: ListView.builder(
+                              controller: _scrollController,
+                              padding: EdgeInsets.only(
+                                left: 14,
+                                right: 14,
+                                bottom: MediaQuery.of(context).padding.bottom + 90,
+                              ),
+                              itemCount: _records.length + (_isLoadingMore ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                if (index == _records.length) {
+                                  return const Padding(
+                                    padding: EdgeInsets.all(16.0),
+                                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                  );
+                                }
 
-                            final record = _records[index];
-                            return _buildRecordCard(record);
-                          },
-                        ),
-                      ),
+                                final record = _records[index];
+                                return _buildRecordCard(record);
+                              },
+                            ),
+                          ),
           ),
         ],
       ),
@@ -487,263 +420,144 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
 
   Widget _buildRecordCard(ConsumerRecord record) {
     final theme = Theme.of(context);
+    final villageText = (record.village != null && record.village!.trim().isNotEmpty)
+        ? record.village!.trim()
+        : ((record.address != null && record.address!.trim().isNotEmpty)
+            ? record.address!.trim()
+            : '—');
+    final mobileText = (record.mobile != null && record.mobile!.trim().isNotEmpty)
+        ? record.mobile!.trim()
+        : '—';
+    final capacityText = (record.systemCapacity != null && record.systemCapacity!.trim().isNotEmpty)
+        ? record.systemCapacity!.trim()
+        : '—';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0.8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () async {
-          final updated = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(
-              builder: (_) => RecordDetailScreen(initialRecord: record),
-            ),
-          );
-          if (updated == true) {
-            _loadRecords();
-          }
-        },
+        onTap: () => _openRecordDetail(record),
         child: Padding(
           padding: const EdgeInsets.all(14.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Consumer No & Status Badge
+              // Row 1: Customer Name and Status
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  InkWell(
-                    onTap: () {
-                      Clipboard.setData(ClipboardData(text: record.consumerNo));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Consumer No. ${record.consumerNo} copied to clipboard'),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'No: ${record.consumerNo}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.copy_rounded,
-                            size: 13,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (record.isNonSubsidy)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          margin: const EdgeInsets.only(right: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.purple.shade50,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.purple.shade200),
-                          ),
-                          child: Text(
-                            'Non-Subsidy',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.purple.shade700,
-                            ),
-                          ),
-                        ),
-                      _buildStatusBadge(record.status),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // Consumer Name & Edit
-              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Text(
-                      record.name,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      record.name.isNotEmpty ? record.name : 'Unknown Customer',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    tooltip: 'Edit Consumer Name',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _showEditConsumerNameDialog(record),
+                  const SizedBox(width: 8),
+                  _buildStatusBadge(record.status),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Row 2: Village
+              Row(
+                children: [
+                  Icon(Icons.location_on_outlined, size: 15, color: Colors.grey.shade600),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Village: ',
+                    style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w500),
+                  ),
+                  Expanded(
+                    child: Text(
+                      villageText,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 6),
 
-              // Mobile & Application ID
+              // Row 3: Mobile & Consumer No.
               Row(
                 children: [
-                  if (record.mobile != null && record.mobile!.isNotEmpty) ...[
-                    Icon(Icons.phone_outlined, size: 14, color: theme.colorScheme.primary),
-                    const SizedBox(width: 4),
-                    Text(
-                      record.mobile!,
-                      style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(Icons.phone_outlined, size: 15, color: Colors.grey.shade600),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Mobile: ',
+                          style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w500),
+                        ),
+                        Flexible(
+                          child: Text(
+                            mobileText,
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 16),
-                  ],
-                  if (record.applicationId != null && record.applicationId!.isNotEmpty) ...[
-                    const Icon(Icons.numbers_outlined, size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(
-                      'App: ${record.applicationId}',
-                      style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(Icons.tag_rounded, size: 15, color: Colors.grey.shade600),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'Consumer No: ',
+                          style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w500),
+                        ),
+                        Expanded(
+                          child: Text(
+                            record.consumerNo.isNotEmpty ? record.consumerNo : '—',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ],
               ),
+              const SizedBox(height: 8),
 
-              // Address Preview
-              if (record.address != null && record.address!.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        record.address!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-
-              const Divider(height: 16),
-
-              // Workflow & Action Info Row
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
+              // Row 4: System Capacity & [ Open ]
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Work Stage
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFBFDBFE)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.task_alt, size: 12, color: Color(0xFF1D4ED8)),
-                        const SizedBox(width: 4),
-                        Text(
-                          'STAGE: ${record.overallStage}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1D4ED8),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Action Required & Next Action
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFFBEB),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFFDE68A)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.flash_on, size: 12, color: Color(0xFFB45309)),
-                        const SizedBox(width: 4),
-                        Text(
-                          'ACTION: ${record.actionRequired} → ${record.nextAction}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFB45309),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Stage Duration & Application Days
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.blue.shade200),
-                    ),
-                    child: Text(
-                      'STAGE DAYS: ${record.daysInCurrentStage}d (${record.applicationDays}d total)',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.blue.shade900,
+                  Row(
+                    children: [
+                      Icon(Icons.bolt_rounded, size: 15, color: Colors.grey.shade600),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'System Capacity: ',
+                        style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w500),
                       ),
-                    ),
-                  ),
-
-                  // Priority Category
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: record.priorityCategory == 'Critical Active Work'
-                          ? const Color(0xFFFEF2F2)
-                          : record.priorityCategory == 'High Active Work'
-                              ? const Color(0xFFFFEDD5)
-                              : record.priorityCategory == 'Completed'
-                                  ? const Color(0xFFECFDF5)
-                                  : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      record.priorityCategory,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: record.priorityCategory == 'Critical Active Work'
-                            ? const Color(0xFFDC2626)
-                            : record.priorityCategory == 'High Active Work'
-                                ? const Color(0xFFEA580C)
-                                : record.priorityCategory == 'Completed'
-                                    ? const Color(0xFF047857)
-                                    : const Color(0xFF475569),
+                      Text(
+                        capacityText,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                       ),
+                    ],
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: () => _openRecordDetail(record),
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                    label: const Text('Open'),
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],

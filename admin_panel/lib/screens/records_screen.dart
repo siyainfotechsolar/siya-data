@@ -36,7 +36,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
   int _currentPage = 1;
   final int _pageSize = 15;
   String _selectedStatus = 'All';
-  String _selectedSiteType = 'All';
+  String _selectedSiteType = 'Subsidy';
   String _selectedWorkflowQueue = 'All';
   String _workQueueScope = 'Active'; // 'Active', 'Completed', 'Old Applications', 'All'
   String _sortBy = 'updated_at';
@@ -655,7 +655,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Consumer Records',
+                      'Customers',
                       style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     FilledButton.icon(
@@ -684,7 +684,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Consumer Records',
+                      'Customers',
                       style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
@@ -730,7 +730,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
           const SizedBox(height: 16),
 
           // Filters & Search Bar
-          if (isMobile)
+          if (isMobile) ...[
             Row(
               children: [
                 Expanded(
@@ -738,7 +738,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                     controller: _searchController,
                     onChanged: _onSearchChanged,
                     decoration: InputDecoration(
-                      hintText: 'Search consumer name, mobile, no...',
+                      hintText: 'Search customer name, mobile, no...',
                       prefixIcon: const Icon(Icons.search, size: 20),
                       suffixIcon: _searchController.text.isNotEmpty
                           ? IconButton(
@@ -769,8 +769,46 @@ class _RecordsScreenState extends State<RecordsScreen> {
                   },
                 ),
               ],
-            )
-          else
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '$_totalCount customers',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant),
+                ),
+                if (_selectedSiteType == 'Subsidy')
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _selectedSiteType = 'Non-Subsidy';
+                        _currentPage = 1;
+                        _selectedRecordIds.clear();
+                      });
+                      _loadRecords();
+                    },
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+                    label: const Text('Non-Subsidy Sites', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                  )
+                else
+                  FilledButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _selectedSiteType = 'Subsidy';
+                        _currentPage = 1;
+                        _selectedRecordIds.clear();
+                      });
+                      _loadRecords();
+                    },
+                    icon: const Icon(Icons.arrow_back_rounded, size: 14),
+                    label: const Text('Back to Subsidy', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
+                  ),
+              ],
+            ),
+          ] else
             Card(
               elevation: 1,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -951,6 +989,41 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       ],
                     ),
                     const SizedBox(width: 16),
+                    if (_selectedSiteType == 'Subsidy')
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _selectedSiteType = 'Non-Subsidy';
+                            _currentPage = 1;
+                            _selectedRecordIds.clear();
+                          });
+                          _loadRecords();
+                        },
+                        icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                        label: const Text('Non-Subsidy Sites', style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      )
+                    else
+                      FilledButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _selectedSiteType = 'Subsidy';
+                            _currentPage = 1;
+                            _selectedRecordIds.clear();
+                          });
+                          _loadRecords();
+                        },
+                        icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                        label: const Text('Back to Subsidy', style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    const SizedBox(width: 12),
                     IconButton.outlined(
                       icon: const Icon(Icons.refresh),
                       tooltip: 'Refresh Records',
@@ -1144,25 +1217,6 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                                         style: const TextStyle(fontWeight: FontWeight.w500),
                                                       ),
                                                     ),
-                                                    if (r.isNonSubsidy) ...[
-                                                      const SizedBox(width: 6),
-                                                      Container(
-                                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                                        decoration: BoxDecoration(
-                                                          color: Colors.purple.shade50,
-                                                          borderRadius: BorderRadius.circular(4),
-                                                          border: Border.all(color: Colors.purple.shade200),
-                                                        ),
-                                                        child: Text(
-                                                          'Non-Subsidy',
-                                                          style: TextStyle(
-                                                            fontSize: 10,
-                                                            fontWeight: FontWeight.bold,
-                                                            color: Colors.purple.shade700,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
                                                   ],
                                                 ),
                                               ),
@@ -1344,21 +1398,6 @@ class _RecordsScreenState extends State<RecordsScreen> {
             Row(
               children: [
                 Text('No: ${r.consumerNo}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
-                if (r.isNonSubsidy) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: Colors.purple.shade50,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.purple.shade200),
-                    ),
-                    child: Text(
-                      'Non-Subsidy',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.purple.shade700),
-                    ),
-                  ),
-                ],
                 if (r.village != null && r.village!.isNotEmpty) ...[
                   const SizedBox(width: 8),
                   Expanded(
