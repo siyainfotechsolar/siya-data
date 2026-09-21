@@ -4,6 +4,7 @@ import '../services/user_management_service.dart';
 import '../services/supabase_service.dart';
 import '../widgets/add_edit_user_dialog.dart';
 import '../widgets/staff_workload_dialog.dart';
+import '../utils/responsive.dart';
 
 class UsersScreen extends StatefulWidget {
   const UsersScreen({super.key});

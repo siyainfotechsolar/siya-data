@@ -762,14 +762,19 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     final stageStates = WorkflowEngine.getStageStates(_record, isOwnerOverride: _isOwnerOverride);
 
     return Dialog(
+      insetPadding: isMobile ? const EdgeInsets.symmetric(horizontal: 10, vertical: 14) : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 850),
-        padding: const EdgeInsets.all(24.0),
+        constraints: BoxConstraints(
+          maxWidth: 720,
+          maxHeight: isMobile ? MediaQuery.of(context).size.height * 0.92 : 850,
+        ),
+        padding: EdgeInsets.all(isMobile ? 14.0 : 24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

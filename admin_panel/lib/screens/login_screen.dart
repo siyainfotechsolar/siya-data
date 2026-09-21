@@ -378,10 +378,12 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final isSmall = MediaQuery.of(context).size.width < 400;
+
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+          padding: EdgeInsets.symmetric(horizontal: isSmall ? 12.0 : 24.0, vertical: 24.0),
           child: Container(
             constraints: const BoxConstraints(maxWidth: 440),
             child: Card(
@@ -391,7 +393,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(32.0),
+                padding: EdgeInsets.all(isSmall ? 18.0 : 32.0),
                 child: Form(
                   key: _formKey,
                   child: Column(

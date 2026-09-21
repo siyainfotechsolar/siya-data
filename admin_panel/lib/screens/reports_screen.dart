@@ -12,6 +12,7 @@ import '../services/excel_export_service.dart';
 import '../services/realtime_service.dart';
 import '../widgets/record_details_dialog.dart';
 import '../widgets/work_completion_certificate_dialog.dart';
+import '../utils/responsive.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -364,6 +365,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isMobile = Responsive.isMobile(context);
 
     return Scaffold(
       body: _isLoading
@@ -386,42 +388,51 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ),
                 )
               : SingleChildScrollView(
-                  padding: const EdgeInsets.all(24.0),
+                  padding: EdgeInsets.all(isMobile ? 12.0 : 24.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // 1. Header Section
                       _buildHeaderSection(theme),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
 
                       // 2. Global Filter Bar
                       _buildFilterBar(theme),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
 
                       // Active Filter Chips
                       if (_filters.hasActiveFilters) ...[
                         _buildFilterChips(theme),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
                       ],
 
                       // 3. Summary Cards Grid
                       _buildSummaryCards(theme),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
 
                       // 4. Workflow Summary
                       _buildWorkflowSummary(theme),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
 
                       // 5. Priority & Stage-wise Pending Split Section
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(flex: 2, child: _buildPrioritySummaryCard(theme)),
-                          const SizedBox(width: 20),
-                          Expanded(flex: 3, child: _buildStageWisePendingCard(theme)),
-                        ],
-                      ),
-                      const SizedBox(height: 28),
+                      if (isMobile)
+                        Column(
+                          children: [
+                            _buildPrioritySummaryCard(theme),
+                            const SizedBox(height: 16),
+                            _buildStageWisePendingCard(theme),
+                          ],
+                        )
+                      else
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 2, child: _buildPrioritySummaryCard(theme)),
+                            const SizedBox(width: 20),
+                            Expanded(flex: 3, child: _buildStageWisePendingCard(theme)),
+                          ],
+                        ),
+                      const SizedBox(height: 24),
 
                       // 6. Main Data Table Section
                       _buildMainTableSection(theme),

@@ -6,6 +6,7 @@ import '../models/customer_payment.dart';
 import '../models/consumer_record.dart';
 import '../services/payment_service.dart';
 import '../services/supabase_service.dart';
+import '../utils/responsive.dart';
 
 class PaymentsScreen extends StatefulWidget {
   const PaymentsScreen({super.key});
@@ -344,134 +345,168 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isMobile = Responsive.isMobile(context);
+
+    final metricCards = [
+      _buildMetricCard(
+        title: isMobile ? 'Contract Coll.' : 'Contract Collection',
+        amount: _metrics.contractCollection,
+        subtitle: 'Contract payments',
+        color: const Color(0xFF0284C7),
+        icon: Icons.description_rounded,
+      ),
+      _buildMetricCard(
+        title: isMobile ? 'Additional Coll.' : 'Additional Collection',
+        amount: _metrics.additionalCollection,
+        subtitle: 'Extra material/work',
+        color: const Color(0xFF8B5CF6),
+        icon: Icons.playlist_add_check_circle_rounded,
+      ),
+      _buildMetricCard(
+        title: 'Total Collection',
+        amount: _metrics.totalCollection,
+        subtitle: '${_metrics.totalTransactionsCount} payments',
+        color: const Color(0xFF059669),
+        icon: Icons.account_balance_wallet_rounded,
+      ),
+      _buildMetricCard(
+        title: 'Contract Pending',
+        amount: _metrics.totalOutstanding,
+        subtitle: 'Outstanding balance',
+        color: const Color(0xFFDC2626),
+        icon: Icons.pending_actions_rounded,
+      ),
+    ];
 
     return Scaffold(
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. TOP HEADER & ACTION BUTTONS
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Payments',
-                      style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            // 1. TOP HEADER & ACTION BUTTONS
+            Padding(
+              padding: EdgeInsets.fromLTRB(isMobile ? 12 : 24, 16, isMobile ? 12 : 24, 12),
+              child: isMobile
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Payments',
+                              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            FilledButton.icon(
+                              onPressed: () => _openAddPaymentDialog(),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF059669),
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                              icon: const Icon(Icons.add, size: 18),
+                              label: const Text('+ Payment'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Balances, payments & collections',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Payments',
+                              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Contract payments, additional payments, customer balances & Excel export',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.add_rounded, size: 18),
+                              label: const Text('+ Add Payment', style: TextStyle(fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF059669),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onPressed: () => _openAddPaymentDialog(),
+                            ),
+                            const SizedBox(width: 10),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.analytics_outlined, size: 18),
+                              label: const Text('Additional Report', style: TextStyle(fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF6366F1),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onPressed: _openAdditionalReportDialog,
+                            ),
+                            const SizedBox(width: 10),
+                            OutlinedButton.icon(
+                              icon: _isExporting
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.file_download_outlined, size: 18),
+                              label: const Text('Export Excel'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onPressed: _isExporting ? null : _handleExportExcel,
+                            ),
+                            const SizedBox(width: 10),
+                            IconButton(
+                              icon: const Icon(Icons.refresh),
+                              tooltip: 'Refresh',
+                              onPressed: () => _loadAll(),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Contract payments, additional payments, customer balances & Excel export',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('+ Add Payment', style: TextStyle(fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF059669),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onPressed: () => _openAddPaymentDialog(),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.analytics_outlined, size: 18),
-                      label: const Text('Additional Report', style: TextStyle(fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onPressed: _openAdditionalReportDialog,
-                    ),
-                    const SizedBox(width: 10),
-                    OutlinedButton.icon(
-                      icon: _isExporting
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.file_download_outlined, size: 18),
-                      label: const Text('Export Excel'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onPressed: _isExporting ? null : _handleExportExcel,
-                    ),
-                    const SizedBox(width: 10),
-                    IconButton(
-                      icon: const Icon(Icons.refresh),
-                      tooltip: 'Refresh',
-                      onPressed: () => _loadAll(),
-                    ),
-                  ],
-                ),
-              ],
             ),
-          ),
 
-          // 2. DASHBOARD KPI CARDS (Contract Collection, Additional Collection, Total Collection, Contract Pending)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: _isLoadingMetrics
-                ? const LinearProgressIndicator()
-                : Row(
-                    children: [
-                      Expanded(
-                        child: _buildMetricCard(
-                          title: 'Contract Collection',
-                          amount: _metrics.contractCollection,
-                          subtitle: 'Original contract payments',
-                          color: const Color(0xFF0284C7), // Sky Blue
-                          icon: Icons.description_rounded,
+            // 2. DASHBOARD KPI CARDS
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 24),
+              child: _isLoadingMetrics
+                  ? const LinearProgressIndicator()
+                  : isMobile
+                      ? GridView.count(
+                          crossAxisCount: 2,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 8,
+                          childAspectRatio: 1.55,
+                          children: metricCards,
+                        )
+                      : Row(
+                          children: metricCards
+                              .map((c) => Expanded(child: Padding(padding: const EdgeInsets.only(right: 12), child: c)))
+                              .toList(),
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: _buildMetricCard(
-                          title: 'Additional Collection',
-                          amount: _metrics.additionalCollection,
-                          subtitle: 'Extra material, work, etc.',
-                          color: const Color(0xFF8B5CF6), // Purple
-                          icon: Icons.playlist_add_check_circle_rounded,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: _buildMetricCard(
-                          title: 'Total Collection',
-                          amount: _metrics.totalCollection,
-                          subtitle: '${_metrics.totalTransactionsCount} total payments',
-                          color: const Color(0xFF059669), // Emerald
-                          icon: Icons.account_balance_wallet_rounded,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: _buildMetricCard(
-                          title: 'Contract Pending',
-                          amount: _metrics.totalOutstanding,
-                          subtitle: 'Outstanding contract balance',
-                          color: const Color(0xFFDC2626), // Red
-                          icon: Icons.pending_actions_rounded,
-                        ),
-                      ),
-                    ],
-                  ),
-          ),
-          const SizedBox(height: 16),
+            ),
+            const SizedBox(height: 16),
 
           // 3. SEARCH & TABS BAR WITH COMPREHENSIVE FILTERS
           Padding(

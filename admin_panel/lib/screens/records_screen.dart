@@ -12,6 +12,7 @@ import '../widgets/global_whatsapp_button.dart';
 import '../widgets/work_completion_certificate_dialog.dart';
 import '../services/excel_export_service.dart';
 import '../services/export_definitions.dart';
+import '../utils/responsive.dart';
 
 class RecordsScreen extends StatefulWidget {
   final String? initialWorkflowQueue;
@@ -482,9 +483,125 @@ class _RecordsScreenState extends State<RecordsScreen> {
     );
   }
 
+  void _showMobileFilterBottomSheet(BuildContext context) {
+    final theme = Theme.of(context);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: theme.colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Filter Customer Records', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                      ],
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 10),
+                    const Text('SCOPE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: _workQueueScope,
+                      decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                      items: const [
+                        DropdownMenuItem(value: 'Active', child: Text('⚡ Active Customers')),
+                        DropdownMenuItem(value: 'No Action Required', child: Text('⏸️ Hold / No Action')),
+                        DropdownMenuItem(value: 'Completed', child: Text('✅ Completed Customers')),
+                        DropdownMenuItem(value: 'Old Applications', child: Text('⏳ Old Applications (≥60 Days)')),
+                        DropdownMenuItem(value: 'All', child: Text('🌐 All Customers')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _workQueueScope = val;
+                            _currentPage = 1;
+                            _selectedRecordIds.clear();
+                          });
+                          setSheetState(() {});
+                          _loadRecords();
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('QUEUE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: _selectedWorkflowQueue,
+                      decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                      items: const [
+                        DropdownMenuItem(value: 'All', child: Text('All Queues')),
+                        DropdownMenuItem(value: 'Agreement Pending', child: Text('⚡ Agreement Pending')),
+                        DropdownMenuItem(value: 'Loan Pending', child: Text('💰 Loan Pending')),
+                        DropdownMenuItem(value: 'Installation Pending', child: Text('🔧 Installation Pending')),
+                        DropdownMenuItem(value: 'RTS Pending', child: Text('⚡ RTS Pending')),
+                        DropdownMenuItem(value: 'Subsidy Pending', child: Text('🏛️ Subsidy Pending')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _selectedWorkflowQueue = val;
+                            _currentPage = 1;
+                            _selectedRecordIds.clear();
+                          });
+                          setSheetState(() {});
+                          _loadRecords();
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('STATUS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: _selectedStatus,
+                      decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                      items: _statusFilters.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _selectedStatus = val;
+                            _currentPage = 1;
+                            _selectedRecordIds.clear();
+                          });
+                          setSheetState(() {});
+                          _loadRecords();
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Apply Filters'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isMobile = Responsive.isMobile(context);
     final totalPages = (_totalCount / _pageSize).ceil();
 
     final allCurrentPageSelected = _records.isNotEmpty &&
@@ -492,224 +609,292 @@ class _RecordsScreenState extends State<RecordsScreen> {
     final hasSomeSelected = _selectedRecordIds.isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.all(isMobile ? 12.0 : 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header Bar
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Consumer Records',
-                    style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Manage solar consumer profiles and installation statuses',
-                    style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  ExportExcelButton<ConsumerRecord>(
-                    filePrefix: 'Solar_Consumers',
-                    sheetName: 'Consumer Records',
-                    reportTitle: 'Consumer Master Records',
-                    filterSummary: 'Scope: $_workQueueScope, Queue: $_selectedWorkflowQueue, Status: $_selectedStatus${_searchController.text.trim().isNotEmpty ? ', Search: "${_searchController.text.trim()}"' : ''}',
-                    columns: ExportDefinitions.consumerRecordColumns,
-                    onFetchFullDataset: _fetchFilteredRecordsForExport,
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    onPressed: _openImportDialog,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                      side: BorderSide(color: theme.colorScheme.primary),
+          if (isMobile)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Consumer Records',
+                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                     ),
-                    icon: const Icon(Icons.upload_file_rounded),
-                    label: const Text('Import Excel / CSV'),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton.icon(
-                    onPressed: _openAddRecordDialog,
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    FilledButton.icon(
+                      onPressed: _openAddRecordDialog,
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Add'),
                     ),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Record'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Manage solar consumer profiles & statuses',
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 12),
+                ),
+              ],
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Consumer Records',
+                      style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Manage solar consumer profiles and installation statuses',
+                      style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    ExportExcelButton<ConsumerRecord>(
+                      filePrefix: 'Solar_Consumers',
+                      sheetName: 'Consumer Records',
+                      reportTitle: 'Consumer Master Records',
+                      filterSummary: 'Scope: $_workQueueScope, Queue: $_selectedWorkflowQueue, Status: $_selectedStatus${_searchController.text.trim().isNotEmpty ? ', Search: "${_searchController.text.trim()}"' : ''}',
+                      columns: ExportDefinitions.consumerRecordColumns,
+                      onFetchFullDataset: _fetchFilteredRecordsForExport,
+                    ),
+                    const SizedBox(width: 12),
+                    OutlinedButton.icon(
+                      onPressed: _openImportDialog,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                        side: BorderSide(color: theme.colorScheme.primary),
+                      ),
+                      icon: const Icon(Icons.upload_file_rounded),
+                      label: const Text('Import Excel / CSV'),
+                    ),
+                    const SizedBox(width: 12),
+                    FilledButton.icon(
+                      onPressed: _openAddRecordDialog,
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      ),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Record'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          const SizedBox(height: 16),
 
           // Filters & Search Bar
-          Card(
-            elevation: 1,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: _onSearchChanged,
-                      decoration: InputDecoration(
-                        hintText: 'Search by Consumer No, Name, Mobile, or App ID...',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  _loadRecords();
-                                },
-                              )
-                            : null,
-                        border: const OutlineInputBorder(),
-                        isDense: true,
-                      ),
+          if (isMobile)
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Search consumer name, mobile, no...',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                _loadRecords();
+                              },
+                            )
+                          : null,
+                      border: const OutlineInputBorder(),
+                      isDense: true,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  // Work Queue Scope Dropdown — labelled
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('SCOPE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.colorScheme.onSurfaceVariant)),
-                      const SizedBox(height: 2),
-                      DropdownButtonHideUnderline(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: theme.colorScheme.primary),
-                            borderRadius: BorderRadius.circular(8),
-                            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
-                          ),
-                          child: DropdownButton<String>(
-                            value: _workQueueScope,
-                            items: const [
-                              DropdownMenuItem(value: 'Active', child: Text('⚡ Active Customers', style: TextStyle(fontWeight: FontWeight.bold))),
-                              DropdownMenuItem(value: 'No Action Required', child: Text('⏸️ Hold / No Action Required')),
-                              DropdownMenuItem(value: 'Completed', child: Text('✅ Completed Customers')),
-                              DropdownMenuItem(value: 'Old Applications', child: Text('⏳ Old Applications (≥60 Days)')),
-                              DropdownMenuItem(value: 'All', child: Text('🌐 All Customers')),
-                            ],
-                            onChanged: (val) {
-                              if (val != null) {
-                                setState(() {
-                                  _workQueueScope = val;
-                                  _currentPage = 1;
-                                  _selectedRecordIds.clear();
-                                });
-                                _loadRecords();
-                              }
-                            },
-                          ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  icon: const Icon(Icons.tune_rounded),
+                  tooltip: 'Filter',
+                  onPressed: () => _showMobileFilterBottomSheet(context),
+                ),
+                IconButton.outlined(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  tooltip: 'Refresh',
+                  onPressed: () {
+                    _selectedRecordIds.clear();
+                    _loadRecords();
+                  },
+                ),
+              ],
+            )
+          else
+            Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: _onSearchChanged,
+                        decoration: InputDecoration(
+                          hintText: 'Search by Consumer No, Name, Mobile, or App ID...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    _loadRecords();
+                                  },
+                                )
+                              : null,
+                          border: const OutlineInputBorder(),
+                          isDense: true,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(width: 16),
-                  // Workflow Queue Dropdown — labelled
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('QUEUE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.colorScheme.onSurfaceVariant)),
-                      const SizedBox(height: 2),
-                      DropdownButtonHideUnderline(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFFD97706)),
-                            borderRadius: BorderRadius.circular(8),
-                            color: const Color(0xFFFFFBEB),
-                          ),
-                          child: DropdownButton<String>(
-                            value: _selectedWorkflowQueue,
-                            items: const [
-                              DropdownMenuItem(value: 'All', child: Text('All Queues', style: TextStyle(fontWeight: FontWeight.bold))),
-                              DropdownMenuItem(value: 'Agreement Pending', child: Text('⚡ Agreement Pending')),
-                              DropdownMenuItem(value: 'Loan Pending', child: Text('💰 Loan Pending')),
-                              DropdownMenuItem(value: 'Installation Pending', child: Text('🔧 Installation Pending')),
-                              DropdownMenuItem(value: 'RTS Pending', child: Text('⚡ RTS Pending')),
-                              DropdownMenuItem(value: 'Subsidy Pending', child: Text('🏛️ Subsidy Pending')),
-                            ],
-                            onChanged: (val) {
-                              if (val != null) {
-                                setState(() {
-                                  _selectedWorkflowQueue = val;
-                                  _currentPage = 1;
-                                  _selectedRecordIds.clear();
-                                });
-                                _loadRecords();
-                              }
-                            },
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('SCOPE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.colorScheme.onSurfaceVariant)),
+                        const SizedBox(height: 2),
+                        DropdownButtonHideUnderline(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: theme.colorScheme.primary),
+                              borderRadius: BorderRadius.circular(8),
+                              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+                            ),
+                            child: DropdownButton<String>(
+                              value: _workQueueScope,
+                              items: const [
+                                DropdownMenuItem(value: 'Active', child: Text('⚡ Active Customers', style: TextStyle(fontWeight: FontWeight.bold))),
+                                DropdownMenuItem(value: 'No Action Required', child: Text('⏸️ Hold / No Action Required')),
+                                DropdownMenuItem(value: 'Completed', child: Text('✅ Completed Customers')),
+                                DropdownMenuItem(value: 'Old Applications', child: Text('⏳ Old Applications (≥60 Days)')),
+                                DropdownMenuItem(value: 'All', child: Text('🌐 All Customers')),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    _workQueueScope = val;
+                                    _currentPage = 1;
+                                    _selectedRecordIds.clear();
+                                  });
+                                  _loadRecords();
+                                }
+                              },
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 16),
-                  // Status Dropdown — labelled
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('STATUS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.colorScheme.onSurfaceVariant)),
-                      const SizedBox(height: 2),
-                      DropdownButtonHideUnderline(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade400),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: DropdownButton<String>(
-                            value: _selectedStatus,
-                            items: _statusFilters
-                                .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                                .toList(),
-                            onChanged: (val) {
-                              if (val != null) {
-                                setState(() {
-                                  _selectedStatus = val;
-                                  _currentPage = 1;
-                                  _selectedRecordIds.clear();
-                                });
-                                _loadRecords();
-                              }
-                            },
+                      ],
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('QUEUE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.colorScheme.onSurfaceVariant)),
+                        const SizedBox(height: 2),
+                        DropdownButtonHideUnderline(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: const Color(0xFFD97706)),
+                              borderRadius: BorderRadius.circular(8),
+                              color: const Color(0xFFFFFBEB),
+                            ),
+                            child: DropdownButton<String>(
+                              value: _selectedWorkflowQueue,
+                              items: const [
+                                DropdownMenuItem(value: 'All', child: Text('All Queues', style: TextStyle(fontWeight: FontWeight.bold))),
+                                DropdownMenuItem(value: 'Agreement Pending', child: Text('⚡ Agreement Pending')),
+                                DropdownMenuItem(value: 'Loan Pending', child: Text('💰 Loan Pending')),
+                                DropdownMenuItem(value: 'Installation Pending', child: Text('🔧 Installation Pending')),
+                                DropdownMenuItem(value: 'RTS Pending', child: Text('⚡ RTS Pending')),
+                                DropdownMenuItem(value: 'Subsidy Pending', child: Text('🏛️ Subsidy Pending')),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    _selectedWorkflowQueue = val;
+                                    _currentPage = 1;
+                                    _selectedRecordIds.clear();
+                                  });
+                                  _loadRecords();
+                                }
+                              },
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 16),
-                  IconButton.outlined(
-                    icon: const Icon(Icons.refresh),
-                    tooltip: 'Refresh Records',
-                    onPressed: () {
-                      _selectedRecordIds.clear();
-                      _loadRecords();
-                    },
-                  ),
-                ],
+                      ],
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('STATUS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.colorScheme.onSurfaceVariant)),
+                        const SizedBox(height: 2),
+                        DropdownButtonHideUnderline(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade400),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: DropdownButton<String>(
+                              value: _selectedStatus,
+                              items: _statusFilters
+                                  .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                                  .toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    _selectedStatus = val;
+                                    _currentPage = 1;
+                                    _selectedRecordIds.clear();
+                                  });
+                                  _loadRecords();
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 16),
+                    IconButton.outlined(
+                      icon: const Icon(Icons.refresh),
+                      tooltip: 'Refresh Records',
+                      onPressed: () {
+                        _selectedRecordIds.clear();
+                        _loadRecords();
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
 
-          // Multi-Select Action Bar (Shows when records are selected)
+          // Multi-Select Action Bar
           if (hasSomeSelected) ...[
             const SizedBox(height: 12),
             Container(
@@ -724,7 +909,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                   Icon(Icons.check_box, color: Colors.red.shade700, size: 20),
                   const SizedBox(width: 10),
                   Text(
-                    '${_selectedRecordIds.length} record(s) selected',
+                    '${_selectedRecordIds.length} selected',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -741,7 +926,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.red.shade700,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
                       icon: _isDeleting
                           ? const SizedBox(
@@ -750,247 +935,217 @@ class _RecordsScreenState extends State<RecordsScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
                           : const Icon(Icons.delete_outline, size: 18),
-                      label: Text('Delete Selected (${_selectedRecordIds.length})'),
+                      label: Text('Delete (${_selectedRecordIds.length})'),
                       onPressed: _isDeleting ? null : _handleBulkDelete,
-                    )
-                  else
-                    Tooltip(
-                      message: 'Only Administrators or Staff with delete permission can delete records',
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colors.grey.shade400,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        ),
-                        icon: const Icon(Icons.lock_outline, size: 18),
-                        label: const Text('Delete (No Permission)'),
-                        onPressed: null,
-                      ),
                     ),
                 ],
               ),
             ),
           ],
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
 
-          // Records Table
+          // Content: Cards on Mobile vs Table on Desktop
           Expanded(
-            child: Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              clipBehavior: Clip.antiAlias,
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _records.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.inbox_outlined, size: 64, color: Colors.grey.shade400),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'No records found',
-                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _records.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.inbox_outlined, size: 56, color: Colors.grey.shade400),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No records found',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text('Try adjusting your search query or add a new record.', style: TextStyle(fontSize: 12)),
+                          ],
+                        ),
+                      )
+                    : isMobile
+                        ? ListView.builder(
+                            itemCount: _records.length,
+                            itemBuilder: (ctx, index) => _buildMobileCustomerCard(_records[index], theme),
+                          )
+                        : Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            clipBehavior: Clip.antiAlias,
+                            child: ScrollConfiguration(
+                              behavior: ScrollConfiguration.of(context).copyWith(
+                                dragDevices: {
+                                  PointerDeviceKind.touch,
+                                  PointerDeviceKind.mouse,
+                                  PointerDeviceKind.trackpad,
+                                  PointerDeviceKind.stylus,
+                                },
                               ),
-                              const SizedBox(height: 8),
-                              const Text('Try adjusting your search query or add a new record.'),
-                            ],
-                          ),
-                        )
-                      : ScrollConfiguration(
-                          behavior: ScrollConfiguration.of(context).copyWith(
-                            dragDevices: {
-                              PointerDeviceKind.touch,
-                              PointerDeviceKind.mouse,
-                              PointerDeviceKind.trackpad,
-                              PointerDeviceKind.stylus,
-                            },
-                          ),
-                          child: Scrollbar(
-                            controller: _verticalScrollController,
-                            thumbVisibility: true,
-                            trackVisibility: true,
-                            child: SingleChildScrollView(
-                              controller: _verticalScrollController,
-                              scrollDirection: Axis.vertical,
                               child: Scrollbar(
-                                controller: _horizontalScrollController,
+                                controller: _verticalScrollController,
                                 thumbVisibility: true,
                                 trackVisibility: true,
                                 child: SingleChildScrollView(
-                                  controller: _horizontalScrollController,
-                                  scrollDirection: Axis.horizontal,
-                                  child: DataTable(
-                                    headingRowColor: WidgetStateProperty.all(
-                                      theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                                    ),
-                                    columns: [
-                                      DataColumn(
-                                        label: Row(
-                                          children: [
-                                            Checkbox(
-                                              value: allCurrentPageSelected,
-                                              tristate: hasSomeSelected && !allCurrentPageSelected,
-                                              onChanged: _toggleSelectAll,
-                                            ),
-                                            const Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold)),
-                                          ],
+                                  controller: _verticalScrollController,
+                                  scrollDirection: Axis.vertical,
+                                  child: Scrollbar(
+                                    controller: _horizontalScrollController,
+                                    thumbVisibility: true,
+                                    trackVisibility: true,
+                                    child: SingleChildScrollView(
+                                      controller: _horizontalScrollController,
+                                      scrollDirection: Axis.horizontal,
+                                      child: DataTable(
+                                        headingRowColor: WidgetStateProperty.all(
+                                          theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
                                         ),
-                                      ),
-                                      const DataColumn(label: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Application Date', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Application Days', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Work Stage', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Action Required', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Next Action', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Days in Stage', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Priority', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Staff', style: TextStyle(fontWeight: FontWeight.bold))),
-                                      const DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    ],
-                                    rows: _records.map((r) {
-                                      final isSelected = r.id != null && _selectedRecordIds.contains(r.id);
-
-                                      final appDateStr = r.applicationDate != null
-                                          ? r.applicationDate!.toLocal().toString().split(' ')[0]
-                                          : '—';
-
-                                      return DataRow(
-                                        selected: isSelected,
-                                        onSelectChanged: r.id != null
-                                            ? (val) => _toggleRecordSelection(r.id!, val)
-                                            : null,
-                                        cells: [
-                                          DataCell(
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
+                                        columns: [
+                                          DataColumn(
+                                            label: Row(
                                               children: [
                                                 Checkbox(
-                                                  value: isSelected,
-                                                  onChanged: r.id != null
-                                                      ? (val) => _toggleRecordSelection(r.id!, val)
-                                                      : null,
+                                                  value: allCurrentPageSelected,
+                                                  tristate: hasSomeSelected && !allCurrentPageSelected,
+                                                  onChanged: _toggleSelectAll,
                                                 ),
+                                                const Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold)),
+                                              ],
+                                            ),
+                                          ),
+                                          const DataColumn(label: Text('Consumer No', style: TextStyle(fontWeight: FontWeight.bold))),
+                                          const DataColumn(label: Text('Application Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                                          const DataColumn(label: Text('Application Days', style: TextStyle(fontWeight: FontWeight.bold))),
+                                          const DataColumn(label: Text('Work Stage', style: TextStyle(fontWeight: FontWeight.bold))),
+                                          const DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                                          const DataColumn(label: Text('Action Required', style: TextStyle(fontWeight: FontWeight.bold))),
+                                          const DataColumn(label: Text('Next Action', style: TextStyle(fontWeight: FontWeight.bold))),
+                                          const DataColumn(label: Text('Days in Stage', style: TextStyle(fontWeight: FontWeight.bold))),
+                                          const DataColumn(label: Text('Priority', style: TextStyle(fontWeight: FontWeight.bold))),
+                                          const DataColumn(label: Text('Staff', style: TextStyle(fontWeight: FontWeight.bold))),
+                                          const DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+                                        ],
+                                        rows: _records.map((r) {
+                                          final isSelected = r.id != null && _selectedRecordIds.contains(r.id);
+
+                                          final appDateStr = r.applicationDate != null
+                                              ? r.applicationDate!.toLocal().toString().split(' ')[0]
+                                              : '—';
+
+                                          return DataRow(
+                                            selected: isSelected,
+                                            onSelectChanged: r.id != null
+                                                ? (val) => _toggleRecordSelection(r.id!, val)
+                                                : null,
+                                            cells: [
+                                              DataCell(
+                                                Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Checkbox(
+                                                      value: isSelected,
+                                                      onChanged: r.id != null
+                                                          ? (val) => _toggleRecordSelection(r.id!, val)
+                                                          : null,
+                                                    ),
+                                                    InkWell(
+                                                      onTap: () => _openDetailsDialog(r),
+                                                      child: Text(
+                                                        r.name,
+                                                        style: const TextStyle(
+                                                          fontWeight: FontWeight.w600,
+                                                          color: Color(0xFF2563EB),
+                                                          decoration: TextDecoration.underline,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              DataCell(
                                                 InkWell(
                                                   onTap: () => _openDetailsDialog(r),
                                                   child: Text(
-                                                    r.name,
-                                                    style: const TextStyle(
-                                                      fontWeight: FontWeight.w600,
-                                                      color: Color(0xFF2563EB),
-                                                      decoration: TextDecoration.underline,
+                                                    r.consumerNo,
+                                                    style: const TextStyle(fontWeight: FontWeight.w500),
+                                                  ),
+                                                ),
+                                              ),
+                                              DataCell(Text(appDateStr)),
+                                              DataCell(
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.blue.shade50,
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: Text(
+                                                    '${r.applicationDays} Days',
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Colors.blue.shade900,
+                                                      fontSize: 12,
                                                     ),
                                                   ),
                                                 ),
-                                              ],
-                                            ),
-                                          ),
-                                          DataCell(
-                                            InkWell(
-                                              onTap: () => _openDetailsDialog(r),
-                                              child: Text(
-                                                r.consumerNo,
-                                                style: const TextStyle(fontWeight: FontWeight.w500),
                                               ),
-                                            ),
-                                          ),
-                                          DataCell(Text(appDateStr)),
-                                          DataCell(
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                              decoration: BoxDecoration(
-                                                color: Colors.blue.shade50,
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                '${r.applicationDays} Days',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.blue.shade900,
-                                                  fontSize: 12,
+                                              DataCell(_buildWorkflowStageBadge(r)),
+                                              DataCell(_buildStatusBadge(r.status)),
+                                              DataCell(_buildActionRequiredBadge(r.actionRequired)),
+                                              DataCell(
+                                                Text(
+                                                  r.nextAction,
+                                                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
                                                 ),
                                               ),
-                                            ),
-                                          ),
-                                          DataCell(_buildWorkflowStageBadge(r)),
-                                          DataCell(_buildStatusBadge(r.status)),
-                                          DataCell(_buildActionRequiredBadge(r.actionRequired)),
-                                          DataCell(
-                                            Text(
-                                              r.nextAction,
-                                              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                              decoration: BoxDecoration(
-                                                color: Colors.amber.shade50,
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                '${r.daysInCurrentStage} Days',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.amber.shade900,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                          DataCell(_buildPriorityCategoryBadge(r.priorityCategory)),
-                                          DataCell(Text(r.createdBy ?? 'Unassigned')),
-                                          DataCell(
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                GlobalWhatsAppButton(
-                                                  phoneNumber: r.mobile,
-                                                  customerName: r.name,
-                                                  consumerNo: r.consumerNo,
-                                                  currentStage: r.overallStage,
-                                                  iconSize: 20,
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(Icons.verified_outlined, size: 20, color: Color(0xFF0F2D69)),
-                                                  tooltip: 'Work Completion Certificate (WCR)',
-                                                  onPressed: () => WorkCompletionCertificateDialog.show(context, r),
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(Icons.timeline_rounded, size: 20, color: Color(0xFFD97706)),
-                                                  tooltip: 'Workflow Timeline',
-                                                  onPressed: () => _openDetailsDialog(r),
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(Icons.visibility_outlined, size: 20),
-                                                  tooltip: 'View Details',
-                                                  onPressed: () => _openDetailsDialog(r),
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(Icons.edit_outlined, size: 20),
-                                                  tooltip: 'Edit Record',
-                                                  onPressed: () => _openEditRecordDialog(r),
-                                                ),
-                                                if (_canDelete)
-                                                  IconButton(
-                                                    icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                                                    tooltip: 'Delete Record',
-                                                    onPressed: () => _openSingleDeleteDialog(r),
+                                              DataCell(
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.amber.shade50,
+                                                    borderRadius: BorderRadius.circular(4),
                                                   ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    }).toList(),
+                                                  child: Text(
+                                                    '${r.daysInCurrentStage} Days',
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Colors.amber.shade900,
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              DataCell(_buildPriorityCategoryBadge(r.priorityCategory)),
+                                              DataCell(Text(r.createdBy ?? 'Unassigned')),
+                                              DataCell(
+                                                Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    GlobalWhatsAppButton(
+                                                      phoneNumber: r.mobile,
+                                                      customerName: r.name,
+                                                      consumerNo: r.consumerNo,
+                                                      currentStage: r.overallStage,
+                                                    ),
+                                                    IconButton(
+                                                      icon: const Icon(Icons.edit, size: 18),
+                                                      tooltip: 'Edit Record',
+                                                      onPressed: () => _openEditRecordDialog(r),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-            ),
           ),
 
           // Pagination Bar
@@ -999,13 +1154,13 @@ class _RecordsScreenState extends State<RecordsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Showing ${(_currentPage - 1) * _pageSize + (_records.isEmpty ? 0 : 1)} - ${(_currentPage - 1) * _pageSize + _records.length} of $_totalCount records',
-                style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                'Showing ${(_currentPage - 1) * _pageSize + (_records.isEmpty ? 0 : 1)} - ${(_currentPage - 1) * _pageSize + _records.length} of $_totalCount',
+                style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 12),
               ),
               Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.chevron_left),
+                    icon: const Icon(Icons.chevron_left, size: 20),
                     onPressed: _currentPage > 1
                         ? () {
                             setState(() {
@@ -1016,9 +1171,9 @@ class _RecordsScreenState extends State<RecordsScreen> {
                           }
                         : null,
                   ),
-                  Text('Page $_currentPage of ${totalPages == 0 ? 1 : totalPages}'),
+                  Text('$_currentPage / ${totalPages == 0 ? 1 : totalPages}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   IconButton(
-                    icon: const Icon(Icons.chevron_right),
+                    icon: const Icon(Icons.chevron_right, size: 20),
                     onPressed: _currentPage < totalPages
                         ? () {
                             setState(() {
@@ -1034,6 +1189,127 @@ class _RecordsScreenState extends State<RecordsScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMobileCustomerCard(ConsumerRecord r, ThemeData theme) {
+    final isSelected = r.id != null && _selectedRecordIds.contains(r.id);
+    final appDateStr = r.applicationDate != null
+        ? r.applicationDate!.toLocal().toString().split(' ')[0]
+        : '—';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: isSelected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                if (r.id != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Checkbox(
+                      value: isSelected,
+                      visualDensity: VisualDensity.compact,
+                      onChanged: (val) => _toggleRecordSelection(r.id!, val),
+                    ),
+                  ),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _openDetailsDialog(r),
+                    child: Text(
+                      r.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Color(0xFF2563EB),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                _buildStatusBadge(r.status),
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            Row(
+              children: [
+                Text('No: ${r.consumerNo}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                if (r.village != null && r.village!.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('📍 ${r.village}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 12), overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            Row(
+              children: [
+                _buildWorkflowStageBadge(r),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '${r.applicationDays} Days',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade900,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                GlobalWhatsAppButton(
+                  phoneNumber: r.mobile,
+                  customerName: r.name,
+                  consumerNo: r.consumerNo,
+                  currentStage: r.overallStage,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'App Date: $appDateStr',
+                  style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () => _openDetailsDialog(r),
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  ),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                  label: const Text('Open Profile', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
