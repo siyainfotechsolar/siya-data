@@ -183,6 +183,7 @@ class _UsersScreenState extends State<UsersScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final currentUid = SupabaseService.currentUser?.id;
+    final isMobile = Responsive.isMobile(context);
 
     final activeCount = _users.where((u) => u.isActive && u.status == 'Active').length;
     final adminCount = _users.where((u) => u.isAdmin).length;
@@ -190,12 +191,70 @@ class _UsersScreenState extends State<UsersScreen> {
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       body: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(isMobile ? 12.0 : 24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header with Add User and Workload buttons
-            Row(
+            if (isMobile)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Staff Management',
+                          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Chip(
+                        backgroundColor: Colors.green.shade50,
+                        label: Text(
+                          '$activeCount Active',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _openWorkloadDialog,
+                          icon: const Icon(Icons.speed_rounded, color: Colors.orange, size: 16),
+                          label: const Text('Workload', style: TextStyle(fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _openAddUserDialog,
+                          icon: const Icon(Icons.person_add_rounded, size: 16),
+                          label: const Text('Add User', style: TextStyle(fontSize: 13)),
+                          style: FilledButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: _loadUsers,
+                        icon: const Icon(Icons.refresh, size: 20),
+                        tooltip: 'Refresh',
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            else
+              Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Column(
@@ -255,7 +314,71 @@ class _UsersScreenState extends State<UsersScreen> {
             const SizedBox(height: 20),
 
             // Search & Filter Toolbar
-            Row(
+            if (isMobile)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search by name, email...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _filterRole,
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            labelText: 'Role',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            isDense: true,
+                          ),
+                          items: ['All', ...UserRole.allRoles].map((r) {
+                            return DropdownMenuItem(
+                              value: r,
+                              child: Text(r == 'All' ? 'All Roles' : UserRole.displayName(r), overflow: TextOverflow.ellipsis),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) setState(() => _filterRole = val);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _filterStatus,
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            labelText: 'Status',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            isDense: true,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'All', child: Text('All')),
+                            DropdownMenuItem(value: 'Active', child: Text('Active')),
+                            DropdownMenuItem(value: 'Inactive', child: Text('Inactive')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) setState(() => _filterStatus = val);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            else
+              Row(
               children: [
                 Expanded(
                   flex: 3,
@@ -335,7 +458,9 @@ class _UsersScreenState extends State<UsersScreen> {
                             ],
                           ),
                         )
-                      : Card(
+                      : isMobile
+                          ? _buildMobileUserList(theme, currentUid)
+                          : Card(
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -554,5 +679,139 @@ class _UsersScreenState extends State<UsersScreen> {
       ),
     );
   }
+
+  Widget _buildMobileUserList(ThemeData theme, String? currentUid) {
+    final filtered = _filteredUsers;
+    if (filtered.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.people_outline, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            const Text('No users found', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 4),
+            Text('Try adjusting your filters.', style: TextStyle(color: Colors.grey.shade600)),
+          ],
+        ),
+      );
+    }
+    return ListView.separated(
+      itemCount: filtered.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, idx) {
+        final u = filtered[idx];
+        final isCurrentUser = u.id == currentUid;
+        final displayName = u.fullName ?? u.email;
+        return Card(
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                      child: Text(
+                        displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                        style: TextStyle(color: theme.colorScheme.onPrimaryContainer, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  displayName + (isCurrentUser ? ' (You)' : ''),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: u.status == 'Active' ? Colors.green.shade50 : Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: u.status == 'Active' ? Colors.green.shade300 : Colors.grey.shade300),
+                                ),
+                                child: Text(
+                                  u.status,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: u.status == 'Active' ? Colors.green.shade800 : Colors.grey.shade700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(u.email, style: TextStyle(fontSize: 12, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Chip(
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  backgroundColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                  label: Text(UserRole.displayName(u.role), style: TextStyle(fontSize: 10, color: theme.colorScheme.primary)),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Text('Active: ', style: TextStyle(fontSize: 12)),
+                          Switch.adaptive(
+                            value: u.isActive,
+                            onChanged: isCurrentUser ? null : (val) => _handleToggleActive(u, val),
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ],
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.edit, size: 14),
+                      label: const Text('Edit', style: TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      ),
+                      onPressed: () => _openEditUserDialog(u),
+                    ),
+                    if (!isCurrentUser && u.isActive) ...[
+                      const SizedBox(width: 6),
+                      OutlinedButton.icon(
+                        icon: Icon(Icons.block_outlined, size: 14, color: Colors.red.shade700),
+                        label: Text('Deactivate', style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                        style: OutlinedButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          side: BorderSide(color: Colors.red.shade300),
+                        ),
+                        onPressed: () => _handleSafeDeactivate(u),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
+
 

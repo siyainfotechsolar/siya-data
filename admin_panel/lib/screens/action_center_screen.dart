@@ -1271,14 +1271,85 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final totalPages = (_totalCount / _pageSize).ceil();
+    final isMobile = Responsive.isMobile(context);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.all(isMobile ? 12.0 : 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header Title
-          Row(
+          if (isMobile)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.bolt_rounded, color: theme.colorScheme.primary, size: 24),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'ACTION CENTER',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh),
+                      tooltip: 'Refresh',
+                      onPressed: _loadActionCenterRecords,
+                    ),
+                  ],
+                ),
+                Text(
+                  'WHO NEEDS ACTION NOW?',
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 12),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      icon: const Icon(Icons.add_task_rounded, size: 16),
+                      label: const Text('+ Task', style: TextStyle(fontSize: 13)),
+                      onPressed: () async {
+                        final created = await CreateOfficeTaskDialog.show(context);
+                        if (created != null && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Task assigned to ${created.assignedToName}!'),
+                              backgroundColor: const Color(0xFF059669),
+                            ),
+                          );
+                          _loadActionCenterRecords();
+                        }
+                      },
+                    ),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0F766E),
+                        side: const BorderSide(color: Color(0xFF14B8A6)),
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      icon: const Icon(Icons.file_download_outlined, size: 16),
+                      label: const Text('Export', style: TextStyle(fontSize: 13)),
+                      onPressed: _handleActionCenterExport,
+                    ),
+                  ],
+                ),
+              ],
+            )
+          else
+            Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Column(
@@ -1442,8 +1513,134 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
             elevation: 1,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
+              padding: EdgeInsets.all(isMobile ? 12.0 : 16.0),
+              child: isMobile
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          controller: _searchController,
+                          onChanged: _onSearchChanged,
+                          decoration: InputDecoration(
+                            hintText: 'Search by Name, Consumer No, Mobile...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _searchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      _loadActionCenterRecords();
+                                    },
+                                  )
+                                : null,
+                            border: const OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: _selectedStageFilter,
+                                isExpanded: true,
+                                decoration: InputDecoration(
+                                  labelText: 'Stage',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                  isDense: true,
+                                ),
+                                items: const [
+                                  DropdownMenuItem(value: 'ALL', child: Text('All Stages', overflow: TextOverflow.ellipsis)),
+                                  DropdownMenuItem(value: 'Agreement Pending', child: Text('Agreement Pending', overflow: TextOverflow.ellipsis)),
+                                  DropdownMenuItem(value: 'Loan Pending', child: Text('Loan Pending', overflow: TextOverflow.ellipsis)),
+                                  DropdownMenuItem(value: 'Installation Pending', child: Text('Installation Pending', overflow: TextOverflow.ellipsis)),
+                                  DropdownMenuItem(value: 'RTS Pending', child: Text('RTS Pending', overflow: TextOverflow.ellipsis)),
+                                  DropdownMenuItem(value: 'Subsidy Processing', child: Text('Subsidy Processing', overflow: TextOverflow.ellipsis)),
+                                  DropdownMenuItem(value: "Today's Follow-up", child: Text("Today's Follow-up", overflow: TextOverflow.ellipsis)),
+                                  DropdownMenuItem(value: "Overdue Follow-up", child: Text("Overdue Follow-up", overflow: TextOverflow.ellipsis)),
+                                  DropdownMenuItem(value: "Upcoming Follow-up", child: Text("Upcoming Follow-up", overflow: TextOverflow.ellipsis)),
+                                  DropdownMenuItem(value: 'Hold', child: Text('On Hold', overflow: TextOverflow.ellipsis)),
+                                  DropdownMenuItem(value: 'Completed', child: Text('Completed', overflow: TextOverflow.ellipsis)),
+                                  DropdownMenuItem(value: 'MISC', child: Text('MISC Actions', overflow: TextOverflow.ellipsis)),
+                                  DropdownMenuItem(value: 'General Issue', child: Text('General Issue', overflow: TextOverflow.ellipsis)),
+                                  DropdownMenuItem(value: 'Payment Pending', child: Text('Payment Pending', overflow: TextOverflow.ellipsis)),
+                                ],
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() {
+                                      _selectedStageFilter = val;
+                                      _currentPage = 1;
+                                    });
+                                    _loadActionCenterRecords();
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: _selectedStaffFilter,
+                                isExpanded: true,
+                                decoration: InputDecoration(
+                                  labelText: 'Staff',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                  isDense: true,
+                                ),
+                                items: const [
+                                  DropdownMenuItem(value: 'All', child: Text('All Staff')),
+                                  DropdownMenuItem(value: 'Rushikesh', child: Text('Rushikesh')),
+                                  DropdownMenuItem(value: 'Rihan', child: Text('Rihan')),
+                                  DropdownMenuItem(value: 'Vishal', child: Text('Vishal')),
+                                  DropdownMenuItem(value: 'Samadhan', child: Text('Samadhan')),
+                                ],
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() {
+                                      _selectedStaffFilter = val;
+                                      _currentPage = 1;
+                                    });
+                                    _loadActionCenterRecords();
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF4F46E5),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                ),
+                                icon: const Icon(Icons.add_task_rounded, size: 16),
+                                label: const Text('+ MISC', style: TextStyle(fontSize: 13)),
+                                onPressed: () => _openAddMiscDialog(),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFFDC2626),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                ),
+                                icon: const Icon(Icons.report_problem_rounded, size: 16),
+                                label: const Text('+ Issue', style: TextStyle(fontSize: 13)),
+                                onPressed: () => _openReportIssueDialog(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  : Row(
                 children: [
                   Expanded(
                     flex: 2,
@@ -1653,7 +1850,9 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
                                   ),
                                 ),
                               )
-                            : ScrollConfiguration(
+                            : isMobile
+                                ? _buildMobileRecordCards(theme)
+                                : ScrollConfiguration(
                             behavior: ScrollConfiguration.of(context).copyWith(
                               dragDevices: {
                                 PointerDeviceKind.touch,
@@ -1945,6 +2144,171 @@ class _ActionCenterScreenState extends State<ActionCenterScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Mobile-friendly card list for Action Center records
+  Widget _buildMobileRecordCards(ThemeData theme) {
+    return Column(
+      children: _records.map((r) {
+        final isHold = r.overallStage == 'Hold' || r.overallStage == 'On Hold';
+        final isCompleted = r.overallStage == 'Completed';
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: InkWell(
+            onTap: () => _openDetailsDialog(r),
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          r.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isHold
+                              ? Colors.orange.shade50
+                              : isCompleted
+                                  ? Colors.grey.shade100
+                                  : Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                              color: isHold
+                                  ? Colors.orange.shade300
+                                  : isCompleted
+                                      ? Colors.grey.shade300
+                                      : Colors.blue.shade200),
+                        ),
+                        child: Text(
+                          '${r.daysInCurrentStage}d',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isHold
+                                ? Colors.orange.shade800
+                                : isCompleted
+                                    ? Colors.grey.shade700
+                                    : r.daysInCurrentStage >= 15
+                                        ? const Color(0xFFDC2626)
+                                        : r.daysInCurrentStage >= 8
+                                            ? const Color(0xFFD97706)
+                                            : const Color(0xFF16A34A),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.badge_outlined, size: 12, color: Colors.grey.shade600),
+                      const SizedBox(width: 4),
+                      Text(
+                        r.consumerNo,
+                        style: TextStyle(fontSize: 12, color: Colors.blue.shade700, fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(width: 12),
+                      if (r.mobile != null && r.mobile!.isNotEmpty) ...[
+                        Icon(Icons.phone_outlined, size: 12, color: Colors.grey.shade600),
+                        const SizedBox(width: 4),
+                        Text(r.mobile!, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  _buildStageBadge(r.overallStage, isHold: isHold, holdReason: r.holdReason ?? r.noActionReason),
+                  if (r.hasActiveFollowup) ...[
+                    const SizedBox(height: 4),
+                    _buildFollowupBadge(r),
+                  ],
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      FilledButton.icon(
+                        icon: const Icon(Icons.visibility_outlined, size: 14),
+                        label: const Text('Open', style: TextStyle(fontSize: 12)),
+                        style: FilledButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        ),
+                        onPressed: () => _openDetailsDialog(r),
+                      ),
+                      if (r.mobile != null && r.mobile!.isNotEmpty)
+                        FilledButton.icon(
+                          icon: const Icon(Icons.phone, size: 14),
+                          label: const Text('Call', style: TextStyle(fontSize: 12)),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF0284C7),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          ),
+                          onPressed: () => _makePhoneCall(r.mobile),
+                        ),
+                      if (!isCompleted && !isHold) ...[
+                        FilledButton.icon(
+                          icon: const Icon(Icons.check_circle_outline, size: 14),
+                          label: const Text('Complete', style: TextStyle(fontSize: 12)),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF059669),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          ),
+                          onPressed: () => _confirmMarkAsComplete(r),
+                        ),
+                        FilledButton.icon(
+                          icon: const Icon(Icons.phone_in_talk_rounded, size: 14),
+                          label: const Text('Follow-up', style: TextStyle(fontSize: 12)),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF2563EB),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          ),
+                          onPressed: () => _openFollowupDialog(r),
+                        ),
+                      ],
+                      if (isHold)
+                        FilledButton.icon(
+                          icon: const Icon(Icons.replay_rounded, size: 14),
+                          label: const Text('Reopen', style: TextStyle(fontSize: 12)),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF2563EB),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          ),
+                          onPressed: () => _confirmReopen(r),
+                        ),
+                      if (r.hasActiveFollowup)
+                        FilledButton.icon(
+                          icon: const Icon(Icons.done_all_rounded, size: 14),
+                          label: const Text('Done', style: TextStyle(fontSize: 12)),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF059669),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          ),
+                          onPressed: () => _openFollowupDoneDialog(r),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 

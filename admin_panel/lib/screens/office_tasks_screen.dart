@@ -5,6 +5,7 @@ import '../models/office_task.dart';
 import '../services/office_task_service.dart';
 import '../widgets/create_office_task_dialog.dart';
 import '../widgets/office_staff_work_log_dialog.dart';
+import '../utils/responsive.dart';
 
 class OfficeTasksScreen extends StatefulWidget {
   const OfficeTasksScreen({super.key});
@@ -322,16 +323,20 @@ class _OfficeTasksScreenState extends State<OfficeTasksScreen> {
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd MMM yyyy');
+    final isMobile = Responsive.isMobile(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.assignment_ind_rounded, color: Color(0xFF2563EB)),
-            SizedBox(width: 10),
-            Text(
-              'Office Staff Task Management',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            const Icon(Icons.assignment_ind_rounded, color: Color(0xFF2563EB)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                isMobile ? 'Office Tasks' : 'Office Staff Task Management',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
@@ -345,11 +350,11 @@ class _OfficeTasksScreenState extends State<OfficeTasksScreen> {
           FilledButton.icon(
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF059669),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 16, vertical: 12),
             ),
             onPressed: _openCreateTaskDialog,
             icon: const Icon(Icons.add, size: 18),
-            label: const Text('+ Create Task', style: TextStyle(fontWeight: FontWeight.bold)),
+            label: Text(isMobile ? 'Add' : '+ Create Task', style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
           const SizedBox(width: 16),
         ],
@@ -358,25 +363,48 @@ class _OfficeTasksScreenState extends State<OfficeTasksScreen> {
         children: [
           // 1. KPI Metric Summary Cards
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                _buildKpiCard('Total Tasks', '$_totalCount', const Color(0xFF2563EB), Icons.assignment_rounded),
-                const SizedBox(width: 12),
-                _buildKpiCard('Pending', '$_pendingCount', const Color(0xFFD97706), Icons.pending_actions_rounded),
-                const SizedBox(width: 12),
-                _buildKpiCard('Due Today', '$_todayCount', const Color(0xFF4F46E5), Icons.today_rounded),
-                const SizedBox(width: 12),
-                _buildKpiCard('Overdue', '$_overdueCount', const Color(0xFFDC2626), Icons.warning_rounded),
-                const SizedBox(width: 12),
-                _buildKpiCard('Completed', '$_completedCount', const Color(0xFF059669), Icons.task_alt_rounded),
-              ],
-            ),
+            padding: EdgeInsets.all(isMobile ? 8.0 : 16.0),
+            child: isMobile
+                ? Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      SizedBox(
+                        width: (MediaQuery.of(context).size.width - 40) / 2,
+                        child: _buildKpiCard('Total', '$_totalCount', const Color(0xFF2563EB), Icons.assignment_rounded),
+                      ),
+                      SizedBox(
+                        width: (MediaQuery.of(context).size.width - 40) / 2,
+                        child: _buildKpiCard('Pending', '$_pendingCount', const Color(0xFFD97706), Icons.pending_actions_rounded),
+                      ),
+                      SizedBox(
+                        width: (MediaQuery.of(context).size.width - 40) / 2,
+                        child: _buildKpiCard('Due Today', '$_todayCount', const Color(0xFF4F46E5), Icons.today_rounded),
+                      ),
+                      SizedBox(
+                        width: (MediaQuery.of(context).size.width - 40) / 2,
+                        child: _buildKpiCard('Overdue', '$_overdueCount', const Color(0xFFDC2626), Icons.warning_rounded),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      _buildKpiCard('Total Tasks', '$_totalCount', const Color(0xFF2563EB), Icons.assignment_rounded),
+                      const SizedBox(width: 12),
+                      _buildKpiCard('Pending', '$_pendingCount', const Color(0xFFD97706), Icons.pending_actions_rounded),
+                      const SizedBox(width: 12),
+                      _buildKpiCard('Due Today', '$_todayCount', const Color(0xFF4F46E5), Icons.today_rounded),
+                      const SizedBox(width: 12),
+                      _buildKpiCard('Overdue', '$_overdueCount', const Color(0xFFDC2626), Icons.warning_rounded),
+                      const SizedBox(width: 12),
+                      _buildKpiCard('Completed', '$_completedCount', const Color(0xFF059669), Icons.task_alt_rounded),
+                    ],
+                  ),
           ),
 
           // 2. Filters & Search Bar
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 8.0 : 16.0),
             child: Card(
               elevation: 0,
               color: Colors.grey.shade50,
@@ -386,7 +414,87 @@ class _OfficeTasksScreenState extends State<OfficeTasksScreen> {
               ),
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
-                child: Row(
+                child: isMobile
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextField(
+                            controller: _searchController,
+                            onChanged: (v) {
+                              _searchQuery = v;
+                              _loadData();
+                            },
+                            decoration: InputDecoration(
+                              hintText: 'Search customer, staff, task...',
+                              prefixIcon: const Icon(Icons.search, size: 18),
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 16),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        _searchQuery = '';
+                                        _loadData();
+                                      },
+                                    )
+                                  : null,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              isDense: true,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: _selectedStatus,
+                                  isExpanded: true,
+                                  decoration: InputDecoration(
+                                    labelText: 'Status',
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    isDense: true,
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem(value: 'ALL', child: Text('All')),
+                                    ...OfficeTaskStatus.all.map((s) => DropdownMenuItem(value: s, child: Text(s))),
+                                  ],
+                                  onChanged: (v) {
+                                    if (v != null) {
+                                      setState(() => _selectedStatus = v);
+                                      _loadData();
+                                    }
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: _selectedStaff,
+                                  isExpanded: true,
+                                  decoration: InputDecoration(
+                                    labelText: 'Staff',
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    isDense: true,
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem(value: 'ALL', child: Text('All Staff')),
+                                    ..._staffMembers.map((s) => DropdownMenuItem(value: s['name'], child: Text(s['name'] ?? ''))),
+                                  ],
+                                  onChanged: (v) {
+                                    if (v != null) {
+                                      setState(() => _selectedStaff = v);
+                                      _loadData();
+                                    }
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      )
+                    : Row(
                   children: [
                     // Search box
                     Expanded(
@@ -511,7 +619,9 @@ class _OfficeTasksScreenState extends State<OfficeTasksScreen> {
                           ],
                         ),
                       )
-                    : SingleChildScrollView(
+                    : isMobile
+                        ? _buildMobileTaskCards(context, dateFormat)
+                        : SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         child: Card(
                           elevation: 1,
@@ -728,6 +838,125 @@ class _OfficeTasksScreenState extends State<OfficeTasksScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMobileTaskCards(BuildContext context, DateFormat dateFormat) {
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      itemCount: _tasks.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, idx) {
+        final task = _tasks[idx];
+        Color statusColor = Colors.grey;
+        if (task.isPending) statusColor = const Color(0xFFD97706);
+        if (task.isInProgress) statusColor = const Color(0xFF2563EB);
+        if (task.isCompleted) statusColor = const Color(0xFF059669);
+        if (task.isHold) statusColor = Colors.orange.shade800;
+        if (task.isOverdue) statusColor = const Color(0xFFDC2626);
+
+        return Card(
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        task.title,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+                      ),
+                      child: Text(
+                        task.status,
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                if (task.customerName != null && task.customerName!.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      Icon(Icons.person_outline, size: 12, color: Colors.grey.shade600),
+                      const SizedBox(width: 4),
+                      Expanded(child: Text(task.customerName!, style: TextStyle(fontSize: 12, color: Colors.grey.shade700), overflow: TextOverflow.ellipsis)),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                ],
+                Row(
+                  children: [
+                    Icon(Icons.assignment_ind_outlined, size: 12, color: Colors.grey.shade600),
+                    const SizedBox(width: 4),
+                    Text(task.assignedToName, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                    const SizedBox(width: 12),
+                    if (task.dueDate != null) ...[
+                      Icon(
+                        task.isOverdue ? Icons.warning_amber_rounded : Icons.calendar_today_outlined,
+                        size: 12,
+                        color: task.isOverdue ? Colors.red : Colors.grey.shade600,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        dateFormat.format(task.dueDate!),
+                        style: TextStyle(fontSize: 12, color: task.isOverdue ? Colors.red : Colors.grey.shade700, fontWeight: task.isOverdue ? FontWeight.bold : FontWeight.normal),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.update_rounded, size: 14),
+                      label: const Text('Update Status', style: TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      ),
+                      onPressed: () => _showStatusUpdateDialog(task),
+                    ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.history_rounded, size: 14),
+                      label: const Text('Work Log', style: TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      ),
+                      onPressed: () => _showTaskWorkLog(task),
+                    ),
+                    if (!task.isCompleted)
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.swap_horiz_rounded, size: 14),
+                        label: const Text('Reassign', style: TextStyle(fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        ),
+                        onPressed: () => _showReassignDialog(task),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

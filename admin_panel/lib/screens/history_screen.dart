@@ -6,6 +6,7 @@ import '../models/import_log.dart';
 import '../models/activity_log.dart';
 import '../services/audit_service.dart';
 import '../services/activity_log_service.dart';
+import '../utils/responsive.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -343,47 +344,77 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isMobile = Responsive.isMobile(context);
 
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.all(isMobile ? 8.0 : 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Activity & History Center',
-                    style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+          if (isMobile)
+            Row(
+              children: [
+                const Icon(Icons.history_edu_rounded, size: 22, color: Color(0xFF2563EB)),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Activity & History',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Centralized Who Worked Log, customer journey history, and immutable operational audits',
-                    style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-              IconButton.outlined(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh',
-                onPressed: () {
-                  if (_tabController.index == 0) {
-                    _loadActivityLogs();
-                    _loadWhoWorkedTodayMetrics();
-                  } else if (_tabController.index == 1) {
-                    _loadImportLogs();
-                  } else {
-                    _loadAuditLogs();
-                  }
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  tooltip: 'Refresh',
+                  onPressed: () {
+                    if (_tabController.index == 0) {
+                      _loadActivityLogs();
+                      _loadWhoWorkedTodayMetrics();
+                    } else if (_tabController.index == 1) {
+                      _loadImportLogs();
+                    } else {
+                      _loadAuditLogs();
+                    }
+                  },
+                ),
+              ],
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Activity & History Center',
+                      style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Centralized Who Worked Log, customer journey history, and immutable operational audits',
+                      style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+                IconButton.outlined(
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Refresh',
+                  onPressed: () {
+                    if (_tabController.index == 0) {
+                      _loadActivityLogs();
+                      _loadWhoWorkedTodayMetrics();
+                    } else if (_tabController.index == 1) {
+                      _loadImportLogs();
+                    } else {
+                      _loadAuditLogs();
+                    }
+                  },
+                ),
+              ],
+            ),
+          const SizedBox(height: 12),
 
           // Tabs
           TabBar(
@@ -393,22 +424,22 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
             labelColor: theme.colorScheme.primary,
             unselectedLabelColor: const Color(0xFF64748B),
             indicatorColor: theme.colorScheme.primary,
-            tabs: const [
+            tabs: [
               Tab(
-                icon: Icon(Icons.badge_rounded, size: 18),
-                child: Text('Who Worked Log (Activity)'),
+                icon: const Icon(Icons.badge_rounded, size: 18),
+                child: Text(isMobile ? 'Work Log' : 'Who Worked Log (Activity)'),
               ),
               Tab(
-                icon: Icon(Icons.history_rounded, size: 18),
-                child: Text('Import Batches'),
+                icon: const Icon(Icons.history_rounded, size: 18),
+                child: Text(isMobile ? 'Imports' : 'Import Batches'),
               ),
               Tab(
-                icon: Icon(Icons.shield_outlined, size: 18),
-                child: Text('Security Audit Trail'),
+                icon: const Icon(Icons.shield_outlined, size: 18),
+                child: Text(isMobile ? 'Audit' : 'Security Audit Trail'),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
 
           // Tab Views
           Expanded(

@@ -9,6 +9,7 @@ import '../widgets/export_excel_button.dart';
 import '../widgets/global_whatsapp_button.dart';
 import '../services/excel_export_service.dart';
 import '../services/export_definitions.dart';
+import '../utils/responsive.dart';
 
 class LeadsScreen extends StatefulWidget {
   final String? initialScope;
@@ -139,6 +140,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isMobile = Responsive.isMobile(context);
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -146,53 +148,81 @@ class _LeadsScreenState extends State<LeadsScreen> {
         children: [
           // Screen Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 24, vertical: 12),
             color: Colors.white,
-            child: Row(
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.leaderboard_rounded, color: theme.colorScheme.primary, size: 28),
-                        const SizedBox(width: 10),
-                        const Text(
+            child: isMobile
+                ? Row(
+                    children: [
+                      Icon(Icons.leaderboard_rounded, color: theme.colorScheme.primary, size: 22),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
                           'Lead Management',
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Potential solar inquiries and pre-conversion lead pipelines',
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                ExportExcelButton<LeadRecord>(
-                  filePrefix: 'Solar_Leads',
-                  sheetName: 'Leads',
-                  reportTitle: 'Solar Leads & Inquiries Report',
-                  filterSummary: 'Scope: $_selectedScope, Status: $_selectedStatus${_searchController.text.trim().isNotEmpty ? ', Search: "${_searchController.text.trim()}"' : ''}',
-                  columns: ExportDefinitions.leadRecordColumns,
-                  onFetchFullDataset: _fetchFilteredLeadsForExport,
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'Refresh Leads',
-                  onPressed: _loadData,
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  icon: const Icon(Icons.add),
-                  label: const Text('New Lead'),
-                  onPressed: _openCreateLeadDialog,
-                ),
-              ],
-            ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, size: 20),
+                        tooltip: 'Refresh',
+                        onPressed: _loadData,
+                      ),
+                      FilledButton.icon(
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Add'),
+                        style: FilledButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        ),
+                        onPressed: _openCreateLeadDialog,
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.leaderboard_rounded, color: theme.colorScheme.primary, size: 28),
+                              const SizedBox(width: 10),
+                              const Text(
+                                'Lead Management',
+                                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Potential solar inquiries and pre-conversion lead pipelines',
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      ExportExcelButton<LeadRecord>(
+                        filePrefix: 'Solar_Leads',
+                        sheetName: 'Leads',
+                        reportTitle: 'Solar Leads & Inquiries Report',
+                        filterSummary: 'Scope: $_selectedScope, Status: $_selectedStatus${_searchController.text.trim().isNotEmpty ? ', Search: "${_searchController.text.trim()}"' : ''}',
+                        columns: ExportDefinitions.leadRecordColumns,
+                        onFetchFullDataset: _fetchFilteredLeadsForExport,
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.refresh),
+                        tooltip: 'Refresh Leads',
+                        onPressed: _loadData,
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        icon: const Icon(Icons.add),
+                        label: const Text('New Lead'),
+                        onPressed: _openCreateLeadDialog,
+                      ),
+                    ],
+                  ),
           ),
           const Divider(height: 1),
 
@@ -216,10 +246,46 @@ class _LeadsScreenState extends State<LeadsScreen> {
   }
 
   Widget _buildMetricsBar() {
+    final isMobile = Responsive.isMobile(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 24, vertical: 10),
       color: Colors.white,
-      child: Row(
+      child: isMobile
+          ? Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 28) / 2,
+                  child: _metricCard('Total', '${_metrics.total}', Icons.groups_outlined, Colors.blueGrey, () {
+                    setState(() { _selectedScope = 'all'; _selectedStatus = 'All'; });
+                    _loadData();
+                  }),
+                ),
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 28) / 2,
+                  child: _metricCard('New', '${_metrics.newLeads}', Icons.fiber_new_outlined, Colors.blue, () {
+                    setState(() { _selectedScope = 'all'; _selectedStatus = 'New'; });
+                    _loadData();
+                  }),
+                ),
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 28) / 2,
+                  child: _metricCard("Today's F/U", '${_metrics.todayFollowups}', Icons.notifications_active_outlined, Colors.amber.shade800, () {
+                    setState(() { _selectedScope = 'today'; _selectedStatus = 'All'; });
+                    _loadData();
+                  }, isAlert: _metrics.todayFollowups > 0),
+                ),
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 28) / 2,
+                  child: _metricCard('Converted', '${_metrics.converted}', Icons.check_circle_outline, Colors.green.shade700, () {
+                    setState(() { _selectedScope = 'all'; _selectedStatus = 'Converted'; });
+                    _loadData();
+                  }),
+                ),
+              ],
+            )
+          : Row(
         children: [
           _metricCard('Total Leads', '${_metrics.total}', Icons.groups_outlined, Colors.blueGrey, () {
             setState(() {
