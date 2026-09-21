@@ -3,15 +3,20 @@ import 'package:intl/intl.dart';
 import '../models/office_task.dart';
 import '../services/office_task_service.dart';
 import '../services/supabase_service.dart';
+import '../services/app_database.dart';
 import '../widgets/create_office_task_bottom_sheet.dart';
 import 'task_details_screen.dart';
 
 class MyTasksScreen extends StatefulWidget {
   final bool showOnlyMine;
+  final String? initialSiteType;
+  final int initialTabIndex;
 
   const MyTasksScreen({
     super.key,
     this.showOnlyMine = true,
+    this.initialSiteType,
+    this.initialTabIndex = 0,
   });
 
   @override
@@ -27,13 +32,20 @@ class _MyTasksScreenState extends State<MyTasksScreen>
   List<OfficeTask> _allTasks = [];
   bool _filterOnlyMine = true;
   String? _currentStaffName;
+  late String _siteTypeFilter;
+  Set<String> _nonSubsidyIds = {};
 
   @override
   void initState() {
     super.initState();
     _filterOnlyMine = widget.showOnlyMine;
+    _siteTypeFilter = widget.initialSiteType ?? 'All';
     // Strictly 2 tabs: [ PENDING ] and [ COMPLETED ]
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 1),
+    );
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         setState(() {});
@@ -72,6 +84,10 @@ class _MyTasksScreenState extends State<MyTasksScreen>
   Future<void> _loadTasks() async {
     setState(() => _isLoading = true);
     try {
+      if (_siteTypeFilter == 'Non-Subsidy') {
+        _nonSubsidyIds = await AppDatabase.getNonSubsidyConsumerNos();
+      }
+
       List<OfficeTask> list;
       if (_filterOnlyMine) {
         list = await MobileOfficeTaskService.fetchMyTasks();
@@ -92,12 +108,20 @@ class _MyTasksScreenState extends State<MyTasksScreen>
     }
   }
 
-  // Filter tasks by search query
+  // Filter tasks by search query and site type
   List<OfficeTask> _applySearch(List<OfficeTask> tasks) {
-    final query = _searchController.text.trim().toLowerCase();
-    if (query.isEmpty) return tasks;
+    var filtered = tasks;
+    if (_siteTypeFilter == 'Non-Subsidy' && _nonSubsidyIds.isNotEmpty) {
+      filtered = filtered.where((t) {
+        return _nonSubsidyIds.contains(t.consumerNo) ||
+            (t.customerId != null && _nonSubsidyIds.contains(t.customerId));
+      }).toList();
+    }
 
-    return tasks.where((t) {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return filtered;
+
+    return filtered.where((t) {
       return t.title.toLowerCase().contains(query) ||
           t.customerName.toLowerCase().contains(query) ||
           t.consumerNo.toLowerCase().contains(query) ||

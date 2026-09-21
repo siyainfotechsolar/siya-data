@@ -577,61 +577,102 @@ class MobileRecordService {
     }
   }
 
-  /// Summary counts for Mobile Dashboard
-  static Future<Map<String, int>> fetchDashboardSummary() async {
+  /// Summary metrics for Mobile Dashboard (supports Non-Subsidy and Subsidy toggles)
+  static Future<Map<String, dynamic>> fetchDashboardSummary({String siteType = 'Non-Subsidy'}) async {
     if (ConnectivityService.isOffline) {
-      return await AppDatabase.getDashboardSummary();
+      return await AppDatabase.getDashboardSummary(siteType: siteType);
     }
 
     try {
-      final totalRes = await _client
+      final isSubsidy = siteType.toLowerCase() == 'subsidy';
+      var query = _client
           .from('consumer_records')
-          .select('id')
+          .select('id, consumer_no, total_amount, paid_amount, pending_amount, status, installation_status, subsidy_status, customer_work_state, site_type')
           .eq('deleted', false)
-          .eq('is_merged', false)
-          .count(CountOption.exact);
+          .eq('is_merged', false);
 
-      final inProgressRes = await _client
-          .from('consumer_records')
-          .select('id')
-          .eq('deleted', false)
-          .eq('is_merged', false)
-          .eq('status', 'In Progress')
-          .count(CountOption.exact);
+      if (isSubsidy) {
+        query = query.or('site_type.eq.Subsidy,site_type.is.null');
+      } else {
+        query = query.eq('site_type', 'Non-Subsidy');
+      }
 
-      final completedRes = await _client
-          .from('consumer_records')
-          .select('id')
-          .eq('deleted', false)
-          .eq('is_merged', false)
-          .eq('status', 'Completed')
-          .count(CountOption.exact);
+      final response = await query;
+      final List<dynamic> rows = response as List<dynamic>;
+      final int totalCustomers = rows.length;
 
-      final subsidyRes = await _client
-          .from('consumer_records')
-          .select('id')
-          .eq('deleted', false)
-          .eq('is_merged', false)
-          .neq('site_type', 'Non-Subsidy')
-          .count(CountOption.exact);
+      int completedSites = 0;
+      double totalPayment = 0.0;
+      double paidPayment = 0.0;
+      double pendingPayment = 0.0;
+      int pendingPaymentCount = 0;
+      final Set<String> consumerNos = {};
+      final Set<String> customerIds = {};
 
-      final nonSubsidyRes = await _client
-          .from('consumer_records')
-          .select('id')
-          .eq('deleted', false)
-          .eq('is_merged', false)
-          .eq('site_type', 'Non-Subsidy')
-          .count(CountOption.exact);
+      for (final r in rows) {
+        final id = r['id']?.toString() ?? '';
+        final cNo = r['consumer_no']?.toString() ?? '';
+        if (id.isNotEmpty) customerIds.add(id);
+        if (cNo.isNotEmpty) consumerNos.add(cNo);
+
+        final status = (r['status'] as String? ?? '').toLowerCase();
+        final instStatus = (r['installation_status'] as String? ?? '').toLowerCase();
+        final subStatus = (r['subsidy_status'] as String? ?? '').toLowerCase();
+        final workState = (r['customer_work_state'] as String? ?? '').toUpperCase();
+
+        final isComp = isSubsidy
+            ? (status == 'completed' || subStatus == 'received' || workState == 'COMPLETED')
+            : (status == 'completed' || instStatus.contains('completed') || workState == 'COMPLETED');
+
+        if (isComp) {
+          completedSites++;
+        }
+
+        final t = (r['total_amount'] as num?)?.toDouble() ?? 0.0;
+        final p = (r['paid_amount'] as num?)?.toDouble() ?? 0.0;
+        final pend = (r['pending_amount'] as num?)?.toDouble() ?? (t - p).clamp(0.0, double.infinity);
+
+        totalPayment += t;
+        paidPayment += p;
+        pendingPayment += pend;
+        if (pend > 0) pendingPaymentCount++;
+      }
+
+      int pendingTasks = 0;
+      int completedTasks = 0;
+
+      try {
+        if (consumerNos.isNotEmpty) {
+          final tasksRes = await _client
+              .from('tasks')
+              .select('id, status, consumer_no, customer_id')
+              .filter('consumer_no', 'in', consumerNos.toList());
+
+          final List<dynamic> taskList = tasksRes as List<dynamic>;
+          for (final t in taskList) {
+            final st = (t['status'] as String? ?? '').toLowerCase();
+            if (st == 'completed' || st == 'complete') {
+              completedTasks++;
+            } else {
+              pendingTasks++;
+            }
+          }
+        }
+      } catch (_) {}
 
       return {
-        'total': totalRes.count,
-        'inProgress': inProgressRes.count,
-        'completed': completedRes.count,
-        'subsidy_count': subsidyRes.count,
-        'non_subsidy_count': nonSubsidyRes.count,
+        'total': totalCustomers,
+        'site_type': siteType,
+        'completed_sites': completedSites,
+        'total_payment': totalPayment,
+        'paid_payment': paidPayment,
+        'pending_payment': pendingPayment,
+        'pending_payment_count': pendingPaymentCount,
+        'pending_tasks': pendingTasks,
+        'completed_tasks': completedTasks,
       };
     } catch (_) {
-      return await AppDatabase.getDashboardSummary();
+      return await AppDatabase.getDashboardSummary(siteType: siteType);
     }
   }
 

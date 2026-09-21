@@ -32,7 +32,8 @@ class MobileHomeScreen extends StatefulWidget {
 
 class _MobileHomeScreenState extends State<MobileHomeScreen> {
   int _currentIndex = 0;
-  Map<String, int>? _summaryCounts;
+  String _selectedSiteType = 'Non-Subsidy';
+  Map<String, dynamic>? _summaryCounts;
   OperationalInsights? _operationalInsights;
   bool _isLoadingSummary = false;
   StreamSubscription<MobileRecordChangeEvent>? _metricsSub;
@@ -71,12 +72,12 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
 
   Future<void> _loadSummary() async {
     setState(() => _isLoadingSummary = true);
-    final summaryFuture = MobileRecordService.fetchDashboardSummary();
+    final summaryFuture = MobileRecordService.fetchDashboardSummary(siteType: _selectedSiteType);
     final insightsFuture = AppIntelligenceService.computeInsights();
     final results = await Future.wait([summaryFuture, insightsFuture]);
     if (mounted) {
       setState(() {
-        _summaryCounts = results[0] as Map<String, int>?;
+        _summaryCounts = results[0] as Map<String, dynamic>?;
         _operationalInsights = results[1] as OperationalInsights?;
         _isLoadingSummary = false;
       });
@@ -313,30 +314,144 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                     );
                   },
                 ),
-                Text(
-                  '${_greeting()}, $name 👋',
-                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: -0.4),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Here\'s your operational snapshot',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
-                ),
-                const SizedBox(height: 20),
-
-                // Metric chips row
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    'YOUR PIPELINE',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.3,
-                      color: Colors.white.withValues(alpha: 0.65),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${_greeting()}, $name 👋',
+                            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: -0.4),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$_selectedSiteType Dashboard · Operations',
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
                     ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                      ),
+                      child: Text(
+                        _selectedSiteType.toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // ── Segmented Toggle: [ Non-Subsidy ] [ Subsidy ] ─────────
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            if (_selectedSiteType != 'Non-Subsidy') {
+                              setState(() => _selectedSiteType = 'Non-Subsidy');
+                              _loadSummary();
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(9),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 7),
+                            decoration: BoxDecoration(
+                              color: _selectedSiteType == 'Non-Subsidy' ? Colors.white : Colors.transparent,
+                              borderRadius: BorderRadius.circular(9),
+                              boxShadow: _selectedSiteType == 'Non-Subsidy'
+                                  ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.solar_power_rounded,
+                                  size: 15,
+                                  color: _selectedSiteType == 'Non-Subsidy' ? cs.primary : Colors.white,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Non-Subsidy',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: _selectedSiteType == 'Non-Subsidy' ? cs.primary : Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            if (_selectedSiteType != 'Subsidy') {
+                              setState(() => _selectedSiteType = 'Subsidy');
+                              _loadSummary();
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(9),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 7),
+                            decoration: BoxDecoration(
+                              color: _selectedSiteType == 'Subsidy' ? Colors.white : Colors.transparent,
+                              borderRadius: BorderRadius.circular(9),
+                              boxShadow: _selectedSiteType == 'Subsidy'
+                                  ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.account_balance_rounded,
+                                  size: 15,
+                                  color: _selectedSiteType == 'Subsidy' ? cs.primary : Colors.white,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Subsidy',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: _selectedSiteType == 'Subsidy' ? cs.primary : Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+
+                const SizedBox(height: 14),
+
+                // Metric chips row
                 if (_isLoadingSummary)
                   const SizedBox(
                     height: 4,
@@ -349,29 +464,20 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                   Row(
                     children: [
                       _buildHeroMetric(
-                        'Total Sites',
+                        'Total Customers',
                         '${_summaryCounts!['total'] ?? 0}',
                         onTap: () => Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const ConsumerRecordsScreen(initialSiteType: 'All')),
+                          MaterialPageRoute(builder: (_) => ConsumerRecordsScreen(initialSiteType: _selectedSiteType)),
                         ),
                       ),
                       const SizedBox(width: 8),
                       _buildHeroMetric(
-                        'Subsidy',
-                        '${_summaryCounts!['subsidy_count'] ?? 0}',
+                        'Completed Sites',
+                        '${_summaryCounts!['completed_sites'] ?? 0}',
                         onTap: () => Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const ConsumerRecordsScreen(initialSiteType: 'Subsidy')),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _buildHeroMetric(
-                        'Non-Subsidy',
-                        '${_summaryCounts!['non_subsidy_count'] ?? 0}',
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const ConsumerRecordsScreen(initialSiteType: 'Non-Subsidy')),
+                          MaterialPageRoute(builder: (_) => ConsumerRecordsScreen(initialSiteType: _selectedSiteType, initialStatusFilter: 'Completed')),
                         ),
                       ),
                     ],
@@ -382,8 +488,221 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
 
           const SizedBox(height: 20),
 
-          // ── Attention needed (only when items exist) ──────────────────
-          if (_operationalInsights != null) _buildAttentionSection(theme),
+          // ── Tasks Compact Card ───────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              '${_selectedSiteType.toUpperCase()} TASKS',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.6)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MyTasksScreen(initialSiteType: _selectedSiteType, initialTabIndex: 0),
+                          ),
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1).withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.assignment_ind_rounded, color: Color(0xFF6366F1), size: 22),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${_summaryCounts?['pending_tasks'] ?? 0}',
+                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF6366F1)),
+                                    ),
+                                    const Text(
+                                      'Pending Tasks',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MyTasksScreen(initialSiteType: _selectedSiteType, initialTabIndex: 1),
+                          ),
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669).withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF059669), size: 22),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${_summaryCounts?['completed_tasks'] ?? 0}',
+                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
+                                    ),
+                                    const Text(
+                                      'Completed Tasks',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          // ── Payments Compact Card ────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              '${_selectedSiteType.toUpperCase()} PAYMENTS',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.6)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildPaymentStat(
+                            'Total Payment',
+                            _formatCurrency(_summaryCounts?['total_payment'] ?? 0),
+                            Icons.account_balance_wallet_outlined,
+                            cs.primary,
+                          ),
+                        ),
+                        Container(width: 1, height: 36, color: cs.outlineVariant.withValues(alpha: 0.5)),
+                        Expanded(
+                          child: _buildPaymentStat(
+                            'Paid',
+                            _formatCurrency(_summaryCounts?['paid_payment'] ?? 0),
+                            Icons.check_circle_outline,
+                            const Color(0xFF059669),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 18),
+                    InkWell(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ConsumerRecordsScreen(
+                            initialSiteType: _selectedSiteType,
+                            initialStatusFilter: 'Pending',
+                          ),
+                        ),
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD97706).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.pending_actions_rounded, color: Color(0xFFD97706), size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Pending: ${_formatCurrency(_summaryCounts?['pending_payment'] ?? 0)}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFFD97706)),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                Text(
+                                  '${_summaryCounts?['pending_payment_count'] ?? 0} Dues',
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFD97706)),
+                                ),
+                                const Icon(Icons.chevron_right, size: 16, color: Color(0xFFD97706)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 20),
 
           // ── Quick modules ─────────────────────────────────────────────
           Padding(
@@ -422,8 +741,11 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                   _buildModuleTile(
                     icon: Icons.assignment_ind_rounded,
                     iconColor: const Color(0xFF6366F1),
-                    title: 'My Tasks',
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MyTasksScreen())),
+                    title: 'My Tasks ($_selectedSiteType)',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => MyTasksScreen(initialSiteType: _selectedSiteType)),
+                    ),
                   ),
                   Divider(height: 1, indent: 58, endIndent: 16, color: cs.outlineVariant.withValues(alpha: 0.5)),
                   _buildModuleTile(
@@ -438,48 +760,90 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           ),
 
           // ── Today's work grid ─────────────────────────────────────────
-          if (_canAccessModule('customer') ||
-              _canAccessModule('loan') ||
-              _canAccessModule('installation') ||
-              _canAccessModule('rts') ||
-              _canAccessModule('subsidy')) ...[
-            const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                'TODAY\'S WORK',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                  color: cs.onSurfaceVariant,
-                ),
+          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              '${_selectedSiteType.toUpperCase()} STAGES',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+                color: cs.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (_canAccessModule('customer'))
-                    _buildWorkTile(Icons.draw_rounded, 'Agreement', const Color(0xFF2563EB), () => _openStage('Agreement Pending')),
-                  if (_canAccessModule('loan'))
-                    _buildWorkTile(Icons.account_balance_rounded, 'Loan', const Color(0xFFD97706), () => _openStage('Loan Pending')),
-                  if (_canAccessModule('installation'))
-                    _buildWorkTile(Icons.construction_rounded, 'Installation', const Color(0xFF059669), () => _openStage('Installation Pending')),
-                  if (_canAccessModule('rts'))
-                    _buildWorkTile(Icons.electric_meter_rounded, 'RTS', const Color(0xFF7C3AED), () => _openStage('RTS Pending')),
-                  if (_canAccessModule('subsidy'))
-                    _buildWorkTile(Icons.currency_rupee_rounded, 'Subsidy', const Color(0xFF0F766E), () => _openStage('Subsidy Processing')),
-                ],
-              ),
+          ),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _selectedSiteType == 'Subsidy'
+                  ? [
+                      _buildWorkTile(Icons.fact_check_rounded, 'Feasibility', const Color(0xFF2563EB), () => _openStage('Pending Feasibility')),
+                      _buildWorkTile(Icons.draw_rounded, 'Agreement', const Color(0xFF0284C7), () => _openStage('Agreement Pending')),
+                      _buildWorkTile(Icons.construction_rounded, 'Installation', const Color(0xFF0F766E), () => _openStage('Installation Pending')),
+                      _buildWorkTile(Icons.electric_meter_rounded, 'RTS', const Color(0xFF7C3AED), () => _openStage('RTS Pending')),
+                      _buildWorkTile(Icons.currency_rupee_rounded, 'Subsidy', const Color(0xFF059669), () => _openStage('Subsidy Pending')),
+                    ]
+                  : [
+                      _buildWorkTile(Icons.draw_rounded, 'Agreement', const Color(0xFF2563EB), () => _openStage('Agreement Pending')),
+                      _buildWorkTile(Icons.construction_rounded, 'Installation', const Color(0xFF059669), () => _openStage('Installation Pending')),
+                      _buildWorkTile(Icons.electric_meter_rounded, 'RTS', const Color(0xFF7C3AED), () => _openStage('RTS Pending')),
+                      _buildWorkTile(Icons.task_alt_rounded, 'Completed', const Color(0xFF059669), () => _openStage('Completed')),
+                    ],
             ),
-          ],
+          ),
           const SizedBox(height: 24),
         ],
       ),
+    );
+  }
+
+  String _formatCurrency(num value) {
+    if (value >= 10000000) {
+      return '₹${(value / 10000000).toStringAsFixed(2)} Cr';
+    } else if (value >= 100000) {
+      return '₹${(value / 100000).toStringAsFixed(2)} L';
+    } else if (value >= 1000) {
+      return '₹${(value / 1000).toStringAsFixed(1)} k';
+    }
+    return '₹${value.toStringAsFixed(0)}';
+  }
+
+  Widget _buildPaymentStat(String label, String value, IconData icon, Color color) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 18, color: color),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: color),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                label,
+                style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

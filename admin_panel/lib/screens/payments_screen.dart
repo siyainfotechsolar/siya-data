@@ -9,7 +9,8 @@ import '../services/supabase_service.dart';
 import '../utils/responsive.dart';
 
 class PaymentsScreen extends StatefulWidget {
-  const PaymentsScreen({super.key});
+  final String? initialStatusFilter;
+  const PaymentsScreen({super.key, this.initialStatusFilter});
 
   @override
   State<PaymentsScreen> createState() => _PaymentsScreenState();
@@ -38,6 +39,9 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
+    if (widget.initialStatusFilter != null && widget.initialStatusFilter!.isNotEmpty) {
+      _selectedStatusFilter = widget.initialStatusFilter!;
+    }
     _tabController = TabController(length: 2, vsync: this);
     _loadAll();
     _initRealtime();

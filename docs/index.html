@@ -290,13 +290,13 @@
   <!-- Download & Details Card -->
   <div class="release-card">
     <!-- Primary APK Download -->
-    <a href="./siya-solar-v1.0.28.apk" download="siya-solar-v1.0.28.apk" class="btn-download-primary" id="primaryDownloadBtn">
+    <a href="https://github.com/siyainfotechsolar/siya-data/releases/download/v1.0.29/siya-solar-v1.0.29.apk" download="siya-solar-v1.0.29.apk" class="btn-download-primary" id="primaryDownloadBtn">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      <span id="btnText">DOWNLOAD APK (v1.0.28)</span>
+      <span id="btnText">DOWNLOAD APK (v1.0.29)</span>
     </a>
 
     <!-- Secondary GitHub Release Link -->
@@ -315,7 +315,7 @@
     <div class="meta-grid">
       <div class="meta-box">
         <div class="meta-label">Version</div>
-        <div class="meta-value" id="metaVersion">1.0.28 (Build 29)</div>
+        <div class="meta-value" id="metaVersion">1.0.29 (Build 30)</div>
       </div>
       <div class="meta-box">
         <div class="meta-label">Release Date</div>
@@ -334,15 +334,14 @@
     <!-- What's New -->
     <div class="changelog-section">
       <div class="changelog-title">
-        <span>✨</span> Highlights in v1.0.28
+        <span>✨</span> Highlights in v1.0.29
       </div>
       <ul class="changelog-list" id="changelogList">
-        <li><strong>☀️ Non-Subsidy Site Support</strong> — Seamless integration into existing Customer and Lead workflows without duplicating modules or databases.</li>
-        <li><strong>🔘 Site Type Selector</strong> — <code>[ Subsidy ]</code> and <code>[ Non-Subsidy ]</code> toggles during Lead &amp; Customer creation with system capacity and type fields.</li>
-        <li><strong>📊 Dashboard Site Metrics</strong> — Live counters for Total Customers, Subsidy Sites, and Non-Subsidy Sites with 1-tap filtered navigation.</li>
-        <li><strong>⚡ Smart Workflow Progression</strong> — Subsidy stage (Stage 6) automatically hidden and marked skipped for Non-Subsidy sites; completes upon Installation.</li>
-        <li><strong>💳 Simple Payment Accounting</strong> — Pure Total, Paid, Pending, and Additional payment tracking without subsidy deductions.</li>
-        <li><strong>🔍 Enhanced Search &amp; Village Filter</strong> — Customer search by Name, Mobile, Consumer No., and Village / Address.</li>
+        <li><strong>🔀 Segmented Dashboard Toggle</strong> — Seamless 1-tap toggle switch between <code>[ Non-Subsidy ]</code> and <code>[ Subsidy ]</code> across Mobile App &amp; Admin Panel.</li>
+        <li><strong>⚡ 100% Data Isolation</strong> — Zero cross-contamination; Non-Subsidy shows only Non-Subsidy metrics, tasks, and payments, while Subsidy view shows the full subsidy lifecycle.</li>
+        <li><strong>💳 Dynamic Payment Summaries</strong> — Live Total, Paid, and Pending dues dynamically segregated by selected site type.</li>
+        <li><strong>📋 Linked Office Tasks by Site Type</strong> — Only tasks connected to the selected site type's customers are shown.</li>
+        <li><strong>☀️ Complete Non-Subsidy Site Support</strong> — Unified database with dedicated 4-stage workflow (Feasibility, Agreement, Installation, RTS) with Subsidy stage cleanly omitted.</li>
       </ul>
     </div>
 
@@ -360,12 +359,12 @@
 
   <script>
     const REPO = 'siyainfotechsolar/siya-data';
-    const DIRECT_APK = './siya-solar-v1.0.28.apk';
+    const DIRECT_APK = 'https://github.com/siyainfotechsolar/siya-data/releases/download/v1.0.29/siya-solar-v1.0.29.apk';
 
     const primaryBtn = document.getElementById('primaryDownloadBtn');
     if (primaryBtn) {
       primaryBtn.href = DIRECT_APK;
-      primaryBtn.setAttribute('download', 'siya-solar-v1.0.28.apk');
+      primaryBtn.setAttribute('download', 'siya-solar-v1.0.29.apk');
     }
   </script>
 </body>

@@ -1002,58 +1002,97 @@ class AppDatabase {
   }
 
   /// Dashboard summary aggregated directly from offline database
-  static Future<Map<String, int>> getDashboardSummary() async {
+  static Future<Map<String, dynamic>> getDashboardSummary({String siteType = 'Non-Subsidy'}) async {
     final db = await database;
+    final isSubsidy = siteType.toLowerCase() == 'subsidy';
+    final siteTypeWhere = isSubsidy
+        ? "(site_type = 'Subsidy' OR site_type IS NULL OR site_type = '')"
+        : "site_type = 'Non-Subsidy'";
 
-    final totalRes = await db.rawQuery('SELECT COUNT(*) as c FROM cached_consumer_records');
-    final total = Sqflite.firstIntValue(totalRes) ?? 0;
-
-    final activeRes = await db.rawQuery(
-      "SELECT COUNT(*) as c FROM cached_consumer_records WHERE customer_work_state = 'ACTIVE'",
+    final customerRes = await db.rawQuery(
+      "SELECT COUNT(*) as c FROM cached_consumer_records WHERE $siteTypeWhere",
     );
+    final customerCount = Sqflite.firstIntValue(customerRes) ?? 0;
+
+    // Completed Sites
+    final completeWhere = isSubsidy
+        ? "$siteTypeWhere AND (customer_work_state = 'COMPLETED' OR status = 'Completed' OR json_extract(raw_json, '\$.subsidy_status') = 'Received')"
+        : "$siteTypeWhere AND (customer_work_state = 'COMPLETED' OR status = 'Completed' OR json_extract(raw_json, '\$.installation_status') = 'Installation Completed')";
+
+    final completeRes = await db.rawQuery('''
+      SELECT COUNT(*) as c FROM cached_consumer_records WHERE $completeWhere
+    ''');
+    final completedSites = Sqflite.firstIntValue(completeRes) ?? 0;
+
+    final activeRes = await db.rawQuery('''
+      SELECT COUNT(*) as c FROM cached_consumer_records 
+      WHERE $siteTypeWhere AND customer_work_state != 'COMPLETED'
+    ''');
     final active = Sqflite.firstIntValue(activeRes) ?? 0;
 
-    final completeRes = await db.rawQuery(
-      "SELECT COUNT(*) as c FROM cached_consumer_records WHERE customer_work_state = 'COMPLETED'",
-    );
-    final completed = Sqflite.firstIntValue(completeRes) ?? 0;
+    // Payment Aggregates
+    final paymentsRes = await db.rawQuery('''
+      SELECT 
+        SUM(COALESCE(json_extract(raw_json, '\$.total_amount'), 0)) as total_payment,
+        SUM(COALESCE(json_extract(raw_json, '\$.paid_amount'), 0)) as paid_payment,
+        SUM(COALESCE(json_extract(raw_json, '\$.pending_amount'), 0)) as pending_payment,
+        COUNT(CASE WHEN COALESCE(json_extract(raw_json, '\$.pending_amount'), 0) > 0 THEN 1 END) as pending_customers
+      FROM cached_consumer_records
+      WHERE $siteTypeWhere
+    ''');
+    final totalPayment = (paymentsRes.first['total_payment'] as num?)?.toDouble() ?? 0.0;
+    final paidPayment = (paymentsRes.first['paid_payment'] as num?)?.toDouble() ?? 0.0;
+    final pendingPayment = (paymentsRes.first['pending_payment'] as num?)?.toDouble() ?? 0.0;
+    final pendingPaymentCount = (paymentsRes.first['pending_customers'] as num?)?.toInt() ?? 0;
 
-    final holdRes = await db.rawQuery(
-      "SELECT COUNT(*) as c FROM cached_consumer_records WHERE customer_work_state = 'ON_HOLD'",
-    );
-    final onHold = Sqflite.firstIntValue(holdRes) ?? 0;
-
-    final leadsRes = await db.rawQuery(
-      "SELECT COUNT(*) as c FROM cached_leads WHERE lead_status NOT IN ('Converted', 'Lost', 'No Action Required')",
-    );
-    final activeLeads = Sqflite.firstIntValue(leadsRes) ?? 0;
-
-    final tasksRes = await db.rawQuery(
-      "SELECT COUNT(*) as c FROM cached_customer_tasks WHERE status NOT IN ('Complete')",
-    );
-    final pendingTasks = Sqflite.firstIntValue(tasksRes) ?? 0;
-
-    final subsidyRes = await db.rawQuery(
-      "SELECT COUNT(*) as c FROM cached_consumer_records WHERE site_type != 'Non-Subsidy' OR site_type IS NULL",
-    );
-    final subsidyCount = Sqflite.firstIntValue(subsidyRes) ?? 0;
-
-    final nonSubsidyRes = await db.rawQuery(
-      "SELECT COUNT(*) as c FROM cached_consumer_records WHERE site_type = 'Non-Subsidy'",
-    );
-    final nonSubsidyCount = Sqflite.firstIntValue(nonSubsidyRes) ?? 0;
+    // Tasks linked to customers of this site type
+    final tasksRes = await db.rawQuery('''
+      SELECT 
+        COUNT(CASE WHEN status NOT IN ('Completed', 'Complete') THEN 1 END) as pending_tasks,
+        COUNT(CASE WHEN status IN ('Completed', 'Complete') THEN 1 END) as completed_tasks
+      FROM cached_office_tasks
+      WHERE consumer_no IN (SELECT consumer_no FROM cached_consumer_records WHERE $siteTypeWhere)
+         OR customer_id IN (SELECT id FROM cached_consumer_records WHERE $siteTypeWhere)
+    ''');
+    final pendingTasks = (tasksRes.first['pending_tasks'] as num?)?.toInt() ?? 0;
+    final completedTasks = (tasksRes.first['completed_tasks'] as num?)?.toInt() ?? 0;
 
     return {
-      'total': total,
+      'total': customerCount,
+      'site_type': siteType,
       'active': active,
-      'completed': completed,
-      'on_hold': onHold,
-      'active_leads': activeLeads,
+      'completed_sites': completedSites,
+      'total_payment': totalPayment,
+      'paid_payment': paidPayment,
+      'pending_payment': pendingPayment,
+      'pending_payment_count': pendingPaymentCount,
       'pending_tasks': pendingTasks,
-      'subsidy_count': subsidyCount,
-      'non_subsidy_count': nonSubsidyCount,
+      'completed_tasks': completedTasks,
     };
   }
+
+  /// Get set of consumer numbers and IDs for a given site type
+  static Future<Set<String>> getConsumerNosForSiteType([String siteType = 'Non-Subsidy']) async {
+    final db = await database;
+    final isSubsidy = siteType.toLowerCase() == 'subsidy';
+    final siteTypeWhere = isSubsidy
+        ? "(site_type = 'Subsidy' OR site_type IS NULL OR site_type = '')"
+        : "site_type = 'Non-Subsidy'";
+    final res = await db.rawQuery(
+      "SELECT consumer_no, id FROM cached_consumer_records WHERE $siteTypeWhere",
+    );
+    final set = <String>{};
+    for (final r in res) {
+      final cNo = r['consumer_no']?.toString();
+      final id = r['id']?.toString();
+      if (cNo != null && cNo.isNotEmpty) set.add(cNo);
+      if (id != null && id.isNotEmpty) set.add(id);
+    }
+    return set;
+  }
+
+  /// Backward-compatible alias
+  static Future<Set<String>> getNonSubsidyConsumerNos() => getConsumerNosForSiteType('Non-Subsidy');
 
   // ===========================================================================
   // PAYMENTS (LOCAL CACHE & INTELLIGENCE)

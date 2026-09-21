@@ -11,7 +11,8 @@ import '../widgets/add_customer_dialog.dart';
 
 class ConsumerRecordsScreen extends StatefulWidget {
   final String? initialSiteType;
-  const ConsumerRecordsScreen({super.key, this.initialSiteType});
+  final String? initialStatusFilter;
+  const ConsumerRecordsScreen({super.key, this.initialSiteType, this.initialStatusFilter});
 
   @override
   State<ConsumerRecordsScreen> createState() => _ConsumerRecordsScreenState();
@@ -26,7 +27,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
   int _currentPage = 1;
   final int _pageSize = 20;
   int _totalCount = 0;
-  String _selectedStatus = 'All';
+  late String _selectedStatus;
   late String _selectedSiteType;
 
   final List<String> _statusOptions = [
@@ -44,6 +45,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
   void initState() {
     super.initState();
     _selectedSiteType = widget.initialSiteType ?? 'All';
+    _selectedStatus = widget.initialStatusFilter ?? 'All';
     _loadRecords();
     _scrollController.addListener(_onScroll);
     _initRealtime();

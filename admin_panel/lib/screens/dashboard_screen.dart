@@ -33,7 +33,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   StreamSubscription<ConsumerRecordChangeEvent>? _metricsRealtimeSub;
   String? _selectedStageFilter;
   String? _selectedQueueFilter;
-  String _selectedSiteType = 'All';
+  String? _selectedPaymentFilter;
+  String _selectedSiteType = 'Non-Subsidy';
 
   final List<_NavItem> _navItems = [
     _NavItem('Dashboard', Icons.home_outlined, Icons.home, true), // 0
@@ -74,7 +75,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _loadMetrics() async {
     setState(() => _isLoadingMetrics = true);
-    final m = await RecordService.fetchDashboardMetrics();
+    final m = await RecordService.fetchDashboardMetrics(siteType: _selectedSiteType);
     if (mounted) {
       setState(() {
         _metrics = m;
@@ -411,7 +412,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         initialSiteType: _selectedSiteType,
       );
       case 2: return ActionCenterScreen(key: ValueKey(_selectedStageFilter), initialStageFilter: _selectedStageFilter);
-      case 3: return const PaymentsScreen();
+      case 3: return PaymentsScreen(
+        key: ValueKey(_selectedPaymentFilter),
+        initialStatusFilter: _selectedPaymentFilter,
+      );
       case 4: return const OfficeTasksScreen();
       case 5: return const WhatsAppTasksScreen();
       case 6: return const LeadsScreen();
@@ -458,9 +462,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'System Overview',
-                            style: TextStyle(
+                          Text(
+                            '$_selectedSiteType Dashboard',
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
@@ -471,8 +475,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Live metrics · updated real-time',
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12),
+                            'Live $_selectedSiteType business data & operations',
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -480,41 +484,223 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      '${DateTime.now().day} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][DateTime.now().month - 1]}',
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 13, fontWeight: FontWeight.w600),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                      ),
+                      child: Text(
+                        '${_selectedSiteType.toUpperCase()} ONLY',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 14),
+
+                // ── Segmented Toggle: [ Non-Subsidy ] [ Subsidy ] ─────────
+                Container(
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            if (_selectedSiteType != 'Non-Subsidy') {
+                              setState(() => _selectedSiteType = 'Non-Subsidy');
+                              _loadMetrics();
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(9),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 7),
+                            decoration: BoxDecoration(
+                              color: _selectedSiteType == 'Non-Subsidy' ? Colors.white : Colors.transparent,
+                              borderRadius: BorderRadius.circular(9),
+                              boxShadow: _selectedSiteType == 'Non-Subsidy'
+                                  ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.solar_power_rounded,
+                                  size: 15,
+                                  color: _selectedSiteType == 'Non-Subsidy' ? cs.primary : Colors.white,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Non-Subsidy',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: _selectedSiteType == 'Non-Subsidy' ? cs.primary : Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            if (_selectedSiteType != 'Subsidy') {
+                              setState(() => _selectedSiteType = 'Subsidy');
+                              _loadMetrics();
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(9),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 7),
+                            decoration: BoxDecoration(
+                              color: _selectedSiteType == 'Subsidy' ? Colors.white : Colors.transparent,
+                              borderRadius: BorderRadius.circular(9),
+                              boxShadow: _selectedSiteType == 'Subsidy'
+                                  ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.account_balance_rounded,
+                                  size: 15,
+                                  color: _selectedSiteType == 'Subsidy' ? cs.primary : Colors.white,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Subsidy',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: _selectedSiteType == 'Subsidy' ? cs.primary : Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 16),
                 // Stat chips
-                Row(
-                  children: [
-                    Expanded(child: _buildHeroStat('Total Customers', '${_metrics?.totalRecords ?? 0}', onTap: () {
-                      setState(() {
-                        _selectedSiteType = 'All';
-                        _selectedQueueFilter = 'All';
-                        _selectedIndex = 1;
-                      });
-                    })),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildHeroStat('Subsidy Sites', '${_metrics?.subsidySitesCount ?? 0}', onTap: () {
-                      setState(() {
-                        _selectedSiteType = 'Subsidy';
-                        _selectedQueueFilter = 'All';
-                        _selectedIndex = 1;
-                      });
-                    })),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildHeroStat('Non-Subsidy Sites', '${_metrics?.nonSubsidySitesCount ?? 0}', onTap: () {
-                      setState(() {
-                        _selectedSiteType = 'Non-Subsidy';
-                        _selectedQueueFilter = 'All';
-                        _selectedIndex = 1;
-                      });
-                    })),
-                  ],
-                ),
+                if (isMobile)
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildHeroStat(
+                              'Total Customers',
+                              '${_metrics?.totalRecords ?? 0}',
+                              onTap: () {
+                                setState(() {
+                                  _selectedQueueFilter = 'All';
+                                  _selectedIndex = 1;
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildHeroStat(
+                              'Completed Sites',
+                              '${_metrics?.completedCount ?? 0}',
+                              onTap: () {
+                                setState(() {
+                                  _selectedQueueFilter = 'Completed';
+                                  _selectedIndex = 1;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildHeroStat(
+                              'Pending Tasks',
+                              '${_metrics?.pendingTasksCount ?? 0}',
+                              onTap: () => setState(() => _selectedIndex = 4),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildHeroStat(
+                              'Completed Tasks',
+                              '${_metrics?.completedTasksCount ?? 0}',
+                              onTap: () => setState(() => _selectedIndex = 4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildHeroStat(
+                          'Total $_selectedSiteType Customers',
+                          '${_metrics?.totalRecords ?? 0}',
+                          onTap: () {
+                            setState(() {
+                              _selectedQueueFilter = 'All';
+                              _selectedIndex = 1;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildHeroStat(
+                          'Completed Sites',
+                          '${_metrics?.completedCount ?? 0}',
+                          onTap: () {
+                            setState(() {
+                              _selectedQueueFilter = 'Completed';
+                              _selectedIndex = 1;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildHeroStat(
+                          'Pending Tasks',
+                          '${_metrics?.pendingTasksCount ?? 0}',
+                          onTap: () => setState(() => _selectedIndex = 4),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildHeroStat(
+                          'Completed Tasks',
+                          '${_metrics?.completedTasksCount ?? 0}',
+                          onTap: () => setState(() => _selectedIndex = 4),
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -525,18 +711,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Interactive Quick Action Cards (Mobile Specific Focus) ───────
-                _sectionHeader('ACTION SUMMARY', 'Instant overview of pending work'),
+                // ── Interactive Quick Action Cards ───────────────────────────────
+                _sectionHeader('ACTION SUMMARY', 'Instant overview of pending tasks and payments'),
                 const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
                       child: _buildQuickActionCard(
                         title: 'Pending Tasks',
-                        count: _metrics?.agreementPendingCount ?? 0,
+                        count: _metrics?.pendingTasksCount ?? 0,
                         icon: Icons.task_alt_rounded,
                         color: const Color(0xFF2563EB),
-                        onTap: () => setState(() => _selectedIndex = 2), // Action Center
+                        onTap: () => setState(() => _selectedIndex = 4), // Office Tasks
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -546,25 +732,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         count: _metrics?.noActionCount ?? 0,
                         icon: Icons.schedule_rounded,
                         color: const Color(0xFFD97706),
-                        onTap: () => setState(() => _selectedIndex = 2), // Action Center
+                        onTap: () => _openActionCenter('Hold / No Action'), // Action Center
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: _buildQuickActionCard(
                         title: 'Pending Pay',
-                        count: _metrics?.subsidyPendingCount ?? 0,
+                        count: _metrics?.pendingPaymentsCount ?? 0,
                         icon: Icons.account_balance_wallet_outlined,
-                        color: const Color(0xFF059669),
-                        onTap: () => setState(() => _selectedIndex = 3), // Payments
+                        color: const Color(0xFFDC2626),
+                        onTap: () => setState(() {
+                          _selectedPaymentFilter = 'Pending';
+                          _selectedIndex = 3; // Payments
+                        }),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 28),
 
+                // ── Payments Card ───────────────────────────────────────────
+                _sectionHeader('${_selectedSiteType.toUpperCase()} PAYMENTS', 'Contract payments, received revenue and pending dues'),
+                const SizedBox(height: 12),
+                _buildPaymentSection(theme),
+                const SizedBox(height: 28),
+
                 // Action queues grid
-                _sectionHeader('ACTION QUEUES', 'Customers requiring immediate follow-up'),
+                _sectionHeader('${_selectedSiteType.toUpperCase()} WORKFLOW QUEUES', 'Customers requiring stage-wise operations'),
                 const SizedBox(height: 12),
                 if (isMobile)
                   GridView.count(
@@ -589,9 +784,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    _buildStatusCard('Hold / No Action', _metrics?.noActionCount, Icons.pause_circle_outline_rounded, const Color(0xFFD97706)),
+                    _buildStatusCard(
+                      'Hold / No Action',
+                      _metrics?.noActionCount,
+                      Icons.pause_circle_outline_rounded,
+                      const Color(0xFFD97706),
+                      onTap: () => _openActionCenter('Hold / No Action'),
+                    ),
                     const SizedBox(width: 12),
-                    _buildStatusCard('Completed', _metrics?.completedCount, Icons.verified_rounded, const Color(0xFF059669)),
+                    _buildStatusCard(
+                      'Completed Sites',
+                      _metrics?.completedCount,
+                      Icons.verified_rounded,
+                      const Color(0xFF059669),
+                      onTap: () {
+                        setState(() {
+                          _selectedQueueFilter = 'Completed';
+                          _selectedIndex = 1;
+                        });
+                      },
+                    ),
                   ],
                 ),
                 const SizedBox(height: 28),
@@ -600,9 +812,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _sectionHeader('RECENT RECORDS', 'Last updated consumer records'),
+                    _sectionHeader('RECENT ${_selectedSiteType.toUpperCase()} RECORDS', 'Last updated ${_selectedSiteType.toLowerCase()} records'),
                     TextButton.icon(
-                      onPressed: () => setState(() => _selectedIndex = 1), // Records
+                      onPressed: () {
+                        setState(() {
+                          _selectedQueueFilter = 'All';
+                          _selectedIndex = 1; // Records
+                        });
+                      },
                       icon: const Icon(Icons.arrow_forward, size: 14),
                       label: const Text('View All'),
                       style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
@@ -733,13 +950,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   List<Widget> _actionQueueCards() {
-    return [
+    final list = [
       _buildQueueCard('Agreement Pending', _metrics?.agreementPendingCount,   Icons.history_edu_rounded,      const Color(0xFF2563EB)),
       _buildQueueCard('Loan Pending',      _metrics?.loanPendingCount,        Icons.account_balance_rounded,  const Color(0xFFD97706)),
       _buildQueueCard('Installation',      _metrics?.installationPendingCount, Icons.build_circle_outlined,   const Color(0xFF0F766E)),
       _buildQueueCard('RTS Pending',       _metrics?.rtsPendingCount,         Icons.electric_meter_rounded,   const Color(0xFF7C3AED)),
-      _buildQueueCard('Subsidy',           _metrics?.subsidyPendingCount,     Icons.currency_rupee_rounded,   const Color(0xFF059669)),
     ];
+    if (_selectedSiteType == 'Subsidy') {
+      list.add(
+        _buildQueueCard('Subsidy Pending', _metrics?.subsidyPendingCount,     Icons.price_check_rounded,      const Color(0xFF059669)),
+      );
+    }
+    return list;
   }
 
   Widget _buildQueueCard(String title, int? count, IconData icon, Color color) {
@@ -792,11 +1014,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildStatusCard(String title, int? count, IconData icon, Color color) {
+  Widget _buildStatusCard(String title, int? count, IconData icon, Color color, {VoidCallback? onTap}) {
     final theme = Theme.of(context);
     return Expanded(
       child: InkWell(
-        onTap: () => _openActionCenter(title),
+        onTap: onTap ?? () => _openActionCenter(title),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -828,6 +1050,231 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  String _formatCurrency(num amount) {
+    if (amount >= 10000000) {
+      return '₹${(amount / 10000000).toStringAsFixed(2)} Cr';
+    } else if (amount >= 100000) {
+      return '₹${(amount / 100000).toStringAsFixed(2)} L';
+    } else if (amount >= 1000) {
+      return '₹${(amount / 1000).toStringAsFixed(1)} k';
+    }
+    return '₹${amount.toStringAsFixed(0)}';
+  }
+
+  Widget _buildPaymentSection(ThemeData theme) {
+    final cs = theme.colorScheme;
+    final isMobile = Responsive.isMobile(context);
+    final total = _metrics?.totalPaymentAmount ?? 0.0;
+    final paid = _metrics?.paidPaymentAmount ?? 0.0;
+    final pending = _metrics?.pendingPaymentAmount ?? 0.0;
+    final pendingCount = _metrics?.pendingPaymentsCount ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: cs.surface,
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF059669).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.account_balance_wallet_rounded, size: 20, color: Color(0xFF059669)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$_selectedSiteType Payment Summary',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    Text(
+                      'Total contract billing and received revenue',
+                      style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _selectedPaymentFilter = 'Pending';
+                    _selectedIndex = 3; // Open Payments
+                  });
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$pendingCount Pending',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.arrow_forward_ios_rounded, size: 10, color: Color(0xFFDC2626)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (isMobile)
+            Column(
+              children: [
+                _buildPaymentMetricCard('Total Payment', _formatCurrency(total), Icons.receipt_long_rounded, const Color(0xFF2563EB), onTap: () {
+                  setState(() {
+                    _selectedPaymentFilter = 'All';
+                    _selectedIndex = 3;
+                  });
+                }),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildPaymentMetricCard('Paid', _formatCurrency(paid), Icons.check_circle_rounded, const Color(0xFF059669), onTap: () {
+                        setState(() {
+                          _selectedPaymentFilter = 'Paid';
+                          _selectedIndex = 3;
+                        });
+                      }),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildPaymentMetricCard('Pending', _formatCurrency(pending), Icons.pending_actions_rounded, const Color(0xFFDC2626), onTap: () {
+                        setState(() {
+                          _selectedPaymentFilter = 'Pending';
+                          _selectedIndex = 3;
+                        });
+                      }),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: _buildPaymentMetricCard('Total Payment', _formatCurrency(total), Icons.receipt_long_rounded, const Color(0xFF2563EB), onTap: () {
+                    setState(() {
+                      _selectedPaymentFilter = 'All';
+                      _selectedIndex = 3;
+                    });
+                  }),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildPaymentMetricCard('Paid', _formatCurrency(paid), Icons.check_circle_rounded, const Color(0xFF059669), onTap: () {
+                    setState(() {
+                      _selectedPaymentFilter = 'Paid';
+                      _selectedIndex = 3;
+                    });
+                  }),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildPaymentMetricCard('Pending', _formatCurrency(pending), Icons.pending_actions_rounded, const Color(0xFFDC2626), onTap: () {
+                    setState(() {
+                      _selectedPaymentFilter = 'Pending';
+                      _selectedIndex = 3;
+                    });
+                  }),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentMetricCard(String label, String value, IconData icon, Color color, {VoidCallback? onTap}) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.18)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 18, color: color),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _isLoadingMetrics ? '…' : value,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, size: 16, color: color.withValues(alpha: 0.6)),
+          ],
         ),
       ),
     );
