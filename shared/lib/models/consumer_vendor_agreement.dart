@@ -78,11 +78,16 @@ class ConsumerVendorAgreement {
   final String vendorPhone;
   final String vendorEmail;
   final String vendorGstin;
+  final String discomName;
   final List<PaymentMilestone> paymentMilestones;
   final String pdfFileName;
   final String? pdfFilePath;
   final String? fileUrl;
   final DateTime createdAt;
+  final DateTime? updatedAt;
+
+  String get vendorFirmName => vendorName;
+  String get vendorMobile => vendorPhone;
 
   ConsumerVendorAgreement({
     required this.id,
@@ -101,17 +106,24 @@ class ConsumerVendorAgreement {
     required this.totalProjectCost,
     this.cfaSubsidyAmount = 78000.0,
     required this.netCustomerPayable,
-    this.vendorName = 'SIYA INFOTECH & DIGITAL SOLUTIONS',
+    String? vendorName,
+    String? vendorFirmName,
     this.vendorAddress = '21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule - 425403',
-    this.vendorPhone = '7588003220',
+    String? vendorPhone,
+    String? vendorMobile,
     this.vendorEmail = 'siyainfodigital@gmail.com',
     this.vendorGstin = '27CVTPK6358P1ZD',
+    this.discomName = 'MSEDCL',
     List<PaymentMilestone>? paymentMilestones,
-    required this.pdfFileName,
+    String? pdfFileName,
     this.pdfFilePath,
     this.fileUrl,
     DateTime? createdAt,
-  })  : createdAt = createdAt ?? DateTime.now(),
+    this.updatedAt,
+  })  : vendorName = vendorFirmName ?? vendorName ?? 'SIYA INFOTECH & DIGITAL SOLUTIONS',
+        vendorPhone = vendorMobile ?? vendorPhone ?? '7588003220',
+        pdfFileName = pdfFileName ?? 'Annex_2_Agreement_${agreementNo}.pdf',
+        createdAt = createdAt ?? DateTime.now(),
         paymentMilestones = paymentMilestones ?? defaultMilestones(totalProjectCost);
 
   /// Default 3 editable milestone terms based on industry standard PM Surya Ghar guidelines

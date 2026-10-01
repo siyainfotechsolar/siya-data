@@ -991,7 +991,13 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                           _cachedFile = null;
                         });
                         Navigator.of(ctx).pop();
-                        _saveCurrentQuotation();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Quotation amount updated! Ready to generate PDF.'),
+                            backgroundColor: Color(0xFF059669),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
                       },
                       icon: const Icon(Icons.check_circle_outline, size: 18),
                       label: const Text('Save & Update Quotation Amount', style: TextStyle(fontWeight: FontWeight.bold)),
