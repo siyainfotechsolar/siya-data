@@ -61,12 +61,26 @@ void main() {
     });
 
     test('4. Writes sample mobile margin receipt PDF to artifact dir', () async {
-      final artifactDir = Directory(r'C:\Users\Admin\.gemini\antigravity-ide\brain\c38e8e61-ed05-4303-8f0f-7f86ce402cb7');
-      final file = await MarginMoneyReceiptService.generateReceiptPdf(
-        receipt: sampleReceipt,
-        outputDirectory: artifactDir,
-      );
-      expect(file.existsSync(), isTrue);
+      final tempDir = Directory.systemTemp.createTempSync('margin_artifact_');
+      try {
+        final file = await MarginMoneyReceiptService.generateReceiptPdf(
+          receipt: sampleReceipt,
+          outputDirectory: tempDir,
+        );
+        expect(file.existsSync(), isTrue);
+
+        try {
+          final artifactDir = Directory(r'C:\Users\Admin\.gemini\antigravity-ide\brain\c38e8e61-ed05-4303-8f0f-7f86ce402cb7');
+          if (artifactDir.existsSync()) {
+            final dest = File('${artifactDir.path}/${file.uri.pathSegments.last}');
+            file.copySync(dest.path);
+          }
+        } catch (_) {}
+      } finally {
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      }
     });
   });
 }

@@ -49,16 +49,10 @@ void main() {
 
       try {
         final artifactPdf = File('C:/Users/Admin/.gemini/antigravity-ide/brain/2bed3ad8-3c6f-46aa-8dfe-7955750ffd6d/sample_consumer_vendor_agreement.pdf');
-        artifactPdf.writeAsBytesSync(bytes);
-        File('c:/ide/siya data/sample_consumer_vendor_agreement_new.pdf').writeAsBytesSync(bytes);
-        File('c:/ide/siya data/sample_agreement_official_master.pdf').writeAsBytesSync(bytes);
-        try {
-          File('c:/ide/siya data/sample_consumer_vendor_agreement.pdf').writeAsBytesSync(bytes);
-        } catch (_) {}
-      } catch (e) {
-        // ignore: avoid_print
-        print('WRITE ERROR: $e');
-      }
+        if (artifactPdf.parent.existsSync()) {
+          artifactPdf.writeAsBytesSync(bytes);
+        }
+      } catch (_) {}
 
       // PDF Magic Header: %PDF
       final magicHeader = String.fromCharCodes(bytes.take(4));
@@ -101,7 +95,25 @@ void main() {
     });
 
     test('4. Verifies complete content and no truncation on all 3 pages', () async {
-      final bytes = File('c:/ide/siya data/sample_consumer_vendor_agreement.pdf').readAsBytesSync();
+      final agreement = ConsumerVendorAgreement.create(
+        customerId: testCustomer.id,
+        consumerNo: testCustomer.consumerNo,
+        customerName: testCustomer.name,
+        address: testCustomer.address,
+        villageCity: 'Pimprad',
+        district: 'Dhule',
+        mobileNo: testCustomer.mobile ?? '',
+        agreementNo: 'SIYA-AGR-2026-1608',
+        systemCapacity: '3 kW',
+        totalProjectCost: 160000.0,
+        cfaSubsidyAmount: 78000.0,
+        netCustomerPayable: 82000.0,
+      );
+
+      final file = await ConsumerVendorAgreementPdfService.generateAgreementPdf(
+        agreement: agreement,
+      );
+      final bytes = await file.readAsBytes();
       final loadedDoc = PdfDocument(inputBytes: bytes);
       expect(loadedDoc.pages.count, equals(3));
 

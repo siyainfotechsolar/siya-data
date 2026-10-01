@@ -73,9 +73,9 @@ void main() {
 
       try {
         final artifactPdf = File('C:/Users/Admin/.gemini/antigravity-ide/brain/c38e8e61-ed05-4303-8f0f-7f86ce402cb7/sample_quotation.pdf');
-        artifactPdf.parent.createSync(recursive: true);
-        artifactPdf.writeAsBytesSync(bytes);
-        File('c:/ide/siya data/Quotation_NAMDEO_MALI_SIYA-Q-2026-1608.pdf').writeAsBytesSync(bytes);
+        if (artifactPdf.parent.existsSync()) {
+          artifactPdf.writeAsBytesSync(bytes);
+        }
       } catch (_) {}
 
       // PDF Magic Header: %PDF
