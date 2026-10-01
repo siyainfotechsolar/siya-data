@@ -169,7 +169,7 @@ class WorkCompletionCertificateService {
     final double headerTextLeft = contentLeft + 68;
 
     graphics.drawString(
-      'SIYA INFOTECH & SOLAR ENERGY',
+      'SIYA INFOTECH & DIGITAL SOLUTIONS',
       companyTitleFont,
       brush: navyBrush,
       bounds: Rect.fromLTWH(headerTextLeft, y + 2, 260, 18),
@@ -462,7 +462,7 @@ class WorkCompletionCertificateService {
     double signY = pageHeight - 200;
 
     graphics.drawString(
-      'For SIYA INFOTECH & SOLAR ENERGY',
+      'For SIYA INFOTECH & DIGITAL SOLUTIONS',
       signHeaderFont,
       brush: navyBrush,
       format: PdfStringFormat(alignment: PdfTextAlignment.center),

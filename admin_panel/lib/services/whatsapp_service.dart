@@ -86,7 +86,7 @@ class WhatsAppService {
     return [
       WhatsAppTemplate(
         title: 'Greeting & Introduction',
-        message: 'Namaste $name$cNo,\n\nGreetings from Siya Infotech & Solar Energy! How can we assist you with your rooftop solar project today?',
+        message: 'Namaste $name$cNo,\n\nGreetings from Siya Infotech & Digital Solutions! How can we assist you with your rooftop solar project today?',
       ),
       WhatsAppTemplate(
         title: 'Stage Status Update',

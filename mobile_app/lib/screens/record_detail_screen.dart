@@ -16,6 +16,14 @@ import '../widgets/customer_timeline_widget.dart';
 import '../widgets/add_payment_dialog.dart';
 import '../widgets/create_office_task_bottom_sheet.dart';
 import '../widgets/work_completion_certificate_dialog.dart';
+import '../widgets/bank_loan_quotation_dialog.dart';
+import '../models/solar_quotation.dart';
+import '../services/quotation_storage_service.dart';
+import '../services/bank_loan_quotation_service.dart';
+import '../models/consumer_vendor_agreement.dart';
+import '../services/agreement_storage_service.dart';
+import '../services/consumer_vendor_agreement_pdf_service.dart';
+import '../widgets/consumer_vendor_agreement_dialog.dart';
 import '../utils/back_navigation_helper.dart';
 import 'task_details_screen.dart';
 
@@ -40,6 +48,10 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
   bool _isLoadingCustomerTasks = true;
   List<PaymentTransaction> _customerPayments = [];
   bool _isLoadingCustomerPayments = true;
+  List<SolarQuotation> _customerQuotations = [];
+  bool _isLoadingQuotations = true;
+  List<ConsumerVendorAgreement> _customerAgreements = [];
+  bool _isLoadingAgreements = true;
 
   @override
   void initState() {
@@ -47,6 +59,36 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     _record = widget.record;
     _loadCustomerTasks();
     _loadCustomerPayments();
+    _loadCustomerQuotations();
+    _loadCustomerAgreements();
+  }
+
+  Future<void> _loadCustomerAgreements() async {
+    try {
+      final list = await AgreementStorageService.getAgreementsForCustomer(_record.consumerNo);
+      if (mounted) {
+        setState(() {
+          _customerAgreements = list;
+          _isLoadingAgreements = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingAgreements = false);
+    }
+  }
+
+  Future<void> _loadCustomerQuotations() async {
+    try {
+      final list = await QuotationStorageService.getQuotationsForCustomer(_record.consumerNo);
+      if (mounted) {
+        setState(() {
+          _customerQuotations = list;
+          _isLoadingQuotations = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingQuotations = false);
+    }
   }
 
   Future<void> _loadCustomerPayments() async {
@@ -1050,13 +1092,52 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           actions: [
             PopupMenuButton<String>(
               icon: const Icon(Icons.description_outlined),
-              tooltip: 'Reports',
-              onSelected: (val) {
-                if (val == 'work_completion_certificate') {
+              tooltip: 'Reports & Quotations',
+              onSelected: (val) async {
+                if (val == 'bank_loan_quotation') {
+                  await BankLoanQuotationDialog.show(context, customer: _record);
+                  _loadCustomerQuotations();
+                } else if (val == 'margin_money_receipt') {
+                  await BankLoanQuotationDialog.show(context, customer: _record, initialTab: 1);
+                  _loadCustomerQuotations();
+                } else if (val == 'work_completion_certificate') {
                   WorkCompletionCertificateDialog.show(context, customer: _record);
+                } else if (val == 'consumer_vendor_agreement') {
+                  await ConsumerVendorAgreementDialog.show(context, customer: _record);
+                  _loadCustomerAgreements();
                 }
               },
               itemBuilder: (ctx) => [
+                const PopupMenuItem(
+                  value: 'consumer_vendor_agreement',
+                  child: Row(
+                    children: [
+                      Icon(Icons.handshake_outlined, color: Color(0xFF0F2D69), size: 20),
+                      SizedBox(width: 10),
+                      Text('Consumer-Vendor Agreement', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'bank_loan_quotation',
+                  child: Row(
+                    children: [
+                      Icon(Icons.request_quote_rounded, color: Color(0xFF0F2D69), size: 20),
+                      SizedBox(width: 10),
+                      Text('Bank Loan Solar Quotation', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'margin_money_receipt',
+                  child: Row(
+                    children: [
+                      Icon(Icons.receipt_long_rounded, color: Color(0xFF047857), size: 20),
+                      SizedBox(width: 10),
+                      Text('Margin Money Receipt (10%)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'work_completion_certificate',
                   child: Row(
@@ -1603,6 +1684,217 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         ],
                       ),
                       const Divider(height: 20),
+                      // 1. Bank Loan Solar Quotation (Prompt Feature)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFECFDF5),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFA7F3D0)),
+                          ),
+                          child: const Icon(Icons.request_quote_rounded, color: Color(0xFF047857), size: 24),
+                        ),
+                        title: Row(
+                          children: [
+                            const Text('Bank Loan Quotation', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: const Color(0xFFFDE68A)),
+                              ),
+                              child: Text(
+                                '${_record.systemCapacity?.isNotEmpty == true ? _record.systemCapacity! : "3 kW"} • ${_record.totalAmount > 0 ? "₹${_record.totalAmount.toStringAsFixed(0)}" : "₹1,60,000"}',
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFB45309)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        subtitle: const Text('Tap to view, edit amount & download A4 PDF', style: TextStyle(fontSize: 11.5)),
+                        trailing: FilledButton.tonal(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFECFDF5),
+                            foregroundColor: const Color(0xFF047857),
+                          ),
+                          onPressed: () async {
+                            await BankLoanQuotationDialog.show(context, customer: _record);
+                            _loadCustomerQuotations();
+                          },
+                          child: const Text('Edit / View'),
+                        ),
+                        onTap: () async {
+                          await BankLoanQuotationDialog.show(context, customer: _record);
+                          _loadCustomerQuotations();
+                        },
+                      ),
+                      const Divider(height: 14),
+                      // 1b. Customer Margin Money Receipt (10% Contribution Proof)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEFCE8),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFFEF08A)),
+                          ),
+                          child: const Icon(Icons.receipt_long_rounded, color: Color(0xFF854D0E), size: 24),
+                        ),
+                        title: Row(
+                          children: [
+                            const Text('Margin Money Receipt', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFECFDF5),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: const Color(0xFFA7F3D0)),
+                              ),
+                              child: Text(
+                                '10% Margin: ${_record.totalAmount > 0 ? "Rs. ${(_record.totalAmount * 0.10).toStringAsFixed(0)}" : "Rs. 16,000"}',
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF047857)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        subtitle: const Text('10% Customer Margin Payment Proof for Bank Loan', style: TextStyle(fontSize: 11.5)),
+                        trailing: FilledButton.tonal(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFFEFCE8),
+                            foregroundColor: const Color(0xFF854D0E),
+                          ),
+                          onPressed: () async {
+                            await BankLoanQuotationDialog.show(context, customer: _record, initialTab: 1);
+                            _loadCustomerQuotations();
+                          },
+                          child: const Text('Receipt (10%)'),
+                        ),
+                        onTap: () async {
+                          await BankLoanQuotationDialog.show(context, customer: _record, initialTab: 1);
+                          _loadCustomerQuotations();
+                        },
+                      ),
+
+                      // Previously Generated Quotations List (Inside Customer Profile)
+                      if (_customerQuotations.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Saved Customer Quotations (${_customerQuotations.length})',
+                                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69)),
+                                  ),
+                                  const Text('Bank-ready A4 PDF', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              ..._customerQuotations.take(3).map((q) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFFDC2626), size: 16),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          '${q.quotationNo} • ${q.systemCapacity} (Rs. ${q.grandTotal.toStringAsFixed(0)})',
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                                        ),
+                                      ),
+                                      // 1. View
+                                      IconButton(
+                                        icon: const Icon(Icons.visibility_outlined, size: 16, color: Color(0xFF0F2D69)),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        tooltip: 'View',
+                                        onPressed: () async {
+                                          if (q.pdfFilePath != null && File(q.pdfFilePath!).existsSync()) {
+                                            BankLoanQuotationService.previewQuotation(File(q.pdfFilePath!));
+                                          } else {
+                                            final file = await BankLoanQuotationService.generateQuotationPdf(quotation: q);
+                                            BankLoanQuotationService.previewQuotation(file);
+                                          }
+                                        },
+                                      ),
+                                      const SizedBox(width: 4),
+                                      // 2. Edit
+                                      IconButton(
+                                        icon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFFD97706)),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        tooltip: 'Edit',
+                                        onPressed: () async {
+                                          await BankLoanQuotationDialog.show(context, customer: _record, initialQuotation: q);
+                                          _loadCustomerQuotations();
+                                        },
+                                      ),
+                                      const SizedBox(width: 4),
+                                      // 3. Regenerate
+                                      IconButton(
+                                        icon: const Icon(Icons.refresh_rounded, size: 16, color: Color(0xFF2563EB)),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        tooltip: 'Regenerate',
+                                        onPressed: () async {
+                                          final file = await BankLoanQuotationService.generateQuotationPdf(quotation: q);
+                                          final updated = q.copyWith(pdfFilePath: file.path);
+                                          await QuotationStorageService.saveQuotation(updated);
+                                          _loadCustomerQuotations();
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('Quotation ${q.quotationNo} regenerated!'),
+                                                backgroundColor: const Color(0xFF047857),
+                                                action: SnackBarAction(
+                                                  label: 'VIEW',
+                                                  textColor: Colors.white,
+                                                  onPressed: () => BankLoanQuotationService.previewQuotation(file),
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                      ),
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(Icons.share_outlined, size: 16, color: Color(0xFF047857)),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        tooltip: 'Share',
+                                        onPressed: () async {
+                                          final file = (q.pdfFilePath != null && File(q.pdfFilePath!).existsSync())
+                                              ? File(q.pdfFilePath!)
+                                              : await BankLoanQuotationService.generateQuotationPdf(quotation: q);
+                                          BankLoanQuotationService.shareQuotation(file, q);
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      const Divider(height: 24),
+                      // 2. Work Completion Certificate
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: Container(
@@ -1622,6 +1914,113 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         ),
                         onTap: () => WorkCompletionCertificateDialog.show(context, customer: _record),
                       ),
+
+                      const Divider(height: 24),
+                      // 3. Consumer-Vendor Agreement (Annexure 2)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: const Icon(Icons.handshake_outlined, color: Color(0xFF0F2D69), size: 24),
+                        ),
+                        title: const Text('Consumer-Vendor Agreement', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        subtitle: const Text('Official PM Surya Ghar Annexure 2 Model Draft Agreement', style: TextStyle(fontSize: 12)),
+                        trailing: FilledButton.tonal(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFEFF6FF),
+                            foregroundColor: const Color(0xFF0F2D69),
+                          ),
+                          onPressed: () async {
+                            await ConsumerVendorAgreementDialog.show(context, customer: _record);
+                            _loadCustomerAgreements();
+                          },
+                          child: const Text('Create / Open'),
+                        ),
+                        onTap: () async {
+                          await ConsumerVendorAgreementDialog.show(context, customer: _record);
+                          _loadCustomerAgreements();
+                        },
+                      ),
+
+                      // Previously Generated Agreements List
+                      if (_customerAgreements.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Saved Customer Agreements (${_customerAgreements.length})',
+                                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69)),
+                                  ),
+                                  const Text('Annexure 2 A4 PDF', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              ..._customerAgreements.take(3).map((agr) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFFDC2626), size: 16),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          '${agr.agreementNo} • ${agr.systemCapacity} (Rs. ${agr.totalProjectCost.toStringAsFixed(0)})',
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                                        ),
+                                      ),
+                                      TextButton(
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          minimumSize: Size.zero,
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        onPressed: () async {
+                                          if (agr.pdfFilePath != null && File(agr.pdfFilePath!).existsSync()) {
+                                            ConsumerVendorAgreementPdfService.previewAgreement(File(agr.pdfFilePath!));
+                                          } else {
+                                            final file = await ConsumerVendorAgreementPdfService.generateAgreementPdf(agreement: agr);
+                                            ConsumerVendorAgreementPdfService.previewAgreement(file);
+                                          }
+                                        },
+                                        child: const Text('View', style: TextStyle(fontSize: 11)),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(Icons.share_outlined, size: 16, color: Color(0xFF0F2D69)),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        tooltip: 'Share',
+                                        onPressed: () async {
+                                          final file = (agr.pdfFilePath != null && File(agr.pdfFilePath!).existsSync())
+                                              ? File(agr.pdfFilePath!)
+                                              : await ConsumerVendorAgreementPdfService.generateAgreementPdf(agreement: agr);
+                                          ConsumerVendorAgreementPdfService.shareAgreement(file, agr);
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

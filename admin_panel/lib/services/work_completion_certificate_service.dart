@@ -142,7 +142,7 @@ class WorkCompletionCertificateService {
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
                               pw.Text(
-                                'SIYA INFOTECH & SOLAR ENERGY',
+                                'SIYA INFOTECH & DIGITAL SOLUTIONS',
                                 style: pw.TextStyle(
                                   color: navyColor,
                                   fontSize: 15.5,
@@ -448,7 +448,7 @@ class WorkCompletionCertificateService {
                             crossAxisAlignment: pw.CrossAxisAlignment.center,
                             children: [
                               pw.Text(
-                                'For SIYA INFOTECH & SOLAR ENERGY',
+                                'For SIYA INFOTECH & DIGITAL SOLUTIONS',
                                 style: pw.TextStyle(
                                   color: navyColor,
                                   fontSize: 9.5,
@@ -703,7 +703,7 @@ class WorkCompletionCertificateService {
     if (capacityDisplay.isEmpty) capacityDisplay = '3.0 kW Rooftop Solar PV';
 
     final message = '''
-*SIYA INFOTECH & SOLAR ENERGY*
+*SIYA INFOTECH & DIGITAL SOLUTIONS*
 *Work Completion Certificate Update*
 
 Dear *${customer.name}*,

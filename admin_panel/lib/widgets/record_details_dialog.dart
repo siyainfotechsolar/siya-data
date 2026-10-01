@@ -14,6 +14,8 @@ import 'issue_dialog.dart';
 import 'payment_dialog.dart';
 import 'global_whatsapp_button.dart';
 import 'work_completion_certificate_dialog.dart';
+import 'bank_loan_quotation_dialog.dart';
+import 'consumer_vendor_agreement_dialog.dart';
 
 class RecordDetailsDialog extends StatefulWidget {
   final ConsumerRecord record;
@@ -868,6 +870,29 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                   children: [
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF047857),
+                        side: const BorderSide(color: Color(0xFF047857)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      ),
+                      onPressed: () => BankLoanQuotationDialog.show(context, _record),
+                      icon: const Icon(Icons.request_quote_outlined, size: 16),
+                      label: const Text('Bank Quotation', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: const Color(0xFFECFDF5),
+                        foregroundColor: const Color(0xFF047857),
+                        side: const BorderSide(color: Color(0xFFA7F3D0)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      ),
+                      onPressed: () => BankLoanQuotationDialog.show(context, _record, initialTab: 1),
+                      icon: const Icon(Icons.receipt_long_outlined, size: 16),
+                      label: const Text('Margin Receipt (10%)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF0F2D69),
                         side: const BorderSide(color: Color(0xFF0F2D69)),
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -875,6 +900,17 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       onPressed: () => WorkCompletionCertificateDialog.show(context, _record),
                       icon: const Icon(Icons.verified_outlined, size: 16),
                       label: const Text('WCR Certificate', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0F2D69),
+                        side: const BorderSide(color: Color(0xFF0F2D69)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      ),
+                      onPressed: () => ConsumerVendorAgreementDialog.show(context, customer: _record),
+                      icon: const Icon(Icons.handshake_outlined, size: 16),
+                      label: const Text('Agreement (Annex. 2)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     ),
                     const SizedBox(width: 8),
                     GlobalWhatsAppButton.outlined(
@@ -2415,6 +2451,99 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
               ],
             ),
             const SizedBox(height: 14),
+            // 1. Bank Loan Solar Quotation
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF047857).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.request_quote_rounded, color: Color(0xFF047857), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'Bank Loan Solar Quotation',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF047857)),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: const Color(0xFFFDE68A)),
+                              ),
+                              child: Text(
+                                '${_record.systemCapacity?.isNotEmpty == true ? _record.systemCapacity! : "3 kW"} • ${_record.totalAmount > 0 ? "₹${_record.totalAmount.toStringAsFixed(0)}" : "₹1,60,000"} (90% Loan)',
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFB45309)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'A4 Single-Page PDF on Master Letterhead • Quick edit amount & capacity presets (3kW–10kW)',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFB45309),
+                      side: const BorderSide(color: Color(0xFFFDE68A)),
+                      backgroundColor: const Color(0xFFFFFBEB),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                    onPressed: () => BankLoanQuotationDialog.show(context, _record),
+                    icon: const Icon(Icons.currency_rupee_rounded, size: 14, color: Color(0xFFB45309)),
+                    label: const Text('Edit Amount / Specs', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF047857),
+                      side: const BorderSide(color: Color(0xFFA7F3D0)),
+                      backgroundColor: const Color(0xFFECFDF5),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                    onPressed: () => BankLoanQuotationDialog.show(context, _record, initialTab: 1),
+                    icon: const Icon(Icons.receipt_long_rounded, size: 14, color: Color(0xFF047857)),
+                    label: const Text('Margin Receipt (10%)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF047857),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onPressed: () => BankLoanQuotationDialog.show(context, _record),
+                    icon: const Icon(Icons.visibility_rounded, size: 14),
+                    label: const Text('Preview & Download', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                  ),
+                ],
+              ),
+            ),
+
+            // 2. Work Completion Certificate
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -2457,6 +2586,57 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     onPressed: () => WorkCompletionCertificateDialog.show(context, _record),
+                    icon: const Icon(Icons.visibility_rounded, size: 14),
+                    label: const Text('Preview & Download', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 10),
+            // 3. Consumer-Vendor Agreement (Annexure 2)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F2D69).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.handshake_rounded, color: Color(0xFF0F2D69), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Consumer-Vendor Agreement (Annexure 2)',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69)),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Official PM Surya Ghar A4 Agreement • Auto-fill, Editable Milestones, Live PDF Preview & Save',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F2D69),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onPressed: () => ConsumerVendorAgreementDialog.show(context, customer: _record),
                     icon: const Icon(Icons.visibility_rounded, size: 14),
                     label: const Text('Preview & Download', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                   ),

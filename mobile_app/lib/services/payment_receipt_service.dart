@@ -63,7 +63,7 @@ class PaymentReceiptService {
     );
 
     graphics.drawString(
-      'SIYA INFOTECH SOLAR CONNECT',
+      'SIYA INFOTECH & DIGITAL SOLUTIONS',
       titleFont,
       brush: primaryBrush,
       bounds: Rect.fromLTWH(15, y + 10, pageSize.width - 30, 25),
@@ -185,7 +185,7 @@ class PaymentReceiptService {
     graphics.drawString('Status: ${tx.syncStatus}  |  Verification: ${tx.verificationStatus}', smallFont, brush: darkBrush, bounds: Rect.fromLTWH(10, y + 28, 250, 15));
 
     graphics.drawString('Authorized Signatory', boldFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.right), bounds: Rect.fromLTWH(pageSize.width - 200, y + 10, 190, 15));
-    graphics.drawString('Siya Infotech Solutions', smallFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.right), bounds: Rect.fromLTWH(pageSize.width - 200, y + 28, 190, 15));
+    graphics.drawString('Siya Infotech & Digital Solutions', smallFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.right), bounds: Rect.fromLTWH(pageSize.width - 200, y + 28, 190, 15));
 
     // Bottom disclaimer
     graphics.drawString(
@@ -240,7 +240,7 @@ Thank you for your payment!
 • *Remaining Balance:* ₹$balanceFormatted
 • *Receipt Status:* ${tx.isPendingSync ? "Draft (Local Confirmation)" : "Verified & Confirmed"}
 
-For any queries, please reach out to Siya Infotech.
+For any queries, please reach out to Siya Infotech & Digital Solutions.
 ''';
 
     final cleanMobile = (customer.mobile ?? '').replaceAll(RegExp(r'[^0-9]'), '');
