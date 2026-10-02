@@ -485,63 +485,169 @@ class BankLoanQuotationService {
     // ==========================================
     // 6. FINANCIAL DETAILS & BANK ACCOUNT (Side-by-Side)
     // ==========================================
-    // Calculate exact heights so both boxes end at the same Y
-    const double grandTotalRowH = 22; // Extra prominent height for Grand Total
-    const double finContentH = (4 * finRowH) + grandTotalRowH; // 4*18 + 22 = 94
-    const double bankContentH = 6 * bankRowH;                  // 6*16 = 96
-    final double sideBySideContentH = finContentH > bankContentH ? finContentH : bankContentH; // 96
-    final double sideBySideTotalH = sectionHeaderH + sideBySideContentH; // 19 + 96 = 115
+    final gst = quotation.gstBreakdown;
+
+    const double gstRowH = 14.0;
+    const double grandTotalRowH = 18.0;
+    const double rightFinRowH = 14.0;
+    const double rightBankRowH = 11.0;
+    const double rightSubGap = 4.0;
+
+    // Both left and right boxes are exactly 134 pt tall:
+    // Left:  18 (header) + (7 * 14.0) + 18.0 = 134.0
+    // Right: 18 (header1) + (2 * 14.0) + 4.0 (gap) + 18 (header2) + (6 * 11.0) = 134.0
+    const double sideBySideTotalH = 134.0;
 
     const double gap = 10; // gap between left and right boxes
     final double leftBoxW = (contentWidth - gap) / 2; // ~264.64
     final double rightBoxW = contentWidth - leftBoxW - gap; // ~264.64
     final double rightBoxLeft = contentLeft + leftBoxW + gap;
 
-    // --- Left: Financial Details ---
-    drawSectionHeader(y, leftBoxW, 'FINANCIAL DETAILS');
+    final PdfFont gstLabelFont = PdfStandardFont(PdfFontFamily.helvetica, 7.5, style: PdfFontStyle.bold);
+    final PdfFont gstValueFont = PdfStandardFont(PdfFontFamily.helvetica, 7.5);
+    final PdfFont gstValueBoldFont = PdfStandardFont(PdfFontFamily.helvetica, 7.5, style: PdfFontStyle.bold);
+    final PdfFont bankSmallLabelFont = PdfStandardFont(PdfFontFamily.helvetica, 7.0, style: PdfFontStyle.bold);
+    final PdfFont bankSmallValueFont = PdfStandardFont(PdfFontFamily.helvetica, 7.0);
+    final PdfFont bankSmallValueBold = PdfStandardFont(PdfFontFamily.helvetica, 7.0, style: PdfFontStyle.bold);
 
-    final finRows = [
-      {'label': 'Total System Cost', 'val': quotation.totalSystemCost > 0 ? currencyFormatter.format(quotation.totalSystemCost) : 'Rs. ____________', 'bold': 'false', 'highlight': 'false'},
-      {'label': 'GST (Tax)', 'val': quotation.gstAmount > 0 ? currencyFormatter.format(quotation.gstAmount) : 'Exempt / Inclusive', 'bold': 'false', 'highlight': 'false'},
-      {'label': 'GRAND TOTAL', 'val': quotation.grandTotal > 0 ? currencyFormatter.format(quotation.grandTotal) : 'Rs. ____________', 'bold': 'true', 'highlight': 'true'},
-      {'label': 'Bank Loan Amount', 'val': quotation.bankLoanAmount > 0 ? currencyFormatter.format(quotation.bankLoanAmount) : 'Rs. ____________', 'bold': 'true', 'highlight': 'false'},
-      {'label': 'Customer Contribution', 'val': quotation.customerContribution > 0 ? currencyFormatter.format(quotation.customerContribution) : 'Rs. ____________', 'bold': 'false', 'highlight': 'false'},
+    // --- Left: GST Module & Financial Details ---
+    drawSectionHeader(y, leftBoxW, 'GST MODULE & FINANCIAL DETAILS');
+
+    final gstRows = [
+      {'label': 'Total Amount (Including GST)', 'val': quotation.grandTotal > 0 ? currencyFormatter.format(gst.totalAmount) : 'Rs. ____________', 'bold': 'true', 'zebra': 'false'},
+      {'label': '70% Portion @ 5%', 'val': quotation.grandTotal > 0 ? currencyFormatter.format(gst.portion70) : 'Rs. ____________', 'bold': 'false', 'zebra': 'true'},
+      {'label': 'GST Included @ 5%', 'val': quotation.grandTotal > 0 ? currencyFormatter.format(gst.gst5) : 'Rs. ____________', 'bold': 'false', 'zebra': 'false'},
+      {'label': '30% Portion @ 18%', 'val': quotation.grandTotal > 0 ? currencyFormatter.format(gst.portion30) : 'Rs. ____________', 'bold': 'false', 'zebra': 'true'},
+      {'label': 'GST Included @ 18%', 'val': quotation.grandTotal > 0 ? currencyFormatter.format(gst.gst18) : 'Rs. ____________', 'bold': 'false', 'zebra': 'false'},
+      {'label': 'Total Taxable Value', 'val': quotation.grandTotal > 0 ? currencyFormatter.format(gst.totalTaxableValue) : 'Rs. ____________', 'bold': 'true', 'zebra': 'true'},
+      {'label': 'Total GST Included', 'val': quotation.grandTotal > 0 ? currencyFormatter.format(gst.totalGstIncluded) : 'Rs. ____________', 'bold': 'true', 'zebra': 'false'},
     ];
 
     double finY = y + sectionHeaderH;
-    for (int i = 0; i < finRows.length; i++) {
-      final f = finRows[i];
-      final isHigh = f['highlight'] == 'true';
-      final double thisRowH = isHigh ? grandTotalRowH : finRowH;
+    for (int i = 0; i < gstRows.length; i++) {
+      final f = gstRows[i];
+      final isZebra = f['zebra'] == 'true';
 
-      if (isHigh) {
-        graphics.drawRectangle(brush: PdfSolidBrush(PdfColor(254, 252, 232)), pen: thickBlackPen,
-          bounds: Rect.fromLTWH(contentLeft, finY, leftBoxW, thisRowH));
-        // Golden Yellow accent indicator on left edge
-        graphics.drawRectangle(brush: goldenYellowBrush,
-          bounds: Rect.fromLTWH(contentLeft, finY, 3.5, thisRowH));
-      } else {
-        if (i % 2 == 1) {
-          graphics.drawRectangle(brush: zebraBgBrush,
-            bounds: Rect.fromLTWH(contentLeft, finY, leftBoxW, thisRowH));
-        }
-        graphics.drawRectangle(pen: tableGridPen,
-          bounds: Rect.fromLTWH(contentLeft, finY, leftBoxW, thisRowH));
+      if (isZebra) {
+        graphics.drawRectangle(
+          brush: zebraBgBrush,
+          bounds: Rect.fromLTWH(contentLeft, finY, leftBoxW, gstRowH),
+        );
       }
+      graphics.drawRectangle(
+        pen: tableGridPen,
+        bounds: Rect.fromLTWH(contentLeft, finY, leftBoxW, gstRowH),
+      );
 
-      graphics.drawString(f['label']!, isHigh ? grandTotalLabelFont : labelFont, brush: darkTextBrush,
-        bounds: Rect.fromLTWH(contentLeft + cellPadX, finY + (isHigh ? 4.5 : cellPadY), 125, thisRowH));
-      graphics.drawString(':', labelFont, brush: darkTextBrush,
-        bounds: Rect.fromLTWH(contentLeft + 130, finY + (isHigh ? 4.5 : cellPadY), 6, thisRowH));
-      graphics.drawString(f['val']!, isHigh ? grandTotalValFont : (f['bold'] == 'true' ? valueBoldFont : valueFont), brush: darkTextBrush,
+      graphics.drawString(
+        f['label']!,
+        gstLabelFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(contentLeft + cellPadX, finY + 2.6, 142, gstRowH),
+      );
+      graphics.drawString(
+        ':',
+        gstLabelFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(contentLeft + 144, finY + 2.6, 6, gstRowH),
+      );
+      graphics.drawString(
+        f['val']!,
+        f['bold'] == 'true' ? gstValueBoldFont : gstValueFont,
+        brush: darkTextBrush,
         format: PdfStringFormat(alignment: PdfTextAlignment.right),
-        bounds: Rect.fromLTWH(contentLeft + 138, finY + (isHigh ? 4.0 : cellPadY), leftBoxW - 148, thisRowH));
+        bounds: Rect.fromLTWH(contentLeft + 152, finY + 2.6, leftBoxW - 158, gstRowH),
+      );
 
-      finY += thisRowH;
+      finY += gstRowH;
     }
 
-    // --- Right: Bank Account Details ---
-    drawSectionHeader(y, rightBoxW, 'BANK ACCOUNT (For Loan Disbursement)', left: rightBoxLeft);
+    // Grand Total (Including GST) Row with soft gold background
+    graphics.drawRectangle(
+      brush: PdfSolidBrush(PdfColor(254, 252, 232)),
+      pen: thickBlackPen,
+      bounds: Rect.fromLTWH(contentLeft, finY, leftBoxW, grandTotalRowH),
+    );
+    // Golden Yellow accent indicator on left edge
+    graphics.drawRectangle(
+      brush: goldenYellowBrush,
+      bounds: Rect.fromLTWH(contentLeft, finY, 3.5, grandTotalRowH),
+    );
+    graphics.drawString(
+      'Grand Total (Including GST)',
+      grandTotalLabelFont,
+      brush: darkTextBrush,
+      bounds: Rect.fromLTWH(contentLeft + cellPadX, finY + 3.8, 142, grandTotalRowH),
+    );
+    graphics.drawString(
+      ':',
+      grandTotalLabelFont,
+      brush: darkTextBrush,
+      bounds: Rect.fromLTWH(contentLeft + 144, finY + 3.8, 6, grandTotalRowH),
+    );
+    graphics.drawString(
+      quotation.grandTotal > 0 ? currencyFormatter.format(quotation.grandTotal) : 'Rs. ____________',
+      grandTotalValFont,
+      brush: darkTextBrush,
+      format: PdfStringFormat(alignment: PdfTextAlignment.right),
+      bounds: Rect.fromLTWH(contentLeft + 152, finY + 3.2, leftBoxW - 158, grandTotalRowH),
+    );
+
+    // --- Right: Bank Financing & Bank Account Details ---
+    double rightY = y;
+
+    // 1. Bank Financing (90:10 Ratio)
+    drawSectionHeader(rightY, rightBoxW, 'BANK FINANCING (90:10 Ratio)', left: rightBoxLeft);
+    rightY += sectionHeaderH;
+
+    final financeRows = [
+      {'label': 'Bank Loan Amount (90%)', 'val': quotation.bankLoanAmount > 0 ? currencyFormatter.format(quotation.bankLoanAmount) : 'Rs. ____________', 'bold': 'true', 'zebra': 'false'},
+      {'label': 'Customer Contribution (10%)', 'val': quotation.customerContribution > 0 ? currencyFormatter.format(quotation.customerContribution) : 'Rs. ____________', 'bold': 'false', 'zebra': 'true'},
+    ];
+
+    for (int i = 0; i < financeRows.length; i++) {
+      final f = financeRows[i];
+      final isZebra = f['zebra'] == 'true';
+
+      if (isZebra) {
+        graphics.drawRectangle(
+          brush: zebraBgBrush,
+          bounds: Rect.fromLTWH(rightBoxLeft, rightY, rightBoxW, rightFinRowH),
+        );
+      }
+      graphics.drawRectangle(
+        pen: tableGridPen,
+        bounds: Rect.fromLTWH(rightBoxLeft, rightY, rightBoxW, rightFinRowH),
+      );
+
+      graphics.drawString(
+        f['label']!,
+        gstLabelFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(rightBoxLeft + cellPadX, rightY + 2.6, 142, rightFinRowH),
+      );
+      graphics.drawString(
+        ':',
+        gstLabelFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(rightBoxLeft + 144, rightY + 2.6, 6, rightFinRowH),
+      );
+      graphics.drawString(
+        f['val']!,
+        f['bold'] == 'true' ? gstValueBoldFont : gstValueFont,
+        brush: darkTextBrush,
+        format: PdfStringFormat(alignment: PdfTextAlignment.right),
+        bounds: Rect.fromLTWH(rightBoxLeft + 152, rightY + 2.6, rightBoxW - 158, rightFinRowH),
+      );
+
+      rightY += rightFinRowH;
+    }
+
+    rightY += rightSubGap;
+
+    // 2. Bank Account (For Loan Disbursement)
+    drawSectionHeader(rightY, rightBoxW, 'BANK ACCOUNT (For Loan Disbursement)', left: rightBoxLeft);
+    rightY += sectionHeaderH;
 
     final bankRows = [
       {'label': 'Account Name', 'val': 'SIYA INFOTECH & DIGITAL SOLUTIONS', 'bold': 'true'},
@@ -552,24 +658,39 @@ class BankLoanQuotationService {
       {'label': 'UPI ID', 'val': quotation.upiId, 'bold': 'false'},
     ];
 
-    double bankY = y + sectionHeaderH;
     for (int i = 0; i < bankRows.length; i++) {
       final b = bankRows[i];
       if (i % 2 == 1) {
-        graphics.drawRectangle(brush: zebraBgBrush,
-          bounds: Rect.fromLTWH(rightBoxLeft, bankY, rightBoxW, bankRowH));
+        graphics.drawRectangle(
+          brush: zebraBgBrush,
+          bounds: Rect.fromLTWH(rightBoxLeft, rightY, rightBoxW, rightBankRowH),
+        );
       }
-      graphics.drawRectangle(pen: tableGridPen,
-        bounds: Rect.fromLTWH(rightBoxLeft, bankY, rightBoxW, bankRowH));
+      graphics.drawRectangle(
+        pen: tableGridPen,
+        bounds: Rect.fromLTWH(rightBoxLeft, rightY, rightBoxW, rightBankRowH),
+      );
 
-      graphics.drawString(b['label']!, labelFont, brush: darkTextBrush,
-        bounds: Rect.fromLTWH(rightBoxLeft + cellPadX, bankY + cellPadY, 80, bankRowH));
-      graphics.drawString(':', labelFont, brush: darkTextBrush,
-        bounds: Rect.fromLTWH(rightBoxLeft + 86, bankY + cellPadY, 6, bankRowH));
-      graphics.drawString(b['val']!, b['bold'] == 'true' ? valueBoldFont : valueFont, brush: darkTextBrush,
-        bounds: Rect.fromLTWH(rightBoxLeft + 94, bankY + cellPadY, rightBoxW - 102, bankRowH));
+      graphics.drawString(
+        b['label']!,
+        bankSmallLabelFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(rightBoxLeft + cellPadX, rightY + 1.8, 76, rightBankRowH),
+      );
+      graphics.drawString(
+        ':',
+        bankSmallLabelFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(rightBoxLeft + 78, rightY + 1.8, 6, rightBankRowH),
+      );
+      graphics.drawString(
+        b['val']!,
+        b['bold'] == 'true' ? bankSmallValueBold : bankSmallValueFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(rightBoxLeft + 86, rightY + 1.8, rightBoxW - 92, rightBankRowH),
+      );
 
-      bankY += bankRowH;
+      rightY += rightBankRowH;
     }
 
     y += sideBySideTotalH + sectionGap;

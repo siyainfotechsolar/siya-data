@@ -405,4 +405,70 @@ class SolarQuotation {
   }
 
   String get formattedDate => DateFormat('dd / MM / yyyy').format(quotationDate);
+
+  /// Statutory 70:30 GST calculation module (GST inclusive).
+  SolarQuotationGstBreakdown get gstBreakdown => SolarQuotationGstBreakdown.calculate(grandTotal);
+}
+
+/// GST Module for Solar Quotation (Statutory 70:30 Rule).
+///
+/// Statutory structure:
+/// - 70% of total amount → GST @ 5% (Goods: PV modules, inverters, structures)
+/// - 30% of total amount → GST @ 18% (Services: Installation, commissioning, civil/electrical)
+/// - Entered quotation amount is GST INCLUSIVE (do not add GST again).
+class SolarQuotationGstBreakdown {
+  final double totalAmount; // Total Amount (Including GST)
+  final double portion70; // 70% Portion @ 5%
+  final double gst5; // GST Included @ 5%
+  final double taxable70; // 70% Taxable Value
+  final double portion30; // 30% Portion @ 18%
+  final double gst18; // GST Included @ 18%
+  final double taxable30; // 30% Taxable Value
+  final double totalTaxableValue; // Total Taxable Value
+  final double totalGstIncluded; // Total GST Included
+  final double grandTotal; // Grand Total (Including GST)
+
+  const SolarQuotationGstBreakdown({
+    required this.totalAmount,
+    required this.portion70,
+    required this.gst5,
+    required this.taxable70,
+    required this.portion30,
+    required this.gst18,
+    required this.taxable30,
+    required this.totalTaxableValue,
+    required this.totalGstIncluded,
+    required this.grandTotal,
+  });
+
+  factory SolarQuotationGstBreakdown.calculate(double amount) {
+    final validAmount = amount > 0 ? amount : 0.0;
+
+    // 70% Portion @ 5% GST
+    final p70 = validAmount * 0.70;
+    final g5 = p70 * 5.0 / 105.0;
+    final t70 = p70 - g5;
+
+    // 30% Portion @ 18% GST
+    final p30 = validAmount * 0.30;
+    final g18 = p30 * 18.0 / 118.0;
+    final t30 = p30 - g18;
+
+    // Total GST Included & Taxable Value
+    final totalGst = g5 + g18;
+    final totalTaxable = validAmount - totalGst;
+
+    return SolarQuotationGstBreakdown(
+      totalAmount: validAmount,
+      portion70: p70,
+      gst5: g5,
+      taxable70: t70,
+      portion30: p30,
+      gst18: g18,
+      taxable30: t30,
+      totalTaxableValue: totalTaxable,
+      totalGstIncluded: totalGst,
+      grandTotal: validAmount,
+    );
+  }
 }

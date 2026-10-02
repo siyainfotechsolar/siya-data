@@ -713,10 +713,107 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     return '3 kW';
   }
 
+  Widget _buildGstModuleCard(double currentGrand) {
+    final gst = SolarQuotationGstBreakdown.calculate(currentGrand);
+
+    Widget rowItem(String label, String value, {bool isBold = false, bool isZebra = false, Color? valColor}) {
+      return Container(
+        color: isZebra ? const Color(0xFFF8FAFC) : Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+            ),
+            Text(
+              currentGrand > 0 ? value : 'Rs. 0.00',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+                color: valColor ?? (isBold ? const Color(0xFF0F172A) : const Color(0xFF334155)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFCBD5E1), width: 1.0),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0A000000), blurRadius: 4, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(9)),
+              border: Border(bottom: BorderSide(color: Color(0xFFCBD5E1))),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.calculate_outlined, size: 16, color: Color(0xFF0F2D69)),
+                SizedBox(width: 6),
+                Text(
+                  'GST MODULE (Statutory 70:30 Split — GST Inclusive)',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69)),
+                ),
+              ],
+            ),
+          ),
+          rowItem('Total Amount (Including GST)', currencyFormat.format(gst.totalAmount), isBold: true),
+          const Divider(height: 1, thickness: 0.5, color: Color(0xFFE2E8F0)),
+          rowItem('70% Portion @ 5%', currencyFormat.format(gst.portion70), isZebra: true),
+          rowItem('GST Included @ 5%', currencyFormat.format(gst.gst5)),
+          rowItem('30% Portion @ 18%', currencyFormat.format(gst.portion30), isZebra: true),
+          rowItem('GST Included @ 18%', currencyFormat.format(gst.gst18)),
+          const Divider(height: 1, thickness: 0.5, color: Color(0xFFCBD5E1)),
+          rowItem('Total Taxable Value', currencyFormat.format(gst.totalTaxableValue), isBold: true, isZebra: true, valColor: const Color(0xFF0F2D69)),
+          rowItem('Total GST Included', currencyFormat.format(gst.totalGstIncluded), isBold: true, valColor: const Color(0xFF047857)),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFEFCE8),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(9)),
+              border: Border(top: BorderSide(color: Color(0xFFFCD34D), width: 1.2)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Grand Total (Including GST)',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF854D0E)),
+                ),
+                Text(
+                  currencyFormat.format(gst.grandTotal),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF854D0E)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _openEditAmountModal() async {
     final capacityCtrl = TextEditingController(text: _systemCapacity);
-    final costCtrl = TextEditingController(text: _totalSystemCost > 0 ? _totalSystemCost.toStringAsFixed(0) : '');
-    final gstCtrl = TextEditingController(text: _gstAmount > 0 ? _gstAmount.toStringAsFixed(0) : '0');
     final grandTotalCtrl = TextEditingController(text: _grandTotal > 0 ? _grandTotal.toStringAsFixed(0) : '');
     final loanCtrl = TextEditingController(text: _bankLoanAmount > 0 ? _bankLoanAmount.toStringAsFixed(0) : '');
     final contribCtrl = TextEditingController(text: _customerContribution > 0 ? _customerContribution.toStringAsFixed(0) : '');
@@ -732,9 +829,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
-            final currentCost = double.tryParse(costCtrl.text.trim()) ?? 0.0;
-            final currentGst = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
-            final currentGrand = double.tryParse(grandTotalCtrl.text.trim()) ?? (currentCost + currentGst);
+            final currentGrand = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
             final currentLoan = double.tryParse(loanCtrl.text.trim()) ?? (currentGrand * 0.9);
             final currentContrib = double.tryParse(contribCtrl.text.trim()) ?? (currentGrand - currentLoan).clamp(0.0, double.infinity);
             final isLoanExceeded = currentLoan > currentGrand;
@@ -783,8 +878,6 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               onPressed: () {
                                 setSheetState(() {
                                   capacityCtrl.clear();
-                                  costCtrl.clear();
-                                  gstCtrl.text = '0';
                                   grandTotalCtrl.clear();
                                   loanCtrl.clear();
                                   contribCtrl.clear();
@@ -803,13 +896,13 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      'Update system capacity, total cost & bank finance calculations.',
+                      'GST Inclusive quotation, system capacity & bank finance calculations.',
                       style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                     const SizedBox(height: 16),
 
                     // Quick Select Chips
-                    const Text('Quick Select System Capacity & Cost:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69))),
+                    const Text('Quick Select System Capacity & Quotation Amount:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69))),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -834,8 +927,6 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                             setSheetState(() {
                               isReverseCalcMode = false;
                               capacityCtrl.text = pCap;
-                              costCtrl.text = pCost.toString();
-                              gstCtrl.text = '0';
                               grandTotalCtrl.text = pCost.toString();
                               final loan = (pCost * 0.9).roundToDouble();
                               final contrib = (pCost - loan).clamp(0.0, double.infinity);
@@ -896,83 +987,32 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Total Cost & GST
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 6,
-                          child: TextField(
-                            controller: costCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Total System Cost (Rs.) *',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                              prefixIcon: Icon(Icons.currency_rupee, size: 18),
-                            ),
-                            onChanged: (val) => setSheetState(() {
-                              isReverseCalcMode = false;
-                              final c = double.tryParse(val.trim()) ?? 0.0;
-                              final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
-                              final tot = c + g;
-                              grandTotalCtrl.text = tot.toStringAsFixed(0);
-                              final loan = (tot * 0.9).roundToDouble();
-                              final contrib = (tot - loan).clamp(0.0, double.infinity);
-                              loanCtrl.text = loan.toStringAsFixed(0);
-                              contribCtrl.text = contrib.toStringAsFixed(0);
-                            }),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          flex: 4,
-                          child: TextField(
-                            controller: gstCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'GST (Rs.)',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                              hintText: '0',
-                            ),
-                            onChanged: (val) => setSheetState(() {
-                              final g = double.tryParse(val.trim()) ?? 0.0;
-                              final c = double.tryParse(costCtrl.text.trim()) ?? 0.0;
-                              final tot = c + g;
-                              grandTotalCtrl.text = tot.toStringAsFixed(0);
-                              final loan = (tot * 0.9).roundToDouble();
-                              final contrib = (tot - loan).clamp(0.0, double.infinity);
-                              loanCtrl.text = loan.toStringAsFixed(0);
-                              contribCtrl.text = contrib.toStringAsFixed(0);
-                            }),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Grand Total
+                    // Primary Quotation Amount (GST INCLUSIVE) Field
                     TextField(
                       controller: grandTotalCtrl,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                        labelText: 'Grand Total (Rs.) *',
+                        labelText: 'Quotation Amount (Total GST Inclusive) *',
+                        helperText: 'Entered amount is GST INCLUSIVE — Do NOT add GST again',
+                        helperStyle: TextStyle(fontSize: 11, color: Color(0xFF047857), fontWeight: FontWeight.w600),
                         border: OutlineInputBorder(),
                         isDense: true,
-                        prefixIcon: Icon(Icons.account_balance_wallet_outlined, size: 18),
+                        prefixIcon: Icon(Icons.currency_rupee_rounded, size: 18, color: Color(0xFF0F2D69)),
                       ),
                       onChanged: (val) => setSheetState(() {
                         isReverseCalcMode = false;
                         final gt = double.tryParse(val.trim()) ?? 0.0;
-                        final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
-                        costCtrl.text = (gt - g).clamp(0.0, double.infinity).toStringAsFixed(0);
                         final loan = (gt * 0.9).roundToDouble();
                         final contrib = (gt - loan).clamp(0.0, double.infinity);
                         loanCtrl.text = loan.toStringAsFixed(0);
                         contribCtrl.text = contrib.toStringAsFixed(0);
                       }),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 6),
+
+                    // GST MODULE — Live Reactive Calculation (Statutory 70:30 Split)
+                    _buildGstModuleCard(currentGrand),
+                    const SizedBox(height: 8),
 
                     // Bank Loan & Customer Contribution (Two-Way Auto Calculation)
                     Row(
@@ -998,12 +1038,10 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                             onChanged: (val) => setSheetState(() {
                               final loan = double.tryParse(val.trim()) ?? 0.0;
                               final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
-                              final gst = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
 
                               if (loan <= 0) {
                                 if (isReverseCalcMode || gt == 0) {
                                   grandTotalCtrl.clear();
-                                  costCtrl.clear();
                                   contribCtrl.clear();
                                   capacityCtrl.clear();
                                 } else {
@@ -1016,10 +1054,8 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               if (isReverseCalcMode || gt == 0 || loan > gt) {
                                 final autoGrand = (loan / 0.9).roundToDouble();
                                 final autoContrib = (autoGrand - loan).clamp(0.0, double.infinity);
-                                final autoCost = (autoGrand - gst).clamp(0.0, double.infinity);
 
                                 grandTotalCtrl.text = autoGrand > 0 ? autoGrand.toStringAsFixed(0) : '';
-                                costCtrl.text = autoCost > 0 ? autoCost.toStringAsFixed(0) : '';
                                 contribCtrl.text = autoContrib > 0 ? autoContrib.toStringAsFixed(0) : '';
                                 capacityCtrl.text = _autoSuggestCapacity(autoGrand);
                               } else {
@@ -1050,12 +1086,10 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                             onChanged: (val) => setSheetState(() {
                               final contrib = double.tryParse(val.trim()) ?? 0.0;
                               final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
-                              final gst = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
 
                               if (contrib <= 0) {
                                 if (isReverseCalcMode || gt == 0) {
                                   grandTotalCtrl.clear();
-                                  costCtrl.clear();
                                   loanCtrl.clear();
                                   capacityCtrl.clear();
                                 } else {
@@ -1067,10 +1101,8 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               if (isReverseCalcMode || gt == 0 || contrib > gt) {
                                 final autoGrand = (contrib / 0.1).roundToDouble();
                                 final autoLoan = (autoGrand - contrib).clamp(0.0, double.infinity);
-                                final autoCost = (autoGrand - gst).clamp(0.0, double.infinity);
 
                                 grandTotalCtrl.text = autoGrand > 0 ? autoGrand.toStringAsFixed(0) : '';
-                                costCtrl.text = autoCost > 0 ? autoCost.toStringAsFixed(0) : '';
                                 loanCtrl.text = autoLoan > 0 ? autoLoan.toStringAsFixed(0) : '';
                                 capacityCtrl.text = _autoSuggestCapacity(autoGrand);
                               } else {
@@ -1120,9 +1152,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                                   onPressed: () {
                                     setSheetState(() {
                                       final autoGrand = (currentLoan / 0.9).roundToDouble();
-                                      final gst = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
                                       grandTotalCtrl.text = autoGrand.toStringAsFixed(0);
-                                      costCtrl.text = (autoGrand - gst).clamp(0.0, double.infinity).toStringAsFixed(0);
                                       contribCtrl.text = (autoGrand - currentLoan).clamp(0.0, double.infinity).toStringAsFixed(0);
                                       capacityCtrl.text = _autoSuggestCapacity(autoGrand);
                                     });
@@ -1251,8 +1281,6 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                             onPressed: () {
                               setSheetState(() {
                                 capacityCtrl.clear();
-                                costCtrl.clear();
-                                gstCtrl.text = '0';
                                 grandTotalCtrl.clear();
                                 loanCtrl.clear();
                                 contribCtrl.clear();
@@ -1274,16 +1302,15 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                             onPressed: hasValidationError
                                 ? null
                                 : () {
-                              final c = double.tryParse(costCtrl.text.trim()) ?? _totalSystemCost;
-                              final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
-                              final tot = double.tryParse(grandTotalCtrl.text.trim()) ?? (c + g);
+                              final tot = double.tryParse(grandTotalCtrl.text.trim()) ?? _grandTotal;
+                              final gst = SolarQuotationGstBreakdown.calculate(tot);
                               final l = double.tryParse(loanCtrl.text.trim()) ?? (tot * 0.9);
                               final contrib = double.tryParse(contribCtrl.text.trim()) ?? (tot - l).clamp(0.0, double.infinity);
 
                               setState(() {
                                 _systemCapacity = capacityCtrl.text.trim().isNotEmpty ? capacityCtrl.text.trim() : _systemCapacity;
-                                _totalSystemCost = c;
-                                _gstAmount = g;
+                                _totalSystemCost = gst.totalTaxableValue;
+                                _gstAmount = gst.totalGstIncluded;
                                 _grandTotal = tot;
                                 _bankLoanAmount = l;
                                 _customerContribution = contrib;

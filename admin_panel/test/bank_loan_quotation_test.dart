@@ -18,12 +18,12 @@ void main() {
         district: 'Dhule',
         mobileNo: '9673220315',
         quotationNo: 'SIYA-Q-2026-1608',
-        systemCapacity: '3 kW',
-        totalSystemCost: 160000.0,
-        gstAmount: 0.0,
-        grandTotal: 160000.0,
-        bankLoanAmount: 144000.0,
-        customerContribution: 16000.0,
+        systemCapacity: '3.5 kW',
+        totalSystemCost: 184180.79,
+        gstAmount: 15819.21,
+        grandTotal: 200000.0,
+        bankLoanAmount: 180000.0,
+        customerContribution: 20000.0,
       );
 
       final pdfBytes = await BankLoanQuotationService.generateQuotationPdfBytes(quotation);
@@ -160,6 +160,22 @@ void main() {
         expect(contrib, equals(p['expectedContrib']));
         expect(loan + contrib, equals(cost));
       }
+    });
+
+    test('8. GST Module — Statutory 70:30 Split with Rs. 2,00,000 example verification', () {
+      const totalAmount = 200000.0;
+      final gst = SolarQuotationGstBreakdown.calculate(totalAmount);
+
+      // Verify exact user requirements and formulas
+      expect(gst.totalAmount, equals(200000.0));
+      expect(gst.portion70, equals(140000.0));
+      expect(gst.gst5, closeTo(6666.67, 0.01));
+      expect(gst.portion30, equals(60000.0));
+      expect(gst.gst18, closeTo(9152.54, 0.01));
+      expect(gst.totalTaxableValue, closeTo(184180.79, 0.01));
+      expect(gst.totalGstIncluded, closeTo(15819.21, 0.01));
+      expect(gst.grandTotal, equals(200000.0));
+      expect(gst.totalTaxableValue + gst.totalGstIncluded, closeTo(totalAmount, 0.001));
     });
   });
 }

@@ -71,6 +71,7 @@ class BankLoanQuotationService {
         pageFormat: PdfPageFormat.a4,
         margin: pw.EdgeInsets.zero,
         build: (pw.Context context) {
+          final gst = quotation.gstBreakdown;
           return pw.Container(
             width: PdfPageFormat.a4.width,
             height: PdfPageFormat.a4.height,
@@ -375,38 +376,43 @@ class BankLoanQuotationService {
                     pw.Row(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
-                        // Left: Financial Details
+                        // Left: Financial & GST Breakdown Details
                         pw.Expanded(
                           flex: 1,
                           child: pw.Column(
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
-                              _buildSectionHeader('FINANCIAL DETAILS'),
+                              _buildSectionHeader('GST MODULE & FINANCIAL DETAILS'),
                               pw.Container(
                                 decoration: pw.BoxDecoration(
                                   border: pw.Border.all(color: borderDarkColor, width: 0.8),
                                 ),
                                 child: pw.Column(
                                   children: [
-                                    _buildFinRow('Total System Cost', quotation.totalSystemCost > 0 ? currencyFormatter.format(quotation.totalSystemCost) : 'Rs. ____________'),
-                                    _buildFinRow('GST (Tax)', quotation.gstAmount > 0 ? currencyFormatter.format(quotation.gstAmount) : 'Exempt / Inclusive', isZebra: true),
-                                    // Grand Total: Highlighted with soft cream/gold background, golden yellow indicator bar, and crisp bold text
+                                    _buildFinRow('Total Amount (Including GST)', quotation.grandTotal > 0 ? currencyFormatter.format(gst.totalAmount) : 'Rs. ____________', isBold: true),
+                                    _buildFinRow('70% Portion @ 5%', quotation.grandTotal > 0 ? currencyFormatter.format(gst.portion70) : 'Rs. ____________', isZebra: true),
+                                    _buildFinRow('GST Included @ 5%', quotation.grandTotal > 0 ? currencyFormatter.format(gst.gst5) : 'Rs. ____________'),
+                                    _buildFinRow('30% Portion @ 18%', quotation.grandTotal > 0 ? currencyFormatter.format(gst.portion30) : 'Rs. ____________', isZebra: true),
+                                    _buildFinRow('GST Included @ 18%', quotation.grandTotal > 0 ? currencyFormatter.format(gst.gst18) : 'Rs. ____________'),
+                                    _buildFinRow('Total Taxable Value', quotation.grandTotal > 0 ? currencyFormatter.format(gst.totalTaxableValue) : 'Rs. ____________', isZebra: true, isBold: true),
+                                    _buildFinRow('Total GST Included', quotation.grandTotal > 0 ? currencyFormatter.format(gst.totalGstIncluded) : 'Rs. ____________', isBold: true),
+                                    // Grand Total (Including GST): Highlighted with soft cream/gold background
                                     pw.Container(
                                       decoration: pw.BoxDecoration(
                                         color: const PdfColor.fromInt(0xFFFEFCE8),
-                                        border: pw.Border.all(color: darkTextColor, width: 1.4),
+                                        border: pw.Border.all(color: darkTextColor, width: 1.2),
                                       ),
                                       child: pw.Row(
                                         children: [
-                                          pw.Container(width: 3.5, height: 16, color: goldenYellowColor),
+                                          pw.Container(width: 3.5, height: 15, color: goldenYellowColor),
                                           pw.Expanded(
                                             child: pw.Padding(
-                                              padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3.0),
+                                              padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2.2),
                                               child: pw.Row(
                                                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                                                 children: [
-                                                  pw.Text('GRAND TOTAL', style: pw.TextStyle(fontSize: 8.8, fontWeight: pw.FontWeight.bold, color: darkTextColor)),
-                                                  pw.Text(quotation.grandTotal > 0 ? currencyFormatter.format(quotation.grandTotal) : 'Rs. ____________', style: pw.TextStyle(fontSize: 10.0, fontWeight: pw.FontWeight.bold, color: darkTextColor)),
+                                                  pw.Text('Grand Total (Including GST)', style: pw.TextStyle(fontSize: 8.0, fontWeight: pw.FontWeight.bold, color: darkTextColor)),
+                                                  pw.Text(quotation.grandTotal > 0 ? currencyFormatter.format(quotation.grandTotal) : 'Rs. ____________', style: pw.TextStyle(fontSize: 9.0, fontWeight: pw.FontWeight.bold, color: darkTextColor)),
                                                 ],
                                               ),
                                             ),
@@ -414,8 +420,6 @@ class BankLoanQuotationService {
                                         ],
                                       ),
                                     ),
-                                    _buildFinRow('Bank Loan Amount', quotation.bankLoanAmount > 0 ? currencyFormatter.format(quotation.bankLoanAmount) : 'Rs. ____________', isBold: true),
-                                    _buildFinRow('Customer Contribution', quotation.customerContribution > 0 ? currencyFormatter.format(quotation.customerContribution) : 'Rs. ____________', isZebra: true),
                                   ],
                                 ),
                               ),
@@ -423,12 +427,25 @@ class BankLoanQuotationService {
                           ),
                         ),
                         pw.SizedBox(width: 9),
-                        // Right: Bank Account Details
+                        // Right: Bank Financing & Account Details
                         pw.Expanded(
                           flex: 1,
                           child: pw.Column(
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
+                              _buildSectionHeader('BANK FINANCING (90:10 Ratio)'),
+                              pw.Container(
+                                decoration: pw.BoxDecoration(
+                                  border: pw.Border.all(color: borderDarkColor, width: 0.8),
+                                ),
+                                child: pw.Column(
+                                  children: [
+                                    _buildFinRow('Bank Loan Amount (90%)', quotation.bankLoanAmount > 0 ? currencyFormatter.format(quotation.bankLoanAmount) : 'Rs. ____________', isBold: true),
+                                    _buildFinRow('Customer Contribution (10%)', quotation.customerContribution > 0 ? currencyFormatter.format(quotation.customerContribution) : 'Rs. ____________', isZebra: true),
+                                  ],
+                                ),
+                              ),
+                              pw.SizedBox(height: 3),
                               _buildSectionHeader('BANK ACCOUNT (For Loan Disbursement)'),
                               pw.Container(
                                 decoration: pw.BoxDecoration(
