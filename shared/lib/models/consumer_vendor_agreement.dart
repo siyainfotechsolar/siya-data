@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import 'company_master.dart';
 
 class PaymentMilestone {
   final int sr;
@@ -108,20 +109,24 @@ class ConsumerVendorAgreement {
     required this.netCustomerPayable,
     String? vendorName,
     String? vendorFirmName,
-    this.vendorAddress = '21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule - 425403',
+    String? vendorAddress,
     String? vendorPhone,
     String? vendorMobile,
-    this.vendorEmail = 'siyainfodigital@gmail.com',
-    this.vendorGstin = '27CVTPK6358P1ZD',
-    this.discomName = 'MSEDCL',
+    String? vendorEmail,
+    String? vendorGstin,
+    String? discomName,
     List<PaymentMilestone>? paymentMilestones,
     String? pdfFileName,
     this.pdfFilePath,
     this.fileUrl,
     DateTime? createdAt,
     this.updatedAt,
-  })  : vendorName = vendorFirmName ?? vendorName ?? 'SIYA INFOTECH & DIGITAL SOLUTIONS',
-        vendorPhone = vendorMobile ?? vendorPhone ?? '7972143798',
+  })  : vendorName = vendorFirmName ?? vendorName ?? CompanyMaster.current.companyName,
+        vendorAddress = vendorAddress ?? CompanyMaster.current.address,
+        vendorPhone = vendorMobile ?? vendorPhone ?? CompanyMaster.current.mobile,
+        vendorEmail = vendorEmail ?? CompanyMaster.current.email,
+        vendorGstin = vendorGstin ?? CompanyMaster.current.gstin,
+        discomName = discomName ?? CompanyMaster.current.discomName,
         pdfFileName = pdfFileName ?? 'Annex_2_Agreement_${agreementNo}.pdf',
         createdAt = createdAt ?? DateTime.now(),
         paymentMilestones = paymentMilestones ?? defaultMilestones(totalProjectCost);

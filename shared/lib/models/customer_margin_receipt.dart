@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 import '../utils/number_to_words_utils.dart';
+import 'company_master.dart';
 import 'solar_quotation.dart';
 
 class CustomerMarginReceipt {
@@ -60,20 +61,27 @@ class CustomerMarginReceipt {
     this.paymentMode = 'Cash',
     this.transactionRef = 'Paid in Cash',
     DateTime? paymentDate,
-    this.bankName = 'STATE BANK OF INDIA',
-    this.branch = 'Betawad',
-    this.accountNo = '40662252403',
-    this.ifscCode = 'SBIN0004798',
-    this.upiId = 'siyainfodigital@sbi',
-    this.signatoryName = 'Manoj Kshirsagar',
-    this.signatoryDesignation = 'Managing Director / Partner',
+    String? bankName,
+    String? branch,
+    String? accountNo,
+    String? ifscCode,
+    String? upiId,
+    String? signatoryName,
+    String? signatoryDesignation,
     this.notes = 'Received 10% Customer Margin Contribution in Cash towards PM Surya Ghar Bank Solar Loan installation.',
     required this.pdfFileName,
     this.pdfFilePath,
     this.fileUrl,
     DateTime? createdAt,
     this.createdBy,
-  })  : paymentDate = paymentDate ?? receiptDate,
+  })  : bankName = bankName ?? CompanyMaster.current.bankName,
+        branch = branch ?? CompanyMaster.current.branch,
+        accountNo = accountNo ?? CompanyMaster.current.accountNo,
+        ifscCode = ifscCode ?? CompanyMaster.current.ifscCode,
+        upiId = upiId ?? CompanyMaster.current.upiId,
+        signatoryName = signatoryName ?? CompanyMaster.current.signatoryName,
+        signatoryDesignation = signatoryDesignation ?? CompanyMaster.current.signatoryDesignation,
+        paymentDate = paymentDate ?? receiptDate,
         createdAt = createdAt ?? DateTime.now();
 
   /// Create helper with auto-calculated margin words & standard naming
@@ -98,13 +106,13 @@ class CustomerMarginReceipt {
     String paymentMode = 'Cash',
     String transactionRef = 'Paid in Cash',
     DateTime? paymentDate,
-    String bankName = 'STATE BANK OF INDIA',
-    String branch = 'Betawad',
-    String accountNo = '40662252403',
-    String ifscCode = 'SBIN0004798',
-    String upiId = 'siyainfodigital@sbi',
-    String signatoryName = 'Manoj Kshirsagar',
-    String signatoryDesignation = 'Managing Director / Partner',
+    String? bankName,
+    String? branch,
+    String? accountNo,
+    String? ifscCode,
+    String? upiId,
+    String? signatoryName,
+    String? signatoryDesignation,
     String? notes,
     String? createdBy,
   }) {

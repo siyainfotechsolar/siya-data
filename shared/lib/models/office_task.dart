@@ -271,6 +271,10 @@ class OfficeTask {
   }
 
   OfficeTask copyWith({
+    String? customerId,
+    String? customerName,
+    String? consumerNo,
+    String? village,
     String? title,
     String? taskType,
     String? description,
@@ -289,10 +293,10 @@ class OfficeTask {
   }) {
     return OfficeTask(
       id: id,
-      customerId: customerId,
-      customerName: customerName,
-      consumerNo: consumerNo,
-      village: village,
+      customerId: customerId ?? this.customerId,
+      customerName: customerName ?? this.customerName,
+      consumerNo: consumerNo ?? this.consumerNo,
+      village: village ?? this.village,
       title: title ?? this.title,
       taskType: taskType ?? this.taskType,
       description: description ?? this.description,

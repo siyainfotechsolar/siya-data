@@ -94,25 +94,41 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
       final totalCost = double.tryParse(_costController.text.trim()) ?? 0.0;
       final loanAmt = isLoan ? (double.tryParse(_loanController.text.trim()) ?? 0.0) : 0.0;
 
-      final record = ConsumerRecord(
-        id: widget.initialRecord?.id,
-        consumerNo: _consumerNoController.text.trim(),
-        name: _nameController.text.trim(),
-        mobile: _mobileController.text.trim().isEmpty ? null : _mobileController.text.trim(),
-        address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-        applicationId: _applicationIdController.text.trim().isEmpty ? null : _applicationIdController.text.trim(),
-        siteType: _siteType,
-        systemCapacity: _capacityController.text.trim().isEmpty ? null : _capacityController.text.trim(),
-        systemType: _systemTypeController.text.trim().isEmpty ? null : _systemTypeController.text.trim(),
-        status: _status,
-        remarks: _remarksController.text.trim().isEmpty ? null : _remarksController.text.trim(),
-        totalAmount: totalCost,
-        loanRequired: _loanRequired,
-        loanStatus: isLoan
-            ? (widget.initialRecord?.loanStatus == 'Not Required' ? 'Pending' : (widget.initialRecord?.loanStatus ?? 'Pending'))
-            : 'Not Required',
-        loanSanctionedAmount: loanAmt,
-      );
+      final record = widget.initialRecord != null
+          ? widget.initialRecord!.copyWith(
+              consumerNo: _consumerNoController.text.trim(),
+              name: _nameController.text.trim(),
+              mobile: _mobileController.text.trim().isEmpty ? null : _mobileController.text.trim(),
+              address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
+              applicationId: _applicationIdController.text.trim().isEmpty ? null : _applicationIdController.text.trim(),
+              siteType: _siteType,
+              systemCapacity: _capacityController.text.trim().isEmpty ? null : _capacityController.text.trim(),
+              systemType: _systemTypeController.text.trim().isEmpty ? null : _systemTypeController.text.trim(),
+              status: _status,
+              remarks: _remarksController.text.trim().isEmpty ? null : _remarksController.text.trim(),
+              totalAmount: totalCost,
+              loanRequired: _loanRequired,
+              loanStatus: isLoan
+                  ? (widget.initialRecord?.loanStatus == 'Not Required' ? 'Pending' : (widget.initialRecord?.loanStatus ?? 'Pending'))
+                  : 'Not Required',
+              loanSanctionedAmount: loanAmt,
+            )
+          : ConsumerRecord(
+              consumerNo: _consumerNoController.text.trim(),
+              name: _nameController.text.trim(),
+              mobile: _mobileController.text.trim().isEmpty ? null : _mobileController.text.trim(),
+              address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
+              applicationId: _applicationIdController.text.trim().isEmpty ? null : _applicationIdController.text.trim(),
+              siteType: _siteType,
+              systemCapacity: _capacityController.text.trim().isEmpty ? null : _capacityController.text.trim(),
+              systemType: _systemTypeController.text.trim().isEmpty ? null : _systemTypeController.text.trim(),
+              status: _status,
+              remarks: _remarksController.text.trim().isEmpty ? null : _remarksController.text.trim(),
+              totalAmount: totalCost,
+              loanRequired: _loanRequired,
+              loanStatus: isLoan ? 'Pending' : 'Not Required',
+              loanSanctionedAmount: loanAmt,
+            );
 
       if (widget.initialRecord == null) {
         await RecordService.createRecord(record);

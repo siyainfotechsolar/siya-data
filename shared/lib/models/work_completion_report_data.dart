@@ -1,3 +1,4 @@
+import '../models/company_master.dart';
 import '../models/consumer_record.dart';
 
 class WorkCompletionReportData {
@@ -84,15 +85,21 @@ class WorkCompletionReportData {
     this.earthResistanceDetails = '3 Earthings (AC, DC, LA) < 5 Ohms',
     this.earthResistanceCertified = 'Found in order (< 5 Ohms) as per MNRE OM Dtd. 07.06.24',
     this.lightningArrester = 'Installed with dedicated copper earth',
-    this.vendorFirmName = 'SIYA INFOTECH & DIGITAL SOLUTIONS',
-    this.vendorGstin = '27CVTPK6358P1ZD',
-    this.vendorAddress = '21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule - 425403',
-    this.vendorMobile = '7972143798',
-    this.vendorEmail = 'siyainfodigital@gmail.com',
-    this.authorizedPerson = 'Manoj Kshirsagar',
-    this.discomName = 'MSEDCL',
+    String? vendorFirmName,
+    String? vendorGstin,
+    String? vendorAddress,
+    String? vendorMobile,
+    String? vendorEmail,
+    String? authorizedPerson,
+    String? discomName,
     this.consumerAadhar = '',
-  });
+  })  : vendorFirmName = vendorFirmName ?? CompanyMaster.current.companyName,
+        vendorGstin = vendorGstin ?? CompanyMaster.current.gstin,
+        vendorAddress = vendorAddress ?? CompanyMaster.current.address,
+        vendorMobile = vendorMobile ?? CompanyMaster.current.mobile,
+        vendorEmail = vendorEmail ?? CompanyMaster.current.email,
+        authorizedPerson = authorizedPerson ?? CompanyMaster.current.signatoryName,
+        discomName = discomName ?? CompanyMaster.current.discomName;
 
   factory WorkCompletionReportData.fromCustomer(
     ConsumerRecord customer, {
@@ -102,7 +109,9 @@ class WorkCompletionReportData {
     String? customCapacity,
     DateTime? customCompletionDate,
     String? customAadhar,
+    CompanyMaster? company,
   }) {
+    final comp = company ?? CompanyMaster.current;
     final String name = (customCustomerName != null && customCustomerName.trim().isNotEmpty)
         ? customCustomerName.trim()
         : customer.name.trim();
@@ -182,13 +191,13 @@ class WorkCompletionReportData {
       earthResistanceDetails: '3 Earthings (AC, DC, LA) < 5 Ohms',
       earthResistanceCertified: 'Certified & Found in order (< 5 Ohms) as per MNRE OM Dtd. 07.06.24',
       lightningArrester: 'Installed with dedicated copper earth',
-      vendorFirmName: 'SIYA INFOTECH & DIGITAL SOLUTIONS',
-      vendorGstin: '27CVTPK6358P1ZD',
-      vendorAddress: '21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule - 425403',
-      vendorMobile: '7972143798',
-      vendorEmail: 'siyainfodigital@gmail.com',
-      authorizedPerson: 'Manoj Kshirsagar',
-      discomName: 'MSEDCL',
+      vendorFirmName: comp.companyName,
+      vendorGstin: comp.gstin,
+      vendorAddress: comp.address,
+      vendorMobile: comp.mobile,
+      vendorEmail: comp.email,
+      authorizedPerson: comp.signatoryName,
+      discomName: comp.discomName,
       consumerAadhar: customAadhar ?? '',
     );
   }
