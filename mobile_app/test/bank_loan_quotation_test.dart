@@ -157,6 +157,30 @@ void main() {
       expect(quotation.bankLoanAmount, equals(145000.0));
       expect(quotation.bankLoanAmount + quotation.customerContribution, equals(grandTotal));
     });
+
+    test('5. Reverse auto-calculation after Reset when only Loan Amount is entered', () {
+      // User resets form and enters only Bank Loan = 144,000 (90% financing)
+      const enteredLoan = 144000.0;
+      const gst = 0.0;
+
+      // Reverse calculate: Grand Total = Loan / 0.9
+      final autoGrand = (enteredLoan / 0.9).roundToDouble();
+      final autoContrib = (autoGrand - enteredLoan).clamp(0.0, double.infinity);
+      final autoCost = (autoGrand - gst).clamp(0.0, double.infinity);
+
+      expect(autoGrand, equals(160000.0));
+      expect(autoContrib, equals(16000.0));
+      expect(autoCost, equals(160000.0));
+      expect(autoContrib / autoGrand * 100, closeTo(10.0, 0.01));
+      expect(enteredLoan / autoGrand * 100, closeTo(90.0, 0.01));
+
+      // Test reverse calculation with 1,80,000 loan
+      const higherLoan = 180000.0;
+      final autoGrandHigher = (higherLoan / 0.9).roundToDouble();
+      final autoContribHigher = (autoGrandHigher - higherLoan).clamp(0.0, double.infinity);
+      expect(autoGrandHigher, equals(200000.0));
+      expect(autoContribHigher, equals(20000.0));
+    });
   });
 }
 

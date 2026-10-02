@@ -701,6 +701,19 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     );
   }
 
+  static String _autoSuggestCapacity(double grandTotal) {
+    if (grandTotal >= 500000) return '10 kW';
+    if (grandTotal >= 380000) return '8 kW';
+    if (grandTotal >= 300000) return '6 kW';
+    if (grandTotal >= 250000) return '5 kW';
+    if (grandTotal >= 200000) return '4 kW';
+    if (grandTotal >= 170000) return '3.3 kW';
+    if (grandTotal >= 135000) return '3 kW';
+    if (grandTotal >= 95000) return '2 kW';
+    if (grandTotal >= 45000) return '1 kW';
+    return '3 kW';
+  }
+
   Future<void> _openEditAmountModal() async {
     final capacityCtrl = TextEditingController(text: _systemCapacity);
     final costCtrl = TextEditingController(text: _totalSystemCost.toStringAsFixed(0));
@@ -708,6 +721,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     final grandTotalCtrl = TextEditingController(text: _grandTotal.toStringAsFixed(0));
     final loanCtrl = TextEditingController(text: _bankLoanAmount.toStringAsFixed(0));
     final contribCtrl = TextEditingController(text: _customerContribution.toStringAsFixed(0));
+    bool isReverseCalcMode = false;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -755,9 +769,35 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                             ),
                           ],
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.of(ctx).pop(),
+                        Row(
+                          children: [
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.restart_alt_rounded, size: 15, color: Color(0xFFD97706)),
+                              label: const Text('Reset', style: TextStyle(fontSize: 11.5, color: Color(0xFFD97706), fontWeight: FontWeight.bold)),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                side: const BorderSide(color: Color(0xFFFCD34D)),
+                                backgroundColor: const Color(0xFFFFFBEB),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              ),
+                              onPressed: () {
+                                setSheetState(() {
+                                  capacityCtrl.clear();
+                                  costCtrl.clear();
+                                  gstCtrl.text = '0';
+                                  grandTotalCtrl.clear();
+                                  loanCtrl.clear();
+                                  contribCtrl.clear();
+                                  isReverseCalcMode = true;
+                                });
+                              },
+                            ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => Navigator.of(ctx).pop(),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -792,6 +832,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                           selectedColor: const Color(0xFFFEF3C7),
                           onSelected: (_) {
                             setSheetState(() {
+                              isReverseCalcMode = false;
                               capacityCtrl.text = pCap;
                               costCtrl.text = pCost.toString();
                               gstCtrl.text = '0';
@@ -834,6 +875,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               prefixIcon: Icon(Icons.currency_rupee, size: 18),
                             ),
                             onChanged: (val) => setSheetState(() {
+                              isReverseCalcMode = false;
                               final c = double.tryParse(val.trim()) ?? 0.0;
                               final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
                               final tot = c + g;
@@ -884,6 +926,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                         prefixIcon: Icon(Icons.account_balance_wallet_outlined, size: 18),
                       ),
                       onChanged: (val) => setSheetState(() {
+                        isReverseCalcMode = false;
                         final gt = double.tryParse(val.trim()) ?? 0.0;
                         final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
                         costCtrl.text = (gt - g).clamp(0.0, double.infinity).toStringAsFixed(0);
@@ -917,10 +960,36 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               ),
                             ),
                             onChanged: (val) => setSheetState(() {
-                              final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
                               final loan = double.tryParse(val.trim()) ?? 0.0;
-                              final contrib = (gt - loan).clamp(0.0, double.infinity);
-                              contribCtrl.text = contrib.toStringAsFixed(0);
+                              final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
+                              final gst = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
+
+                              if (loan <= 0) {
+                                if (isReverseCalcMode || gt == 0) {
+                                  grandTotalCtrl.clear();
+                                  costCtrl.clear();
+                                  contribCtrl.clear();
+                                  capacityCtrl.clear();
+                                } else {
+                                  contribCtrl.text = gt.toStringAsFixed(0);
+                                }
+                                return;
+                              }
+
+                              // Reverse calculate if reset was pressed, grand total is empty/0, or loan entered exceeds grand total
+                              if (isReverseCalcMode || gt == 0 || loan > gt) {
+                                final autoGrand = (loan / 0.9).roundToDouble();
+                                final autoContrib = (autoGrand - loan).clamp(0.0, double.infinity);
+                                final autoCost = (autoGrand - gst).clamp(0.0, double.infinity);
+
+                                grandTotalCtrl.text = autoGrand > 0 ? autoGrand.toStringAsFixed(0) : '';
+                                costCtrl.text = autoCost > 0 ? autoCost.toStringAsFixed(0) : '';
+                                contribCtrl.text = autoContrib > 0 ? autoContrib.toStringAsFixed(0) : '';
+                                capacityCtrl.text = _autoSuggestCapacity(autoGrand);
+                              } else {
+                                final contrib = (gt - loan).clamp(0.0, double.infinity);
+                                contribCtrl.text = contrib.toStringAsFixed(0);
+                              }
                             }),
                           ),
                         ),
@@ -943,10 +1012,35 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               ),
                             ),
                             onChanged: (val) => setSheetState(() {
-                              final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
                               final contrib = double.tryParse(val.trim()) ?? 0.0;
-                              final loan = (gt - contrib).clamp(0.0, double.infinity);
-                              loanCtrl.text = loan.toStringAsFixed(0);
+                              final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
+                              final gst = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
+
+                              if (contrib <= 0) {
+                                if (isReverseCalcMode || gt == 0) {
+                                  grandTotalCtrl.clear();
+                                  costCtrl.clear();
+                                  loanCtrl.clear();
+                                  capacityCtrl.clear();
+                                } else {
+                                  loanCtrl.text = gt.toStringAsFixed(0);
+                                }
+                                return;
+                              }
+
+                              if (isReverseCalcMode || gt == 0 || contrib > gt) {
+                                final autoGrand = (contrib / 0.1).roundToDouble();
+                                final autoLoan = (autoGrand - contrib).clamp(0.0, double.infinity);
+                                final autoCost = (autoGrand - gst).clamp(0.0, double.infinity);
+
+                                grandTotalCtrl.text = autoGrand > 0 ? autoGrand.toStringAsFixed(0) : '';
+                                costCtrl.text = autoCost > 0 ? autoCost.toStringAsFixed(0) : '';
+                                loanCtrl.text = autoLoan > 0 ? autoLoan.toStringAsFixed(0) : '';
+                                capacityCtrl.text = _autoSuggestCapacity(autoGrand);
+                              } else {
+                                final loan = (gt - contrib).clamp(0.0, double.infinity);
+                                loanCtrl.text = loan.toStringAsFixed(0);
+                              }
                             }),
                           ),
                         ),
@@ -985,14 +1079,16 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               children: [
                                 ActionChip(
                                   avatar: const Icon(Icons.auto_fix_high, size: 14, color: Color(0xFF1D4ED8)),
-                                  label: Text('Set Grand Total to ${currencyFormat.format(currentLoan)}', style: const TextStyle(fontSize: 11, color: Color(0xFF1D4ED8))),
+                                  label: Text('Auto-calc 90% Loan (Total: ${currencyFormat.format((currentLoan / 0.9).roundToDouble())})', style: const TextStyle(fontSize: 11, color: Color(0xFF1D4ED8))),
                                   backgroundColor: const Color(0xFFEFF6FF),
                                   onPressed: () {
                                     setSheetState(() {
-                                      grandTotalCtrl.text = currentLoan.toStringAsFixed(0);
+                                      final autoGrand = (currentLoan / 0.9).roundToDouble();
                                       final gst = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
-                                      costCtrl.text = (currentLoan - gst).clamp(0.0, double.infinity).toStringAsFixed(0);
-                                      contribCtrl.text = '0';
+                                      grandTotalCtrl.text = autoGrand.toStringAsFixed(0);
+                                      costCtrl.text = (autoGrand - gst).clamp(0.0, double.infinity).toStringAsFixed(0);
+                                      contribCtrl.text = (autoGrand - currentLoan).clamp(0.0, double.infinity).toStringAsFixed(0);
+                                      capacityCtrl.text = _autoSuggestCapacity(autoGrand);
                                     });
                                   },
                                 ),
