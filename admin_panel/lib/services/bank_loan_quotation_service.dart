@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/solar_quotation.dart';
+import 'company_stamp_helper.dart';
 
 class BankLoanQuotationService {
   static const PdfColor navyColor = PdfColor.fromInt(0xFF0D2B6F);
@@ -71,14 +72,14 @@ class BankLoanQuotationService {
     // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
     pw.MemoryImage? stampAndSigImage;
     if (includeStampAndSignature) {
-      if (customStampAndSignatureBytes != null) {
-        stampAndSigImage = pw.MemoryImage(customStampAndSignatureBytes);
-      } else {
+      final stampBytes = await AdminCompanyStampHelper.loadStampAndSignatureBytes(
+        customBytes: customStampAndSignatureBytes,
+      );
+      if (stampBytes != null && stampBytes.isNotEmpty) {
         try {
-          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
-          stampAndSigImage = pw.MemoryImage(pairData.buffer.asUint8List());
+          stampAndSigImage = pw.MemoryImage(stampBytes);
         } catch (e) {
-          debugPrint('Stamp & signature pair load error in admin quotation service: $e');
+          debugPrint('Stamp image decoding error in admin quotation service: $e');
         }
       }
     }
@@ -651,17 +652,13 @@ class BankLoanQuotationService {
                                 ),
                               ),
                               // Company Stamp & Authorized Signature (DEFAULT: included, can be removed)
-                              if (includeStampAndSignature && stampAndSigImage != null) ...[
-                                pw.Container(
-                                  height: 72,
-                                  alignment: pw.Alignment.center,
-                                  child: pw.Image(stampAndSigImage, fit: pw.BoxFit.contain),
-                                ),
-                                pw.SizedBox(height: 8),
-                              ] else ...[
-                                // Completely blank space for manual ink stamp and physical signature
-                                pw.SizedBox(height: 80),
-                              ],
+                              AdminCompanyStampHelper.buildStampAndSignatureWidget(
+                                image: stampAndSigImage,
+                                include: includeStampAndSignature,
+                                height: 72,
+                                width: 160,
+                              ),
+                              pw.SizedBox(height: 8),
                               pw.Container(width: 160, height: 1.0, color: darkTextColor),
                               pw.SizedBox(height: 3),
                               pw.Text(

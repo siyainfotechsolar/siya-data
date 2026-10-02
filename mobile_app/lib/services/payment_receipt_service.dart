@@ -9,6 +9,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/customer_payment.dart';
 import '../models/consumer_record.dart';
+import 'company_stamp_helper.dart';
 
 class PaymentReceiptService {
   /// Generate a professional PDF payment receipt
@@ -42,18 +43,14 @@ class PaymentReceiptService {
     // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
     PdfBitmap? stampAndSigBitmap;
     if (includeStampAndSignature) {
-      if (customStampAndSignatureBytes != null) {
+      final stampBytes = await CompanyStampHelper.loadStampAndSignatureBytes(
+        customBytes: customStampAndSignatureBytes,
+      );
+      if (stampBytes != null && stampBytes.isNotEmpty) {
         try {
-          stampAndSigBitmap = PdfBitmap(customStampAndSignatureBytes);
+          stampAndSigBitmap = PdfBitmap(stampBytes);
         } catch (e) {
-          debugPrint('Custom stamp/sig load error in payment receipt: $e');
-        }
-      } else {
-        try {
-          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
-          stampAndSigBitmap = PdfBitmap(pairData.buffer.asUint8List());
-        } catch (e) {
-          debugPrint('Stamp & signature load error in payment receipt service: $e');
+          debugPrint('Stamp bitmap decoding error in payment receipt: $e');
         }
       }
     }
@@ -228,9 +225,14 @@ class PaymentReceiptService {
     const double stampH = 44;
 
     // Draw Company Stamp & Authorized Signature if included
-    if (includeStampAndSignature && stampAndSigBitmap != null) {
+    if (includeStampAndSignature) {
       final double pairX = rightColL + (lineWidth - stampW) / 2;
-      graphics.drawImage(stampAndSigBitmap, Rect.fromLTWH(pairX, commonLineY - stampH - 4, stampW, stampH));
+      CompanyStampHelper.drawStampAndSignature(
+        graphics: graphics,
+        bounds: Rect.fromLTWH(pairX, commonLineY - stampH - 4, stampW, stampH),
+        bitmap: stampAndSigBitmap,
+        include: includeStampAndSignature,
+      );
     }
 
     graphics.drawLine(borderPen, Offset(rightColL, commonLineY), Offset(rightColL + lineWidth, commonLineY));

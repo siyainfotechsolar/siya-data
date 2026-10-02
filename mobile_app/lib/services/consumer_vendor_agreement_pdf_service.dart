@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/consumer_vendor_agreement.dart';
+import 'company_stamp_helper.dart';
 
 /// Official Master Reference implementation of Annexure 2 Agreement
 /// Strictly follows original PM Surya Ghar: Muft Bijli Yojana Model Draft Agreement.
@@ -57,18 +58,14 @@ class ConsumerVendorAgreementPdfService {
     // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
     PdfBitmap? stampAndSigBitmap;
     if (includeStampAndSignature) {
-      if (customStampAndSignatureBytes != null) {
+      final stampBytes = await CompanyStampHelper.loadStampAndSignatureBytes(
+        customBytes: customStampAndSignatureBytes,
+      );
+      if (stampBytes != null && stampBytes.isNotEmpty) {
         try {
-          stampAndSigBitmap = PdfBitmap(customStampAndSignatureBytes);
+          stampAndSigBitmap = PdfBitmap(stampBytes);
         } catch (e) {
-          debugPrint('Custom stamp/sig load error in mobile agreement: $e');
-        }
-      } else {
-        try {
-          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
-          stampAndSigBitmap = PdfBitmap(pairData.buffer.asUint8List());
-        } catch (e) {
-          debugPrint('Stamp & signature load error in mobile agreement service: $e');
+          debugPrint('Stamp bitmap decoding error in agreement service: $e');
         }
       }
     }
@@ -483,8 +480,13 @@ class ConsumerVendorAgreementPdfService {
     final double stampY = baseRowY + 12;
 
     // Draw Company Stamp & Authorized Signature if included
-    if (includeStampAndSignature && stampAndSigBitmap != null) {
-      g3.drawImage(stampAndSigBitmap, Rect.fromLTWH(stampX, stampY, stampW, stampH - 10));
+    if (includeStampAndSignature) {
+      CompanyStampHelper.drawStampAndSignature(
+        graphics: g3,
+        bounds: Rect.fromLTWH(stampX, stampY, stampW, stampH - 10),
+        bitmap: stampAndSigBitmap,
+        include: includeStampAndSignature,
+      );
     }
 
     // Vendor Signature with aligned baseline

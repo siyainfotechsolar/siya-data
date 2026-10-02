@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/consumer_vendor_agreement.dart';
+import 'company_stamp_helper.dart';
 
 /// Official Master Reference implementation of Annexure 2 Agreement
 /// Strictly follows original PM Surya Ghar: Muft Bijli Yojana Model Draft Agreement.
@@ -137,14 +138,14 @@ class ConsumerVendorAgreementService {
     // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
     pw.MemoryImage? stampAndSigImage;
     if (includeStampAndSignature) {
-      if (customStampAndSignatureBytes != null) {
-        stampAndSigImage = pw.MemoryImage(customStampAndSignatureBytes);
-      } else {
+      final stampBytes = await AdminCompanyStampHelper.loadStampAndSignatureBytes(
+        customBytes: customStampAndSignatureBytes,
+      );
+      if (stampBytes != null && stampBytes.isNotEmpty) {
         try {
-          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
-          stampAndSigImage = pw.MemoryImage(pairData.buffer.asUint8List());
+          stampAndSigImage = pw.MemoryImage(stampBytes);
         } catch (e) {
-          debugPrint('Stamp & signature pair load error in admin agreement service: $e');
+          debugPrint('Stamp image decoding error in admin agreement service: $e');
         }
       }
     }
@@ -542,18 +543,13 @@ class ConsumerVendorAgreementService {
                             crossAxisAlignment: pw.CrossAxisAlignment.center,
                             children: [
                               // Company Stamp & Authorized Signature (DEFAULT: included, can be removed)
-                              if (includeStampAndSignature && stampAndSigImage != null) ...[
-                                pw.Container(
-                                  height: 70,
-                                  alignment: pw.Alignment.center,
-                                  child: pw.Image(stampAndSigImage, fit: pw.BoxFit.contain),
-                                ),
-                                pw.SizedBox(height: 36),
-                              ] else ...[
-                                // Completely blank space for manual company stamp
-                                pw.SizedBox(height: 70),
-                                pw.SizedBox(height: 36),
-                              ],
+                              AdminCompanyStampHelper.buildStampAndSignatureWidget(
+                                image: stampAndSigImage,
+                                include: includeStampAndSignature,
+                                height: 70,
+                                width: 150,
+                              ),
+                              pw.SizedBox(height: 36),
                               pw.Container(height: 0.8, color: borderDarkColor),
                               pw.SizedBox(height: 4),
                               pw.Align(

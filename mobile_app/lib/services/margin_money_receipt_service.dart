@@ -9,6 +9,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/customer_margin_receipt.dart';
+import 'company_stamp_helper.dart';
 
 class MarginMoneyReceiptService {
   /// Generate a professional single-page A4 Customer Margin Money Receipt
@@ -120,18 +121,14 @@ class MarginMoneyReceiptService {
     // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
     PdfBitmap? stampAndSigBitmap;
     if (includeStampAndSignature) {
-      if (customStampAndSignatureBytes != null) {
+      final stampBytes = await CompanyStampHelper.loadStampAndSignatureBytes(
+        customBytes: customStampAndSignatureBytes,
+      );
+      if (stampBytes != null && stampBytes.isNotEmpty) {
         try {
-          stampAndSigBitmap = PdfBitmap(customStampAndSignatureBytes);
+          stampAndSigBitmap = PdfBitmap(stampBytes);
         } catch (e) {
-          debugPrint('Custom stamp/sig load error in mobile margin receipt: $e');
-        }
-      } else {
-        try {
-          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
-          stampAndSigBitmap = PdfBitmap(pairData.buffer.asUint8List());
-        } catch (e) {
-          debugPrint('Stamp & signature pair load error in mobile margin receipt service: $e');
+          debugPrint('Stamp bitmap decoding error in margin receipt: $e');
         }
       }
     }
@@ -429,12 +426,17 @@ class MarginMoneyReceiptService {
     final double commonLineY = stampY + stampDiam + 22;
 
     // Draw Company Stamp & Authorized Signature if included
-    if (includeStampAndSignature && stampAndSigBitmap != null) {
+    if (includeStampAndSignature) {
       const double pairW = 152;
       const double pairH = 72;
       final double pairX = vendorSignL + (signColW - pairW) / 2;
       final double pairY = commonLineY - pairH - 4;
-      graphics.drawImage(stampAndSigBitmap, Rect.fromLTWH(pairX, pairY, pairW, pairH));
+      CompanyStampHelper.drawStampAndSignature(
+        graphics: graphics,
+        bounds: Rect.fromLTWH(pairX, pairY, pairW, pairH),
+        bitmap: stampAndSigBitmap,
+        include: includeStampAndSignature,
+      );
     }
 
     // Left Signature Line (160pt width)

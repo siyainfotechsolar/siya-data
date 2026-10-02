@@ -7,6 +7,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../models/consumer_record.dart';
+import 'company_stamp_helper.dart';
 
 class WorkCompletionCertificateService {
   /// Generate a professional single-page A4 Work Completion Certificate
@@ -155,18 +156,14 @@ class WorkCompletionCertificateService {
     // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
     PdfBitmap? stampAndSigBitmap;
     if (includeStampAndSignature) {
-      if (customStampAndSignatureBytes != null) {
+      final stampBytes = await CompanyStampHelper.loadStampAndSignatureBytes(
+        customBytes: customStampAndSignatureBytes,
+      );
+      if (stampBytes != null && stampBytes.isNotEmpty) {
         try {
-          stampAndSigBitmap = PdfBitmap(customStampAndSignatureBytes);
+          stampAndSigBitmap = PdfBitmap(stampBytes);
         } catch (e) {
-          debugPrint('Custom stamp/sig load error in mobile WCR: $e');
-        }
-      } else {
-        try {
-          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
-          stampAndSigBitmap = PdfBitmap(pairData.buffer.asUint8List());
-        } catch (e) {
-          debugPrint('Stamp & signature load error in mobile WCR service: $e');
+          debugPrint('Stamp bitmap decoding error in WCR: $e');
         }
       }
     }
@@ -501,8 +498,13 @@ class WorkCompletionCertificateService {
     final double stampL = signLeft + ((signWidth - stampW) / 2);
 
     // Draw Company Stamp & Authorized Signature if included
-    if (includeStampAndSignature && stampAndSigBitmap != null) {
-      graphics.drawImage(stampAndSigBitmap, Rect.fromLTWH(stampL + 4, signY + 2, stampW - 8, stampH));
+    if (includeStampAndSignature) {
+      CompanyStampHelper.drawStampAndSignature(
+        graphics: graphics,
+        bounds: Rect.fromLTWH(stampL + 4, signY + 2, stampW - 8, stampH),
+        bitmap: stampAndSigBitmap,
+        include: includeStampAndSignature,
+      );
     }
 
     signY += stampH + 12;

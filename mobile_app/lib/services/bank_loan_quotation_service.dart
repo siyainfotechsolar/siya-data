@@ -7,6 +7,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../models/solar_quotation.dart';
+import 'company_stamp_helper.dart';
 
 class BankLoanQuotationService {
   /// Generate a professional single-page A4 Bank Loan Solar Quotation
@@ -140,18 +141,14 @@ class BankLoanQuotationService {
     // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
     PdfBitmap? stampAndSigBitmap;
     if (includeStampAndSignature) {
-      if (customStampAndSignatureBytes != null) {
+      final stampBytes = await CompanyStampHelper.loadStampAndSignatureBytes(
+        customBytes: customStampAndSignatureBytes,
+      );
+      if (stampBytes != null && stampBytes.isNotEmpty) {
         try {
-          stampAndSigBitmap = PdfBitmap(customStampAndSignatureBytes);
+          stampAndSigBitmap = PdfBitmap(stampBytes);
         } catch (e) {
-          debugPrint('Custom stamp/sig load error in mobile quotation: $e');
-        }
-      } else {
-        try {
-          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
-          stampAndSigBitmap = PdfBitmap(pairData.buffer.asUint8List());
-        } catch (e) {
-          debugPrint('Stamp & signature pair load error in mobile quotation: $e');
+          debugPrint('Stamp bitmap decoding error: $e');
         }
       }
     }
@@ -853,12 +850,17 @@ class BankLoanQuotationService {
     final double commonLineY = vendorY + stampDiam + 22;
 
     // Draw Company Stamp & Authorized Signature if included
-    if (includeStampAndSignature && stampAndSigBitmap != null) {
+    if (includeStampAndSignature) {
       const double pairW = 152;
       const double pairH = 72;
       final double pairX = vendorSignLeft + (vendorSignWidth - pairW) / 2;
       final double pairY = commonLineY - pairH - 4;
-      graphics.drawImage(stampAndSigBitmap, Rect.fromLTWH(pairX, pairY, pairW, pairH));
+      CompanyStampHelper.drawStampAndSignature(
+        graphics: graphics,
+        bounds: Rect.fromLTWH(pairX, pairY, pairW, pairH),
+        bitmap: stampAndSigBitmap,
+        include: includeStampAndSignature,
+      );
     }
 
     // Left Signature Line
