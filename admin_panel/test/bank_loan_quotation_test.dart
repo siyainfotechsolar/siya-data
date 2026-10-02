@@ -29,7 +29,8 @@ void main() {
       final pdfBytes = await BankLoanQuotationService.generateQuotationPdfBytes(quotation);
 
       try {
-        final artifactPdf = File('C:/Users/Admin/.gemini/antigravity-ide/brain/c38e8e61-ed05-4303-8f0f-7f86ce402cb7/sample_admin_quotation.pdf');
+        final convDir = 'C:/Users/Admin/.gemini/antigravity-ide/brain/66c28ce9-6a4b-4da6-95cb-8aeb63238283';
+        final artifactPdf = File('$convDir/sample_admin_quotation.pdf');
         artifactPdf.parent.createSync(recursive: true);
         artifactPdf.writeAsBytesSync(pdfBytes);
         File('c:/ide/siya data/Quotation_Ramesh_Balasaheb_Patil_SIYA-Q-2026-8901.pdf').writeAsBytesSync(pdfBytes);

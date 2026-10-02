@@ -543,7 +543,8 @@ class BankLoanQuotationService {
                       ],
                     ),
 
-                    pw.SizedBox(height: 6),
+                    // Spacer pushes the entire signature and stamp block down into the open space at the bottom of the page
+                    pw.Spacer(),
 
                     // ==================================================
                     // 7. SIGNATURES & STAMPS (Customer & Vendor Dual Layout)
@@ -653,8 +654,7 @@ class BankLoanQuotationService {
                       ],
                     ),
 
-                    pw.Spacer(),
-                    pw.SizedBox(height: 4),
+                    pw.SizedBox(height: 6),
 
                     // ==================================================
                     // 8. FOOTER - EXACT SAME AS WCR

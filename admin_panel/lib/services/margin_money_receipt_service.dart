@@ -476,7 +476,8 @@ class MarginMoneyReceiptService {
                       ),
                     ),
 
-                    pw.SizedBox(height: 18),
+                    // Spacer pushes the entire signature and stamp block down into the open space at the bottom of the page
+                    pw.Spacer(),
 
                     // ==================================================
                     // 7. DUAL SIGNATURE BLOCK (Borrower + Vendor Stamp)
@@ -586,7 +587,7 @@ class MarginMoneyReceiptService {
                       ],
                     ),
 
-                    pw.Spacer(),
+                    pw.SizedBox(height: 6),
 
                     // ==================================================
                     // 8. FOOTER NOTE

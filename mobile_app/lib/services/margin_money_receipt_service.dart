@@ -377,24 +377,30 @@ class MarginMoneyReceiptService {
       brush: slateBodyBrush,
       bounds: Rect.fromLTWH(contentLeft + 6, y + 37.5, contentWidth - 12, 10),
     );
-    y += decBoxH + 20;
+    y += decBoxH;
 
     // 8. Dual Signatures (Borrower & Vendor Stamp Box) - Standardized layout matching Quotation
+    // Positioned in the lower open space above the footer
+    const double signBlockTotalH = 132;
+    const double footerLineY = pageHeight - 38;
+    final double signYBottomTarget = footerLineY - signBlockTotalH;
+    final double signYStart = signYBottomTarget > (y + 15) ? signYBottomTarget : (y + 15);
+
     const double signColW = 210;
     const double lineWidth = 160;
 
     // Left: Customer Confirmation
-    graphics.drawString('Customer / Borrower Confirmation', signHeaderFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft, y, signColW, 12));
-    graphics.drawString('I hereby confirm deposit of margin money for solar installation.', noteFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft, y + 14, signColW, 10));
+    graphics.drawString('Customer / Borrower Confirmation', signHeaderFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft, signYStart, signColW, 12));
+    graphics.drawString('I hereby confirm deposit of margin money for solar installation.', noteFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft, signYStart + 14, signColW, 10));
 
     // Right: Vendor Authorization & Stamp
     final double vendorSignL = contentRight - signColW;
-    graphics.drawString('For SIYA INFOTECH AND DIGITAL SOLUTIONS', signHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(vendorSignL, y, signColW, 12));
+    graphics.drawString('For SIYA INFOTECH AND DIGITAL SOLUTIONS', signHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(vendorSignL, signYStart, signColW, 12));
 
     // Vendor Official Round Stamp (Identical 66x66 dashed circle with 56x56 inner guide)
     const double stampDiam = 66;
     final double stampRoundL = vendorSignL + ((signColW - stampDiam) / 2);
-    final double stampY = y + 14;
+    final double stampY = signYStart + 14;
 
     final PdfPen dashPen = PdfPen(borderDarkColor, width: 0.8);
     dashPen.dashStyle = PdfDashStyle.dash;

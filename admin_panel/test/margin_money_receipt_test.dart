@@ -51,7 +51,8 @@ void main() {
 
     test('4. Writes sample admin margin receipt PDF to artifact dir', () async {
       final bytes = await MarginMoneyReceiptService.generateReceiptPdfBytes(sampleReceipt);
-      final artifactFile = File(r'C:\Users\Admin\.gemini\antigravity-ide\brain\c38e8e61-ed05-4303-8f0f-7f86ce402cb7\sample_admin_margin_receipt.pdf');
+      final artifactFile = File(r'C:\Users\Admin\.gemini\antigravity-ide\brain\66c28ce9-6a4b-4da6-95cb-8aeb63238283\sample_admin_margin_receipt.pdf');
+      artifactFile.parent.createSync(recursive: true);
       await artifactFile.writeAsBytes(bytes);
       expect(artifactFile.existsSync(), isTrue);
     });

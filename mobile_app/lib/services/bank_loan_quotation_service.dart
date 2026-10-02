@@ -659,8 +659,12 @@ class BankLoanQuotationService {
 
     // ==========================================
     // 8. SIGNATURES & STAMPS (Customer & Vendor Dual Layout)
+    // Positioned in the lower open space above the footer
     // ==========================================
-    final double signYStart = y;
+    const double signBlockTotalH = 132;
+    const double footerLineY = pageHeight - 38;
+    final double signYBottomTarget = footerLineY - signBlockTotalH;
+    final double signYStart = signYBottomTarget > (y + 10) ? signYBottomTarget : (y + 10);
     const double lineWidth = 160;
 
     // --- LEFT COLUMN: Customer Acceptance & Signature ---
