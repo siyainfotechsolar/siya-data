@@ -666,8 +666,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
                         visualDensity: VisualDensity.compact,
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Add'),
+                      icon: const Icon(Icons.person_add_rounded, size: 18),
+                      label: const Text('Add Consumer'),
                     ),
                   ],
                 ),
@@ -686,7 +686,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Customers',
+                      'Consumers',
                       style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
@@ -722,8 +722,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                       ),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Record'),
+                      icon: const Icon(Icons.person_add_rounded),
+                      label: const Text('Add Consumer'),
                     ),
                   ],
                 ),

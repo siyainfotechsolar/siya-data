@@ -143,7 +143,7 @@ class _AddCustomerDialogState extends State<AddCustomerDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Create Customer Site',
+                    'Add Consumer',
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   IconButton(

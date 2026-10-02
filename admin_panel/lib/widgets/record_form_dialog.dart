@@ -134,7 +134,7 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    isEdit ? 'Edit Consumer Record' : 'Add New Consumer Record',
+                    isEdit ? 'Edit Consumer' : 'Add New Consumer',
                     style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   IconButton(

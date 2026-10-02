@@ -202,7 +202,7 @@ class _ConsumerRecordsScreenState extends State<ConsumerRecordsScreen> {
           }
         },
         icon: const Icon(Icons.person_add_rounded),
-        label: const Text('Add Customer'),
+        label: const Text('Add Consumer'),
       ),
       body: Column(
         children: [
