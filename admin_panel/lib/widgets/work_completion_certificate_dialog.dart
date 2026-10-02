@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import '../models/consumer_record.dart';
+import '../models/work_completion_report_data.dart';
 import '../services/work_completion_certificate_service.dart';
 
 class WorkCompletionCertificateDialog extends StatefulWidget {
@@ -27,48 +28,53 @@ class WorkCompletionCertificateDialog extends StatefulWidget {
 
 class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertificateDialog> {
   bool _isDownloading = false;
-
-  late String _customerName;
-  late String _consumerNo;
-  late String _address;
-  late String _capacity;
-  late DateTime _completionDate;
+  int _selectedTab = 0; // 0: WCR, 1: Annexure-1, 2: DCR, 3: Net-Metering Agreement
   int _renderKey = 0;
   bool _includeStampAndSignature = true;
+
+  late WorkCompletionReportData _reportData;
 
   @override
   void initState() {
     super.initState();
-    _customerName = widget.customer.name;
-    _consumerNo = widget.customer.consumerNo;
-
-    if (widget.customer.address != null && widget.customer.address!.trim().isNotEmpty) {
-      _address = widget.customer.address!.trim();
-    } else if (widget.customer.village != null && widget.customer.village!.trim().isNotEmpty) {
-      _address = widget.customer.village!.trim();
-    } else {
-      _address = '';
-    }
-
-    String cap = '';
-    if (widget.customer.remarks != null && widget.customer.remarks!.trim().isNotEmpty) {
-      final match = RegExp(r'(\d+(?:\.\d+)?\s*(?:kw|kW|KW|Kw))').firstMatch(widget.customer.remarks!);
-      if (match != null) cap = match.group(1)!;
-    }
-    _capacity = cap.isNotEmpty ? cap : '3.0 kW Rooftop Solar PV';
-
-    _completionDate = widget.customer.installationDate ??
-        widget.customer.rtsCompletionDate ??
-        widget.customer.submitDate ??
-        DateTime.now();
+    _reportData = WorkCompletionReportData.fromCustomer(widget.customer);
   }
 
   Future<void> _openEditDetailsDialog() async {
-    final nameCtrl = TextEditingController(text: _customerName);
-    final consumerCtrl = TextEditingController(text: _consumerNo);
-    final addressCtrl = TextEditingController(text: _address);
-    final capacityCtrl = TextEditingController(text: _capacity);
-    DateTime selectedDate = _completionDate;
+    // Basic Details
+    final nameCtrl = TextEditingController(text: _reportData.customerName);
+    final consumerCtrl = TextEditingController(text: _reportData.consumerNo);
+    final addressCtrl = TextEditingController(text: _reportData.customerAddress);
+    final mobileCtrl = TextEditingController(text: _reportData.customerMobile);
+    final categoryCtrl = TextEditingController(text: _reportData.category);
+    final sanctionCtrl = TextEditingController(text: _reportData.sanctionNo);
+    final aadharCtrl = TextEditingController(text: _reportData.consumerAadhar);
+    final capKwCtrl = TextEditingController(text: _reportData.installedCapacityKw.toStringAsFixed(1));
+
+    // Module Specs
+    final modMakeCtrl = TextEditingController(text: _reportData.moduleMake);
+    final modAlmmCtrl = TextEditingController(text: _reportData.moduleAlmmModel);
+    final modWattCtrl = TextEditingController(text: _reportData.moduleWattage.toString());
+    final modCountCtrl = TextEditingController(text: _reportData.moduleCount.toString());
+    final modWarrantyCtrl = TextEditingController(text: _reportData.moduleWarranty);
+    final modSerialCtrl = TextEditingController(text: _reportData.moduleSerialNos);
+    final cellMfrCtrl = TextEditingController(text: _reportData.cellManufacturer);
+    final cellGstCtrl = TextEditingController(text: _reportData.cellGstInvoiceNo);
+
+    // Inverter Specs
+    final invMakeCtrl = TextEditingController(text: _reportData.inverterMake);
+    final invModelCtrl = TextEditingController(text: _reportData.inverterModel);
+    final invRatingCtrl = TextEditingController(text: _reportData.inverterRating);
+    final invCapCtrl = TextEditingController(text: _reportData.inverterCapacityKw.toStringAsFixed(1));
+    final invTypeCtrl = TextEditingController(text: _reportData.inverterControllerType);
+    final invYearCtrl = TextEditingController(text: _reportData.inverterMfgYear.toString());
+
+    // Earthing & Safety
+    final earthDetailsCtrl = TextEditingController(text: _reportData.earthResistanceDetails);
+    final earthCertCtrl = TextEditingController(text: _reportData.earthResistanceCertified);
+    final laCtrl = TextEditingController(text: _reportData.lightningArrester);
+
+    DateTime compDate = _reportData.completionDate;
 
     await showDialog<void>(
       context: context,
@@ -79,112 +85,150 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: const Row(
                 children: [
-                  Icon(Icons.edit_note_rounded, color: Color(0xFF0F2D69)),
+                  Icon(Icons.edit_document, color: Color(0xFF0F2D69)),
                   SizedBox(width: 8),
-                  Text('Edit WCR Certificate Details'),
+                  Text('Edit WCR & Commissioning Dossier Specifications'),
                 ],
               ),
               content: SizedBox(
-                width: 520,
+                width: 650,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const Text(
-                        'Customize the details displayed on the A4 Work Completion Certificate. These changes are applied directly to the exported/printed certificate.',
+                        'All values are pre-filled automatically from the customer profile. Customize equipment specs below and click Apply.',
                         style: TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                       const SizedBox(height: 16),
 
-                      // 1. Customer Name
-                      TextField(
-                        controller: nameCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Customer Name *',
-                          prefixIcon: Icon(Icons.person_outline_rounded, size: 18),
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // 2. Consumer Number
-                      TextField(
-                        controller: consumerCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Consumer Number *',
-                          prefixIcon: Icon(Icons.numbers_rounded, size: 18),
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // 3. Project Address
-                      TextField(
-                        controller: addressCtrl,
-                        maxLines: 2,
-                        decoration: const InputDecoration(
-                          labelText: 'Project Address *',
-                          prefixIcon: Icon(Icons.location_on_outlined, size: 18),
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // 4. Solar Capacity
-                      TextField(
-                        controller: capacityCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Solar System Capacity *',
-                          prefixIcon: Icon(Icons.solar_power_outlined, size: 18),
-                          border: OutlineInputBorder(),
-                          hintText: 'e.g. 3.0 kW Rooftop Solar PV',
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: ['3 kW', '3.3 kW', '4 kW', '5 kW', '6 kW', '10 kW'].map((val) {
-                          return ActionChip(
-                            label: Text('$val Rooftop Solar', style: const TextStyle(fontSize: 11)),
-                            padding: EdgeInsets.zero,
-                            onPressed: () {
-                              setDialogState(() {
-                                capacityCtrl.text = '$val Rooftop Solar PV';
-                              });
-                            },
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 14),
-
-                      // 5. Installation Date
+                      // SECTION 1: Consumer & Sanction Details
+                      const Text('1. Consumer & Site Information', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69))),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                alignment: Alignment.centerLeft,
-                              ),
-                              icon: const Icon(Icons.calendar_today_rounded, size: 18, color: Color(0xFF0F2D69)),
-                              label: Text(
-                                'Installation Date: ${DateFormat('dd MMMM yyyy').format(selectedDate)}',
-                                style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
-                              ),
-                              onPressed: () async {
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: selectedDate,
-                                  firstDate: DateTime(2020),
-                                  lastDate: DateTime.now().add(const Duration(days: 365)),
-                                );
-                                if (picked != null) {
-                                  setDialogState(() => selectedDate = picked);
-                                }
-                              },
-                            ),
+                          Expanded(child: TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Customer Name *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: consumerCtrl, decoration: const InputDecoration(labelText: 'Consumer No *', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: addressCtrl, decoration: const InputDecoration(labelText: 'Site Address *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: mobileCtrl, decoration: const InputDecoration(labelText: 'Mobile Number', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: sanctionCtrl, decoration: const InputDecoration(labelText: 'Sanction / Appln No *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: capKwCtrl, decoration: const InputDecoration(labelText: 'System Capacity (KW) *', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: aadharCtrl, decoration: const InputDecoration(labelText: 'Consumer Aadhar No', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: categoryCtrl, decoration: const InputDecoration(labelText: 'Category', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // SECTION 2: Solar Modules Specifications
+                      const Text('2. Solar PV Modules Specifications', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69))),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: modMakeCtrl, decoration: const InputDecoration(labelText: 'Module Make *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: modAlmmCtrl, decoration: const InputDecoration(labelText: 'ALMM Model No *', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: modWattCtrl, decoration: const InputDecoration(labelText: 'Wattage (Wp) *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: modCountCtrl, decoration: const InputDecoration(labelText: 'Module Count (Nos) *', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(controller: modWarrantyCtrl, decoration: const InputDecoration(labelText: 'Warranty Details *', isDense: true, border: OutlineInputBorder())),
+                      const SizedBox(height: 10),
+                      TextField(controller: modSerialCtrl, decoration: const InputDecoration(labelText: 'Module Serial Numbers', isDense: true, border: OutlineInputBorder())),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: cellMfrCtrl, decoration: const InputDecoration(labelText: 'Cell Manufacturer (DCR)', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: cellGstCtrl, decoration: const InputDecoration(labelText: 'Cell GST Invoice No', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // SECTION 3: PCU / Inverter Specifications
+                      const Text('3. Inverter / PCU Specifications', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69))),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: invMakeCtrl, decoration: const InputDecoration(labelText: 'Inverter Make *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: invModelCtrl, decoration: const InputDecoration(labelText: 'Model Number *', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: invRatingCtrl, decoration: const InputDecoration(labelText: 'Inverter Rating *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: invCapCtrl, decoration: const InputDecoration(labelText: 'Inverter Capacity (KW) *', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: invTypeCtrl, decoration: const InputDecoration(labelText: 'MPPT / Controller Type', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: invYearCtrl, decoration: const InputDecoration(labelText: 'Year of Manufacturing', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // SECTION 4: Earthing & Protection
+                      const Text('4. Earthing & Safety Protections', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69))),
+                      const SizedBox(height: 8),
+                      TextField(controller: earthDetailsCtrl, decoration: const InputDecoration(labelText: 'Earthing Resistance Details *', isDense: true, border: OutlineInputBorder())),
+                      const SizedBox(height: 10),
+                      TextField(controller: earthCertCtrl, decoration: const InputDecoration(labelText: 'Resistance Inspection Certification *', isDense: true, border: OutlineInputBorder())),
+                      const SizedBox(height: 10),
+                      TextField(controller: laCtrl, decoration: const InputDecoration(labelText: 'Lightening Arrester Specs *', isDense: true, border: OutlineInputBorder())),
+                      const SizedBox(height: 16),
+
+                      // Date picker
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_month, color: Color(0xFF0F2D69), size: 20),
+                          const SizedBox(width: 8),
+                          Text('Installation / Completion Date: ${DateFormat('dd MMM yyyy').format(compDate)}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: compDate,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2035),
+                              );
+                              if (picked != null) {
+                                setDialogState(() => compDate = picked);
+                              }
+                            },
+                            child: const Text('Change Date'),
                           ),
                         ],
                       ),
@@ -193,32 +237,51 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                 ),
               ),
               actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton.icon(
+                TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+                FilledButton(
                   style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F2D69)),
                   onPressed: () {
+                    final cap = double.tryParse(capKwCtrl.text.trim()) ?? _reportData.installedCapacityKw;
+                    final mCount = int.tryParse(modCountCtrl.text.trim()) ?? _reportData.moduleCount;
+                    final mWatt = int.tryParse(modWattCtrl.text.trim()) ?? _reportData.moduleWattage;
+                    final totalKwp = double.parse((mCount * mWatt / 1000.0).toStringAsFixed(2));
+
                     setState(() {
-                      _customerName = nameCtrl.text.trim();
-                      _consumerNo = consumerCtrl.text.trim();
-                      _address = addressCtrl.text.trim();
-                      _capacity = capacityCtrl.text.trim();
-                      _completionDate = selectedDate;
-                      _renderKey++; // Triggers PdfPreview reload with new data
+                      _reportData = _reportData.copyWith(
+                        customerName: nameCtrl.text.trim(),
+                        consumerNo: consumerCtrl.text.trim(),
+                        customerAddress: addressCtrl.text.trim(),
+                        customerMobile: mobileCtrl.text.trim(),
+                        category: categoryCtrl.text.trim(),
+                        sanctionNo: sanctionCtrl.text.trim(),
+                        consumerAadhar: aadharCtrl.text.trim(),
+                        sanctionedCapacityKw: cap,
+                        installedCapacityKw: cap,
+                        moduleMake: modMakeCtrl.text.trim(),
+                        moduleAlmmModel: modAlmmCtrl.text.trim(),
+                        moduleWattage: mWatt,
+                        moduleCount: mCount,
+                        moduleTotalCapacityKwp: totalKwp,
+                        moduleWarranty: modWarrantyCtrl.text.trim(),
+                        moduleSerialNos: modSerialCtrl.text.trim(),
+                        cellManufacturer: cellMfrCtrl.text.trim(),
+                        cellGstInvoiceNo: cellGstCtrl.text.trim(),
+                        inverterMake: invMakeCtrl.text.trim(),
+                        inverterModel: invModelCtrl.text.trim(),
+                        inverterRating: invRatingCtrl.text.trim(),
+                        inverterCapacityKw: double.tryParse(invCapCtrl.text.trim()) ?? _reportData.inverterCapacityKw,
+                        inverterControllerType: invTypeCtrl.text.trim(),
+                        inverterMfgYear: int.tryParse(invYearCtrl.text.trim()) ?? _reportData.inverterMfgYear,
+                        earthResistanceDetails: earthDetailsCtrl.text.trim(),
+                        earthResistanceCertified: earthCertCtrl.text.trim(),
+                        lightningArrester: laCtrl.text.trim(),
+                        completionDate: compDate,
+                      );
+                      _renderKey++;
                     });
                     Navigator.of(ctx).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('WCR Certificate details updated!'),
-                        backgroundColor: Color(0xFF059669),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
                   },
-                  icon: const Icon(Icons.check_rounded, size: 16),
-                  label: const Text('Apply Changes'),
+                  child: const Text('Apply Changes & Re-generate'),
                 ),
               ],
             );
@@ -230,26 +293,23 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final size = MediaQuery.of(context).size;
-    final isCompact = size.width < 768;
+    final screenSize = MediaQuery.of(context).size;
+    final isCompact = screenSize.width < 900;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: EdgeInsets.symmetric(
-        horizontal: isCompact ? 12 : 32,
-        vertical: isCompact ? 16 : 24,
+        horizontal: isCompact ? 12 : 24,
+        vertical: isCompact ? 12 : 20,
       ),
       child: Container(
-        width: isCompact ? size.width * 0.95 : 880,
-        height: size.height * 0.9,
-        padding: const EdgeInsets.all(20),
+        width: (screenSize.width * 0.94).clamp(750.0, 1200.0),
+        height: (screenSize.height * 0.94).clamp(650.0, 960.0),
+        padding: const EdgeInsets.all(18),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ==========================================
-            // HEADER (Row 1: Title & Close)
-            // ==========================================
+            // Row 1: Dialog Header (Icon + Title & Customer Name + Subtitle + Close Button)
             Row(
               children: [
                 Container(
@@ -258,11 +318,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                     color: const Color(0xFF0F2D69).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
-                    Icons.verified_outlined,
-                    color: Color(0xFF0F2D69),
-                    size: 24,
-                  ),
+                  child: const Icon(Icons.verified_outlined, color: Color(0xFF0F2D69), size: 24),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -274,10 +330,12 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                         children: [
                           Flexible(
                             child: Text(
-                              'Work Completion Certificate',
-                              style: theme.textTheme.titleMedium?.copyWith(
+                              'Work Completion & Commissioning Dossier',
+                              style: const TextStyle(
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: const Color(0xFF0F2D69),
+                                color: Color(0xFF0F2D69),
+                                letterSpacing: -0.2,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -294,7 +352,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                                 border: Border.all(color: const Color(0xFFCBD5E1)),
                               ),
                               child: Text(
-                                _customerName,
+                                _reportData.customerName,
                                 style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -309,11 +367,8 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Consumer No: $_consumerNo • Capacity: $_capacity • Date: ${DateFormat('dd MMM yyyy').format(_completionDate)}',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                        'Consumer No: ${_reportData.consumerNo} • Capacity: ${_reportData.installedCapacityKw.toStringAsFixed(1)} kW (${_reportData.moduleTotalCapacityKwp.toStringAsFixed(2)} kWp) • Sanction: ${_reportData.sanctionNo}',
+                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
@@ -334,22 +389,41 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
             ),
             const SizedBox(height: 12),
 
-            // ==========================================
-            // ACTION TOOLBAR (Row 2: Actions Wrap)
-            // ==========================================
+            // Row 2: Document Switcher Tabs (Left) + Actions Toolbar (Right)
             Wrap(
               spacing: 8,
               runSpacing: 8,
               alignment: WrapAlignment.spaceBetween,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                // Left Toolbar Actions
+                // Tabs Switcher Pills
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFCBD5E1)),
+                  ),
+                  padding: const EdgeInsets.all(3),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildTabButton(0, '1. WCR Report (2P)', Icons.assignment_turned_in_rounded),
+                      const SizedBox(width: 4),
+                      _buildTabButton(1, '2. Annexure-I', Icons.description_rounded),
+                      const SizedBox(width: 4),
+                      _buildTabButton(2, '3. DCR Undertaking', Icons.verified_user_rounded),
+                      const SizedBox(width: 4),
+                      _buildTabButton(3, '4. Net-Metering (Annex-3)', Icons.handshake_outlined),
+                    ],
+                  ),
+                ),
+
+                // Right Actions Toolbar
                 Wrap(
                   spacing: 8,
                   runSpacing: 6,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    // Edit Details Button
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF0F2D69),
@@ -357,11 +431,10 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
                       onPressed: _openEditDetailsDialog,
-                      icon: const Icon(Icons.edit_note_rounded, size: 16),
-                      label: const Text('Edit Details'),
+                      icon: const Icon(Icons.tune_rounded, size: 16),
+                      label: const Text('Edit Specs / Details'),
                     ),
 
-                    // Option: Remove/Include Stamp & Signature
                     if (_includeStampAndSignature)
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
@@ -396,28 +469,18 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                         icon: const Icon(Icons.verified_rounded, size: 15, color: Color(0xFF047857)),
                         label: const Text('Include Stamp & Signature', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
-                  ],
-                ),
 
-                // Right Toolbar Actions
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    // WhatsApp notification
                     FilledButton.tonalIcon(
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
                         foregroundColor: const Color(0xFF128C7E),
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
-                      onPressed: () => WorkCompletionCertificateService.sendOnWhatsApp(context, widget.customer),
+                      onPressed: () => WorkCompletionCertificateService.sendOnWhatsApp(context, widget.customer, reportData: _reportData),
                       icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
                       label: const Text('Send WhatsApp'),
                     ),
 
-                    // Download PDF
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF059669),
@@ -431,21 +494,14 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                               await WorkCompletionCertificateService.downloadCertificatePdf(
                                 context,
                                 widget.customer,
-                                customCustomerName: _customerName,
-                                customConsumerNo: _consumerNo,
-                                customAddress: _address,
-                                customCapacity: _capacity,
-                                customCompletionDate: _completionDate,
+                                reportData: _reportData,
                                 includeStampAndSignature: _includeStampAndSignature,
+                                documentType: _selectedTab,
                               );
                               if (mounted) setState(() => _isDownloading = false);
                             },
                       icon: _isDownloading
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
+                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                           : const Icon(Icons.download_rounded, size: 16),
                       label: const Text('Download PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                     ),
@@ -453,48 +509,29 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                 ),
               ],
             ),
-
-            const SizedBox(height: 12),
-            const Divider(height: 1),
             const SizedBox(height: 10),
 
-            // Active Certificate Details summary banner
+            // Summary Pill
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: const Color(0xFFECFDF5),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFCBD5E1), width: 0.8),
+                border: Border.all(color: const Color(0xFFA7F3D0)),
               ),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF0F2D69)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Capacity: $_capacity  •  Date: ${DateFormat('dd-MM-yyyy').format(_completionDate)}  •  Address: ${_address.isNotEmpty ? _address : "Default"}',
-                      style: const TextStyle(fontSize: 11, color: Color(0xFF334155), fontWeight: FontWeight.w500),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: _openEditDetailsDialog,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    icon: const Icon(Icons.edit, size: 12, color: Color(0xFF0F2D69)),
-                    label: const Text('Change', style: TextStyle(fontSize: 11, color: Color(0xFF0F2D69), fontWeight: FontWeight.bold)),
-                  ),
+                  Text('Modules: ${_reportData.moduleCount}x ${_reportData.moduleMake} (${_reportData.moduleWattage}Wp)', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF065F46), fontSize: 11.5)),
+                  Text('Inverter: ${_reportData.inverterMake} ${_reportData.inverterModel} (${_reportData.inverterCapacityKw.toStringAsFixed(1)} kW)', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF047857), fontSize: 11.5)),
+                  Text('Earthing: ${_reportData.earthResistanceDetails}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F2D69), fontSize: 11.5)),
+                  Text('Date: ${DateFormat('dd MMM yyyy').format(_reportData.completionDate)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF334155), fontSize: 11.5)),
                 ],
               ),
             ),
+            const SizedBox(height: 10),
 
-            // ==========================================
-            // LIVE INTERACTIVE PDF PREVIEW
-            // ==========================================
+            // Live Interactive PDF Preview
             Expanded(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
@@ -505,36 +542,64 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: PdfPreview(
-                    key: ValueKey('wcr_preview_${_renderKey}_$_includeStampAndSignature'),
+                    key: ValueKey('wcr_preview_${_selectedTab}_${_renderKey}_$_includeStampAndSignature'),
                     build: (PdfPageFormat format) async {
-                      return WorkCompletionCertificateService.generateCertificatePdfBytes(
-                        widget.customer,
-                        customCustomerName: _customerName,
-                        customConsumerNo: _consumerNo,
-                        customAddress: _address,
-                        customCapacity: _capacity,
-                        customCompletionDate: _completionDate,
-                        includeStampAndSignature: _includeStampAndSignature,
-                      );
+                      switch (_selectedTab) {
+                        case 1:
+                          return WorkCompletionCertificateService.generateAnnexure1PdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
+                        case 2:
+                          return WorkCompletionCertificateService.generateDcrPdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
+                        case 3:
+                          return WorkCompletionCertificateService.generateAnnexure3PdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
+                        case 0:
+                        default:
+                          return WorkCompletionCertificateService.generateWcrPdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
+                      }
                     },
                     canChangeOrientation: false,
                     canChangePageFormat: false,
                     allowPrinting: true,
                     allowSharing: true,
                     initialPageFormat: PdfPageFormat.a4,
-                    pdfFileName: 'Work_Completion_Certificate_$_consumerNo.pdf',
-                    loadingWidget: const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(strokeWidth: 3, color: Color(0xFF0F2D69)),
-                          SizedBox(height: 12),
-                          Text('Generating Work Completion Certificate...', style: TextStyle(fontSize: 13, color: Color(0xFF0F2D69))),
-                        ],
-                      ),
-                    ),
+                    pdfFileName: 'MSEDCL_WCR_${_reportData.consumerNo}.pdf',
                   ),
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabButton(int index, String title, IconData icon) {
+    final isSelected = _selectedTab == index;
+    return InkWell(
+      onTap: () => setState(() {
+        _selectedTab = index;
+        _renderKey++;
+      }),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF0D2B6F) : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: isSelected
+              ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: isSelected ? Colors.white : const Color(0xFF475569)),
+            const SizedBox(width: 6),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? Colors.white : const Color(0xFF475569),
               ),
             ),
           ],
