@@ -459,10 +459,10 @@ class WorkCompletionCertificateService {
 
                               // Seal / Stamp designated box
                               pw.Container(
-                                width: 150,
-                                height: 62,
+                                width: 160,
+                                height: 66,
                                 decoration: pw.BoxDecoration(
-                                  color: zebraBgColor,
+                                  color: PdfColors.white,
                                   border: pw.Border.all(color: tableBorderColor, width: 0.8, style: pw.BorderStyle.dashed),
                                   borderRadius: pw.BorderRadius.circular(4),
                                 ),
@@ -478,8 +478,8 @@ class WorkCompletionCertificateService {
                                 ),
                               ),
 
-                              pw.SizedBox(height: 8),
-                              pw.Container(width: 150, height: 1, color: navyColor),
+                              pw.SizedBox(height: 12),
+                              pw.Container(width: 160, height: 1.0, color: navyColor),
                               pw.SizedBox(height: 4),
                               pw.Text(
                                 'Authorized Signatory',
@@ -502,7 +502,7 @@ class WorkCompletionCertificateService {
                       ],
                     ),
 
-                    pw.SizedBox(height: 14),
+                    pw.SizedBox(height: 10),
 
                     // ==================================================
                     // 6. FOOTER

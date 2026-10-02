@@ -455,11 +455,14 @@ class WorkCompletionCertificateService {
     y += chipBoxHeight + 16;
 
     // ==========================================
-    // 7. SIGNATURE BLOCK (RIGHT ALIGNED AT BOTTOM AREA)
+    // 7. SIGNATURE BLOCK (RIGHT ALIGNED IN LOWER OPEN SPACE ABOVE FOOTER)
     // ==========================================
     const double signWidth = 230;
     final double signLeft = contentRight - signWidth;
-    double signY = pageHeight - 200;
+    const double signBlockH = 132;
+    const double footerTopY = pageHeight - 48;
+    final double signYBottomTarget = footerTopY - signBlockH;
+    double signY = signYBottomTarget > (y + 12) ? signYBottomTarget : (y + 12);
 
     graphics.drawString(
       'For SIYA INFOTECH & DIGITAL SOLUTIONS',
@@ -469,18 +472,18 @@ class WorkCompletionCertificateService {
       bounds: Rect.fromLTWH(signLeft, signY, signWidth, 14),
     );
 
-    signY += 18;
+    signY += 16;
 
-    // Dashed Stamp Box
-    const double stampW = 150;
-    const double stampH = 62;
+    // Dashed Stamp Box (Standardized 160x66)
+    const double stampW = 160;
+    const double stampH = 66;
     final double stampL = signLeft + ((signWidth - stampW) / 2);
 
     final PdfPen dashPen = PdfPen(tableBorderColor, width: 0.8);
     dashPen.dashStyle = PdfDashStyle.dash;
 
     graphics.drawRectangle(
-      brush: zebraBgBrush,
+      brush: whiteBrush,
       pen: dashPen,
       bounds: Rect.fromLTWH(stampL, signY, stampW, stampH),
     );
@@ -493,16 +496,16 @@ class WorkCompletionCertificateService {
       bounds: Rect.fromLTWH(stampL, signY, stampW, stampH),
     );
 
-    signY += stampH + 10;
+    signY += stampH + 12;
 
-    // Solid Line
+    // Solid Line (160pt width)
     graphics.drawLine(
       PdfPen(navyColor, width: 1.0),
       Offset(stampL, signY),
       Offset(stampL + stampW, signY),
     );
 
-    signY += 5;
+    signY += 4;
 
     graphics.drawString(
       'Authorized Signatory',

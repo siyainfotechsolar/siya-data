@@ -180,12 +180,43 @@ class PaymentReceiptService {
 
     y += 85;
 
-    // --- 5. SIGNATURE & VERIFICATION NOTICE ---
-    graphics.drawString('Received By: ${tx.receivedBy ?? "Authorized Staff"}', boldFont, brush: darkBrush, bounds: Rect.fromLTWH(10, y + 10, 200, 15));
-    graphics.drawString('Status: ${tx.syncStatus}  |  Verification: ${tx.verificationStatus}', smallFont, brush: darkBrush, bounds: Rect.fromLTWH(10, y + 28, 250, 15));
+    // --- 5. SIGNATURE & STAMP BLOCK (Anchored to lower open space) ---
+    const double signH = 90;
+    const double lineWidth = 160;
+    final double disclaimerY = pageSize.height - 25;
+    final double signYTarget = disclaimerY - 15 - signH;
+    final double signY = signYTarget > (y + 20) ? signYTarget : (y + 20);
 
-    graphics.drawString('Authorized Signatory', boldFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.right), bounds: Rect.fromLTWH(pageSize.width - 200, y + 10, 190, 15));
-    graphics.drawString('Siya Infotech & Digital Solutions', smallFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.right), bounds: Rect.fromLTWH(pageSize.width - 200, y + 28, 190, 15));
+    // Left: Receiver info & Signature Line
+    graphics.drawString('Receiver Confirmation', boldFont, brush: darkBrush, bounds: Rect.fromLTWH(0, signY, 200, 14));
+    graphics.drawString('Received By: ${tx.receivedBy ?? "Authorized Staff"}', smallFont, brush: darkBrush, bounds: Rect.fromLTWH(0, signY + 14, 200, 12));
+    graphics.drawString('Status: ${tx.syncStatus} | Verification: ${tx.verificationStatus}', smallFont, brush: darkBrush, bounds: Rect.fromLTWH(0, signY + 28, 250, 12));
+
+    final double commonLineY = signY + 66;
+    graphics.drawLine(borderPen, Offset(0, commonLineY), Offset(lineWidth, commonLineY));
+    graphics.drawString('Receiver Signature', smallFont, brush: darkBrush, bounds: Rect.fromLTWH(0, commonLineY + 4, lineWidth, 12));
+
+    // Right: Authorized Signatory & Official Stamp Box
+    final double rightColL = pageSize.width - lineWidth;
+    graphics.drawString('For Siya Infotech & Digital Solutions', boldFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(rightColL, signY, lineWidth, 14));
+
+    // Stamp Guide Box
+    final PdfPen dashPen = PdfPen(PdfColor(203, 213, 225), width: 0.8);
+    dashPen.dashStyle = PdfDashStyle.dash;
+    const double stampW = 100;
+    const double stampH = 44;
+    final double stampL = rightColL + (lineWidth - stampW) / 2;
+    graphics.drawRectangle(pen: dashPen, brush: lightBgBrush, bounds: Rect.fromLTWH(stampL, signY + 16, stampW, stampH));
+    graphics.drawString(
+      '[ OFFICIAL STAMP ]',
+      smallFont,
+      brush: PdfSolidBrush(PdfColor(148, 163, 184)),
+      format: PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.middle),
+      bounds: Rect.fromLTWH(stampL, signY + 16, stampW, stampH),
+    );
+
+    graphics.drawLine(borderPen, Offset(rightColL, commonLineY), Offset(rightColL + lineWidth, commonLineY));
+    graphics.drawString('Authorized Signatory', smallFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(rightColL, commonLineY + 4, lineWidth, 12));
 
     // Bottom disclaimer
     graphics.drawString(
@@ -193,7 +224,7 @@ class PaymentReceiptService {
       smallFont,
       brush: PdfSolidBrush(PdfColor(148, 163, 184)),
       format: PdfStringFormat(alignment: PdfTextAlignment.center),
-      bounds: Rect.fromLTWH(0, pageSize.height - 25, pageSize.width, 20),
+      bounds: Rect.fromLTWH(0, disclaimerY, pageSize.width, 20),
     );
 
     // 2. Save document to file
