@@ -3,10 +3,12 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:siya_shared/utils/number_to_words_utils.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/consumer_record.dart';
 import '../models/solar_quotation.dart';
 import '../models/customer_margin_receipt.dart';
 import '../services/bank_loan_quotation_service.dart';
+import '../services/customer_signature_helper.dart';
 import '../services/margin_money_receipt_service.dart';
 import '../services/quotation_storage_service.dart';
 
@@ -80,6 +82,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
   int _renderKey = 0;
   bool _includeStampAndSignature = true;
   bool _receiptIncludeStampAndSignature = true;
+  bool _includeCustomerSignature = true;
   final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 0);
   final gstCurrencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 2);
 
@@ -88,6 +91,40 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     super.initState();
     _initFields();
     _loadHistory();
+  }
+
+  Future<void> _pickCustomerSignature() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg'],
+        withData: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final bytes = result.files.first.bytes;
+        if (bytes != null && bytes.isNotEmpty) {
+          CustomerSignatureHelper.setCustomerSignature(_consumerNo, bytes);
+          setState(() {
+            _includeCustomerSignature = true;
+            _renderKey++;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Customer signature uploaded successfully! Applied across all documents.'),
+                backgroundColor: Color(0xFF047857),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload signature: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   void _initFields([SolarQuotation? init]) {
@@ -1644,6 +1681,77 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                           icon: const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF047857)),
                           label: const Text('Include Stamp & Signature', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
                         ),
+                      // Option: Customer Signature ON/OFF
+                      if (_includeCustomerSignature)
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF0F3B7A),
+                            side: const BorderSide(color: Color(0xFF93C5FD)),
+                            backgroundColor: const Color(0xFFEFF6FF),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _includeCustomerSignature = false;
+                              _renderKey++;
+                            });
+                          },
+                          icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF0F3B7A)),
+                          label: const Text('Cust Sig: ON', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                        )
+                      else
+                        FilledButton.tonalIcon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFF1F5F9),
+                            foregroundColor: const Color(0xFF64748B),
+                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _includeCustomerSignature = true;
+                              _renderKey++;
+                            });
+                          },
+                          icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF64748B)),
+                          label: const Text('Cust Sig: OFF', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                        ),
+                      // Customer Signature Upload
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                              ? const Color(0xFF047857)
+                              : const Color(0xFF0F3B7A),
+                          side: BorderSide(
+                            color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                                ? const Color(0xFFA7F3D0)
+                                : const Color(0xFF93C5FD),
+                          ),
+                          backgroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                              ? const Color(0xFFECFDF5)
+                              : Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: _pickCustomerSignature,
+                        icon: Icon(
+                          CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                              ? Icons.check_circle_rounded
+                              : Icons.upload_file_rounded,
+                          size: 14,
+                          color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                              ? const Color(0xFF047857)
+                              : const Color(0xFF0F3B7A),
+                        ),
+                        label: Text(
+                          CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                              ? 'Sig Uploaded ✓'
+                              : 'Upload Cust Sig',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
+                        ),
+                      ),
                       // Share WhatsApp
                       FilledButton.tonalIcon(
                         style: FilledButton.styleFrom(
@@ -1671,6 +1779,8 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               context,
                               quotation,
                               includeStampAndSignature: _includeStampAndSignature,
+                              includeCustomerSignature: _includeCustomerSignature,
+                              customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_consumerNo),
                             );
                           }
                         },
@@ -1764,6 +1874,8 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                             await MarginMoneyReceiptService.downloadPdf(
                               marginReceipt,
                               includeStampAndSignature: _receiptIncludeStampAndSignature,
+                              includeCustomerSignature: _includeCustomerSignature,
+                              customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_consumerNo),
                             );
                           }
                         },
@@ -1782,11 +1894,14 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                         padding: const EdgeInsets.all(7),
                       ),
                       onPressed: () async {
+                        final custSigBytes = CustomerSignatureHelper.getCustomerSignature(_consumerNo);
                         if (_selectedTab == 1) {
                           await Printing.layoutPdf(
                             onLayout: (format) async => MarginMoneyReceiptService.generateReceiptPdfBytes(
                               marginReceipt,
                               includeStampAndSignature: _receiptIncludeStampAndSignature,
+                              includeCustomerSignature: _includeCustomerSignature,
+                              customCustomerSignatureBytes: custSigBytes,
                             ),
                             name: marginReceipt.pdfFileName,
                           );
@@ -1795,6 +1910,8 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                             onLayout: (format) async => BankLoanQuotationService.generateQuotationPdfBytes(
                               quotation,
                               includeStampAndSignature: _includeStampAndSignature,
+                              includeCustomerSignature: _includeCustomerSignature,
+                              customCustomerSignatureBytes: custSigBytes,
                             ),
                             name: quotation.pdfFileName,
                           );
@@ -2041,17 +2158,22 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: PdfPreview(
-                          key: ValueKey('preview_${_selectedTab}_${_renderKey}_${_includeStampAndSignature}_$_receiptIncludeStampAndSignature'),
+                          key: ValueKey('preview_${_selectedTab}_${_renderKey}_${_includeStampAndSignature}_${_receiptIncludeStampAndSignature}_${_includeCustomerSignature}_${CustomerSignatureHelper.hasCustomerSignature(_consumerNo)}'),
                           build: (PdfPageFormat format) async {
+                            final custSigBytes = CustomerSignatureHelper.getCustomerSignature(_consumerNo);
                             if (_selectedTab == 1) {
                               return MarginMoneyReceiptService.generateReceiptPdfBytes(
                                 marginReceipt,
                                 includeStampAndSignature: _receiptIncludeStampAndSignature,
+                                includeCustomerSignature: _includeCustomerSignature,
+                                customCustomerSignatureBytes: custSigBytes,
                               );
                             }
                             return BankLoanQuotationService.generateQuotationPdfBytes(
                               quotation,
                               includeStampAndSignature: _includeStampAndSignature,
+                              includeCustomerSignature: _includeCustomerSignature,
+                              customCustomerSignatureBytes: custSigBytes,
                             );
                           },
                           useActions: false,

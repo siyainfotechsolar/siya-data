@@ -1616,6 +1616,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
         style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 12),
       ),
     );
+  }
+
   Widget _buildFinancingBadge(ConsumerRecord r) {
     final isLoan = r.loanRequired.trim().toLowerCase() == 'yes';
     return Container(

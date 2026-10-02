@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/consumer_record.dart';
 import '../models/consumer_vendor_agreement.dart';
 import '../services/agreement_storage_service.dart';
+import '../services/customer_signature_helper.dart';
 import '../services/consumer_vendor_agreement_service.dart';
 
 class ConsumerVendorAgreementDialog extends StatefulWidget {
@@ -99,6 +101,7 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
   }
 
   bool _includeStampAndSignature = true;
+  bool _includeCustomerSignature = true;
 
   ConsumerVendorAgreement _buildAgreement() {
     return ConsumerVendorAgreement(
@@ -127,6 +130,40 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
       createdAt: widget.initialAgreement?.createdAt ?? DateTime.now(),
       updatedAt: DateTime.now(),
     );
+  }
+
+  Future<void> _pickCustomerSignature() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg'],
+        withData: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final bytes = result.files.first.bytes;
+        if (bytes != null && bytes.isNotEmpty) {
+          CustomerSignatureHelper.setCustomerSignature(_consumerNo, bytes);
+          setState(() {
+            _includeCustomerSignature = true;
+            _renderKey++;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Customer signature uploaded successfully! Applied across all documents.'),
+                backgroundColor: Color(0xFF047857),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload signature: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _openEditDetailsDialog() async {
@@ -611,6 +648,74 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                         icon: const Icon(Icons.verified_rounded, size: 15, color: Color(0xFF047857)),
                         label: const Text('Include Stamp & Signature', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
+                    // Option: Customer Signature ON/OFF
+                    if (_includeCustomerSignature)
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF0F3B7A),
+                          side: const BorderSide(color: Color(0xFF93C5FD)),
+                          backgroundColor: const Color(0xFFEFF6FF),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _includeCustomerSignature = false;
+                            _renderKey++;
+                          });
+                        },
+                        icon: const Icon(Icons.draw_outlined, size: 15, color: Color(0xFF0F3B7A)),
+                        label: const Text('Customer Sig: ON', style: TextStyle(fontWeight: FontWeight.bold)),
+                      )
+                    else
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          foregroundColor: const Color(0xFF64748B),
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _includeCustomerSignature = true;
+                            _renderKey++;
+                          });
+                        },
+                        icon: const Icon(Icons.draw_outlined, size: 15, color: Color(0xFF64748B)),
+                        label: const Text('Customer Sig: OFF', style: TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    // Customer Signature Upload
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                            ? const Color(0xFF047857)
+                            : const Color(0xFF0F3B7A),
+                        side: BorderSide(
+                          color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                              ? const Color(0xFFA7F3D0)
+                              : const Color(0xFF93C5FD),
+                        ),
+                        backgroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                            ? const Color(0xFFECFDF5)
+                            : Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      onPressed: _pickCustomerSignature,
+                      icon: Icon(
+                        CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                            ? Icons.check_circle_rounded
+                            : Icons.upload_file_rounded,
+                        size: 15,
+                        color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                            ? const Color(0xFF047857)
+                            : const Color(0xFF0F3B7A),
+                      ),
+                      label: Text(
+                        CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                            ? 'Sig Uploaded ✓'
+                            : 'Upload Cust Sig',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    ),
                   ],
                 ),
 
@@ -636,7 +741,13 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       ),
-                      onPressed: () => ConsumerVendorAgreementService.downloadAgreementPdf(context, agreement, includeStampAndSignature: _includeStampAndSignature),
+                      onPressed: () => ConsumerVendorAgreementService.downloadAgreementPdf(
+                        context,
+                        agreement,
+                        includeStampAndSignature: _includeStampAndSignature,
+                        includeCustomerSignature: _includeCustomerSignature,
+                        customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_consumerNo),
+                      ),
                       icon: const Icon(Icons.download_rounded, size: 16),
                       label: const Text('Download PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                     ),
@@ -677,13 +788,15 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: PdfPreview(
-                    key: ValueKey('agreement_preview_${_renderKey}_$_includeStampAndSignature'),
+                    key: ValueKey('agreement_preview_${_renderKey}_${_includeStampAndSignature}_${_includeCustomerSignature}_${CustomerSignatureHelper.hasCustomerSignature(_consumerNo)}'),
                     build: (PdfPageFormat format) async {
                       // Save to local storage on render to link to profile
                       await AgreementStorageService.saveAgreement(agreement);
                       return ConsumerVendorAgreementService.generateAgreementPdfBytes(
                         agreement,
                         includeStampAndSignature: _includeStampAndSignature,
+                        includeCustomerSignature: _includeCustomerSignature,
+                        customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_consumerNo),
                       );
                     },
                     canChangeOrientation: false,

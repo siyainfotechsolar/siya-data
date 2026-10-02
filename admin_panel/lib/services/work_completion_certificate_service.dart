@@ -33,6 +33,7 @@ class WorkCompletionCertificateService {
     bool includeStampAndSignature = true,
     Uint8List? customStampAndSignatureBytes,
     bool includeCustomerSignature = true,
+    Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdf = pw.Document();
 
@@ -410,18 +411,15 @@ class WorkCompletionCertificateService {
                           child: pw.Column(
                             crossAxisAlignment: pw.CrossAxisAlignment.center,
                             children: [
-                              if (includeCustomerSignature && customerSignatureFont != null)
-                                pw.Container(
-                                  height: 52,
-                                  alignment: pw.Alignment.bottomCenter,
-                                  child: CustomerSignatureHelper.buildSignature(
-                                    customerName: data.customerName,
-                                    font: customerSignatureFont,
-                                    fontSize: 15,
-                                  ),
-                                )
-                              else
-                                pw.SizedBox(height: 52),
+                              CustomerSignatureHelper.buildSignatureWidget(
+                                customerName: data.customerName,
+                                consumerNo: data.consumerNo,
+                                customSignatureBytes: customCustomerSignatureBytes,
+                                font: customerSignatureFont,
+                                includeSignature: includeCustomerSignature,
+                                height: 52,
+                                fontSize: 15,
+                              ),
                               pw.Container(width: 140, height: 1.0, color: navyColor),
                               pw.SizedBox(height: 3),
                               pw.Text(
@@ -594,6 +592,7 @@ class WorkCompletionCertificateService {
     bool includeStampAndSignature = true,
     Uint8List? customStampAndSignatureBytes,
     bool includeCustomerSignature = true,
+    Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdf = pw.Document();
 
@@ -763,18 +762,15 @@ class WorkCompletionCertificateService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
-                      if (includeCustomerSignature && customerSignatureFont != null)
-                        pw.Container(
-                          height: 50,
-                          alignment: pw.Alignment.bottomCenter,
-                          child: CustomerSignatureHelper.buildSignature(
-                            customerName: data.customerName,
-                            font: customerSignatureFont,
-                            fontSize: 16,
-                          ),
-                        )
-                      else
-                        pw.SizedBox(height: 50),
+                      CustomerSignatureHelper.buildSignatureWidget(
+                        customerName: data.customerName,
+                        consumerNo: data.consumerNo,
+                        customSignatureBytes: customCustomerSignatureBytes,
+                        font: customerSignatureFont,
+                        includeSignature: includeCustomerSignature,
+                        height: 50,
+                        fontSize: 16,
+                      ),
                       pw.Container(width: 160, height: 0.8, color: blackColor),
                       pw.SizedBox(height: 4),
                       pw.Text('Signature [Consumer]', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
@@ -1179,6 +1175,7 @@ class WorkCompletionCertificateService {
     Uint8List? customStampAndSignatureBytes,
     Uint8List? customStampPaperBytes,
     bool includeCustomerSignature = true,
+    Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdf = pw.Document();
 
@@ -1415,18 +1412,15 @@ class WorkCompletionCertificateService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.center,
                     children: [
-                      if (includeCustomerSignature && customerSignatureFont != null)
-                        pw.Container(
-                          height: 45,
-                          alignment: pw.Alignment.bottomCenter,
-                          child: CustomerSignatureHelper.buildSignature(
-                            customerName: data.customerName,
-                            font: customerSignatureFont,
-                            fontSize: 17,
-                          ),
-                        )
-                      else
-                        pw.SizedBox(height: 45),
+                      CustomerSignatureHelper.buildSignatureWidget(
+                        customerName: data.customerName,
+                        consumerNo: data.consumerNo,
+                        customSignatureBytes: customCustomerSignatureBytes,
+                        font: customerSignatureFont,
+                        includeSignature: includeCustomerSignature,
+                        height: 45,
+                        fontSize: 17,
+                      ),
                       pw.Container(width: 180, height: 0.8, color: blackColor),
                       pw.SizedBox(height: 4),
                       pw.Text('Signature of Eligible Consumer', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
@@ -1492,6 +1486,7 @@ class WorkCompletionCertificateService {
     DateTime? customCompletionDate,
     bool includeStampAndSignature = true,
     bool includeCustomerSignature = true,
+    Uint8List? customCustomerSignatureBytes,
     int documentType = 0, // 0: WCR, 1: Annexure-1, 2: DCR, 3: Annexure-3
     WorkCompletionReportData? reportData,
   }) async {
@@ -1513,6 +1508,7 @@ class WorkCompletionCertificateService {
             data,
             includeStampAndSignature: includeStampAndSignature,
             includeCustomerSignature: includeCustomerSignature,
+            customCustomerSignatureBytes: customCustomerSignatureBytes,
           );
           docPrefix = 'Bank_Work_Completion_Certificate';
           break;
@@ -1521,6 +1517,7 @@ class WorkCompletionCertificateService {
             data,
             includeStampAndSignature: includeStampAndSignature,
             includeCustomerSignature: includeCustomerSignature,
+            customCustomerSignatureBytes: customCustomerSignatureBytes,
           );
           docPrefix = 'MSEDCL_WCR_Report';
           break;
@@ -1538,6 +1535,7 @@ class WorkCompletionCertificateService {
             data,
             includeStampAndSignature: includeStampAndSignature,
             includeCustomerSignature: includeCustomerSignature,
+            customCustomerSignatureBytes: customCustomerSignatureBytes,
           );
           docPrefix = 'Annexure_3_Net_Metering';
           break;

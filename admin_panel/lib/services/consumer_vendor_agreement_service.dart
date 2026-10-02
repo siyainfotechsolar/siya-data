@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/consumer_vendor_agreement.dart';
 import 'company_stamp_helper.dart';
+import 'customer_signature_helper.dart';
 
 /// Official Master Reference implementation of Annexure 2 Agreement
 /// Strictly follows original PM Surya Ghar: Muft Bijli Yojana Model Draft Agreement.
@@ -130,9 +131,18 @@ class ConsumerVendorAgreementService {
     ConsumerVendorAgreement agreement, {
     bool includeStampAndSignature = true,
     Uint8List? customStampAndSignatureBytes,
+    bool includeCustomerSignature = true,
+    Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdf = pw.Document();
     final currencyFmt = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 2);
+
+    pw.Font? customerSignatureFont;
+    if (includeCustomerSignature) {
+      try {
+        customerSignatureFont = await CustomerSignatureHelper.loadSignatureFont();
+      } catch (_) {}
+    }
 
     // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
     pw.MemoryImage? stampAndSigImage;
@@ -524,7 +534,15 @@ class ConsumerVendorAgreementService {
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
                               pw.Text('Signature / Thumb Impression of First Party:', style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.8)),
-                              pw.SizedBox(height: 100),
+                              CustomerSignatureHelper.buildSignatureWidget(
+                                customerName: agreement.customerName,
+                                consumerNo: agreement.consumerNo,
+                                customSignatureBytes: customCustomerSignatureBytes,
+                                font: customerSignatureFont,
+                                includeSignature: includeCustomerSignature,
+                                height: 100,
+                                fontSize: 18.0,
+                              ),
                               pw.Container(height: 0.8, color: borderDarkColor),
                               pw.SizedBox(height: 4),
                               pw.Text('Signature of First Party (Consumer)', style: pw.TextStyle(color: darkTextColor, fontSize: 8.2, fontWeight: pw.FontWeight.bold)),
@@ -603,10 +621,14 @@ class ConsumerVendorAgreementService {
     BuildContext context,
     ConsumerVendorAgreement agreement, {
     bool includeStampAndSignature = true,
+    bool includeCustomerSignature = true,
+    Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdfBytes = await generateAgreementPdfBytes(
       agreement,
       includeStampAndSignature: includeStampAndSignature,
+      includeCustomerSignature: includeCustomerSignature,
+      customCustomerSignatureBytes: customCustomerSignatureBytes,
     );
     if (!context.mounted) return;
     await Printing.layoutPdf(
@@ -620,11 +642,15 @@ class ConsumerVendorAgreementService {
     BuildContext context,
     ConsumerVendorAgreement agreement, {
     bool includeStampAndSignature = true,
+    bool includeCustomerSignature = true,
+    Uint8List? customCustomerSignatureBytes,
   }) async {
     try {
       final pdfBytes = await generateAgreementPdfBytes(
         agreement,
         includeStampAndSignature: includeStampAndSignature,
+        includeCustomerSignature: includeCustomerSignature,
+        customCustomerSignatureBytes: customCustomerSignatureBytes,
       );
       await Printing.sharePdf(
         bytes: pdfBytes,

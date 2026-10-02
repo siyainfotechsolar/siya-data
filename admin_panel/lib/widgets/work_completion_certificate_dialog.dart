@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/consumer_record.dart';
 import '../models/work_completion_report_data.dart';
+import '../services/customer_signature_helper.dart';
 import '../services/work_completion_certificate_service.dart';
 
 class WorkCompletionCertificateDialog extends StatefulWidget {
@@ -42,6 +44,40 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
     super.initState();
     _selectedTab = widget.initialTab.clamp(0, 4);
     _reportData = WorkCompletionReportData.fromCustomer(widget.customer);
+  }
+
+  Future<void> _pickCustomerSignature() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg'],
+        withData: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final bytes = result.files.first.bytes;
+        if (bytes != null && bytes.isNotEmpty) {
+          CustomerSignatureHelper.setCustomerSignature(widget.customer.consumerNo, bytes);
+          setState(() {
+            _includeCustomerSignature = true;
+            _renderKey++;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Customer signature uploaded successfully! Applied across all documents.'),
+                backgroundColor: Color(0xFF047857),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload signature: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _openEditDetailsDialog() async {
@@ -511,6 +547,40 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                         label: const Text('Customer Sig: OFF', style: TextStyle(fontWeight: FontWeight.w600)),
                       ),
 
+                    // Customer Signature Upload
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: CustomerSignatureHelper.hasCustomerSignature(widget.customer.consumerNo)
+                            ? const Color(0xFF047857)
+                            : const Color(0xFF0F3B7A),
+                        side: BorderSide(
+                          color: CustomerSignatureHelper.hasCustomerSignature(widget.customer.consumerNo)
+                              ? const Color(0xFFA7F3D0)
+                              : const Color(0xFF93C5FD),
+                        ),
+                        backgroundColor: CustomerSignatureHelper.hasCustomerSignature(widget.customer.consumerNo)
+                            ? const Color(0xFFECFDF5)
+                            : Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      onPressed: _pickCustomerSignature,
+                      icon: Icon(
+                        CustomerSignatureHelper.hasCustomerSignature(widget.customer.consumerNo)
+                            ? Icons.check_circle_rounded
+                            : Icons.upload_file_rounded,
+                        size: 15,
+                        color: CustomerSignatureHelper.hasCustomerSignature(widget.customer.consumerNo)
+                            ? const Color(0xFF047857)
+                            : const Color(0xFF0F3B7A),
+                      ),
+                      label: Text(
+                        CustomerSignatureHelper.hasCustomerSignature(widget.customer.consumerNo)
+                            ? 'Sig Uploaded ✓'
+                            : 'Upload Cust Sig',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    ),
+
                     FilledButton.tonalIcon(
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
@@ -538,6 +608,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                                 reportData: _reportData,
                                 includeStampAndSignature: _includeStampAndSignature,
                                 includeCustomerSignature: _includeCustomerSignature,
+                                customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_reportData.consumerNo),
                                 documentType: _selectedTab,
                               );
                               if (mounted) setState(() => _isDownloading = false);
@@ -584,20 +655,23 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: PdfPreview(
-                    key: ValueKey('wcr_preview_${_selectedTab}_${_renderKey}_${_includeStampAndSignature}_$_includeCustomerSignature'),
+                    key: ValueKey('wcr_preview_${_selectedTab}_${_renderKey}_${_includeStampAndSignature}_${_includeCustomerSignature}_${CustomerSignatureHelper.hasCustomerSignature(_reportData.consumerNo)}'),
                     build: (PdfPageFormat format) async {
+                      final custSigBytes = CustomerSignatureHelper.getCustomerSignature(_reportData.consumerNo);
                       switch (_selectedTab) {
                         case 0:
                           return WorkCompletionCertificateService.generateBankWcrPdfBytes(
                             _reportData,
                             includeStampAndSignature: _includeStampAndSignature,
                             includeCustomerSignature: _includeCustomerSignature,
+                            customCustomerSignatureBytes: custSigBytes,
                           );
                         case 1:
                           return WorkCompletionCertificateService.generateWcrPdfBytes(
                             _reportData,
                             includeStampAndSignature: _includeStampAndSignature,
                             includeCustomerSignature: _includeCustomerSignature,
+                            customCustomerSignatureBytes: custSigBytes,
                           );
                         case 2:
                           return WorkCompletionCertificateService.generateAnnexure1PdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
@@ -609,6 +683,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                             _reportData,
                             includeStampAndSignature: _includeStampAndSignature,
                             includeCustomerSignature: _includeCustomerSignature,
+                            customCustomerSignatureBytes: custSigBytes,
                           );
                       }
                     },

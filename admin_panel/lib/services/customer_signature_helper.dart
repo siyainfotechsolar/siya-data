@@ -8,6 +8,35 @@ import 'package:pdf/widgets.dart' as pw;
 /// in realistic blue pen ink from the customer's name.
 class CustomerSignatureHelper {
   static pw.Font? _cachedSignatureFont;
+  static final Map<String, Uint8List> _customSignatures = {};
+
+  static String _normalizeKey(String key) => key.trim().toUpperCase();
+
+  /// Saves an uploaded customer signature image in memory for the given customer identifier (consumerNo or customerId)
+  static void setCustomerSignature(String consumerOrCustomerId, Uint8List bytes) {
+    if (consumerOrCustomerId.trim().isNotEmpty) {
+      _customSignatures[_normalizeKey(consumerOrCustomerId)] = bytes;
+    }
+  }
+
+  /// Retrieves an uploaded customer signature image for the given customer identifier
+  static Uint8List? getCustomerSignature(String consumerOrCustomerId) {
+    if (consumerOrCustomerId.trim().isEmpty) return null;
+    return _customSignatures[_normalizeKey(consumerOrCustomerId)];
+  }
+
+  /// Checks if an uploaded customer signature image is available for this customer
+  static bool hasCustomerSignature(String consumerOrCustomerId) {
+    if (consumerOrCustomerId.trim().isEmpty) return false;
+    return _customSignatures.containsKey(_normalizeKey(consumerOrCustomerId));
+  }
+
+  /// Clears an uploaded customer signature
+  static void clearCustomerSignature(String consumerOrCustomerId) {
+    if (consumerOrCustomerId.trim().isNotEmpty) {
+      _customSignatures.remove(_normalizeKey(consumerOrCustomerId));
+    }
+  }
 
   /// Loads the signature TTF font with multi-source fallback
   static Future<pw.Font> loadSignatureFont() async {
@@ -114,5 +143,59 @@ class CustomerSignatureHelper {
         ],
       ],
     );
+  }
+
+  /// High-level signature widget: Renders uploaded signature image if present,
+  /// otherwise renders authentic cursive handwritten signature from name.
+  static pw.Widget buildSignatureWidget({
+    required String customerName,
+    String? consumerNo,
+    Uint8List? customSignatureBytes,
+    pw.Font? font,
+    bool includeSignature = true,
+    double height = 48.0,
+    double fontSize = 16.0,
+    bool includeUnderline = true,
+    PdfColor color = const PdfColor.fromInt(0xFF0F3B7A),
+  }) {
+    if (!includeSignature) {
+      return pw.SizedBox(height: height);
+    }
+
+    final effectiveBytes = customSignatureBytes ??
+        (consumerNo != null ? getCustomerSignature(consumerNo) : null);
+
+    if (effectiveBytes != null && effectiveBytes.isNotEmpty) {
+      try {
+        final memImage = pw.MemoryImage(effectiveBytes);
+        return pw.Container(
+          height: height,
+          alignment: pw.Alignment.bottomCenter,
+          child: pw.Image(
+            memImage,
+            height: height,
+            fit: pw.BoxFit.contain,
+          ),
+        );
+      } catch (e) {
+        debugPrint('Error rendering uploaded customer signature: $e');
+      }
+    }
+
+    if (font != null) {
+      return pw.Container(
+        height: height,
+        alignment: pw.Alignment.bottomCenter,
+        child: buildSignature(
+          customerName: customerName,
+          font: font,
+          fontSize: fontSize,
+          includeUnderline: includeUnderline,
+          color: color,
+        ),
+      );
+    }
+
+    return pw.SizedBox(height: height);
   }
 }

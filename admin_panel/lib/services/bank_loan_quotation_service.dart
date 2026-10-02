@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/solar_quotation.dart';
 import 'company_stamp_helper.dart';
+import 'customer_signature_helper.dart';
 
 class BankLoanQuotationService {
   static const PdfColor navyColor = PdfColor.fromInt(0xFF0D2B6F);
@@ -56,8 +57,17 @@ class BankLoanQuotationService {
     SolarQuotation quotation, {
     bool includeStampAndSignature = true,
     Uint8List? customStampAndSignatureBytes,
+    bool includeCustomerSignature = true,
+    Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdf = pw.Document();
+
+    pw.Font? customerSignatureFont;
+    if (includeCustomerSignature) {
+      try {
+        customerSignatureFont = await CustomerSignatureHelper.loadSignatureFont();
+      } catch (_) {}
+    }
 
     // Load Company Logo from Assets
     pw.MemoryImage? logoImage;
@@ -613,7 +623,15 @@ class BankLoanQuotationService {
                                   fontSize: 6.8,
                                 ),
                               ),
-                              pw.SizedBox(height: 73), // Perfectly aligns Customer signature line with Vendor signature line!
+                              CustomerSignatureHelper.buildSignatureWidget(
+                                customerName: quotation.customerName,
+                                consumerNo: quotation.consumerNo,
+                                customSignatureBytes: customCustomerSignatureBytes,
+                                font: customerSignatureFont,
+                                includeSignature: includeCustomerSignature,
+                                height: 73,
+                                fontSize: 16.5,
+                              ),
                               pw.Container(width: 160, height: 1.0, color: darkTextColor),
                               pw.SizedBox(height: 3),
                               pw.Text(
@@ -817,10 +835,14 @@ class BankLoanQuotationService {
     BuildContext context,
     SolarQuotation quotation, {
     bool includeStampAndSignature = true,
+    bool includeCustomerSignature = true,
+    Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdfBytes = await generateQuotationPdfBytes(
       quotation,
       includeStampAndSignature: includeStampAndSignature,
+      includeCustomerSignature: includeCustomerSignature,
+      customCustomerSignatureBytes: customCustomerSignatureBytes,
     );
     final String defaultFileName = quotation.pdfFileName;
 
@@ -839,10 +861,14 @@ class BankLoanQuotationService {
   static Future<void> printQuotationPdf(
     SolarQuotation quotation, {
     bool includeStampAndSignature = true,
+    bool includeCustomerSignature = true,
+    Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdfBytes = await generateQuotationPdfBytes(
       quotation,
       includeStampAndSignature: includeStampAndSignature,
+      includeCustomerSignature: includeCustomerSignature,
+      customCustomerSignatureBytes: customCustomerSignatureBytes,
     );
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdfBytes,
