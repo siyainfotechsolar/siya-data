@@ -217,7 +217,7 @@ class ConsumerVendorAgreementPdfService {
     g1.drawString('And', centeredHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 14));
     y += 18;
     const String vendorText =
-        'SIYA INFOTECH & DIGITAL SOLUTIONS (GSTIN: 27CVTPK6358P1ZD, Mobile: 7588003220, Email: siyainfodigital@gmail.com) '
+        'SIYA INFOTECH & DIGITAL SOLUTIONS (GSTIN: 27CVTPK6358P1ZD, Mobile: 7972143798, Email: siyainfodigital@gmail.com) '
         'having registered office at 21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule - 425403 '
         '(hereinafter referred to as second Party i.e. Vendor/ contractor/ System Integrator).';
     y = drawDynamicText(g1, y, vendorText, bodyFont, slateBodyBrush, gap: 18);
@@ -450,7 +450,7 @@ class ConsumerVendorAgreementPdfService {
     p2Y += 18;
     g3.drawString('Address: 21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 13));
     p2Y += 16;
-    g3.drawString('GSTIN: 27CVTPK6358P1ZD | Mobile: 7588003220', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 13));
+    g3.drawString('GSTIN: 27CVTPK6358P1ZD | Mobile: 7972143798', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 13));
     p2Y += 16;
     g3.drawString('Email: siyainfodigital@gmail.com', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 13));
     p2Y += 16;
@@ -565,7 +565,7 @@ class ConsumerVendorAgreementPdfService {
       '• Net Payable: Rs. ${agreement.netCustomerPayable.toStringAsFixed(0)}\n\n'
       'Best regards,\n'
       'SIYA INFOTECH & DIGITAL SOLUTIONS\n'
-      'Betawad, Dist. Dhule | Helpline: 7588003220',
+      'Betawad, Dist. Dhule | Helpline: 7972143798',
     );
 
     final url = Uri.parse('https://wa.me/$cleanPhone?text=$msg');

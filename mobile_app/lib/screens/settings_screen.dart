@@ -201,6 +201,32 @@ class MobileSettingsScreen extends StatelessWidget {
                     }
                   },
                 ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.phone_in_talk_rounded, color: Colors.blue, size: 22),
+                  ),
+                  title: const Text(
+                    'Helpline & Support',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    '+91 7972143798 (Owner: Manoj Kshirsagar)',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.call_rounded, size: 18, color: Colors.green),
+                  onTap: () async {
+                    final uri = Uri.parse('tel:+917972143798');
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    }
+                  },
+                ),
               ],
             ),
           ),

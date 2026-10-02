@@ -121,7 +121,7 @@ class ConsumerVendorAgreement {
     DateTime? createdAt,
     this.updatedAt,
   })  : vendorName = vendorFirmName ?? vendorName ?? 'SIYA INFOTECH & DIGITAL SOLUTIONS',
-        vendorPhone = vendorMobile ?? vendorPhone ?? '7588003220',
+        vendorPhone = vendorMobile ?? vendorPhone ?? '7972143798',
         pdfFileName = pdfFileName ?? 'Annex_2_Agreement_${agreementNo}.pdf',
         createdAt = createdAt ?? DateTime.now(),
         paymentMilestones = paymentMilestones ?? defaultMilestones(totalProjectCost);
@@ -242,7 +242,7 @@ class ConsumerVendorAgreement {
       netCustomerPayable: (json['net_customer_payable'] as num?)?.toDouble() ?? (totalCost - 78000.0),
       vendorName: json['vendor_name']?.toString() ?? 'SIYA INFOTECH & DIGITAL SOLUTIONS',
       vendorAddress: json['vendor_address']?.toString() ?? '21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule - 425403',
-      vendorPhone: json['vendor_phone']?.toString() ?? '7588003220',
+      vendorPhone: json['vendor_phone']?.toString() ?? '7972143798',
       vendorEmail: json['vendor_email']?.toString() ?? 'siyainfodigital@gmail.com',
       vendorGstin: json['vendor_gstin']?.toString() ?? '27CVTPK6358P1ZD',
       paymentMilestones: milestones ?? defaultMilestones(totalCost),

@@ -180,7 +180,7 @@ class MarginMoneyReceiptService {
                               ),
                               pw.SizedBox(height: 1.5),
                               pw.Text(
-                                'Mob: +91 9028888047 / +91 7798888047  |  Email: siyainfodigital@gmail.com',
+                                'Helpline: +91 7972143798  |  Email: siyainfodigital@gmail.com',
                                 style: const pw.TextStyle(
                                   color: slateMutedColor,
                                   fontSize: 6.8,
@@ -767,7 +767,7 @@ Please find your official Customer Margin Money Receipt attached.
 
 Thank you!
 *Siya Infotech and Digital Solutions*
-Betawad, Dist. Dhule | Mob: 9028888047
+Betawad, Dist. Dhule | Helpline: 7972143798
 ''';
 
     final uri = Uri.parse('https://wa.me/$targetPhone?text=${Uri.encodeComponent(message)}');

@@ -179,7 +179,7 @@ void main() {
         vendorFirmName: 'SIYA INFOTECH & DIGITAL SOLUTIONS',
         vendorGstin: '27CVTPK6358P1ZD',
         vendorAddress: '21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule - 425403',
-        vendorMobile: '7588003220',
+        vendorMobile: '7972143798',
         vendorEmail: 'siyainfodigital@gmail.com',
         systemCapacity: '3.3 kW',
         systemType: 'Grid-Connected Rooftop Solar PV',

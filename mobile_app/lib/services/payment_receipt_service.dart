@@ -294,7 +294,7 @@ Thank you for your payment!
 • *Remaining Balance:* ₹$balanceFormatted
 • *Receipt Status:* ${tx.isPendingSync ? "Draft (Local Confirmation)" : "Verified & Confirmed"}
 
-For any queries, please reach out to Siya Infotech & Digital Solutions.
+For any queries, please reach out to Siya Infotech & Digital Solutions (Helpline: 7972143798).
 ''';
 
     final cleanMobile = (customer.mobile ?? '').replaceAll(RegExp(r'[^0-9]'), '');

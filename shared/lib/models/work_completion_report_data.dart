@@ -87,9 +87,9 @@ class WorkCompletionReportData {
     this.vendorFirmName = 'SIYA INFOTECH & DIGITAL SOLUTIONS',
     this.vendorGstin = '27CVTPK6358P1ZD',
     this.vendorAddress = '21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule - 425403',
-    this.vendorMobile = '7588003220',
+    this.vendorMobile = '7972143798',
     this.vendorEmail = 'siyainfodigital@gmail.com',
-    this.authorizedPerson = 'Dipak Kshirsagar',
+    this.authorizedPerson = 'Manoj Kshirsagar',
     this.discomName = 'MSEDCL',
     this.consumerAadhar = '',
   });
@@ -185,9 +185,9 @@ class WorkCompletionReportData {
       vendorFirmName: 'SIYA INFOTECH & DIGITAL SOLUTIONS',
       vendorGstin: '27CVTPK6358P1ZD',
       vendorAddress: '21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule - 425403',
-      vendorMobile: '7588003220',
+      vendorMobile: '7972143798',
       vendorEmail: 'siyainfodigital@gmail.com',
-      authorizedPerson: 'Dipak Kshirsagar',
+      authorizedPerson: 'Manoj Kshirsagar',
       discomName: 'MSEDCL',
       consumerAadhar: customAadhar ?? '',
     );

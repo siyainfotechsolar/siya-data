@@ -238,7 +238,7 @@ class ConsumerVendorAgreementService {
                       style: pw.TextStyle(color: darkTextColor, fontSize: 8.5, fontWeight: pw.FontWeight.bold),
                     ),
                     pw.TextSpan(
-                      text: '(GSTIN: 27CVTPK6358P1ZD, Mobile: 7588003220, Email: siyainfodigital@gmail.com) ',
+                      text: '(GSTIN: 27CVTPK6358P1ZD, Mobile: 7972143798, Email: siyainfodigital@gmail.com) ',
                       style: pw.TextStyle(color: darkTextColor, fontSize: 8.3, fontWeight: pw.FontWeight.bold),
                     ),
                     const pw.TextSpan(
@@ -514,7 +514,7 @@ class ConsumerVendorAgreementService {
                               pw.SizedBox(height: 5),
                               pw.Text('Address: 21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule', style: const pw.TextStyle(color: slateBodyColor, fontSize: 7.8)),
                               pw.SizedBox(height: 5),
-                              pw.Text('GSTIN: 27CVTPK6358P1ZD | Mobile: 7588003220', style: const pw.TextStyle(color: slateBodyColor, fontSize: 7.8)),
+                              pw.Text('GSTIN: 27CVTPK6358P1ZD | Mobile: 7972143798', style: const pw.TextStyle(color: slateBodyColor, fontSize: 7.8)),
                               pw.SizedBox(height: 5),
                               pw.Text('Email: siyainfodigital@gmail.com', style: const pw.TextStyle(color: slateBodyColor, fontSize: 7.8)),
                               pw.SizedBox(height: 5),
@@ -678,7 +678,7 @@ class ConsumerVendorAgreementService {
       '• Net Payable: Rs. ${agreement.netCustomerPayable.toStringAsFixed(0)}\n\n'
       'Best regards,\n'
       'SIYA INFOTECH & DIGITAL SOLUTIONS\n'
-      'Betawad, Dist. Dhule | Helpline: 7588003220',
+      'Betawad, Dist. Dhule | Helpline: 7972143798',
     );
 
     final url = Uri.parse('https://wa.me/$cleanPhone?text=$msg');
