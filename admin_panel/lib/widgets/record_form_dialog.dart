@@ -21,6 +21,9 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
   late TextEditingController _applicationIdController;
   late TextEditingController _capacityController;
   late TextEditingController _systemTypeController;
+  late TextEditingController _costController;
+  late TextEditingController _loanController;
+  late TextEditingController _contributionController;
   late TextEditingController _remarksController;
   late String _siteType;
   late String _status;
