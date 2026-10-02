@@ -1281,23 +1281,26 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Container(
-        width: 1060,
-        height: MediaQuery.of(context).size.height * 0.92,
-        padding: const EdgeInsets.all(20),
+        width: (MediaQuery.of(context).size.width * 0.94).clamp(960.0, 1280.0),
+        height: (MediaQuery.of(context).size.height * 0.94).clamp(650.0, 940.0),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header Bar
+            // Row 1: Header Top Bar (Title + Customer Name + Subtitle + Close Button)
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
                     color: _selectedTab == 0 ? const Color(0xFFEFF6FF) : const Color(0xFFECFDF5),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _selectedTab == 0 ? const Color(0xFFBFDBFE) : const Color(0xFFA7F3D0)),
+                    border: Border.all(
+                      color: _selectedTab == 0 ? const Color(0xFFBFDBFE) : const Color(0xFFA7F3D0),
+                    ),
                   ),
                   child: Icon(
                     _selectedTab == 0 ? Icons.request_quote_rounded : Icons.receipt_long_rounded,
@@ -1309,69 +1312,40 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
                         children: [
                           Text(
-                            _selectedTab == 0 ? 'Solar System Quotation — $_customerName' : 'Margin Money Receipt (10%) — $_customerName',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69)),
-                          ),
-                          const SizedBox(width: 12),
-                          // Document Switcher (Quotation vs Margin Receipt)
-                          Container(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFFCBD5E1)),
+                            _selectedTab == 0 ? 'Solar System Quotation' : 'Margin Money Receipt (10%)',
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F2D69),
+                              letterSpacing: -0.2,
                             ),
-                            padding: const EdgeInsets.all(2),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                InkWell(
-                                  onTap: () => setState(() {
-                                    _selectedTab = 0;
-                                    _renderKey++;
-                                  }),
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                    decoration: BoxDecoration(
-                                      color: _selectedTab == 0 ? const Color(0xFF0D2B6F) : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.description_outlined, size: 14, color: _selectedTab == 0 ? Colors.white : const Color(0xFF475569)),
-                                        const SizedBox(width: 5),
-                                        Text('1. Solar Quotation', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: _selectedTab == 0 ? Colors.white : const Color(0xFF475569))),
-                                      ],
-                                    ),
-                                  ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('—', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFCBD5E1)),
+                              ),
+                              child: Text(
+                                _customerName,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E293B),
                                 ),
-                                const SizedBox(width: 2),
-                                InkWell(
-                                  onTap: () => setState(() {
-                                    _selectedTab = 1;
-                                    _renderKey++;
-                                  }),
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                    decoration: BoxDecoration(
-                                      color: _selectedTab == 1 ? const Color(0xFF047857) : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.receipt_long_rounded, size: 14, color: _selectedTab == 1 ? Colors.white : const Color(0xFF475569)),
-                                        const SizedBox(width: 5),
-                                        Text('2. Margin Money Receipt (10%)', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: _selectedTab == 1 ? Colors.white : const Color(0xFF475569))),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
                             ),
                           ),
                         ],
@@ -1379,235 +1353,471 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                       const SizedBox(height: 2),
                       Text(
                         _selectedTab == 0
-                            ? 'For Bank Loan / Finance Purpose • Consumer No: $_consumerNo • Quotation No: $_quotationNo'
-                            : '10% Customer Margin Contribution for Bank Loan • Receipt No: $_receiptNo • Mode: $_paymentMode',
-                        style: const TextStyle(fontSize: 11.5, color: Colors.grey),
+                            ? 'For Bank Loan / Finance Purpose • Consumer No: $_consumerNo • Quotation No: $_quotationNo • Date: ${DateFormat('dd MMM yyyy').format(_quotationDate)}'
+                            : '10% Customer Margin Contribution for Bank Loan • Receipt No: $_receiptNo • Mode: $_paymentMode • Date: ${DateFormat('dd MMM yyyy').format(_receiptDate)}',
+                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 22),
+                  tooltip: 'Close',
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFF1F5F9),
+                    foregroundColor: const Color(0xFF475569),
+                    hoverColor: const Color(0xFFE2E8F0),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Row 2: Document Switcher Tabs (Left) + Actions Toolbar (Right)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Left: Document Switcher Pills
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFCBD5E1)),
+                  ),
+                  padding: const EdgeInsets.all(3),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      InkWell(
+                        onTap: () => setState(() {
+                          _selectedTab = 0;
+                          _renderKey++;
+                        }),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _selectedTab == 0 ? const Color(0xFF0D2B6F) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: _selectedTab == 0
+                                ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))]
+                                : null,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.description_rounded,
+                                size: 14,
+                                color: _selectedTab == 0 ? Colors.white : const Color(0xFF475569),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '1. Solar Quotation',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: _selectedTab == 0 ? Colors.white : const Color(0xFF475569),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      InkWell(
+                        onTap: () => setState(() {
+                          _selectedTab = 1;
+                          _renderKey++;
+                        }),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _selectedTab == 1 ? const Color(0xFF047857) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: _selectedTab == 1
+                                ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))]
+                                : null,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.receipt_long_rounded,
+                                size: 14,
+                                color: _selectedTab == 1 ? Colors.white : const Color(0xFF475569),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '2. Margin Money Receipt (10%)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: _selectedTab == 1 ? Colors.white : const Color(0xFF475569),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
 
-                // Top Action Buttons
-                if (_selectedTab == 0) ...[
-                  // 1. Edit Amount
-                  FilledButton.tonalIcon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFFEF3C7),
-                      foregroundColor: const Color(0xFF92400E),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    ),
-                    onPressed: _openEditAmountDialog,
-                    icon: const Icon(Icons.currency_rupee_rounded, size: 15),
-                    label: const Text('Edit Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  ),
-                  const SizedBox(width: 6),
-                  // 2. All Specs
-                  OutlinedButton.icon(
-                    onPressed: _openEditDetailsDialog,
-                    icon: const Icon(Icons.edit_note, size: 15),
-                    label: const Text('All Specs', style: TextStyle(fontSize: 12)),
-                  ),
-                  const SizedBox(width: 6),
-                  // 3. Share Quotation
-                  FilledButton.tonalIcon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
-                      foregroundColor: const Color(0xFF128C7E),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    ),
-                    onPressed: () => BankLoanQuotationService.shareViaWhatsApp(quotation),
-                    icon: const Icon(Icons.share_rounded, size: 15),
-                    label: const Text('Share', style: TextStyle(fontSize: 12)),
-                  ),
-                  const SizedBox(width: 6),
-                  // 4. Download Quotation
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF0D2B6F),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    ),
-                    onPressed: () async {
-                      await _saveCurrentQuotation();
-                      if (context.mounted) {
-                        await BankLoanQuotationService.downloadQuotationPdf(context, quotation);
-                      }
-                    },
-                    icon: const Icon(Icons.download_rounded, size: 15),
-                    label: const Text('Download PDF', style: TextStyle(fontSize: 12)),
-                  ),
-                ] else ...[
-                  // Margin Receipt Actions
-                  // 1. Edit Receipt
-                  FilledButton.tonalIcon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFECFDF5),
-                      foregroundColor: const Color(0xFF047857),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    ),
-                    onPressed: _openEditReceiptDialog,
-                    icon: const Icon(Icons.edit_calendar_rounded, size: 15),
-                    label: const Text('Edit Receipt Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  ),
-                  const SizedBox(width: 6),
-                  // 2. Edit Amount
-                  OutlinedButton.icon(
-                    onPressed: _openEditAmountDialog,
-                    icon: const Icon(Icons.currency_rupee_rounded, size: 15),
-                    label: const Text('Edit Amount', style: TextStyle(fontSize: 12)),
-                  ),
-                  const SizedBox(width: 6),
-                  // 3. Share Margin Receipt
-                  FilledButton.tonalIcon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
-                      foregroundColor: const Color(0xFF128C7E),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    ),
-                    onPressed: () => MarginMoneyReceiptService.shareViaWhatsApp(receipt: marginReceipt),
-                    icon: const Icon(Icons.share_rounded, size: 15),
-                    label: const Text('Share Receipt', style: TextStyle(fontSize: 12)),
-                  ),
-                  const SizedBox(width: 6),
-                  // 4. Download Margin Receipt
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF047857),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    ),
-                    onPressed: () async {
-                      await _saveCurrentMarginReceipt();
-                      if (context.mounted) {
-                        await MarginMoneyReceiptService.downloadPdf(marginReceipt);
-                      }
-                    },
-                    icon: const Icon(Icons.download_rounded, size: 15),
-                    label: const Text('Download Receipt', style: TextStyle(fontSize: 12)),
-                  ),
-                ],
-
-                const SizedBox(width: 6),
-                // Universal Action: Download Both (Complete Bank Set)
-                FilledButton.tonalIcon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFEFF6FF),
-                    foregroundColor: const Color(0xFF1D4ED8),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  ),
-                  onPressed: () async {
-                    await _saveCurrentQuotation();
-                    await _saveCurrentMarginReceipt();
-                    if (context.mounted) {
-                      await BankLoanQuotationService.downloadQuotationPdf(context, quotation);
-                      await MarginMoneyReceiptService.downloadPdf(marginReceipt);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Both Bank Documents (Quotation + Margin Receipt) downloaded!'),
-                          backgroundColor: Color(0xFF1D4ED8),
+                // Right: Action Buttons Toolbar
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (_selectedTab == 0) ...[
+                      // Edit Amount
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFFEF3C7),
+                          foregroundColor: const Color(0xFF92400E),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                          visualDensity: VisualDensity.compact,
                         ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.collections_bookmark_rounded, size: 15),
-                  label: const Text('Bank Set (Both)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                ),
-                const SizedBox(width: 6),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
+                        onPressed: _openEditAmountDialog,
+                        icon: const Icon(Icons.currency_rupee_rounded, size: 14),
+                        label: const Text('Edit Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                      ),
+                      // All Specs
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                          visualDensity: VisualDensity.compact,
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        ),
+                        onPressed: _openEditDetailsDialog,
+                        icon: const Icon(Icons.edit_note, size: 15),
+                        label: const Text('All Specs', style: TextStyle(fontSize: 11.5)),
+                      ),
+                      // Share WhatsApp
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
+                          foregroundColor: const Color(0xFF128C7E),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () => BankLoanQuotationService.shareViaWhatsApp(quotation),
+                        icon: const Icon(Icons.share_rounded, size: 14),
+                        label: const Text('Share', style: TextStyle(fontSize: 11.5)),
+                      ),
+                      // Download PDF
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF0D2B6F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () async {
+                          await _saveCurrentQuotation();
+                          if (context.mounted) {
+                            await BankLoanQuotationService.downloadQuotationPdf(context, quotation);
+                          }
+                        },
+                        icon: const Icon(Icons.download_rounded, size: 14),
+                        label: const Text('Download PDF', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                      ),
+                    ] else ...[
+                      // Edit Receipt Details
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFECFDF5),
+                          foregroundColor: const Color(0xFF047857),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: _openEditReceiptDialog,
+                        icon: const Icon(Icons.edit_calendar_rounded, size: 14),
+                        label: const Text('Edit Receipt Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                      ),
+                      // Edit Amount
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                          visualDensity: VisualDensity.compact,
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        ),
+                        onPressed: _openEditAmountDialog,
+                        icon: const Icon(Icons.currency_rupee_rounded, size: 14),
+                        label: const Text('Edit Amount', style: TextStyle(fontSize: 11.5)),
+                      ),
+                      // Share Receipt
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
+                          foregroundColor: const Color(0xFF128C7E),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () => MarginMoneyReceiptService.shareViaWhatsApp(receipt: marginReceipt),
+                        icon: const Icon(Icons.share_rounded, size: 14),
+                        label: const Text('Share Receipt', style: TextStyle(fontSize: 11.5)),
+                      ),
+                      // Download Receipt
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF047857),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () async {
+                          await _saveCurrentMarginReceipt();
+                          if (context.mounted) {
+                            await MarginMoneyReceiptService.downloadPdf(marginReceipt);
+                          }
+                        },
+                        icon: const Icon(Icons.download_rounded, size: 14),
+                        label: const Text('Download Receipt', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+
+                    // Universal Print Button
+                    IconButton(
+                      tooltip: 'Print ${_selectedTab == 0 ? "Quotation" : "Margin Receipt"}',
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        foregroundColor: const Color(0xFF334155),
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(7),
+                      ),
+                      onPressed: () async {
+                        if (_selectedTab == 1) {
+                          await Printing.layoutPdf(
+                            onLayout: (format) async => MarginMoneyReceiptService.generateReceiptPdfBytes(marginReceipt),
+                            name: marginReceipt.pdfFileName,
+                          );
+                        } else {
+                          await Printing.layoutPdf(
+                            onLayout: (format) async => BankLoanQuotationService.generateQuotationPdfBytes(quotation),
+                            name: quotation.pdfFileName,
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.print_rounded, size: 16),
+                    ),
+
+                    // Download Both (Complete Bank Set)
+                    FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFEFF6FF),
+                        foregroundColor: const Color(0xFF1D4ED8),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () async {
+                        await _saveCurrentQuotation();
+                        await _saveCurrentMarginReceipt();
+                        if (!context.mounted) return;
+                        await BankLoanQuotationService.downloadQuotationPdf(context, quotation);
+                        if (!context.mounted) return;
+                        await MarginMoneyReceiptService.downloadPdf(marginReceipt);
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Both Bank Documents (Quotation + Margin Receipt) downloaded!'),
+                            backgroundColor: Color(0xFF1D4ED8),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.collections_bookmark_rounded, size: 14),
+                      label: const Text('Bank Set (Both)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                    ),
+                  ],
                 ),
               ],
             ),
             const SizedBox(height: 10),
 
-            // Summary Pill (Interactive depending on Tab)
+            // Financial Summary Card (Key Metrics Grid + Dedicated Amount in Words)
             if (_selectedTab == 0)
-              InkWell(
-                onTap: _openEditAmountDialog,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFECFDF5),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFA7F3D0)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('System: $_capacity On-Grid', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF065F46), fontSize: 12)),
-                      Text('Grand Total: ${currencyFormat.format(_grandTotal)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF047857), fontSize: 13)),
-                      Text('Bank Loan: ${currencyFormat.format(_bankLoan)} (${_grandTotal > 0 ? (_bankLoan / _grandTotal * 100).toStringAsFixed(0) : '90'}%)', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F2D69), fontSize: 12)),
-                      Text('Contribution: ${currencyFormat.format(_contribution)} (${_grandTotal > 0 ? (_contribution / _grandTotal * 100).toStringAsFixed(0) : '10'}%)', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF334155), fontSize: 12)),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(NumberToWordsUtils.convertToIndianRupees(_grandTotal), style: const TextStyle(fontStyle: FontStyle.italic, color: Color(0xFF047857), fontSize: 11)),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        _buildSummaryMetric(
+                          label: 'SYSTEM CAPACITY',
+                          value: '$_capacity On-Grid',
+                          color: const Color(0xFF065F46),
+                          icon: Icons.solar_power_rounded,
+                        ),
+                        _buildMetricDivider(),
+                        _buildSummaryMetric(
+                          label: 'GRAND TOTAL',
+                          value: currencyFormat.format(_grandTotal),
+                          color: const Color(0xFF047857),
+                          isLarge: true,
+                        ),
+                        _buildMetricDivider(),
+                        _buildSummaryMetric(
+                          label: 'BANK LOAN (${_grandTotal > 0 ? (_bankLoan / _grandTotal * 100).toStringAsFixed(0) : '90'}%)',
+                          value: currencyFormat.format(_bankLoan),
+                          color: const Color(0xFF0F2D69),
+                        ),
+                        _buildMetricDivider(),
+                        _buildSummaryMetric(
+                          label: 'MARGIN MONEY (${_grandTotal > 0 ? (_contribution / _grandTotal * 100).toStringAsFixed(0) : '10'}%)',
+                          value: currencyFormat.format(_contribution),
+                          color: const Color(0xFF92400E),
+                        ),
+                        const Spacer(),
+                        InkWell(
+                          onTap: _openEditAmountDialog,
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: const Color(0xFF047857),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(6),
                             ),
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.edit, size: 10, color: Colors.white),
-                                SizedBox(width: 3),
-                                Text('Edit Amount', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                Icon(Icons.edit_rounded, size: 11, color: Colors.white),
+                                SizedBox(width: 4),
+                                Text('Edit Amounts', style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold)),
                               ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        children: [
+                          const Text(
+                            'Amount in Words: ',
+                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF065F46)),
+                          ),
+                          Expanded(
+                            child: Text(
+                              NumberToWordsUtils.convertToIndianRupees(_grandTotal),
+                              style: const TextStyle(
+                                fontStyle: FontStyle.italic,
+                                color: Color(0xFF047857),
+                                fontSize: 10.5,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               )
             else
-              InkWell(
-                onTap: _openEditReceiptDialog,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEFCE8),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFFEF08A)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Receipt: $_receiptNo', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF92400E), fontSize: 12)),
-                      Text('Margin Received (10%): ${currencyFormat.format(_marginAmount)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFB45309), fontSize: 13)),
-                      Text('Mode: $_paymentMode', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F2D69), fontSize: 12)),
-                      Text('Ref: $_transactionRef', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF334155), fontSize: 12)),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(NumberToWordsUtils.convertToIndianRupees(_marginAmount), style: const TextStyle(fontStyle: FontStyle.italic, color: Color(0xFF92400E), fontSize: 11)),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEFCE8),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFEF08A)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        _buildSummaryMetric(
+                          label: 'RECEIPT NO',
+                          value: _receiptNo,
+                          color: const Color(0xFF92400E),
+                          icon: Icons.receipt_rounded,
+                        ),
+                        _buildMetricDivider(),
+                        _buildSummaryMetric(
+                          label: 'MARGIN RECEIVED (10%)',
+                          value: currencyFormat.format(_marginAmount),
+                          color: const Color(0xFFB45309),
+                          isLarge: true,
+                        ),
+                        _buildMetricDivider(),
+                        _buildSummaryMetric(
+                          label: 'PAYMENT MODE',
+                          value: _paymentMode,
+                          color: const Color(0xFF0F2D69),
+                        ),
+                        _buildMetricDivider(),
+                        _buildSummaryMetric(
+                          label: 'TRANSACTION REF',
+                          value: _transactionRef,
+                          color: const Color(0xFF334155),
+                        ),
+                        const Spacer(),
+                        InkWell(
+                          onTap: _openEditReceiptDialog,
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: const Color(0xFFB45309),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(6),
                             ),
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.edit, size: 10, color: Colors.white),
-                                SizedBox(width: 3),
-                                Text('Edit Receipt', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                Icon(Icons.edit_rounded, size: 11, color: Colors.white),
+                                SizedBox(width: 4),
+                                Text('Edit Receipt', style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold)),
                               ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        children: [
+                          const Text(
+                            'Amount in Words: ',
+                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+                          ),
+                          Expanded(
+                            child: Text(
+                              NumberToWordsUtils.convertToIndianRupees(_marginAmount),
+                              style: const TextStyle(
+                                fontStyle: FontStyle.italic,
+                                color: Color(0xFF92400E),
+                                fontSize: 10.5,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             const SizedBox(height: 12),
@@ -1635,10 +1845,11 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                             }
                             return BankLoanQuotationService.generateQuotationPdfBytes(quotation);
                           },
+                          useActions: false,
                           canChangeOrientation: false,
                           canChangePageFormat: false,
-                          allowPrinting: true,
-                          allowSharing: true,
+                          allowPrinting: false,
+                          allowSharing: false,
                           initialPageFormat: PdfPageFormat.a4,
                           pdfFileName: _selectedTab == 1 ? marginReceipt.pdfFileName : quotation.pdfFileName,
                         ),
@@ -1855,6 +2066,60 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSummaryMetric({
+    required String label,
+    required String value,
+    required Color color,
+    IconData? icon,
+    bool isLarge = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+              color: color.withValues(alpha: 0.8),
+            ),
+          ),
+          const SizedBox(height: 1),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: isLarge ? 14 : 12, color: color),
+                const SizedBox(width: 3),
+              ],
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: isLarge ? 13 : 11.5,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricDivider() {
+    return Container(
+      height: 22,
+      width: 1,
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      color: Colors.black12,
     );
   }
 }
