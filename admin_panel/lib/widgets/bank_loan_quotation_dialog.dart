@@ -864,9 +864,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                                     onPressed: () {
                                       setDlgState(() {
                                         final autoGrand = (currentLoan / 0.9).roundToDouble();
-                                        final gst = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
                                         grandTotalCtrl.text = autoGrand.toStringAsFixed(0);
-                                        costCtrl.text = (autoGrand - gst).clamp(0.0, double.infinity).toStringAsFixed(0);
                                         contribCtrl.text = (autoGrand - currentLoan).clamp(0.0, double.infinity).toStringAsFixed(0);
                                         capCtrl.text = _autoSuggestCapacity(autoGrand);
                                       });

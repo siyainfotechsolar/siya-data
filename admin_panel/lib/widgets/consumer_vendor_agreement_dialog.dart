@@ -98,6 +98,8 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
     }
   }
 
+  bool _includeStampAndSignature = true;
+
   ConsumerVendorAgreement _buildAgreement() {
     return ConsumerVendorAgreement(
       id: widget.initialAgreement?.id ?? 'agr_${DateTime.now().millisecondsSinceEpoch}',
@@ -504,6 +506,41 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                   label: const Text('Edit Payment Table'),
                 ),
                 const SizedBox(width: 8),
+                if (_includeStampAndSignature)
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFDC2626),
+                      side: const BorderSide(color: Color(0xFFFCA5A5)),
+                      backgroundColor: const Color(0xFFFEF2F2),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _includeStampAndSignature = false;
+                        _renderKey++;
+                      });
+                    },
+                    icon: const Icon(Icons.remove_circle_outline_rounded, size: 15, color: Color(0xFFDC2626)),
+                    label: const Text('Remove Stamp & Signature', style: TextStyle(fontWeight: FontWeight.w600)),
+                  )
+                else
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFECFDF5),
+                      foregroundColor: const Color(0xFF047857),
+                      side: const BorderSide(color: Color(0xFFA7F3D0)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _includeStampAndSignature = true;
+                        _renderKey++;
+                      });
+                    },
+                    icon: const Icon(Icons.verified_rounded, size: 15, color: Color(0xFF047857)),
+                    label: const Text('Include Stamp & Signature', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                const SizedBox(width: 8),
                 FilledButton.tonalIcon(
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
@@ -521,7 +558,7 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   ),
-                  onPressed: () => ConsumerVendorAgreementService.downloadAgreementPdf(context, agreement),
+                  onPressed: () => ConsumerVendorAgreementService.downloadAgreementPdf(context, agreement, includeStampAndSignature: _includeStampAndSignature),
                   icon: const Icon(Icons.download_rounded, size: 16),
                   label: const Text('Download PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 ),
@@ -566,11 +603,14 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: PdfPreview(
-                    key: ValueKey('agreement_preview_$_renderKey'),
+                    key: ValueKey('agreement_preview_${_renderKey}_$_includeStampAndSignature'),
                     build: (PdfPageFormat format) async {
                       // Save to local storage on render to link to profile
                       await AgreementStorageService.saveAgreement(agreement);
-                      return ConsumerVendorAgreementService.generateAgreementPdfBytes(agreement);
+                      return ConsumerVendorAgreementService.generateAgreementPdfBytes(
+                        agreement,
+                        includeStampAndSignature: _includeStampAndSignature,
+                      );
                     },
                     canChangeOrientation: false,
                     canChangePageFormat: false,
