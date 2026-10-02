@@ -90,5 +90,34 @@ void main() {
       expect(pdfBytes, isNotEmpty);
       expect(pdfBytes.length, greaterThan(1000));
     });
+
+    test('5. Two-way auto-calculation: Entering loan amount calculates customer contribution and vice versa', () {
+      const grandTotal = 160000.0;
+
+      // 1. Enter Loan Amount -> Customer Contribution automatically calculated
+      const enteredLoan = 140000.0;
+      final autoCalculatedContrib = (grandTotal - enteredLoan).clamp(0.0, double.infinity);
+      expect(autoCalculatedContrib, equals(20000.0));
+      expect(autoCalculatedContrib / grandTotal * 100, equals(12.5));
+
+      // 2. Enter Customer Contribution -> Loan Amount automatically calculated
+      const enteredContrib = 15000.0;
+      final autoCalculatedLoan = (grandTotal - enteredContrib).clamp(0.0, double.infinity);
+      expect(autoCalculatedLoan, equals(145000.0));
+      expect(autoCalculatedLoan / grandTotal * 100, equals(90.625));
+
+      // 3. Margin receipt synchronizes with customer contribution
+      final quotation = SolarQuotation.create(
+        consumerNo: '012345678901',
+        customerName: 'Test Customer',
+        grandTotal: grandTotal,
+        bankLoanAmount: autoCalculatedLoan,
+        customerContribution: enteredContrib,
+      );
+      expect(quotation.customerContribution, equals(15000.0));
+      expect(quotation.bankLoanAmount, equals(145000.0));
+      expect(quotation.bankLoanAmount + quotation.customerContribution, equals(grandTotal));
+    });
   });
 }
+

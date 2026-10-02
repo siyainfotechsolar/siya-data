@@ -434,6 +434,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     final gstCtrl = TextEditingController(text: _gstAmount.toStringAsFixed(0));
     final grandTotalCtrl = TextEditingController(text: _grandTotal.toStringAsFixed(0));
     final loanCtrl = TextEditingController(text: _bankLoan.toStringAsFixed(0));
+    final contribCtrl = TextEditingController(text: _contribution.toStringAsFixed(0));
 
     await showDialog<void>(
       context: context,
@@ -444,7 +445,9 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
             final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
             final currentGrand = double.tryParse(grandTotalCtrl.text.trim()) ?? (c + g);
             final currentLoan = double.tryParse(loanCtrl.text.trim()) ?? (currentGrand * 0.9);
-            final currentContrib = (currentGrand - currentLoan).clamp(0.0, double.infinity);
+            final currentContrib = double.tryParse(contribCtrl.text.trim()) ?? (currentGrand - currentLoan).clamp(0.0, double.infinity);
+            final loanPct = currentGrand > 0 ? (currentLoan / currentGrand * 100) : 90.0;
+            final contribPct = currentGrand > 0 ? (currentContrib / currentGrand * 100) : 10.0;
             final words = NumberToWordsUtils.convertToIndianRupees(currentGrand);
 
             return AlertDialog(
@@ -470,7 +473,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                 ],
               ),
               content: SizedBox(
-                width: 480,
+                width: 520,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -504,7 +507,10 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                                 costCtrl.text = pCost.toString();
                                 gstCtrl.text = '0';
                                 grandTotalCtrl.text = pCost.toString();
-                                loanCtrl.text = (pCost * 0.9).round().toString();
+                                final pLoan = (pCost * 0.9).roundToDouble();
+                                final pContrib = (pCost - pLoan).roundToDouble();
+                                loanCtrl.text = pLoan.toStringAsFixed(0);
+                                contribCtrl.text = pContrib.toStringAsFixed(0);
                               });
                             },
                           );
@@ -543,7 +549,10 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                                 final gst = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
                                 final tot = cost + gst;
                                 grandTotalCtrl.text = tot.toStringAsFixed(0);
-                                loanCtrl.text = (tot * 0.9).round().toString();
+                                final loan = (tot * 0.9).roundToDouble();
+                                final contrib = (tot - loan).clamp(0.0, double.infinity);
+                                loanCtrl.text = loan.toStringAsFixed(0);
+                                contribCtrl.text = contrib.toStringAsFixed(0);
                               }),
                             ),
                           ),
@@ -564,7 +573,10 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                                 final gst = double.tryParse(val.trim()) ?? 0.0;
                                 final tot = cost + gst;
                                 grandTotalCtrl.text = tot.toStringAsFixed(0);
-                                loanCtrl.text = (tot * 0.9).round().toString();
+                                final loan = (tot * 0.9).roundToDouble();
+                                final contrib = (tot - loan).clamp(0.0, double.infinity);
+                                loanCtrl.text = loan.toStringAsFixed(0);
+                                contribCtrl.text = contrib.toStringAsFixed(0);
                               }),
                             ),
                           ),
@@ -572,66 +584,116 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Grand Total & Bank Loan (90%)
+                      // Grand Total Field
+                      TextField(
+                        controller: grandTotalCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Grand Total (Rs.) *',
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.account_balance_wallet_outlined, size: 18),
+                        ),
+                        onChanged: (val) => setDlgState(() {
+                          final gt = double.tryParse(val.trim()) ?? 0.0;
+                          final gst = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
+                          costCtrl.text = (gt - gst).clamp(0.0, double.infinity).toStringAsFixed(0);
+                          final loan = (gt * 0.9).roundToDouble();
+                          final contrib = (gt - loan).clamp(0.0, double.infinity);
+                          loanCtrl.text = loan.toStringAsFixed(0);
+                          contribCtrl.text = contrib.toStringAsFixed(0);
+                        }),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Bank Loan Amount & Customer Contribution (Two-Way Auto Calculation)
                       Row(
                         children: [
                           Expanded(
                             child: TextField(
-                              controller: grandTotalCtrl,
+                              controller: loanCtrl,
                               keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: 'Grand Total (Rs.) *',
+                              decoration: InputDecoration(
+                                labelText: 'Bank Loan (${loanPct.toStringAsFixed(0)}%) *',
+                                helperText: 'Auto-calculates customer contribution',
                                 isDense: true,
-                                border: OutlineInputBorder(),
-                                prefixIcon: Icon(Icons.account_balance_wallet_outlined, size: 18),
+                                border: const OutlineInputBorder(),
+                                prefixIcon: const Icon(Icons.account_balance, size: 18, color: Color(0xFF0F2D69)),
                               ),
                               onChanged: (val) => setDlgState(() {
-                                final gt = double.tryParse(val.trim()) ?? 0.0;
-                                final gst = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
-                                costCtrl.text = (gt - gst).clamp(0.0, double.infinity).toStringAsFixed(0);
-                                loanCtrl.text = (gt * 0.9).round().toString();
+                                final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
+                                final loan = double.tryParse(val.trim()) ?? 0.0;
+                                final contrib = (gt - loan).clamp(0.0, double.infinity);
+                                contribCtrl.text = contrib.toStringAsFixed(0);
                               }),
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: TextField(
-                              controller: loanCtrl,
+                              controller: contribCtrl,
                               keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: 'Bank Loan (90%) *',
+                              decoration: InputDecoration(
+                                labelText: 'Customer Contri (${contribPct.toStringAsFixed(0)}%) *',
+                                helperText: 'Auto: Grand Total - Loan',
                                 isDense: true,
-                                border: OutlineInputBorder(),
-                                prefixIcon: Icon(Icons.account_balance, size: 18),
+                                border: const OutlineInputBorder(),
+                                prefixIcon: const Icon(Icons.person_outline, size: 18, color: Color(0xFF047857)),
                               ),
-                              onChanged: (_) => setDlgState(() {}),
+                              onChanged: (val) => setDlgState(() {
+                                final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
+                                final contrib = double.tryParse(val.trim()) ?? 0.0;
+                                final loan = (gt - contrib).clamp(0.0, double.infinity);
+                                loanCtrl.text = loan.toStringAsFixed(0);
+                              }),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 14),
 
-                      // Customer Contribution Breakdown (10%)
+                      // Live Calculation Breakdown Card
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFEFCE8),
+                          color: const Color(0xFFEFF6FF),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFFEF08A)),
+                          border: Border.all(color: const Color(0xFFBFDBFE)),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        child: Column(
                           children: [
-                            const Row(
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Icon(Icons.person_outline, size: 18, color: Color(0xFF854D0E)),
-                                SizedBox(width: 6),
-                                Text('Customer Contribution (10%):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF854D0E))),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.account_balance, size: 16, color: Color(0xFF0F2D69)),
+                                    const SizedBox(width: 6),
+                                    Text('Bank Loan (${loanPct.toStringAsFixed(1)}%):', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F2D69))),
+                                  ],
+                                ),
+                                Text(
+                                  currencyFormat.format(currentLoan),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69)),
+                                ),
                               ],
                             ),
-                            Text(
-                              currencyFormat.format(currentContrib),
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF854D0E)),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.person_outline, size: 16, color: Color(0xFF047857)),
+                                    const SizedBox(width: 6),
+                                    Text('Customer Contribution (${contribPct.toStringAsFixed(1)}%):', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF047857))),
+                                  ],
+                                ),
+                                Text(
+                                  currencyFormat.format(currentContrib),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF047857)),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -682,7 +744,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                     final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
                     final tot = double.tryParse(grandTotalCtrl.text.trim()) ?? (c + g);
                     final l = double.tryParse(loanCtrl.text.trim()) ?? (tot * 0.9);
-                    final contrib = (tot - l).clamp(0.0, double.infinity);
+                    final contrib = double.tryParse(contribCtrl.text.trim()) ?? (tot - l).clamp(0.0, double.infinity);
 
                     setState(() {
                       _capacity = capCtrl.text.trim().isNotEmpty ? capCtrl.text.trim() : _capacity;
@@ -691,10 +753,12 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                       _grandTotal = tot;
                       _bankLoan = l;
                       _contribution = contrib;
+                      _marginAmount = contrib;
                       _renderKey++;
                     });
                     Navigator.of(ctx).pop();
                     _saveCurrentQuotation();
+                    _saveCurrentMarginReceipt();
                   },
                 ),
               ],
@@ -719,6 +783,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     final gstCtrl = TextEditingController(text: _gstAmount.toStringAsFixed(0));
     final grandTotalCtrl = TextEditingController(text: _grandTotal.toStringAsFixed(0));
     final loanCtrl = TextEditingController(text: _bankLoan.toStringAsFixed(0));
+    final contribCtrl = TextEditingController(text: _contribution.toStringAsFixed(0));
 
     DateTime selectedDate = _quotationDate;
 
@@ -731,7 +796,9 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
             final currentGst = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
             final currentGrand = double.tryParse(grandTotalCtrl.text.trim()) ?? (currentCost + currentGst);
             final currentLoan = double.tryParse(loanCtrl.text.trim()) ?? (currentGrand * 0.9);
-            final currentContrib = (currentGrand - currentLoan).clamp(0.0, double.infinity);
+            final currentContrib = double.tryParse(contribCtrl.text.trim()) ?? (currentGrand - currentLoan).clamp(0.0, double.infinity);
+            final loanPct = currentGrand > 0 ? (currentLoan / currentGrand * 100) : 90.0;
+            final contribPct = currentGrand > 0 ? (currentContrib / currentGrand * 100) : 10.0;
             final words = NumberToWordsUtils.convertToIndianRupees(currentGrand);
 
             return AlertDialog(
@@ -798,6 +865,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               setDlgState(() {
                                 capCtrl.text = val;
                                 if (val == '3 kW') costCtrl.text = '160000';
+                                if (val == '3.3 kW') costCtrl.text = '180000';
                                 if (val == '4 kW') costCtrl.text = '210000';
                                 if (val == '5 kW') costCtrl.text = '260000';
                                 if (val == '6 kW') costCtrl.text = '310000';
@@ -806,7 +874,10 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                                 final newGst = double.tryParse(gstCtrl.text) ?? 0.0;
                                 final tot = newCost + newGst;
                                 grandTotalCtrl.text = tot.toStringAsFixed(0);
-                                loanCtrl.text = (tot * 0.9).round().toString();
+                                final pLoan = (tot * 0.9).roundToDouble();
+                                final pContrib = (tot - pLoan).clamp(0.0, double.infinity);
+                                loanCtrl.text = pLoan.toStringAsFixed(0);
+                                contribCtrl.text = pContrib.toStringAsFixed(0);
                               });
                             },
                           );
@@ -829,7 +900,10 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                                 final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
                                 final tot = c + g;
                                 grandTotalCtrl.text = tot.toStringAsFixed(0);
-                                loanCtrl.text = (tot * 0.9).round().toString();
+                                final loan = (tot * 0.9).roundToDouble();
+                                final contrib = (tot - loan).clamp(0.0, double.infinity);
+                                loanCtrl.text = loan.toStringAsFixed(0);
+                                contribCtrl.text = contrib.toStringAsFixed(0);
                               }),
                             ),
                           ),
@@ -844,54 +918,94 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                                 final c = double.tryParse(costCtrl.text.trim()) ?? 0.0;
                                 final tot = c + g;
                                 grandTotalCtrl.text = tot.toStringAsFixed(0);
-                                loanCtrl.text = (tot * 0.9).round().toString();
+                                final loan = (tot * 0.9).roundToDouble();
+                                final contrib = (tot - loan).clamp(0.0, double.infinity);
+                                loanCtrl.text = loan.toStringAsFixed(0);
+                                contribCtrl.text = contrib.toStringAsFixed(0);
                               }),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 10),
+                      TextField(
+                        controller: grandTotalCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Grand Total (Rs.) *', isDense: true, border: OutlineInputBorder()),
+                        onChanged: (val) => setDlgState(() {
+                          final gt = double.tryParse(val.trim()) ?? 0.0;
+                          final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
+                          costCtrl.text = (gt - g).clamp(0.0, double.infinity).toStringAsFixed(0);
+                          final loan = (gt * 0.9).roundToDouble();
+                          final contrib = (gt - loan).clamp(0.0, double.infinity);
+                          loanCtrl.text = loan.toStringAsFixed(0);
+                          contribCtrl.text = contrib.toStringAsFixed(0);
+                        }),
+                      ),
+                      const SizedBox(height: 10),
+                      // Bank Loan Amount & Customer Contribution (Two-way auto-calculate)
                       Row(
                         children: [
                           Expanded(
                             child: TextField(
-                              controller: grandTotalCtrl,
+                              controller: loanCtrl,
                               keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(labelText: 'Grand Total (Rs.) *', isDense: true, border: OutlineInputBorder()),
+                              decoration: InputDecoration(
+                                labelText: 'Bank Loan (${loanPct.toStringAsFixed(0)}%) *',
+                                helperText: 'Auto-calculates customer contribution',
+                                isDense: true,
+                                border: const OutlineInputBorder(),
+                                prefixIcon: const Icon(Icons.account_balance, size: 18, color: Color(0xFF0F2D69)),
+                              ),
                               onChanged: (val) => setDlgState(() {
-                                final gt = double.tryParse(val.trim()) ?? 0.0;
-                                final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
-                                costCtrl.text = (gt - g).clamp(0.0, double.infinity).toStringAsFixed(0);
-                                loanCtrl.text = (gt * 0.9).round().toString();
+                                final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
+                                final loan = double.tryParse(val.trim()) ?? 0.0;
+                                final contrib = (gt - loan).clamp(0.0, double.infinity);
+                                contribCtrl.text = contrib.toStringAsFixed(0);
                               }),
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: TextField(
-                              controller: loanCtrl,
+                              controller: contribCtrl,
                               keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(labelText: 'Bank Loan Amount (Rs.) *', isDense: true, border: OutlineInputBorder()),
-                              onChanged: (_) => setDlgState(() {}),
+                              decoration: InputDecoration(
+                                labelText: 'Customer Contri (${contribPct.toStringAsFixed(0)}%) *',
+                                helperText: 'Auto: Grand Total - Loan',
+                                isDense: true,
+                                border: const OutlineInputBorder(),
+                                prefixIcon: const Icon(Icons.person_outline, size: 18, color: Color(0xFF047857)),
+                              ),
+                              onChanged: (val) => setDlgState(() {
+                                final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
+                                final contrib = double.tryParse(val.trim()) ?? 0.0;
+                                final loan = (gt - contrib).clamp(0.0, double.infinity);
+                                loanCtrl.text = loan.toStringAsFixed(0);
+                              }),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 10),
+                      // Live Breakdown Card
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: const Color(0xFFCBD5E1)),
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFBFDBFE)),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Customer Contribution:', style: TextStyle(fontSize: 11, color: Colors.grey)),
                             Text(
-                              currencyFormat.format(currentContrib),
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69)),
+                              'Loan: ${currencyFormat.format(currentLoan)} (${loanPct.toStringAsFixed(0)}%)',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0F2D69)),
+                            ),
+                            Text(
+                              'Customer Contri: ${currencyFormat.format(currentContrib)} (${contribPct.toStringAsFixed(0)}%)',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF047857)),
                             ),
                           ],
                         ),
@@ -933,7 +1047,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                     final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
                     final tot = double.tryParse(grandTotalCtrl.text.trim()) ?? (c + g);
                     final l = double.tryParse(loanCtrl.text.trim()) ?? (tot * 0.9);
-                    final contrib = (tot - l).clamp(0.0, double.infinity);
+                    final contrib = double.tryParse(contribCtrl.text.trim()) ?? (tot - l).clamp(0.0, double.infinity);
 
                     setState(() {
                       _customerName = nameCtrl.text.trim();
@@ -949,11 +1063,13 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                       _grandTotal = tot;
                       _bankLoan = l;
                       _contribution = contrib;
+                      _marginAmount = contrib;
                       _quotationDate = selectedDate;
                       _renderKey++;
                     });
                     Navigator.of(ctx).pop();
                     _saveCurrentQuotation();
+                    _saveCurrentMarginReceipt();
                   },
                   child: const Text('Apply Changes'),
                 ),
@@ -1229,8 +1345,8 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                     children: [
                       Text('System: $_capacity On-Grid', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF065F46), fontSize: 12)),
                       Text('Grand Total: ${currencyFormat.format(_grandTotal)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF047857), fontSize: 13)),
-                      Text('Bank Loan: ${currencyFormat.format(_bankLoan)} (90%)', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F2D69), fontSize: 12)),
-                      Text('Contribution: ${currencyFormat.format(_contribution)} (10%)', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF334155), fontSize: 12)),
+                      Text('Bank Loan: ${currencyFormat.format(_bankLoan)} (${_grandTotal > 0 ? (_bankLoan / _grandTotal * 100).toStringAsFixed(0) : '90'}%)', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F2D69), fontSize: 12)),
+                      Text('Contribution: ${currencyFormat.format(_contribution)} (${_grandTotal > 0 ? (_contribution / _grandTotal * 100).toStringAsFixed(0) : '10'}%)', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF334155), fontSize: 12)),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
