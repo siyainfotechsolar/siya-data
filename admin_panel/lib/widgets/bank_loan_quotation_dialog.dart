@@ -1523,9 +1523,12 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
             ),
             const SizedBox(height: 12),
 
-            // Row 2: Document Switcher Tabs (Left) + Actions Toolbar (Right)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // Row 2: Document Switcher Tabs (Left) + Primary Output Actions (Right)
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 // Left: Document Switcher Pills
                 Container(
@@ -1615,346 +1618,30 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                   ),
                 ),
 
-                // Right: Action Buttons Toolbar
+                // Right: Primary Export & Output Actions Toolbar (Share, Print, Download, Bank Set)
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    if (_selectedTab == 0) ...[
-                      // Edit Amount
-                      FilledButton.tonalIcon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFFEF3C7),
-                          foregroundColor: const Color(0xFF92400E),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: _openEditAmountDialog,
-                        icon: const Icon(Icons.currency_rupee_rounded, size: 14),
-                        label: const Text('Edit Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                    // Share WhatsApp
+                    FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
+                        foregroundColor: const Color(0xFF128C7E),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        visualDensity: VisualDensity.compact,
                       ),
-                      // All Specs
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                          visualDensity: VisualDensity.compact,
-                          side: const BorderSide(color: Color(0xFFCBD5E1)),
-                        ),
-                        onPressed: _openEditDetailsDialog,
-                        icon: const Icon(Icons.edit_note, size: 15),
-                        label: const Text('All Specs', style: TextStyle(fontSize: 11.5)),
-                      ),
-                      // Option: Remove/Include Stamp & Signature for Quotation
-                      if (_includeStampAndSignature)
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFDC2626),
-                            side: const BorderSide(color: Color(0xFFFCA5A5)),
-                            backgroundColor: const Color(0xFFFEF2F2),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _includeStampAndSignature = false;
-                              _renderKey++;
-                            });
-                          },
-                          icon: const Icon(Icons.remove_circle_outline_rounded, size: 14, color: Color(0xFFDC2626)),
-                          label: const Text('Remove Stamp & Signature', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-                        )
-                      else
-                        FilledButton.tonalIcon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFFECFDF5),
-                            foregroundColor: const Color(0xFF047857),
-                            side: const BorderSide(color: Color(0xFFA7F3D0)),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _includeStampAndSignature = true;
-                              _renderKey++;
-                            });
-                          },
-                          icon: const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF047857)),
-                          label: const Text('Include Stamp & Signature', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                        ),
-                      // Option: Customer Signature ON/OFF
-                      if (_includeCustomerSignature)
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF0F3B7A),
-                            side: const BorderSide(color: Color(0xFF93C5FD)),
-                            backgroundColor: const Color(0xFFEFF6FF),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _includeCustomerSignature = false;
-                              _renderKey++;
-                            });
-                          },
-                          icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF0F3B7A)),
-                          label: const Text('Cust Sig: ON', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                        )
-                      else
-                        FilledButton.tonalIcon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFFF1F5F9),
-                            foregroundColor: const Color(0xFF64748B),
-                            side: const BorderSide(color: Color(0xFFCBD5E1)),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _includeCustomerSignature = true;
-                              _renderKey++;
-                            });
-                          },
-                          icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF64748B)),
-                          label: const Text('Cust Sig: OFF', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-                        ),
-                      // Customer Signature Upload
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
-                              ? const Color(0xFF047857)
-                              : const Color(0xFF0F3B7A),
-                          side: BorderSide(
-                            color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
-                                ? const Color(0xFFA7F3D0)
-                                : const Color(0xFF93C5FD),
-                          ),
-                          backgroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
-                              ? const Color(0xFFECFDF5)
-                              : Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: _pickCustomerSignature,
-                        icon: Icon(
-                          CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
-                              ? Icons.check_circle_rounded
-                              : Icons.upload_file_rounded,
-                          size: 14,
-                          color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
-                              ? const Color(0xFF047857)
-                              : const Color(0xFF0F3B7A),
-                        ),
-                        label: Text(
-                          CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
-                              ? 'Sig Uploaded ✓'
-                              : 'Upload Cust Sig',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
-                        ),
-                      ),
-                      // Share WhatsApp
-                      FilledButton.tonalIcon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
-                          foregroundColor: const Color(0xFF128C7E),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: () => BankLoanQuotationService.shareViaWhatsApp(quotation),
-                        icon: const Icon(Icons.share_rounded, size: 14),
-                        label: const Text('Share', style: TextStyle(fontSize: 11.5)),
-                      ),
-                      // Download PDF
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF0D2B6F),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: () async {
-                          await _saveCurrentQuotation();
-                          if (context.mounted) {
-                            await BankLoanQuotationService.downloadQuotationPdf(
-                              context,
-                              quotation,
-                              includeStampAndSignature: _includeStampAndSignature,
-                              includeCustomerSignature: _includeCustomerSignature,
-                              customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_consumerNo),
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.download_rounded, size: 14),
-                        label: const Text('Download PDF', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                      ),
-                    ] else ...[
-                      // Edit Receipt Details
-                      FilledButton.tonalIcon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFECFDF5),
-                          foregroundColor: const Color(0xFF047857),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: _openEditReceiptDialog,
-                        icon: const Icon(Icons.edit_calendar_rounded, size: 14),
-                        label: const Text('Edit Receipt Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
-                      ),
-                      // Edit Amount
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                          visualDensity: VisualDensity.compact,
-                          side: const BorderSide(color: Color(0xFFCBD5E1)),
-                        ),
-                        onPressed: _openEditAmountDialog,
-                        icon: const Icon(Icons.currency_rupee_rounded, size: 14),
-                        label: const Text('Edit Amount', style: TextStyle(fontSize: 11.5)),
-                      ),
-                      // Option: Remove/Include Stamp & Signature for Receipt
-                      if (_receiptIncludeStampAndSignature)
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFDC2626),
-                            side: const BorderSide(color: Color(0xFFFCA5A5)),
-                            backgroundColor: const Color(0xFFFEF2F2),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _receiptIncludeStampAndSignature = false;
-                              _renderKey++;
-                            });
-                          },
-                          icon: const Icon(Icons.remove_circle_outline_rounded, size: 14, color: Color(0xFFDC2626)),
-                          label: const Text('Remove Stamp & Signature', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-                        )
-                      else
-                        FilledButton.tonalIcon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFFECFDF5),
-                            foregroundColor: const Color(0xFF047857),
-                            side: const BorderSide(color: Color(0xFFA7F3D0)),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _receiptIncludeStampAndSignature = true;
-                              _renderKey++;
-                            });
-                          },
-                          icon: const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF047857)),
-                          label: const Text('Include Stamp & Signature', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                        ),
-                      // Option: Margin Receipt Customer Signature ON/OFF
-                      if (_receiptIncludeCustomerSignature)
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF0F3B7A),
-                            side: const BorderSide(color: Color(0xFF93C5FD)),
-                            backgroundColor: const Color(0xFFEFF6FF),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _receiptIncludeCustomerSignature = false;
-                              _renderKey++;
-                            });
-                          },
-                          icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF0F3B7A)),
-                          label: const Text('Cust Sig: ON', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                        )
-                      else
-                        FilledButton.tonalIcon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFFF1F5F9),
-                            foregroundColor: const Color(0xFF64748B),
-                            side: const BorderSide(color: Color(0xFFCBD5E1)),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _receiptIncludeCustomerSignature = true;
-                              _renderKey++;
-                            });
-                          },
-                          icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF64748B)),
-                          label: const Text('Cust Sig: OFF', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-                        ),
-                      // Customer Signature Upload for Receipt
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
-                              ? const Color(0xFF047857)
-                              : const Color(0xFF0F3B7A),
-                          side: BorderSide(
-                            color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
-                                ? const Color(0xFFA7F3D0)
-                                : const Color(0xFF93C5FD),
-                          ),
-                          backgroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
-                              ? const Color(0xFFECFDF5)
-                              : Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: _pickCustomerSignature,
-                        icon: Icon(
-                          CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
-                              ? Icons.check_circle_rounded
-                              : Icons.upload_file_rounded,
-                          size: 14,
-                          color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
-                              ? const Color(0xFF047857)
-                              : const Color(0xFF0F3B7A),
-                        ),
-                        label: Text(
-                          CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
-                              ? 'Sig Uploaded ✓'
-                              : 'Upload Cust Sig',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
-                        ),
-                      ),
-                      // Share Receipt
-                      FilledButton.tonalIcon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
-                          foregroundColor: const Color(0xFF128C7E),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: () => MarginMoneyReceiptService.shareViaWhatsApp(receipt: marginReceipt),
-                        icon: const Icon(Icons.share_rounded, size: 14),
-                        label: const Text('Share Receipt', style: TextStyle(fontSize: 11.5)),
-                      ),
-                      // Download Receipt
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF047857),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: () async {
-                          await _saveCurrentMarginReceipt();
-                          if (context.mounted) {
-                            await MarginMoneyReceiptService.downloadPdf(
-                              marginReceipt,
-                              includeStampAndSignature: _receiptIncludeStampAndSignature,
-                              includeCustomerSignature: _receiptIncludeCustomerSignature,
-                              customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_consumerNo),
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.download_rounded, size: 14),
-                        label: const Text('Download Receipt', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                      ),
-                    ],
+                      onPressed: () {
+                        if (_selectedTab == 0) {
+                          BankLoanQuotationService.shareViaWhatsApp(quotation);
+                        } else {
+                          MarginMoneyReceiptService.shareViaWhatsApp(receipt: marginReceipt);
+                        }
+                      },
+                      icon: const Icon(Icons.share_rounded, size: 14),
+                      label: Text(_selectedTab == 0 ? 'Share' : 'Share Receipt', style: const TextStyle(fontSize: 11.5)),
+                    ),
 
                     // Universal Print Button
                     IconButton(
@@ -1992,11 +1679,51 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                       icon: const Icon(Icons.print_rounded, size: 16),
                     ),
 
+                    // Download PDF / Receipt
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _selectedTab == 0 ? const Color(0xFF0D2B6F) : const Color(0xFF047857),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () async {
+                        if (_selectedTab == 0) {
+                          await _saveCurrentQuotation();
+                          if (context.mounted) {
+                            await BankLoanQuotationService.downloadQuotationPdf(
+                              context,
+                              quotation,
+                              includeStampAndSignature: _includeStampAndSignature,
+                              includeCustomerSignature: _includeCustomerSignature,
+                              customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_consumerNo),
+                            );
+                          }
+                        } else {
+                          await _saveCurrentMarginReceipt();
+                          if (context.mounted) {
+                            await MarginMoneyReceiptService.downloadPdf(
+                              marginReceipt,
+                              includeStampAndSignature: _receiptIncludeStampAndSignature,
+                              includeCustomerSignature: _receiptIncludeCustomerSignature,
+                              customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_consumerNo),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.download_rounded, size: 14),
+                      label: Text(
+                        _selectedTab == 0 ? 'Download PDF' : 'Download Receipt',
+                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+
                     // Download Both (Complete Bank Set)
                     FilledButton.tonalIcon(
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFFEFF6FF),
                         foregroundColor: const Color(0xFF1D4ED8),
+                        side: const BorderSide(color: Color(0xFFBFDBFE)),
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                         visualDensity: VisualDensity.compact,
                       ),
@@ -2031,6 +1758,281 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                     ),
                   ],
                 ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Row 2.5: Document Customization & Controls Toolbar (Edit, Specs, Stamp, Cust Sig)
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (_selectedTab == 0) ...[
+                  // Edit Amount
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFFEF3C7),
+                      foregroundColor: const Color(0xFF92400E),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: _openEditAmountDialog,
+                    icon: const Icon(Icons.currency_rupee_rounded, size: 14),
+                    label: const Text('Edit Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                  ),
+                  // All Specs
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      visualDensity: VisualDensity.compact,
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    ),
+                    onPressed: _openEditDetailsDialog,
+                    icon: const Icon(Icons.edit_note, size: 15),
+                    label: const Text('All Specs', style: TextStyle(fontSize: 11.5)),
+                  ),
+                  // Option: Remove/Include Stamp & Signature for Quotation
+                  if (_includeStampAndSignature)
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFDC2626),
+                        side: const BorderSide(color: Color(0xFFFCA5A5)),
+                        backgroundColor: const Color(0xFFFEF2F2),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _includeStampAndSignature = false;
+                          _renderKey++;
+                        });
+                      },
+                      icon: const Icon(Icons.remove_circle_outline_rounded, size: 14, color: Color(0xFFDC2626)),
+                      label: const Text('Stamp & Sig: ON', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                    )
+                  else
+                    FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        foregroundColor: const Color(0xFF64748B),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _includeStampAndSignature = true;
+                          _renderKey++;
+                        });
+                      },
+                      icon: const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF64748B)),
+                      label: const Text('Stamp & Sig: OFF', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    ),
+                  // Option: Customer Signature ON/OFF
+                  if (_includeCustomerSignature)
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0F3B7A),
+                        side: const BorderSide(color: Color(0xFF93C5FD)),
+                        backgroundColor: const Color(0xFFEFF6FF),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _includeCustomerSignature = false;
+                          _renderKey++;
+                        });
+                      },
+                      icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF0F3B7A)),
+                      label: const Text('Cust Sig: ON', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                    )
+                  else
+                    FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        foregroundColor: const Color(0xFF64748B),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _includeCustomerSignature = true;
+                          _renderKey++;
+                        });
+                      },
+                      icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF64748B)),
+                      label: const Text('Cust Sig: OFF', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    ),
+                  // Customer Signature Upload
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                          ? const Color(0xFF047857)
+                          : const Color(0xFF0F3B7A),
+                      side: BorderSide(
+                        color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                            ? const Color(0xFFA7F3D0)
+                            : const Color(0xFF93C5FD),
+                      ),
+                      backgroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                          ? const Color(0xFFECFDF5)
+                          : Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: _pickCustomerSignature,
+                    icon: Icon(
+                      CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                          ? Icons.check_circle_rounded
+                          : Icons.upload_file_rounded,
+                      size: 14,
+                      color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                          ? const Color(0xFF047857)
+                          : const Color(0xFF0F3B7A),
+                    ),
+                    label: Text(
+                      CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                          ? 'Sig Uploaded ✓'
+                          : 'Upload Cust Sig',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
+                    ),
+                  ),
+                ] else ...[
+                  // Edit Receipt Details
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFECFDF5),
+                      foregroundColor: const Color(0xFF047857),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: _openEditReceiptDialog,
+                    icon: const Icon(Icons.edit_calendar_rounded, size: 14),
+                    label: const Text('Edit Receipt Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                  ),
+                  // Edit Amount
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      visualDensity: VisualDensity.compact,
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    ),
+                    onPressed: _openEditAmountDialog,
+                    icon: const Icon(Icons.currency_rupee_rounded, size: 14),
+                    label: const Text('Edit Amount', style: TextStyle(fontSize: 11.5)),
+                  ),
+                  // Option: Remove/Include Stamp & Signature for Receipt
+                  if (_receiptIncludeStampAndSignature)
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFDC2626),
+                        side: const BorderSide(color: Color(0xFFFCA5A5)),
+                        backgroundColor: const Color(0xFFFEF2F2),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _receiptIncludeStampAndSignature = false;
+                          _renderKey++;
+                        });
+                      },
+                      icon: const Icon(Icons.remove_circle_outline_rounded, size: 14, color: Color(0xFFDC2626)),
+                      label: const Text('Stamp & Sig: ON', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                    )
+                  else
+                    FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        foregroundColor: const Color(0xFF64748B),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _receiptIncludeStampAndSignature = true;
+                          _renderKey++;
+                        });
+                      },
+                      icon: const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF64748B)),
+                      label: const Text('Stamp & Sig: OFF', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    ),
+                  // Option: Margin Receipt Customer Signature ON/OFF
+                  if (_receiptIncludeCustomerSignature)
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0F3B7A),
+                        side: const BorderSide(color: Color(0xFF93C5FD)),
+                        backgroundColor: const Color(0xFFEFF6FF),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _receiptIncludeCustomerSignature = false;
+                          _renderKey++;
+                        });
+                      },
+                      icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF0F3B7A)),
+                      label: const Text('Cust Sig: ON', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                    )
+                  else
+                    FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        foregroundColor: const Color(0xFF64748B),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _receiptIncludeCustomerSignature = true;
+                          _renderKey++;
+                        });
+                      },
+                      icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF64748B)),
+                      label: const Text('Cust Sig: OFF', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    ),
+                  // Customer Signature Upload for Receipt
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                          ? const Color(0xFF047857)
+                          : const Color(0xFF0F3B7A),
+                      side: BorderSide(
+                        color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                            ? const Color(0xFFA7F3D0)
+                            : const Color(0xFF93C5FD),
+                      ),
+                      backgroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                          ? const Color(0xFFECFDF5)
+                          : Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: _pickCustomerSignature,
+                    icon: Icon(
+                      CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                          ? Icons.check_circle_rounded
+                          : Icons.upload_file_rounded,
+                      size: 14,
+                      color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                          ? const Color(0xFF047857)
+                          : const Color(0xFF0F3B7A),
+                    ),
+                    label: Text(
+                      CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                          ? 'Sig Uploaded ✓'
+                          : 'Upload Cust Sig',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
+                    ),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 10),
