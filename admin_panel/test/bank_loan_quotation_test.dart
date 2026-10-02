@@ -143,6 +143,24 @@ void main() {
       expect(autoGrandHigher, equals(200000.0));
       expect(autoContribHigher, equals(20000.0));
     });
+
+    test('7. Company standard pricing matrix: 3kW=1.8L, 3.5kW=2.0L, 4kW=2.4L, 5kW=3.0L', () {
+      final pricing = [
+        {'cap': '3 kW', 'cost': 180000.0, 'expectedLoan': 162000.0, 'expectedContrib': 18000.0},
+        {'cap': '3.5 kW', 'cost': 200000.0, 'expectedLoan': 180000.0, 'expectedContrib': 20000.0},
+        {'cap': '4 kW', 'cost': 240000.0, 'expectedLoan': 216000.0, 'expectedContrib': 24000.0},
+        {'cap': '5 kW', 'cost': 300000.0, 'expectedLoan': 270000.0, 'expectedContrib': 30000.0},
+      ];
+
+      for (final p in pricing) {
+        final cost = p['cost'] as double;
+        final loan = (cost * 0.9).roundToDouble();
+        final contrib = (cost - loan).roundToDouble();
+        expect(loan, equals(p['expectedLoan']));
+        expect(contrib, equals(p['expectedContrib']));
+        expect(loan + contrib, equals(cost));
+      }
+    });
   });
 }
 

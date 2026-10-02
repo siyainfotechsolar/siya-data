@@ -201,29 +201,32 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 6,
-                        children: ['3 kW', '4 kW', '5 kW', '6 kW', '10 kW'].map((val) {
+                        children: ['3 kW', '3.5 kW', '4 kW', '5 kW', '6 kW', '10 kW'].map((val) {
                           return ActionChip(
                             label: Text(val, style: const TextStyle(fontSize: 11)),
                             onPressed: () {
                               setDlgState(() {
                                 capCtrl.text = val;
                                 if (val == '3 kW') {
-                                  costCtrl.text = '160000';
+                                  costCtrl.text = '180000';
+                                  subsidyCtrl.text = '78000';
+                                } else if (val == '3.5 kW') {
+                                  costCtrl.text = '200000';
                                   subsidyCtrl.text = '78000';
                                 } else if (val == '4 kW') {
-                                  costCtrl.text = '210000';
+                                  costCtrl.text = '240000';
                                   subsidyCtrl.text = '78000';
                                 } else if (val == '5 kW') {
-                                  costCtrl.text = '260000';
+                                  costCtrl.text = '300000';
                                   subsidyCtrl.text = '78000';
                                 } else if (val == '6 kW') {
-                                  costCtrl.text = '310000';
+                                  costCtrl.text = '360000';
                                   subsidyCtrl.text = '78000';
                                 } else if (val == '10 kW') {
-                                  costCtrl.text = '520000';
+                                  costCtrl.text = '600000';
                                   subsidyCtrl.text = '78000';
                                 }
-                                final c = double.tryParse(costCtrl.text) ?? 160000.0;
+                                final c = double.tryParse(costCtrl.text) ?? 180000.0;
                                 tempMilestones = ConsumerVendorAgreement.defaultMilestones(c);
                               });
                             },

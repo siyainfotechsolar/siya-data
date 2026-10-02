@@ -702,15 +702,14 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
   }
 
   static String _autoSuggestCapacity(double grandTotal) {
-    if (grandTotal >= 500000) return '10 kW';
-    if (grandTotal >= 380000) return '8 kW';
-    if (grandTotal >= 300000) return '6 kW';
-    if (grandTotal >= 250000) return '5 kW';
-    if (grandTotal >= 200000) return '4 kW';
-    if (grandTotal >= 170000) return '3.3 kW';
-    if (grandTotal >= 135000) return '3 kW';
-    if (grandTotal >= 95000) return '2 kW';
-    if (grandTotal >= 45000) return '1 kW';
+    if (grandTotal >= 550000) return '10 kW';
+    if (grandTotal >= 340000) return '6 kW';
+    if (grandTotal >= 280000) return '5 kW';
+    if (grandTotal >= 220000) return '4 kW';
+    if (grandTotal >= 190000) return '3.5 kW';
+    if (grandTotal >= 150000) return '3 kW';
+    if (grandTotal >= 100000) return '2 kW';
+    if (grandTotal >= 50000) return '1 kW';
     return '3 kW';
   }
 
@@ -815,12 +814,12 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                       spacing: 8,
                       runSpacing: 6,
                       children: [
-                        {'cap': '3 kW', 'cost': 160000},
-                        {'cap': '3.3 kW', 'cost': 180000},
-                        {'cap': '4 kW', 'cost': 210000},
-                        {'cap': '5 kW', 'cost': 260000},
-                        {'cap': '6 kW', 'cost': 310000},
-                        {'cap': '10 kW', 'cost': 520000},
+                        {'cap': '3 kW', 'cost': 180000},
+                        {'cap': '3.5 kW', 'cost': 200000},
+                        {'cap': '4 kW', 'cost': 240000},
+                        {'cap': '5 kW', 'cost': 300000},
+                        {'cap': '6 kW', 'cost': 360000},
+                        {'cap': '10 kW', 'cost': 600000},
                       ].map((preset) {
                         final pCap = preset['cap'] as String;
                         final pCost = preset['cost'] as int;
@@ -1383,22 +1382,23 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                     Wrap(
                       spacing: 6,
                       runSpacing: 4,
-                      children: ['3 kW', '3.3 kW', '4 kW', '5 kW', '6 kW', '10 kW'].map((cap) {
+                      children: ['3 kW', '3.5 kW', '4 kW', '5 kW', '6 kW', '10 kW'].map((cap) {
                         return ActionChip(
                           label: Text(cap, style: const TextStyle(fontSize: 11)),
                           padding: EdgeInsets.zero,
                           onPressed: () {
                             setSheetState(() {
                               capacityCtrl.text = cap;
-                              if (cap == '3 kW') costCtrl.text = '160000';
-                              if (cap == '4 kW') costCtrl.text = '210000';
-                              if (cap == '5 kW') costCtrl.text = '260000';
-                              if (cap == '6 kW') costCtrl.text = '310000';
-                              if (cap == '10 kW') costCtrl.text = '520000';
-                              final newTot = (double.tryParse(costCtrl.text) ?? 160000.0) + (double.tryParse(gstCtrl.text) ?? 0.0);
-                              grandTotalCtrl.text = newTot.toStringAsFixed(0);
+                              if (cap == '3 kW') costCtrl.text = '180000';
+                              if (cap == '3.5 kW') costCtrl.text = '200000';
+                              if (cap == '4 kW') costCtrl.text = '240000';
+                              if (cap == '5 kW') costCtrl.text = '300000';
+                              if (cap == '6 kW') costCtrl.text = '360000';
+                              if (cap == '10 kW') costCtrl.text = '600000';
+                              final newTot = (double.tryParse(costCtrl.text) ?? 180000.0) + (double.tryParse(gstCtrl.text) ?? 0.0);
                               final loan = (newTot * 0.9).roundToDouble();
                               final contrib = (newTot - loan).clamp(0.0, double.infinity);
+                              grandTotalCtrl.text = newTot.toStringAsFixed(0);
                               loanCtrl.text = loan.toStringAsFixed(0);
                               contribCtrl.text = contrib.toStringAsFixed(0);
                             });
