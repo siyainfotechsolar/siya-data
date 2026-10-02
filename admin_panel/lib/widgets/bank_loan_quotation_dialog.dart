@@ -446,6 +446,9 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
             final currentGrand = double.tryParse(grandTotalCtrl.text.trim()) ?? (c + g);
             final currentLoan = double.tryParse(loanCtrl.text.trim()) ?? (currentGrand * 0.9);
             final currentContrib = double.tryParse(contribCtrl.text.trim()) ?? (currentGrand - currentLoan).clamp(0.0, double.infinity);
+            final isLoanExceeded = currentLoan > currentGrand;
+            final isContribExceeded = currentContrib > currentGrand;
+            final hasValidationError = isLoanExceeded || isContribExceeded || currentGrand <= 0;
             final loanPct = currentGrand > 0 ? (currentLoan / currentGrand * 100) : 90.0;
             final contribPct = currentGrand > 0 ? (currentContrib / currentGrand * 100) : 10.0;
             final words = NumberToWordsUtils.convertToIndianRupees(currentGrand);
@@ -608,6 +611,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
 
                       // Bank Loan Amount & Customer Contribution (Two-Way Auto Calculation)
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             child: TextField(
@@ -615,10 +619,15 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               keyboardType: TextInputType.number,
                               decoration: InputDecoration(
                                 labelText: 'Bank Loan (${loanPct.toStringAsFixed(0)}%) *',
-                                helperText: 'Auto-calculates customer contribution',
+                                helperText: isLoanExceeded ? null : 'Auto-calculates customer contribution',
+                                errorText: isLoanExceeded ? 'Exceeds Grand Total' : null,
                                 isDense: true,
                                 border: const OutlineInputBorder(),
-                                prefixIcon: const Icon(Icons.account_balance, size: 18, color: Color(0xFF0F2D69)),
+                                prefixIcon: Icon(
+                                  Icons.account_balance,
+                                  size: 18,
+                                  color: isLoanExceeded ? Colors.red : const Color(0xFF0F2D69),
+                                ),
                               ),
                               onChanged: (val) => setDlgState(() {
                                 final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
@@ -635,10 +644,15 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               keyboardType: TextInputType.number,
                               decoration: InputDecoration(
                                 labelText: 'Customer Contri (${contribPct.toStringAsFixed(0)}%) *',
-                                helperText: 'Auto: Grand Total - Loan',
+                                helperText: isContribExceeded ? null : 'Auto: Grand Total - Loan',
+                                errorText: isContribExceeded ? 'Exceeds Grand Total' : null,
                                 isDense: true,
                                 border: const OutlineInputBorder(),
-                                prefixIcon: const Icon(Icons.person_outline, size: 18, color: Color(0xFF047857)),
+                                prefixIcon: Icon(
+                                  Icons.person_outline,
+                                  size: 18,
+                                  color: isContribExceeded ? Colors.red : const Color(0xFF047857),
+                                ),
                               ),
                               onChanged: (val) => setDlgState(() {
                                 final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
@@ -650,6 +664,68 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                           ),
                         ],
                       ),
+
+                      // Validation Warning & Auto-Fix Actions Card
+                      if (isLoanExceeded) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFFECACA)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 18),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Bank Loan (${currencyFormat.format(currentLoan)}) cannot exceed Grand Total (${currencyFormat.format(currentGrand)})!',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFFB91C1C)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                children: [
+                                  ActionChip(
+                                    avatar: const Icon(Icons.auto_fix_high, size: 14, color: Color(0xFF1D4ED8)),
+                                    label: Text('Set Grand Total to ${currencyFormat.format(currentLoan)}', style: const TextStyle(fontSize: 11, color: Color(0xFF1D4ED8))),
+                                    backgroundColor: const Color(0xFFEFF6FF),
+                                    onPressed: () {
+                                      setDlgState(() {
+                                        grandTotalCtrl.text = currentLoan.toStringAsFixed(0);
+                                        final gst = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
+                                        costCtrl.text = (currentLoan - gst).clamp(0.0, double.infinity).toStringAsFixed(0);
+                                        contribCtrl.text = '0';
+                                      });
+                                    },
+                                  ),
+                                  ActionChip(
+                                    avatar: const Icon(Icons.refresh, size: 14, color: Color(0xFF047857)),
+                                    label: Text('Cap Loan to 90% (${currencyFormat.format(currentGrand * 0.9)})', style: const TextStyle(fontSize: 11, color: Color(0xFF047857))),
+                                    backgroundColor: const Color(0xFFECFDF5),
+                                    onPressed: () {
+                                      setDlgState(() {
+                                        final cappedLoan = (currentGrand * 0.9).roundToDouble();
+                                        loanCtrl.text = cappedLoan.toStringAsFixed(0);
+                                        contribCtrl.text = (currentGrand - cappedLoan).toStringAsFixed(0);
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 14),
 
                       // Live Calculation Breakdown Card
@@ -674,7 +750,11 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                                 ),
                                 Text(
                                   currencyFormat.format(currentLoan),
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69)),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: isLoanExceeded ? Colors.red : const Color(0xFF0F2D69),
+                                  ),
                                 ),
                               ],
                             ),
@@ -734,12 +814,14 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                 ),
                 FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF0D2B6F),
+                    backgroundColor: hasValidationError ? Colors.grey.shade400 : const Color(0xFF0D2B6F),
                     foregroundColor: Colors.white,
                   ),
                   icon: const Icon(Icons.check_circle_outline, size: 16),
                   label: const Text('Save & Update Quotation'),
-                  onPressed: () {
+                  onPressed: hasValidationError
+                      ? null
+                      : () {
                     final c = double.tryParse(costCtrl.text.trim()) ?? _totalCost;
                     final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
                     final tot = double.tryParse(grandTotalCtrl.text.trim()) ?? (c + g);
