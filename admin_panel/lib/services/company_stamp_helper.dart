@@ -50,6 +50,43 @@ class AdminCompanyStampHelper {
     return null;
   }
 
+  /// Robustly loads Rs. 100 Stamp Paper image bytes with multi-stage fallback
+  static Future<Uint8List?> loadStampPaperBytes({Uint8List? customBytes}) async {
+    if (customBytes != null && customBytes.isNotEmpty) {
+      return customBytes;
+    }
+
+    // 1. Try primary rootBundle
+    try {
+      final ByteData data = await rootBundle.load('assets/images/stamp_paper_100.jpg');
+      final bytes = data.buffer.asUint8List();
+      if (bytes.isNotEmpty) return bytes;
+    } catch (_) {}
+
+    // 2. Try direct filesystem read (for desktop, tests, command line)
+    if (!kIsWeb) {
+      final candidates = [
+        'assets/images/stamp_paper_100.jpg',
+        'admin_panel/assets/images/stamp_paper_100.jpg',
+        'mobile_app/assets/images/stamp_paper_100.jpg',
+        '../assets/images/stamp_paper_100.jpg',
+        'build/unit_test_assets/assets/images/stamp_paper_100.jpg',
+        'C:/Users/Admin/.gemini/antigravity-ide/brain/67039af7-0b8d-4c87-88c6-a2fc95b148ba/stamp_paper_100.jpg',
+      ];
+      for (final p in candidates) {
+        try {
+          final f = File(p);
+          if (f.existsSync()) {
+            final bytes = f.readAsBytesSync();
+            if (bytes.isNotEmpty) return bytes;
+          }
+        } catch (_) {}
+      }
+    }
+
+    return null;
+  }
+
   /// Builds the official stamp and signature pw.Widget.
   /// If image is loaded, displays the image.
   /// If image is null but include is true, displays the crisp vector official badge.

@@ -1091,71 +1091,95 @@ class WorkCompletionCertificateService {
     return pdf.save();
   }
 
+  static Future<pw.MemoryImage?> _loadStampPaperImage([Uint8List? customBytes]) async {
+    try {
+      final bytes = await AdminCompanyStampHelper.loadStampPaperBytes(customBytes: customBytes);
+      if (bytes != null && bytes.isNotEmpty) {
+        return pw.MemoryImage(bytes);
+      }
+    } catch (_) {}
+    return null;
+  }
+
   // =========================================================================
   // 4. ANNEXURE-3 NET METERING CONNECTION AGREEMENT (5 Pages A4 - Document 4)
+  // Page 1 & Page 3 on 100 Rs Maharashtra Stamp Paper Background per user spec!
   // =========================================================================
   static Future<Uint8List> generateAnnexure3PdfBytes(
     WorkCompletionReportData data, {
     bool includeStampAndSignature = true,
     Uint8List? customStampAndSignatureBytes,
+    Uint8List? customStampPaperBytes,
   }) async {
     final pdf = pw.Document();
+
+    final pw.MemoryImage? stampPaperImage = await _loadStampPaperImage(customStampPaperBytes);
 
     final compDate = data.completionDate;
     final dayStr = DateFormat('dd').format(compDate);
     final monthStr = DateFormat('MMMM').format(compDate);
     final yearStr = DateFormat('yyyy').format(compDate);
 
-    // Page 1
+    // -----------------------------------------------------------------------
+    // Page 1 (WITH Rs. 100 Stamp Paper Background - Text below stamp header)
+    // -----------------------------------------------------------------------
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.fromLTRB(40, 36, 40, 30),
+        margin: pw.EdgeInsets.zero,
         build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          return pw.Stack(
             children: [
-              pw.Center(
+              if (stampPaperImage != null)
+                pw.Positioned.fill(
+                  child: pw.Image(stampPaperImage, fit: pw.BoxFit.fill),
+                ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.fromLTRB(40, 360, 40, 24),
                 child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: [
-                    pw.Text('Annexure - 3', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 4),
-                    pw.Text('Net Metering Connection Agreement', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
-                  ],
-                ),
-              ),
-              pw.SizedBox(height: 18),
+                    pw.Center(
+                      child: pw.Column(
+                        children: [
+                          pw.Text('Annexure - 3', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                          pw.SizedBox(height: 2),
+                          pw.Text('Net Metering Connection Agreement', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                    pw.SizedBox(height: 10),
 
-              pw.RichText(
-                text: pw.TextSpan(
-                  style: const pw.TextStyle(fontSize: 8.5, color: blackColor, lineSpacing: 1.35),
-                  children: [
-                    const pw.TextSpan(text: 'This Agreement is made and entered into at '),
-                    pw.TextSpan(text: 'Dhule', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    const pw.TextSpan(text: ' on this '),
-                    pw.TextSpan(text: dayStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    const pw.TextSpan(text: ' day of '),
-                    pw.TextSpan(text: '$monthStr $yearStr', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    const pw.TextSpan(text: ' between the Eligible Consumer '),
-                    pw.TextSpan(text: data.customerName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    const pw.TextSpan(text: ' having premises at '),
-                    pw.TextSpan(text: data.customerAddress, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    const pw.TextSpan(text: ' and Consumer No. '),
-                    pw.TextSpan(text: data.consumerNo, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    const pw.TextSpan(text: ' as the first Party,\n\nAND\n\n'),
-                    const pw.TextSpan(text: 'MSEDCL (hereinafter referred to as \'the Licensee\') and having its Registered Office at Prakashgad, Plot No. G-9, Anant Kanekar Marg, Bandra (E), Mumbai - 400051 as second Party of this Agreement.\n\n'),
-                    const pw.TextSpan(text: 'Whereas the Eligible Consumer has applied to MSEDCL for approval of a Net Metering Arrangement under the provisions of the Maharashtra Electricity Regulatory Commission (Grid Interactive Renewable Energy Generating Systems) Regulations, 2019 (\'the Grid Interactive Renewable Regulations\') and sought its connectivity to MSEDCL\'s distribution Network;\n\n'),
-                    const pw.TextSpan(text: 'And whereas MSEDCL has agreed to provide Network connectivity to the Eligible Consumer for injection of electricity generated from its Renewable Energy Generating System of '),
-                    pw.TextSpan(text: '${data.installedCapacityKw.toStringAsFixed(1)} kilowatt;\n\n', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    const pw.TextSpan(text: 'Both Parties hereby agree as follows:\n\n'),
-                    pw.TextSpan(text: '1  Eligibility\n', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    const pw.TextSpan(text: 'The Renewable Energy Generating System meets the applicable norms for being integrated into the distribution network, and that the Eligible Consumer shall maintain the System accordingly for the duration of this Agreement.\n\n'),
-                    pw.TextSpan(text: '2  Technical and Inter-connection Requirements\n', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    const pw.TextSpan(text: '2.1  The metering arrangement and the inter-connection of the Renewable Energy Generating System with the Network of MSEDCL shall be as per the provisions of the Grid Interactive Renewable Regulations, and the technical standards and norms specified by the Central Electricity Authority for connectivity of distributed generation resources and for the installation and operation of meters.\n\n'),
-                    const pw.TextSpan(text: '2.2  The Eligible Consumer agrees, that he shall install, prior to connection of the Renewable'),
+                    pw.RichText(
+                      text: pw.TextSpan(
+                        style: const pw.TextStyle(fontSize: 7.8, color: blackColor, lineSpacing: 1.25),
+                        children: [
+                          const pw.TextSpan(text: 'This Agreement is made and entered into at '),
+                          pw.TextSpan(text: 'Dhule', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          const pw.TextSpan(text: ' on this '),
+                          pw.TextSpan(text: dayStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          const pw.TextSpan(text: ' day of '),
+                          pw.TextSpan(text: '$monthStr $yearStr', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          const pw.TextSpan(text: ' between the Eligible Consumer '),
+                          pw.TextSpan(text: data.customerName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          const pw.TextSpan(text: ' having premises at '),
+                          pw.TextSpan(text: data.customerAddress, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          const pw.TextSpan(text: ' and Consumer No. '),
+                          pw.TextSpan(text: data.consumerNo, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          const pw.TextSpan(text: ' as the first Party,\n\nAND\n\n'),
+                          const pw.TextSpan(text: 'MSEDCL (hereinafter referred to as \'the Licensee\') and having its Registered Office at Prakashgad, Plot No. G-9, Anant Kanekar Marg, Bandra (E), Mumbai - 400051 as second Party of this Agreement.\n\n'),
+                          const pw.TextSpan(text: 'Whereas the Eligible Consumer has applied to MSEDCL for approval of a Net Metering Arrangement under the provisions of the Maharashtra Electricity Regulatory Commission (Grid Interactive Renewable Energy Generating Systems) Regulations, 2019 (\'the Grid Interactive Renewable Regulations\') and sought its connectivity to MSEDCL\'s distribution Network;\n\n'),
+                          const pw.TextSpan(text: 'And whereas MSEDCL has agreed to provide Network connectivity to the Eligible Consumer for injection of electricity generated from its Renewable Energy Generating System of '),
+                          pw.TextSpan(text: '${data.installedCapacityKw.toStringAsFixed(1)} kilowatt;\n\n', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          const pw.TextSpan(text: 'Both Parties hereby agree as follows:\n\n'),
+                          pw.TextSpan(text: '1  Eligibility\n', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          const pw.TextSpan(text: 'The Renewable Energy Generating System meets the applicable norms for being integrated into the distribution network, and that the Eligible Consumer shall maintain the System accordingly for the duration of this Agreement.'),
+                        ],
+                      ),
+                      textAlign: pw.TextAlign.justify,
+                    ),
                   ],
                 ),
-                textAlign: pw.TextAlign.justify,
               ),
             ],
           );
@@ -1163,7 +1187,9 @@ class WorkCompletionCertificateService {
       ),
     );
 
-    // Page 2
+    // -----------------------------------------------------------------------
+    // Page 2 (Plain Paper - NO STAMP BACKGROUND)
+    // -----------------------------------------------------------------------
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
@@ -1173,7 +1199,9 @@ class WorkCompletionCertificateService {
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
               pw.Text(
-                'Energy Generating System to the Network of MSEDCL, an isolation device (both automatic and in-built within inverter and external manual relays); and MSEDCL shall have access to it if required for the repair and maintenance of the distribution Network.\n\n'
+                '2  Technical and Inter-connection Requirements\n\n'
+                '2.1  The metering arrangement and the inter-connection of the Renewable Energy Generating System with the Network of MSEDCL shall be as per the provisions of the Grid Interactive Renewable Regulations, and the technical standards and norms specified by the Central Electricity Authority for connectivity of distributed generation resources and for the installation and operation of meters.\n\n'
+                '2.2  The Eligible Consumer agrees, that he shall install, prior to connection of the Renewable Energy Generating System to the Network of MSEDCL, an isolation device (both automatic and in-built within inverter and external manual relays); and MSEDCL shall have access to it if required for the repair and maintenance of the distribution Network.\n\n'
                 '2.3  MSEDCL shall specify the interface/inter-connection point and metering point.\n\n'
                 '2.4  The Eligible Consumer shall furnish all relevant data, such as voltage, frequency, circuit breaker, isolator position in his System, as and when required by MSEDCL.\n\n'
                 '3  Safety\n\n'
@@ -1195,31 +1223,40 @@ class WorkCompletionCertificateService {
       ),
     );
 
-    // Page 3
+    // -----------------------------------------------------------------------
+    // Page 3 (WITH 2nd Rs. 100 Stamp Paper Background - Text below stamp header)
+    // -----------------------------------------------------------------------
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.fromLTRB(40, 36, 40, 30),
+        margin: pw.EdgeInsets.zero,
         build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          return pw.Stack(
             children: [
-              pw.Text(
-                'b) By the Eligible Consumer, by giving 90 days\' notice to MSEDCL;\n\n'
-                'c) By MSEDCL, by giving 30 days\' notice, if the Eligible Consumer breaches any terms of this Agreement or the provisions of the Grid Interactive Rooftop Renewable Energy Generating Systems Regulations and does not remedy such breach within 30 days, or such other reasonable period as may be provided, of receiving notice of such breach, or for any other valid reason communicated by MSEDCL in writing;\n\n'
-                'd) By MSEDCL, by giving 30 days\' notice, if the Eligible Consumer fails to pay his dues in a timely manner or indulges in any malpractices.\n\n'
-                '6  Access and Disconnection\n\n'
-                '6.1  The Eligible Consumer shall provide access to MSEDCL to the metering equipment and disconnecting devices of Renewable Energy Generating System, both automatic and manual, by the Eligible Consumer.\n\n'
-                '6.2  If, in an emergent or outage situation, MSEDCL cannot access the disconnecting devices of the Renewable Energy Generating System, both automatic and manual, it may disconnect power supply to the premises.\n\n'
-                '6.3  Upon termination of this Agreement under Clause 5, the Eligible Consumer shall disconnect the Renewable Energy Generating System forthwith from the Network of MSEDCL.\n\n'
-                '7  Liabilities\n\n'
-                '7.1  The Parties shall indemnify each other for damages or adverse effects of either Party\'s negligence or misconduct during the installation of the Renewable Energy Generating System, connectivity with the distribution Network and operation of the System.\n\n'
-                '7.2  The Parties shall not be liable to each other for any loss of profits or revenues, business interruption losses, loss of contract or goodwill, or for indirect, consequential, incidental or special damages including, but not limited to, punitive or exemplary damages, whether any of these liabilities, losses or damages arise in contract, or otherwise.\n\n'
-                '8  Commercial Settlement\n\n'
-                '8.1  The commercial settlements under this Agreement shall be in accordance with the Grid Interactive Renewable Regulations.\n\n'
-                '8.2  MSEDCL shall not be liable to compensate the Eligible Consumer if his Renewable Energy Generating System is unable to inject surplus power generated into MSEDCL\'s Network on account of failure of power supply in the grid/Network.',
-                style: const pw.TextStyle(fontSize: 8.5, lineSpacing: 1.35),
-                textAlign: pw.TextAlign.justify,
+              if (stampPaperImage != null)
+                pw.Positioned.fill(
+                  child: pw.Image(stampPaperImage, fit: pw.BoxFit.fill),
+                ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.fromLTRB(40, 360, 40, 24),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                  children: [
+                    pw.Text(
+                      'b) By the Eligible Consumer, by giving 90 days\' notice to MSEDCL;\n\n'
+                      'c) By MSEDCL, by giving 30 days\' notice, if the Eligible Consumer breaches any terms of this Agreement or the provisions of the Grid Interactive Rooftop Renewable Energy Generating Systems Regulations and does not remedy such breach within 30 days, or such other reasonable period as may be provided, of receiving notice of such breach, or for any other valid reason communicated by MSEDCL in writing;\n\n'
+                      'd) By MSEDCL, by giving 30 days\' notice, if the Eligible Consumer fails to pay his dues in a timely manner or indulges in any malpractices.\n\n'
+                      '6  Access and Disconnection\n\n'
+                      '6.1  The Eligible Consumer shall provide access to MSEDCL to the metering equipment and disconnecting devices of Renewable Energy Generating System, both automatic and manual, by the Eligible Consumer.\n\n'
+                      '6.2  If, in an emergent or outage situation, MSEDCL cannot access the disconnecting devices of the Renewable Energy Generating System, both automatic and manual, it may disconnect power supply to the premises.\n\n'
+                      '6.3  Upon termination of this Agreement under Clause 5, the Eligible Consumer shall disconnect the Renewable Energy Generating System forthwith from the Network of MSEDCL.\n\n'
+                      '7  Liabilities\n\n'
+                      '7.1  The Parties shall indemnify each other for damages or adverse effects of either Party\'s negligence or misconduct during the installation of the Renewable Energy Generating System, connectivity with the distribution Network and operation of the System.',
+                      style: const pw.TextStyle(fontSize: 8.0, lineSpacing: 1.25),
+                      textAlign: pw.TextAlign.justify,
+                    ),
+                  ],
+                ),
               ),
             ],
           );
@@ -1227,7 +1264,9 @@ class WorkCompletionCertificateService {
       ),
     );
 
-    // Page 4
+    // -----------------------------------------------------------------------
+    // Page 4 (Plain Paper - NO STAMP BACKGROUND)
+    // -----------------------------------------------------------------------
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
@@ -1237,6 +1276,10 @@ class WorkCompletionCertificateService {
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
               pw.Text(
+                '7.2  The Parties shall not be liable to each other for any loss of profits or revenues, business interruption losses, loss of contract or goodwill, or for indirect, consequential, incidental or special damages including, but not limited to, punitive or exemplary damages, whether any of these liabilities, losses or damages arise in contract, or otherwise.\n\n'
+                '8  Commercial Settlement\n\n'
+                '8.1  The commercial settlements under this Agreement shall be in accordance with the Grid Interactive Renewable Regulations.\n\n'
+                '8.2  MSEDCL shall not be liable to compensate the Eligible Consumer if his Renewable Energy Generating System is unable to inject surplus power generated into MSEDCL\'s Network on account of failure of power supply in the grid/Network.\n\n'
                 '8.3  The existing metering System, if not in accordance with the Grid Interactive Renewable Regulations, shall be replaced by a bi-directional meter (whole current/CT operated) and a separate Renewable Energy Generation Meter shall be provided to measure Renewable Energy generation. The bi-directional meter (whole current/CT operated) shall be installed at the inter-connection point to MSEDCL\'s Network for recording export and import of energy.\n\n'
                 '8.4  The uni-directional and bi-directional meters shall be fixed in separate meter boxes in the same proximity.\n\n'
                 '8.5  The energy generated by the Renewable Energy Generating Station shall be offset against the energy consumption of the consumer from the MSEDCL in the following manner:\n\n'
@@ -1248,7 +1291,7 @@ class WorkCompletionCertificateService {
                 'e) MSEDCL shall compute the amount payable to the Eligible Consumer for the excess Renewable Energy purchased by it as specified in Clause 8.5 (c), and shall provide credit equivalent to the amount payable in the immediately succeeding Billing Cycle.\n\n'
                 '9  Connection Costs\n\n'
                 'The Eligible Consumer shall bear all costs related to the setting up of the Renewable Energy Generating System, including the cost of the Renewable Energy Generation Meter.',
-                style: const pw.TextStyle(fontSize: 8.5, lineSpacing: 1.35),
+                style: const pw.TextStyle(fontSize: 8.2, lineSpacing: 1.3),
                 textAlign: pw.TextAlign.justify,
               ),
             ],
@@ -1257,7 +1300,9 @@ class WorkCompletionCertificateService {
       ),
     );
 
-    // Page 5
+    // -----------------------------------------------------------------------
+    // Page 5 (Plain Paper - NO STAMP BACKGROUND)
+    // -----------------------------------------------------------------------
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
