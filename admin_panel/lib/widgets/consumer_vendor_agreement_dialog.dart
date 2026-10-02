@@ -457,21 +457,27 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
   Widget build(BuildContext context) {
     final agreement = _buildAgreement();
 
+    final screenSize = MediaQuery.of(context).size;
+    final isCompact = screenSize.width < 900;
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 12 : 24,
+        vertical: isCompact ? 12 : 20,
+      ),
       child: Container(
-        width: 900,
-        height: 750,
-        padding: const EdgeInsets.all(20),
+        width: (screenSize.width * 0.94).clamp(750.0, 1200.0),
+        height: (screenSize.height * 0.94).clamp(650.0, 960.0),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header Bar
+            // Row 1: Dialog Header (Icon + Title & Customer Name + Subtitle + Close Button)
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
                     color: const Color(0xFFEFF6FF),
                     borderRadius: BorderRadius.circular(10),
@@ -483,90 +489,158 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'Consumer-Vendor Agreement (Annexure 2) — $_customerName',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69)),
+                      Row(
+                        children: [
+                          const Flexible(
+                            child: Text(
+                              'Consumer-Vendor Agreement (Annexure 2)',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F2D69),
+                                letterSpacing: -0.2,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('—', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFCBD5E1)),
+                              ),
+                              child: Text(
+                                _customerName,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E293B),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         'PM Surya Ghar: Muft Bijli Yojana • Official Annexure 2 Agreement • Consumer No: $_consumerNo',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF0F2D69),
-                    side: const BorderSide(color: Color(0xFF0F2D69)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  onPressed: _openEditDetailsDialog,
-                  icon: const Icon(Icons.edit_document, size: 16),
-                  label: const Text('Edit Payment Table'),
-                ),
-                const SizedBox(width: 8),
-                if (_includeStampAndSignature)
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFDC2626),
-                      side: const BorderSide(color: Color(0xFFFCA5A5)),
-                      backgroundColor: const Color(0xFFFEF2F2),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _includeStampAndSignature = false;
-                        _renderKey++;
-                      });
-                    },
-                    icon: const Icon(Icons.remove_circle_outline_rounded, size: 15, color: Color(0xFFDC2626)),
-                    label: const Text('Remove Stamp & Signature', style: TextStyle(fontWeight: FontWeight.w600)),
-                  )
-                else
-                  FilledButton.tonalIcon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFECFDF5),
-                      foregroundColor: const Color(0xFF047857),
-                      side: const BorderSide(color: Color(0xFFA7F3D0)),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _includeStampAndSignature = true;
-                        _renderKey++;
-                      });
-                    },
-                    icon: const Icon(Icons.verified_rounded, size: 15, color: Color(0xFF047857)),
-                    label: const Text('Include Stamp & Signature', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                const SizedBox(width: 8),
-                FilledButton.tonalIcon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
-                    foregroundColor: const Color(0xFF128C7E),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  onPressed: () => ConsumerVendorAgreementService.shareViaWhatsApp(agreement),
-                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-                  label: const Text('Send WhatsApp'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF059669),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  ),
-                  onPressed: () => ConsumerVendorAgreementService.downloadAgreementPdf(context, agreement, includeStampAndSignature: _includeStampAndSignature),
-                  icon: const Icon(Icons.download_rounded, size: 16),
-                  label: const Text('Download PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded),
+                  icon: const Icon(Icons.close_rounded, size: 22),
                   tooltip: 'Close',
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFF1F5F9),
+                    foregroundColor: const Color(0xFF475569),
+                    hoverColor: const Color(0xFFE2E8F0),
+                  ),
                   onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Row 2: Action Toolbar (Separated from title to prevent any text crushing)
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                // Left Toolbar Actions
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0F2D69),
+                        side: const BorderSide(color: Color(0xFF0F2D69)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      onPressed: _openEditDetailsDialog,
+                      icon: const Icon(Icons.edit_document, size: 16),
+                      label: const Text('Edit Payment Table'),
+                    ),
+                    if (_includeStampAndSignature)
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFDC2626),
+                          side: const BorderSide(color: Color(0xFFFCA5A5)),
+                          backgroundColor: const Color(0xFFFEF2F2),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _includeStampAndSignature = false;
+                            _renderKey++;
+                          });
+                        },
+                        icon: const Icon(Icons.remove_circle_outline_rounded, size: 15, color: Color(0xFFDC2626)),
+                        label: const Text('Remove Stamp & Signature', style: TextStyle(fontWeight: FontWeight.w600)),
+                      )
+                    else
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFECFDF5),
+                          foregroundColor: const Color(0xFF047857),
+                          side: const BorderSide(color: Color(0xFFA7F3D0)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _includeStampAndSignature = true;
+                            _renderKey++;
+                          });
+                        },
+                        icon: const Icon(Icons.verified_rounded, size: 15, color: Color(0xFF047857)),
+                        label: const Text('Include Stamp & Signature', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                  ],
+                ),
+
+                // Right Toolbar Actions
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
+                        foregroundColor: const Color(0xFF128C7E),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      onPressed: () => ConsumerVendorAgreementService.shareViaWhatsApp(agreement),
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+                      label: const Text('Send WhatsApp'),
+                    ),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      ),
+                      onPressed: () => ConsumerVendorAgreementService.downloadAgreementPdf(context, agreement, includeStampAndSignature: _includeStampAndSignature),
+                      icon: const Icon(Icons.download_rounded, size: 16),
+                      label: const Text('Download PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    ),
+                  ],
                 ),
               ],
             ),

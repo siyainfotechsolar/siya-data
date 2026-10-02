@@ -248,62 +248,118 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ==========================================
-            // HEADER & ACTION BUTTONS
+            // HEADER (Row 1: Title & Close)
             // ==========================================
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F2D69).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.verified_outlined,
-                        color: Color(0xFF0F2D69),
-                        size: 26,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Work Completion Certificate',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF0F2D69),
-                          ),
-                        ),
-                        Text(
-                          '$_customerName • $_consumerNo',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F2D69).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.verified_outlined,
+                    color: Color(0xFF0F2D69),
+                    size: 24,
+                  ),
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Work Completion Certificate',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF0F2D69),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('—', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFCBD5E1)),
+                              ),
+                              child: Text(
+                                _customerName,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E293B),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Consumer No: $_consumerNo • Capacity: $_capacity • Date: ${DateFormat('dd MMM yyyy').format(_completionDate)}',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 22),
+                  tooltip: 'Close',
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFF1F5F9),
+                    foregroundColor: const Color(0xFF475569),
+                    hoverColor: const Color(0xFFE2E8F0),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ==========================================
+            // ACTION TOOLBAR (Row 2: Actions Wrap)
+            // ==========================================
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                // Left Toolbar Actions
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     // Edit Details Button
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF0F2D69),
                         side: const BorderSide(color: Color(0xFF0F2D69)),
-                        padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
                       onPressed: _openEditDetailsDialog,
                       icon: const Icon(Icons.edit_note_rounded, size: 16),
-                      label: Text(isCompact ? 'Edit' : 'Edit Details'),
+                      label: const Text('Edit Details'),
                     ),
-                    const SizedBox(width: 8),
 
                     // Option: Remove/Include Stamp & Signature
                     if (_includeStampAndSignature)
@@ -312,7 +368,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                           foregroundColor: const Color(0xFFDC2626),
                           side: const BorderSide(color: Color(0xFFFCA5A5)),
                           backgroundColor: const Color(0xFFFEF2F2),
-                          padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 10, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         ),
                         onPressed: () {
                           setState(() {
@@ -321,7 +377,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                           });
                         },
                         icon: const Icon(Icons.remove_circle_outline_rounded, size: 15, color: Color(0xFFDC2626)),
-                        label: Text(isCompact ? 'Remove Stamp' : 'Remove Stamp & Signature', style: const TextStyle(fontWeight: FontWeight.w600)),
+                        label: const Text('Remove Stamp & Signature', style: TextStyle(fontWeight: FontWeight.w600)),
                       )
                     else
                       FilledButton.tonalIcon(
@@ -329,7 +385,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                           backgroundColor: const Color(0xFFECFDF5),
                           foregroundColor: const Color(0xFF047857),
                           side: const BorderSide(color: Color(0xFFA7F3D0)),
-                          padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 10, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         ),
                         onPressed: () {
                           setState(() {
@@ -338,29 +394,35 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                           });
                         },
                         icon: const Icon(Icons.verified_rounded, size: 15, color: Color(0xFF047857)),
-                        label: Text(isCompact ? 'Add Stamp' : 'Include Stamp & Signature', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        label: const Text('Include Stamp & Signature', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
-                    const SizedBox(width: 8),
+                  ],
+                ),
 
+                // Right Toolbar Actions
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
                     // WhatsApp notification
                     FilledButton.tonalIcon(
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
                         foregroundColor: const Color(0xFF128C7E),
-                        padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
                       onPressed: () => WorkCompletionCertificateService.sendOnWhatsApp(context, widget.customer),
                       icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-                      label: Text(isCompact ? 'WhatsApp' : 'Send WhatsApp'),
+                      label: const Text('Send WhatsApp'),
                     ),
-                    const SizedBox(width: 8),
 
                     // Download PDF
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF059669),
                         foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       ),
                       onPressed: _isDownloading
                           ? null
@@ -385,15 +447,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
                           : const Icon(Icons.download_rounded, size: 16),
-                      label: Text(isCompact ? 'Download' : 'Download PDF'),
-                    ),
-                    const SizedBox(width: 8),
-
-                    // Close button
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      tooltip: 'Close',
-                      onPressed: () => Navigator.of(context).pop(),
+                      label: const Text('Download PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                     ),
                   ],
                 ),
