@@ -720,6 +720,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     final grandTotalCtrl = TextEditingController(text: _grandTotal > 0 ? _grandTotal.toStringAsFixed(0) : '');
     final loanCtrl = TextEditingController(text: _bankLoanAmount > 0 ? _bankLoanAmount.toStringAsFixed(0) : '');
     final contribCtrl = TextEditingController(text: _customerContribution > 0 ? _customerContribution.toStringAsFixed(0) : '');
+    DateTime selectedDate = _quotationDate;
     bool isReverseCalcMode = false;
 
     await showModalBottomSheet<void>(
@@ -847,15 +848,51 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Manual Capacity
-                    TextField(
-                      controller: capacityCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'System Capacity *',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                        prefixIcon: Icon(Icons.bolt, color: Color(0xFFF59E0B)),
-                      ),
+                    // Manual Capacity & Quotation Date
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 6,
+                          child: TextField(
+                            controller: capacityCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'System Capacity *',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              prefixIcon: Icon(Icons.bolt, color: Color(0xFFF59E0B)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 5,
+                          child: InkWell(
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: selectedDate,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2035),
+                              );
+                              if (picked != null) {
+                                setSheetState(() => selectedDate = picked);
+                              }
+                            },
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Date *',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                                prefixIcon: Icon(Icons.calendar_today_rounded, size: 16),
+                              ),
+                              child: Text(
+                                DateFormat('dd-MM-yyyy').format(selectedDate),
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
 
@@ -1251,6 +1288,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                                 _bankLoanAmount = l;
                                 _customerContribution = contrib;
                                 _marginAmount = contrib;
+                                _quotationDate = selectedDate;
                                 _cachedFile = null;
                                 _cachedReceiptFile = null;
                               });

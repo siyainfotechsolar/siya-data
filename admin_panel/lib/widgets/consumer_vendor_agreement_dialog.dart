@@ -193,9 +193,50 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          Expanded(child: TextField(controller: capCtrl, decoration: const InputDecoration(labelText: 'System Capacity *', isDense: true, border: OutlineInputBorder()))),
-                          const SizedBox(width: 10),
-                          Expanded(child: TextField(controller: agrNoCtrl, decoration: const InputDecoration(labelText: 'Agreement No. *', isDense: true, border: OutlineInputBorder()))),
+                          Expanded(
+                            flex: 4,
+                            child: TextField(
+                              controller: capCtrl,
+                              decoration: const InputDecoration(labelText: 'System Capacity *', isDense: true, border: OutlineInputBorder()),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 4,
+                            child: TextField(
+                              controller: agrNoCtrl,
+                              decoration: const InputDecoration(labelText: 'Agreement No. *', isDense: true, border: OutlineInputBorder()),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 4,
+                            child: InkWell(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: tempExecutionDate,
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2035),
+                                );
+                                if (picked != null) {
+                                  setDlgState(() => tempExecutionDate = picked);
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(
+                                  labelText: 'Agreement Date *',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.calendar_today_rounded, size: 15, color: Color(0xFF0F2D69)),
+                                ),
+                                child: Text(
+                                  DateFormat('dd-MM-yyyy').format(tempExecutionDate),
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),

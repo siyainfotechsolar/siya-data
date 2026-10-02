@@ -255,6 +255,7 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
     final costCtrl = TextEditingController(text: _totalProjectCost.toStringAsFixed(0));
     final subsidyCtrl = TextEditingController(text: _cfaSubsidyAmount.toStringAsFixed(0));
     final capCtrl = TextEditingController(text: _systemCapacity);
+    DateTime tempExecutionDate = _executionDate;
     List<PaymentMilestone> tempMilestones = _paymentMilestones.map((m) => m.copyWith()).toList();
 
     await showModalBottomSheet<void>(
@@ -333,6 +334,32 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0F2D69)),
                     ),
                     const SizedBox(height: 12),
+                    InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: tempExecutionDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2035),
+                        );
+                        if (picked != null) {
+                          setSheetState(() => tempExecutionDate = picked);
+                        }
+                      },
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Agreement Date *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                          prefixIcon: Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF0F2D69)),
+                        ),
+                        child: Text(
+                          DateFormat('dd MMMM yyyy').format(tempExecutionDate),
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     ...tempMilestones.asMap().entries.map((entry) {
                       final idx = entry.key;
                       final m = entry.value;
@@ -405,6 +432,7 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                           _cfaSubsidyAmount = s;
                           _netCustomerPayable = c - s;
                           _paymentMilestones = updated;
+                          _executionDate = tempExecutionDate;
                           _generatedFile = null; // Re-generate needed
                         });
 

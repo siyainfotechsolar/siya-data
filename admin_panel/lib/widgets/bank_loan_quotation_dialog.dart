@@ -447,6 +447,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     final grandTotalCtrl = TextEditingController(text: _grandTotal > 0 ? _grandTotal.toStringAsFixed(0) : '');
     final loanCtrl = TextEditingController(text: _bankLoan > 0 ? _bankLoan.toStringAsFixed(0) : '');
     final contribCtrl = TextEditingController(text: _contribution > 0 ? _contribution.toStringAsFixed(0) : '');
+    DateTime selectedDate = _quotationDate;
     bool isReverseCalcMode = false;
 
     await showDialog<void>(
@@ -558,15 +559,51 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Manual System Capacity
-                      TextField(
-                        controller: capCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'System Capacity (e.g. 3 kW, 5 kW) *',
-                          isDense: true,
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.bolt_rounded, size: 20, color: Color(0xFFF59E0B)),
-                        ),
+                      // Manual System Capacity & Quotation Date Row
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 6,
+                            child: TextField(
+                              controller: capCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'System Capacity (e.g. 3 kW, 5 kW) *',
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.bolt_rounded, size: 20, color: Color(0xFFF59E0B)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 5,
+                            child: InkWell(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: selectedDate,
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2035),
+                                );
+                                if (picked != null) {
+                                  setDlgState(() => selectedDate = picked);
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(
+                                  labelText: 'Quotation Date *',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF0F2D69)),
+                                ),
+                                child: Text(
+                                  DateFormat('dd-MM-yyyy').format(selectedDate),
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
 
@@ -947,6 +984,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                       _bankLoan = l;
                       _contribution = contrib;
                       _marginAmount = contrib;
+                      _quotationDate = selectedDate;
                       _renderKey++;
                     });
                     Navigator.of(ctx).pop();
@@ -1043,9 +1081,50 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          Expanded(child: TextField(controller: quoteNoCtrl, decoration: const InputDecoration(labelText: 'Quotation No. *', isDense: true, border: OutlineInputBorder()))),
-                          const SizedBox(width: 10),
-                          Expanded(child: TextField(controller: capCtrl, decoration: const InputDecoration(labelText: 'System Capacity *', isDense: true, border: OutlineInputBorder()))),
+                          Expanded(
+                            flex: 4,
+                            child: TextField(
+                              controller: quoteNoCtrl,
+                              decoration: const InputDecoration(labelText: 'Quotation No. *', isDense: true, border: OutlineInputBorder()),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 4,
+                            child: TextField(
+                              controller: capCtrl,
+                              decoration: const InputDecoration(labelText: 'System Capacity *', isDense: true, border: OutlineInputBorder()),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 4,
+                            child: InkWell(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: selectedDate,
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2035),
+                                );
+                                if (picked != null) {
+                                  setDlgState(() => selectedDate = picked);
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(
+                                  labelText: 'Quotation Date *',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.calendar_today_rounded, size: 15, color: Color(0xFF0F2D69)),
+                                ),
+                                child: Text(
+                                  DateFormat('dd-MM-yyyy').format(selectedDate),
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
