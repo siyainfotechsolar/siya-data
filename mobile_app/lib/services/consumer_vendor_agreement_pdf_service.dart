@@ -475,13 +475,18 @@ class ConsumerVendorAgreementPdfService {
 
     // Second Party (Vendor) Signature & Stamp Base
     final double vSignY = cSignY;
-    const double pairW = 160;
-    const double pairH = 75;
-    final double stampX = p2Left + (p2Width - pairW) / 2;
-    final double stampY = vSignY - pairH + 8;
 
-    // Draw Company Stamp & Authorized Signature if included (positioned directly over signature line)
+    // Vendor Signature with aligned baseline drawn FIRST
+    g3.drawLine(thinDividerPen, Offset(p2Left, vSignY), Offset(p2Left + p2Width, vSignY));
+
+    // Draw Company Stamp & Authorized Signature ON TOP OF the line ("reshcya var")
+    // Stamp size: 38mm x 38mm (108pt x 108pt) round stamp
+    // Composite artwork width: 146pt, height: 108pt
     if (includeStampAndSignature) {
+      const double pairW = 146;
+      const double pairH = 108;
+      final double stampX = p2Left + (p2Width - pairW) / 2;
+      final double stampY = vSignY - 84;
       CompanyStampHelper.drawStampAndSignature(
         graphics: g3,
         bounds: Rect.fromLTWH(stampX, stampY, pairW, pairH),
@@ -489,9 +494,6 @@ class ConsumerVendorAgreementPdfService {
         include: includeStampAndSignature,
       );
     }
-
-    // Vendor Signature with aligned baseline
-    g3.drawLine(thinDividerPen, Offset(p2Left, vSignY), Offset(p2Left + p2Width, vSignY));
     g3.drawString('Authorized Signatory', bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(p2Left, vSignY + 5, p2Width, 14));
     g3.drawString('SIYA INFOTECH & DIGITAL SOLUTIONS', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(p2Left, vSignY + 20, p2Width, 13));
     g3.drawString('Date: ${agreement.formattedExecutionDate}   |   Place: Shindkheda', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(p2Left, vSignY + 35, p2Width, 13));

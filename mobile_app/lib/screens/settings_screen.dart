@@ -164,7 +164,7 @@ class MobileSettingsScreen extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   subtitle: const Text(
-                    'Version 1.0.34 (Build 35)',
+                    'Version 1.0.35 (Build 36)',
                     style: TextStyle(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
@@ -180,7 +180,7 @@ class MobileSettingsScreen extends StatelessWidget {
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF059669).withValues(alpha: 0.1),
+                       color: const Color(0xFF059669).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.system_update_rounded, color: Color(0xFF059669), size: 22),
@@ -190,7 +190,7 @@ class MobileSettingsScreen extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   subtitle: const Text(
-                    'Download latest APK (v1.0.34)',
+                    'Download latest APK (v1.0.35)',
                     style: TextStyle(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.open_in_new_rounded, size: 16),

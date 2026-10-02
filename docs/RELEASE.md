@@ -113,6 +113,20 @@ For internal testing and GitHub release distribution, standard release signing i
 
 ---
 
+### Release v1.0.35 (Build 36) - 2026-10-02
+- **Official 38mm Round Stamp & Realistic Signature Integration**:
+  - **Exact 38 mm × 38 mm (1.5 inch × 1.5 inch) Round Stamp**:
+    - Official circular artwork for *Siya Infotech And Digital Solutions, Betawad*.
+    - High-fidelity 100% transparent PNG rendering across all document generators (no black/white background boxes).
+  - **Realistic Overlapping Signature Baseline**:
+    - Signature flows naturally across the inner seal and rests on the signature line ("reshcya var").
+    - Baseline alignment across Bank Loan Quotation, Margin Money Receipt (10%), Model Vendor Agreement (Annexure 2), and Work Completion Report (WCR).
+  - **1-Click Generation & Document Stabilization**:
+    - Verified with all 73 mobile tests and 194 admin panel unit tests green.
+- **Version Bump**: Mobile App `1.0.35+36`, Admin Panel `1.0.35+36`.
+
+---
+
 ### Release v1.0.34 (Build 35) - 2026-10-02
 - **Bank Loan Solar Quotation, Margin Money Receipt (10%) & Annexure 2 Agreement (Cross-Platform)**:
   - **1-Click Preview & Download Buttons**:

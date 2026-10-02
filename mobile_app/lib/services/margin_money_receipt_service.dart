@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -425,20 +426,6 @@ class MarginMoneyReceiptService {
     // Unified Baseline: Both Borrower & Vendor lines sit at the EXACT SAME horizontal Y!
     final double commonLineY = stampY + stampDiam + 22;
 
-    // Draw Company Stamp & Authorized Signature if included (positioned directly over signature line)
-    if (includeStampAndSignature) {
-      const double pairW = 160;
-      const double pairH = 75;
-      final double pairX = vendorSignL + (signColW - pairW) / 2;
-      final double pairY = commonLineY - pairH + 8;
-      CompanyStampHelper.drawStampAndSignature(
-        graphics: graphics,
-        bounds: Rect.fromLTWH(pairX, pairY, pairW, pairH),
-        bitmap: stampAndSigBitmap,
-        include: includeStampAndSignature,
-      );
-    }
-
     // Left Signature Line (160pt width)
     graphics.drawLine(tableOuterPen, Offset(contentLeft, commonLineY), Offset(contentLeft + lineWidth, commonLineY));
     graphics.drawString('Borrower Signature', signTitleFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft, commonLineY + 4, signColW, 11));
@@ -447,6 +434,22 @@ class MarginMoneyReceiptService {
     // Right Signature Line (Identical 160pt width, perfectly centered under vendor column)
     final double vendorLineL = vendorSignL + ((signColW - lineWidth) / 2);
     graphics.drawLine(tableOuterPen, Offset(vendorLineL, commonLineY), Offset(vendorLineL + lineWidth, commonLineY));
+
+    // Draw Company Stamp & Authorized Signature ON TOP OF the line ("reshcya var")
+    // Stamp size: 38mm x 38mm (108pt x 108pt) round stamp
+    // Composite artwork width: 146pt, height: 108pt
+    if (includeStampAndSignature) {
+      const double pairW = 146;
+      const double pairH = 108;
+      final double pairX = vendorLineL + (lineWidth - pairW) / 2;
+      final double pairY = commonLineY - 84;
+      CompanyStampHelper.drawStampAndSignature(
+        graphics: graphics,
+        bounds: Rect.fromLTWH(pairX, pairY, pairW, pairH),
+        bitmap: stampAndSigBitmap,
+        include: includeStampAndSignature,
+      );
+    }
     graphics.drawString('Authorized Signatory', signTitleFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(vendorSignL, commonLineY + 4, signColW, 11));
     graphics.drawString('${receipt.signatoryName} • ${receipt.signatoryDesignation} | Betawad', signSubFont, brush: slateMutedBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(vendorSignL, commonLineY + 16, signColW, 10));
 

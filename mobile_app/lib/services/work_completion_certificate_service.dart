@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -498,22 +499,28 @@ class WorkCompletionCertificateService {
     final double stampL = signLeft + ((signWidth - stampW) / 2);
     final double lineY = signY + stampH + 2;
 
-    // Draw Company Stamp & Authorized Signature if included (sitting right over signature line)
-    if (includeStampAndSignature) {
-      CompanyStampHelper.drawStampAndSignature(
-        graphics: graphics,
-        bounds: Rect.fromLTWH(stampL, lineY - stampH + 6, stampW, stampH),
-        bitmap: stampAndSigBitmap,
-        include: includeStampAndSignature,
-      );
-    }
-
-    // Solid Line (160pt width)
+    // Solid Line (160pt width) drawn FIRST
     graphics.drawLine(
       PdfPen(navyColor, width: 1.0),
       Offset(stampL, lineY),
       Offset(stampL + stampW, lineY),
     );
+
+    // Draw Company Stamp & Authorized Signature ON TOP OF the line ("reshcya var")
+    // Stamp size: 38mm x 38mm (108pt x 108pt) round stamp
+    // Composite artwork width: 146pt, height: 108pt
+    if (includeStampAndSignature) {
+      const double pairW = 146;
+      const double pairH = 108;
+      final double pairX = stampL + (stampW - pairW) / 2;
+      final double pairY = lineY - 84;
+      CompanyStampHelper.drawStampAndSignature(
+        graphics: graphics,
+        bounds: Rect.fromLTWH(pairX, pairY, pairW, pairH),
+        bitmap: stampAndSigBitmap,
+        include: includeStampAndSignature,
+      );
+    }
 
     signY = lineY + 4;
 

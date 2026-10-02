@@ -36,7 +36,7 @@ void main() {
       artifactDir.createSync(recursive: true);
     }
 
-    // 1. Bank Loan Solar Quotation (WITH STAMP)
+    // 1. Bank Loan Solar Quotation (WITH STAMP) — unique pdfFileName so BLANK version never overwrites it
     final quotation = SolarQuotation.create(
       consumerNo: sampleCustomer.consumerNo,
       customerName: sampleCustomer.name,
@@ -49,15 +49,20 @@ void main() {
       customerContribution: 20000.0,
     );
 
+    // Give the WITH-STAMP quotation an explicit unique filename
+    final quotationWithStamp = quotation.copyWith(
+      pdfFileName: 'Quotation_RAMESHWAR_KISANRAO_PATIL_SIYA-Q-2026-7890.pdf',
+    );
+
     final qFileWithStamp = await BankLoanQuotationService.generateQuotationPdf(
-      quotation: quotation,
+      quotation: quotationWithStamp,
       outputDirectory: artifactDir,
       includeStampAndSignature: true,
     );
 
-    // 2. Bank Loan Solar Quotation (BLANK / WITHOUT STAMP)
+    // 2. Bank Loan Solar Quotation (BLANK / WITHOUT STAMP) — different filename
     final qFileBlank = await BankLoanQuotationService.generateQuotationPdf(
-      quotation: quotation.copyWith(quotationNo: '${quotation.quotationNo}_BLANK_SEAL'),
+      quotation: quotation.copyWith(pdfFileName: 'Quotation_RAMESHWAR_KISANRAO_PATIL_SIYA-Q-2026-7890_BLANK.pdf'),
       outputDirectory: artifactDir,
       includeStampAndSignature: false,
     );

@@ -220,22 +220,25 @@ class PaymentReceiptService {
     final double rightColL = pageSize.width - lineWidth;
     graphics.drawString('For Siya Infotech & Digital Solutions', boldFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(rightColL, signY, lineWidth, 14));
 
-    // Stamp Guide Box:
-    const double stampW = 140;
-    const double stampH = 65;
+    // Signature Line drawn FIRST
+    graphics.drawLine(borderPen, Offset(rightColL, commonLineY), Offset(rightColL + lineWidth, commonLineY));
 
-    // Draw Company Stamp & Authorized Signature if included (positioned directly over signature line)
+    // Draw Company Stamp & Authorized Signature ON TOP OF the line ("reshcya var")
+    // Stamp size: 38mm x 38mm (108pt x 108pt) round stamp
+    // Composite artwork width: 146pt, height: 108pt
     if (includeStampAndSignature) {
-      final double pairX = rightColL + (lineWidth - stampW) / 2;
+      const double pairW = 146;
+      const double pairH = 108;
+      final double pairX = rightColL + (lineWidth - pairW) / 2;
+      final double pairY = commonLineY - 84;
       CompanyStampHelper.drawStampAndSignature(
         graphics: graphics,
-        bounds: Rect.fromLTWH(pairX, commonLineY - stampH + 6, stampW, stampH),
+        bounds: Rect.fromLTWH(pairX, pairY, pairW, pairH),
         bitmap: stampAndSigBitmap,
         include: includeStampAndSignature,
       );
     }
 
-    graphics.drawLine(borderPen, Offset(rightColL, commonLineY), Offset(rightColL + lineWidth, commonLineY));
     graphics.drawString('Authorized Signatory', smallFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(rightColL, commonLineY + 4, lineWidth, 12));
 
     // Bottom disclaimer

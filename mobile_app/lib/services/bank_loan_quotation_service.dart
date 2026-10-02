@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -148,7 +149,7 @@ class BankLoanQuotationService {
         try {
           stampAndSigBitmap = PdfBitmap(stampBytes);
         } catch (e) {
-          debugPrint('Stamp bitmap decoding error: $e');
+          debugPrint('Stamp bitmap decoding error in quotation: $e');
         }
       }
     }
@@ -849,20 +850,6 @@ class BankLoanQuotationService {
     // Unified Baseline: Both Customer & Vendor lines sit at the EXACT SAME horizontal Y!
     final double commonLineY = vendorY + stampDiam + 22;
 
-    // Draw Company Stamp & Authorized Signature if included (positioned directly over signature line)
-    if (includeStampAndSignature) {
-      const double pairW = 160;
-      const double pairH = 75;
-      final double pairX = vendorSignLeft + (vendorSignWidth - pairW) / 2;
-      final double pairY = commonLineY - pairH + 8;
-      CompanyStampHelper.drawStampAndSignature(
-        graphics: graphics,
-        bounds: Rect.fromLTWH(pairX, pairY, pairW, pairH),
-        bitmap: stampAndSigBitmap,
-        include: includeStampAndSignature,
-      );
-    }
-
     // Left Signature Line
     graphics.drawLine(
       tableOuterPen,
@@ -891,6 +878,24 @@ class BankLoanQuotationService {
       Offset(vendorLineL, commonLineY),
       Offset(vendorLineL + lineWidth, commonLineY),
     );
+
+    // Draw Company Stamp & Authorized Signature ON TOP OF the line ("reshcya var")
+    // Stamp size: 38mm x 38mm (108pt x 108pt) round stamp
+    // Composite artwork is 540x400 (aspect ratio 1.35)
+    // At height 108pt, width is 146pt, centered over the 160pt line
+    if (includeStampAndSignature) {
+      const double pairW = 146;
+      const double pairH = 108;
+      final double pairX = vendorLineL + (lineWidth - pairW) / 2;
+      // Signature baseline rests directly on commonLineY
+      final double pairY = commonLineY - 84;
+      CompanyStampHelper.drawStampAndSignature(
+        graphics: graphics,
+        bounds: Rect.fromLTWH(pairX, pairY, pairW, pairH),
+        bitmap: stampAndSigBitmap,
+        include: includeStampAndSignature,
+      );
+    }
 
     graphics.drawString(
       'Authorized Signatory',
