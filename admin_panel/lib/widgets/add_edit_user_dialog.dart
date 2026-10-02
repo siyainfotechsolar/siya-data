@@ -209,11 +209,17 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> with SingleTicker
     final theme = Theme.of(context);
     final isNew = widget.user == null;
 
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        width: 820,
-        height: 680,
+        constraints: BoxConstraints(
+          maxWidth: 820,
+          maxHeight: screenHeight * 0.9,
+          minWidth: screenWidth < 850 ? screenWidth * 0.95 : 600,
+        ),
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [

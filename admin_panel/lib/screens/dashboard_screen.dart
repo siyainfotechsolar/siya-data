@@ -18,6 +18,7 @@ import 'whatsapp_tasks_screen.dart';
 import 'payments_screen.dart';
 import 'office_tasks_screen.dart';
 import 'action_center_screen.dart';
+import 'invoices_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -41,16 +42,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItem('Customers', Icons.people_alt_outlined, Icons.people_alt, true), // 1 (Records)
     _NavItem('Action Center', Icons.bolt_outlined, Icons.bolt, true), // 2
     _NavItem('Payments', Icons.payments_outlined, Icons.payments, true), // 3
-    _NavItem('Office Tasks', Icons.assignment_ind_outlined, Icons.assignment_ind, false), // 4
-    _NavItem('WhatsApp', Icons.share_rounded, Icons.share, false), // 5
-    _NavItem('Leads', Icons.leaderboard_outlined, Icons.leaderboard, false), // 6
-    _NavItem('Import', Icons.upload_file_outlined, Icons.upload_file, false), // 7
-    _NavItem('Reports', Icons.bar_chart_outlined, Icons.bar_chart, false), // 8
-    _NavItem('History', Icons.history_outlined, Icons.history, false), // 9
-    _NavItem('Duplicates', Icons.find_in_page_outlined, Icons.find_in_page, false), // 10
-    _NavItem('Recycle Bin', Icons.delete_sweep_outlined, Icons.delete_sweep, false), // 11
-    _NavItem('Users', Icons.group_outlined, Icons.group, false), // 12
-    _NavItem('Settings', Icons.settings_outlined, Icons.settings, false), // 13
+    _NavItem('Invoices', Icons.receipt_long_outlined, Icons.receipt_long, true), // 4
+    _NavItem('Office Tasks', Icons.assignment_ind_outlined, Icons.assignment_ind, false), // 5
+    _NavItem('WhatsApp', Icons.share_rounded, Icons.share, false), // 6
+    _NavItem('Leads', Icons.leaderboard_outlined, Icons.leaderboard, false), // 7
+    _NavItem('Import', Icons.upload_file_outlined, Icons.upload_file, false), // 8
+    _NavItem('Reports', Icons.bar_chart_outlined, Icons.bar_chart, false), // 9
+    _NavItem('History', Icons.history_outlined, Icons.history, false), // 10
+    _NavItem('Duplicates', Icons.find_in_page_outlined, Icons.find_in_page, false), // 11
+    _NavItem('Recycle Bin', Icons.delete_sweep_outlined, Icons.delete_sweep, false), // 12
+    _NavItem('Users', Icons.group_outlined, Icons.group, false), // 13
+    _NavItem('Settings', Icons.settings_outlined, Icons.settings, false), // 14
   ];
 
   @override
@@ -416,16 +418,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         key: ValueKey(_selectedPaymentFilter),
         initialStatusFilter: _selectedPaymentFilter,
       );
-      case 4: return const OfficeTasksScreen();
-      case 5: return const WhatsAppTasksScreen();
-      case 6: return const LeadsScreen();
-      case 7: return _buildImportView();
-      case 8: return const ReportsScreen();
-      case 9: return const HistoryScreen();
-      case 10: return const DuplicateFinderScreen();
-      case 11: return const RecycleBinScreen();
-      case 12: return const UsersScreen();
-      case 13: return const SettingsScreen();
+      case 4: return const InvoicesScreen();
+      case 5: return const OfficeTasksScreen();
+      case 6: return const WhatsAppTasksScreen();
+      case 7: return const LeadsScreen();
+      case 8: return _buildImportView();
+      case 9: return const ReportsScreen();
+      case 10: return const HistoryScreen();
+      case 11: return const DuplicateFinderScreen();
+      case 12: return const RecycleBinScreen();
+      case 13: return const UsersScreen();
+      case 14: return const SettingsScreen();
       default: return _buildDashboardView();
     }
   }

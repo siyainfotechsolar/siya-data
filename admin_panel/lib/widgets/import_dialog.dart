@@ -196,8 +196,10 @@ class _ImportDialogState extends State<ImportDialog> {
       backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Container(
-        width: 1000,
-        height: 720,
+        constraints: BoxConstraints(
+          maxWidth: 1000,
+          maxHeight: MediaQuery.of(context).size.height * 0.92,
+        ),
         padding: const EdgeInsets.all(28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

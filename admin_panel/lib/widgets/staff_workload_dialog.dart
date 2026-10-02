@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../models/staff_workload_model.dart';
 import '../models/user_profile.dart';
 import '../services/user_management_service.dart';
@@ -80,8 +80,10 @@ class _StaffWorkloadDialogState extends State<StaffWorkloadDialog> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        width: 960,
-        height: 700,
+        constraints: BoxConstraints(
+          maxWidth: 960,
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [

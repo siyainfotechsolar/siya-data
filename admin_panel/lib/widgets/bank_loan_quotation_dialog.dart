@@ -7,10 +7,13 @@ import 'package:file_picker/file_picker.dart';
 import '../models/consumer_record.dart';
 import '../models/solar_quotation.dart';
 import '../models/customer_margin_receipt.dart';
+import '../models/invoice.dart';
 import '../services/bank_loan_quotation_service.dart';
 import '../services/customer_signature_helper.dart';
 import '../services/margin_money_receipt_service.dart';
 import '../services/quotation_storage_service.dart';
+import '../services/invoice_storage_service.dart';
+import 'invoice_details_dialog.dart';
 
 class BankLoanQuotationDialog extends StatefulWidget {
   final ConsumerRecord customer;
@@ -574,6 +577,155 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Generate Invoice (Manual Only) ──────────────────────────────────────────
+  /// ONLY creates an invoice when user explicitly clicks [Generate Invoice].
+  /// Checks for duplicates. Shows confirmation. Opens invoice details on success.
+  Future<void> _handleGenerateInvoice(SolarQuotation quotation) async {
+    // 1. Duplicate check — if invoice already exists for this quotation, show it
+    final existingInvoice = await InvoiceStorageService.getInvoiceForQuotation(quotation.id);
+    if (existingInvoice != null) {
+      if (!mounted) return;
+      final action = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          icon: const Icon(Icons.info_outline_rounded, color: Color(0xFF0284C7), size: 32),
+          title: const Text('Invoice Already Generated'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Invoice ${existingInvoice.invoiceNumber} was already generated for this quotation.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Ref: ${existingInvoice.refInvoiceNo}\nAmount: ₹${existingInvoice.grandTotal.toStringAsFixed(0)}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'close'),
+              child: const Text('Close'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(ctx, 'view'),
+              icon: const Icon(Icons.receipt_long_rounded, size: 16),
+              label: const Text('View Invoice'),
+            ),
+          ],
+        ),
+      );
+      if (action == 'view' && mounted) {
+        await InvoiceDetailsDialog.show(context, existingInvoice);
+      }
+      return;
+    }
+
+    // 2. Confirmation dialog
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.receipt_long_rounded, color: Color(0xFF047857), size: 32),
+        title: const Text('Generate Invoice'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Generate Invoice from this quotation?',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: [
+                  _invoiceConfirmRow('Customer', quotation.customerName),
+                  _invoiceConfirmRow('Quotation No.', quotation.quotationNo),
+                  _invoiceConfirmRow('Grand Total', '₹${quotation.grandTotal.toStringAsFixed(0)}'),
+                  _invoiceConfirmRow('System', '${quotation.systemCapacity} - ${quotation.systemType}'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF047857),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.receipt_long_rounded, size: 16),
+            label: const Text('Generate Invoice'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    // 3. Generate invoice number
+    final invoiceNumber = await InvoiceStorageService.generateInvoiceNumber();
+
+    // 4. Create invoice from quotation (MANUAL ONLY)
+    final invoice = Invoice.fromQuotation(
+      quotation: quotation,
+      invoiceNumber: invoiceNumber,
+    );
+
+    // 5. Save invoice
+    await InvoiceStorageService.saveInvoice(invoice);
+
+    // 6. Show success & open invoice details
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Invoice $invoiceNumber generated successfully!'),
+        backgroundColor: const Color(0xFF047857),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+
+    // 7. Open invoice details dialog
+    if (mounted) {
+      await InvoiceDetailsDialog.show(context, invoice);
+    }
+  }
+
+  Widget _invoiceConfirmRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -1791,6 +1943,19 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                     onPressed: _openEditDetailsDialog,
                     icon: const Icon(Icons.edit_note, size: 15),
                     label: const Text('All Specs', style: TextStyle(fontSize: 11.5)),
+                  ),
+                  // ── Generate Invoice (Manual Only) ──
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFECFDF5),
+                      foregroundColor: const Color(0xFF047857),
+                      side: const BorderSide(color: Color(0xFFA7F3D0)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => _handleGenerateInvoice(quotation),
+                    icon: const Icon(Icons.receipt_long_rounded, size: 14),
+                    label: const Text('Generate Invoice', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
                   ),
                   // Option: Remove/Include Stamp & Signature for Quotation
                   if (_includeStampAndSignature)

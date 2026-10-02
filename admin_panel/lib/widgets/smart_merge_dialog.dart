@@ -178,8 +178,10 @@ class _SmartMergeDialogState extends State<SmartMergeDialog> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        width: 860,
-        height: 700,
+        constraints: BoxConstraints(
+          maxWidth: 860,
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [

@@ -235,74 +235,76 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
             ),
             content: SizedBox(
               width: 400,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Customer: ${row.customerName} (${row.consumerNo})', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: totalCtrl,
-                    autofocus: true,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Total Deal / Final Amount (₹) *',
-                      prefixText: '₹ ',
-                      border: OutlineInputBorder(),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Customer: ${row.customerName} (${row.consumerNo})', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: totalCtrl,
+                      autofocus: true,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Total Deal / Final Amount (₹) *',
+                        prefixText: '₹ ',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (val) => setDialogState(() {}),
                     ),
-                    onChanged: (val) => setDialogState(() {}),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: loanCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Loan Sanctioned / Approved Amount (₹)',
-                      prefixText: '₹ ',
-                      border: OutlineInputBorder(),
-                      helperText: 'Enter approved bank loan amount if applicable',
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: loanCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Loan Sanctioned / Approved Amount (₹)',
+                        prefixText: '₹ ',
+                        border: OutlineInputBorder(),
+                        helperText: 'Enter approved bank loan amount if applicable',
+                      ),
+                      onChanged: (val) => setDialogState(() {}),
                     ),
-                    onChanged: (val) => setDialogState(() {}),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: firstCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: '1st Payment Amount (₹)',
-                      prefixText: '₹ ',
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: firstCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: '1st Payment Amount (₹)',
+                        prefixText: '₹ ',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (val) => setDialogState(() {}),
                     ),
-                    onChanged: (val) => setDialogState(() {}),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: secondCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: '2nd Payment Amount (₹)',
-                      prefixText: '₹ ',
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.auto_fix_high, size: 18),
-                        tooltip: 'Auto calculate: Total - 1st Payment',
-                        onPressed: () {
-                          final tot = double.tryParse(totalCtrl.text.trim()) ?? 0.0;
-                          final fst = double.tryParse(firstCtrl.text.trim()) ?? 0.0;
-                          final rem = (tot - fst).clamp(0.0, double.infinity);
-                          setDialogState(() {
-                            secondCtrl.text = rem.toStringAsFixed(0);
-                          });
-                        },
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: secondCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: '2nd Payment Amount (₹)',
+                        prefixText: '₹ ',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.auto_fix_high, size: 18),
+                          tooltip: 'Auto calculate: Total - 1st Payment',
+                          onPressed: () {
+                            final tot = double.tryParse(totalCtrl.text.trim()) ?? 0.0;
+                            final fst = double.tryParse(firstCtrl.text.trim()) ?? 0.0;
+                            final rem = (tot - fst).clamp(0.0, double.infinity);
+                            setDialogState(() {
+                              secondCtrl.text = rem.toStringAsFixed(0);
+                            });
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Note: Set total deal, loan approved, and installment target amounts.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    Text(
+                      'Note: Set total deal, loan approved, and installment target amounts.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
               ),
             ),
             actions: [
