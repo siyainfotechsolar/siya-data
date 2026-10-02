@@ -221,15 +221,15 @@ class PaymentReceiptService {
     graphics.drawString('For Siya Infotech & Digital Solutions', boldFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(rightColL, signY, lineWidth, 14));
 
     // Stamp Guide Box:
-    const double stampW = 100;
-    const double stampH = 44;
+    const double stampW = 140;
+    const double stampH = 65;
 
-    // Draw Company Stamp & Authorized Signature if included
+    // Draw Company Stamp & Authorized Signature if included (positioned directly over signature line)
     if (includeStampAndSignature) {
       final double pairX = rightColL + (lineWidth - stampW) / 2;
       CompanyStampHelper.drawStampAndSignature(
         graphics: graphics,
-        bounds: Rect.fromLTWH(pairX, commonLineY - stampH - 4, stampW, stampH),
+        bounds: Rect.fromLTWH(pairX, commonLineY - stampH + 6, stampW, stampH),
         bitmap: stampAndSigBitmap,
         include: includeStampAndSignature,
       );

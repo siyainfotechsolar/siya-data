@@ -479,11 +479,9 @@ class WorkCompletionCertificateService {
                               AdminCompanyStampHelper.buildStampAndSignatureWidget(
                                 image: stampAndSigImage,
                                 include: includeStampAndSignature,
-                                height: 66,
+                                height: 72,
                                 width: 160,
                               ),
-                              pw.SizedBox(height: 12),
-
                               pw.Container(width: 160, height: 1.0, color: navyColor),
                               pw.SizedBox(height: 4),
                               pw.Text(

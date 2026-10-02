@@ -474,23 +474,23 @@ class ConsumerVendorAgreementPdfService {
     g3.drawString('Date: ${agreement.formattedExecutionDate}   |   Place: Shindkheda', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft + 12, cSignY + 35, p1Width, 13));
 
     // Second Party (Vendor) Signature & Stamp Base
-    const double stampW = 120;
-    const double stampH = 85;
-    final double stampX = p2Left + (p2Width - stampW) / 2;
-    final double stampY = baseRowY + 12;
+    final double vSignY = cSignY;
+    const double pairW = 160;
+    const double pairH = 75;
+    final double stampX = p2Left + (p2Width - pairW) / 2;
+    final double stampY = vSignY - pairH + 8;
 
-    // Draw Company Stamp & Authorized Signature if included
+    // Draw Company Stamp & Authorized Signature if included (positioned directly over signature line)
     if (includeStampAndSignature) {
       CompanyStampHelper.drawStampAndSignature(
         graphics: g3,
-        bounds: Rect.fromLTWH(stampX, stampY, stampW, stampH - 10),
+        bounds: Rect.fromLTWH(stampX, stampY, pairW, pairH),
         bitmap: stampAndSigBitmap,
         include: includeStampAndSignature,
       );
     }
 
     // Vendor Signature with aligned baseline
-    final double vSignY = cSignY;
     g3.drawLine(thinDividerPen, Offset(p2Left, vSignY), Offset(p2Left + p2Width, vSignY));
     g3.drawString('Authorized Signatory', bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(p2Left, vSignY + 5, p2Width, 14));
     g3.drawString('SIYA INFOTECH & DIGITAL SOLUTIONS', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(p2Left, vSignY + 20, p2Width, 13));

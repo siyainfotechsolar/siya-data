@@ -494,29 +494,28 @@ class WorkCompletionCertificateService {
 
     // Official Stamp space:
     const double stampW = 160;
-    const double stampH = 66;
+    const double stampH = 72;
     final double stampL = signLeft + ((signWidth - stampW) / 2);
+    final double lineY = signY + stampH + 2;
 
-    // Draw Company Stamp & Authorized Signature if included
+    // Draw Company Stamp & Authorized Signature if included (sitting right over signature line)
     if (includeStampAndSignature) {
       CompanyStampHelper.drawStampAndSignature(
         graphics: graphics,
-        bounds: Rect.fromLTWH(stampL + 4, signY + 2, stampW - 8, stampH),
+        bounds: Rect.fromLTWH(stampL, lineY - stampH + 6, stampW, stampH),
         bitmap: stampAndSigBitmap,
         include: includeStampAndSignature,
       );
     }
 
-    signY += stampH + 12;
-
     // Solid Line (160pt width)
     graphics.drawLine(
       PdfPen(navyColor, width: 1.0),
-      Offset(stampL, signY),
-      Offset(stampL + stampW, signY),
+      Offset(stampL, lineY),
+      Offset(stampL + stampW, lineY),
     );
 
-    signY += 4;
+    signY = lineY + 4;
 
     graphics.drawString(
       'Authorized Signatory',

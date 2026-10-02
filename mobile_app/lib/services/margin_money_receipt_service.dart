@@ -425,12 +425,12 @@ class MarginMoneyReceiptService {
     // Unified Baseline: Both Borrower & Vendor lines sit at the EXACT SAME horizontal Y!
     final double commonLineY = stampY + stampDiam + 22;
 
-    // Draw Company Stamp & Authorized Signature if included
+    // Draw Company Stamp & Authorized Signature if included (positioned directly over signature line)
     if (includeStampAndSignature) {
-      const double pairW = 152;
-      const double pairH = 72;
+      const double pairW = 160;
+      const double pairH = 75;
       final double pairX = vendorSignL + (signColW - pairW) / 2;
-      final double pairY = commonLineY - pairH - 4;
+      final double pairY = commonLineY - pairH + 8;
       CompanyStampHelper.drawStampAndSignature(
         graphics: graphics,
         bounds: Rect.fromLTWH(pairX, pairY, pairW, pairH),

@@ -542,14 +542,15 @@ class ConsumerVendorAgreementService {
                           child: pw.Column(
                             crossAxisAlignment: pw.CrossAxisAlignment.center,
                             children: [
+                              pw.Text('Signature of Second Party (Vendor)', style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.8)),
+                              pw.SizedBox(height: 10),
                               // Company Stamp & Authorized Signature (DEFAULT: included, can be removed)
                               AdminCompanyStampHelper.buildStampAndSignatureWidget(
                                 image: stampAndSigImage,
                                 include: includeStampAndSignature,
-                                height: 70,
-                                width: 150,
+                                height: 75,
+                                width: 160,
                               ),
-                              pw.SizedBox(height: 36),
                               pw.Container(height: 0.8, color: borderDarkColor),
                               pw.SizedBox(height: 4),
                               pw.Align(

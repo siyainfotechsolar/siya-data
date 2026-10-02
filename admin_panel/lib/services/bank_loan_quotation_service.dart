@@ -614,7 +614,7 @@ class BankLoanQuotationService {
                                   fontSize: 6.8,
                                 ),
                               ),
-                              pw.SizedBox(height: 81), // Perfectly aligns Customer signature line with Vendor signature line!
+                              pw.SizedBox(height: 73), // Perfectly aligns Customer signature line with Vendor signature line!
                               pw.Container(width: 160, height: 1.0, color: darkTextColor),
                               pw.SizedBox(height: 3),
                               pw.Text(
@@ -658,7 +658,6 @@ class BankLoanQuotationService {
                                 height: 72,
                                 width: 160,
                               ),
-                              pw.SizedBox(height: 8),
                               pw.Container(width: 160, height: 1.0, color: darkTextColor),
                               pw.SizedBox(height: 3),
                               pw.Text(
