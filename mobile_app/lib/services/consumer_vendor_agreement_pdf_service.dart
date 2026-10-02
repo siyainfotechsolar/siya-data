@@ -22,6 +22,8 @@ class ConsumerVendorAgreementPdfService {
   static Future<File> generateAgreementPdf({
     required ConsumerVendorAgreement agreement,
     Directory? outputDirectory,
+    bool includeStampAndSignature = true,
+    Uint8List? customStampAndSignatureBytes,
   }) async {
     final PdfDocument document = PdfDocument();
     document.pageSettings.size = PdfPageSize.a4;
@@ -48,6 +50,25 @@ class ConsumerVendorAgreementPdfService {
     final PdfFont tableHeaderFont = PdfStandardFont(PdfFontFamily.helvetica, 8.0, style: PdfFontStyle.bold);
     final PdfFont tableCellFont = PdfStandardFont(PdfFontFamily.helvetica, 7.6);
     final PdfFont tableCellBold = PdfStandardFont(PdfFontFamily.helvetica, 7.6, style: PdfFontStyle.bold);
+
+    // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
+    PdfBitmap? stampAndSigBitmap;
+    if (includeStampAndSignature) {
+      if (customStampAndSignatureBytes != null) {
+        try {
+          stampAndSigBitmap = PdfBitmap(customStampAndSignatureBytes);
+        } catch (e) {
+          debugPrint('Custom stamp/sig load error in mobile agreement: $e');
+        }
+      } else {
+        try {
+          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
+          stampAndSigBitmap = PdfBitmap(pairData.buffer.asUint8List());
+        } catch (e) {
+          debugPrint('Stamp & signature load error in mobile agreement service: $e');
+        }
+      }
+    }
 
     final PdfFont footerFont = PdfStandardFont(PdfFontFamily.helvetica, 7.4);
     final PdfFont footerBoldFont = PdfStandardFont(PdfFontFamily.helvetica, 7.4, style: PdfFontStyle.bold);
@@ -452,12 +473,16 @@ class ConsumerVendorAgreementPdfService {
     g3.drawString('Name: ${agreement.customerName}', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 12, cSignY + 20, p1Width, 13));
     g3.drawString('Date: ${agreement.formattedExecutionDate}   |   Place: Shindkheda', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft + 12, cSignY + 35, p1Width, 13));
 
-    // Second Party (Vendor) Signature & Stamp Base (Completely blank for physical rubber stamp)
+    // Second Party (Vendor) Signature & Stamp Base
     const double stampW = 120;
     const double stampH = 85;
     final double stampX = p2Left + (p2Width - stampW) / 2;
     final double stampY = baseRowY + 12;
-    // Area left completely blank for physical ink rubber stamp
+
+    // Draw Company Stamp & Authorized Signature if included
+    if (includeStampAndSignature && stampAndSigBitmap != null) {
+      g3.drawImage(stampAndSigBitmap, Rect.fromLTWH(stampX, stampY, stampW, stampH - 10));
+    }
 
     // Vendor Signature with aligned baseline
     final double vSignY = cSignY;

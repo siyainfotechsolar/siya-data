@@ -82,6 +82,8 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
 
   List<SolarQuotation> _previousQuotations = [];
   bool _isLoadingHistory = true;
+  bool _includeStampAndSignature = true;
+  bool _receiptIncludeStampAndSignature = true;
 
   final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 2);
 
@@ -238,6 +240,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
       final quotation = _buildCurrentQuotation();
       final file = await BankLoanQuotationService.generateQuotationPdf(
         quotation: quotation,
+        includeStampAndSignature: _includeStampAndSignature,
       );
 
       final updatedQuotation = quotation.copyWith(pdfFilePath: file.path);
@@ -368,7 +371,10 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
 
     try {
       final receipt = _buildCurrentReceipt();
-      final file = await MarginMoneyReceiptService.generateReceiptPdf(receipt: receipt);
+      final file = await MarginMoneyReceiptService.generateReceiptPdf(
+        receipt: receipt,
+        includeStampAndSignature: _receiptIncludeStampAndSignature,
+      );
       final updatedReceipt = receipt.copyWith(pdfFilePath: file.path);
       await QuotationStorageService.saveMarginReceipt(updatedReceipt);
 
@@ -1992,6 +1998,73 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                 ),
                 const SizedBox(height: 6),
 
+                // Option: [ Remove Stamp & Signature ] / [ Include Stamp & Signature ]
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      if (_includeStampAndSignature)
+                        InkWell(
+                          onTap: () {
+                            setState(() {
+                              _includeStampAndSignature = false;
+                              _cachedFile = null;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFFCA5A5)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.remove_circle_outline_rounded, size: 14, color: Color(0xFFDC2626)),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Remove Stamp & Signature',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFDC2626)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        InkWell(
+                          onTap: () {
+                            setState(() {
+                              _includeStampAndSignature = true;
+                              _cachedFile = null;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFECFDF5),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFA7F3D0)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.verified_rounded, size: 14, color: Color(0xFF047857)),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Include Stamp & Signature',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF047857)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
                 // Details Summary Box
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -2267,6 +2340,73 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                   ],
                 ),
                 const SizedBox(height: 6),
+
+                // Option: [ Remove Stamp & Signature ] / [ Include Stamp & Signature ] for Receipt
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      if (_receiptIncludeStampAndSignature)
+                        InkWell(
+                          onTap: () {
+                            setState(() {
+                              _receiptIncludeStampAndSignature = false;
+                              _cachedReceiptFile = null;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFFCA5A5)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.remove_circle_outline_rounded, size: 14, color: Color(0xFFDC2626)),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Remove Stamp & Signature',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFDC2626)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        InkWell(
+                          onTap: () {
+                            setState(() {
+                              _receiptIncludeStampAndSignature = true;
+                              _cachedReceiptFile = null;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFECFDF5),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFA7F3D0)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.verified_rounded, size: 14, color: Color(0xFF047857)),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Include Stamp & Signature',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF047857)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
 
                 // Receipt Summary Box
                 Container(

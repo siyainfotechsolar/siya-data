@@ -13,6 +13,8 @@ class PaymentReceiptService {
   static Future<File> generateReceiptPdf({
     required PaymentTransaction tx,
     required ConsumerRecord customer,
+    bool includeStampAndSignature = true,
+    Uint8List? customStampAndSignatureBytes,
   }) async {
     // 1. Create a PDF document
     final PdfDocument document = PdfDocument();
@@ -34,6 +36,25 @@ class PaymentReceiptService {
     final PdfBrush darkBrush = PdfSolidBrush(PdfColor(15, 23, 42)); // Slate dark
     final PdfPen borderPen = PdfPen(PdfColor(226, 232, 240), width: 1);
     final PdfBrush lightBgBrush = PdfSolidBrush(PdfColor(248, 250, 252));
+
+    // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
+    PdfBitmap? stampAndSigBitmap;
+    if (includeStampAndSignature) {
+      if (customStampAndSignatureBytes != null) {
+        try {
+          stampAndSigBitmap = PdfBitmap(customStampAndSignatureBytes);
+        } catch (e) {
+          debugPrint('Custom stamp/sig load error in payment receipt: $e');
+        }
+      } else {
+        try {
+          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
+          stampAndSigBitmap = PdfBitmap(pairData.buffer.asUint8List());
+        } catch (e) {
+          debugPrint('Stamp & signature load error in payment receipt service: $e');
+        }
+      }
+    }
 
     double y = 0;
 
@@ -200,9 +221,15 @@ class PaymentReceiptService {
     final double rightColL = pageSize.width - lineWidth;
     graphics.drawString('For Siya Infotech & Digital Solutions', boldFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(rightColL, signY, lineWidth, 14));
 
-    // Stamp Guide Box: Completely blank for physical stamp
+    // Stamp Guide Box:
     const double stampW = 100;
     const double stampH = 44;
+
+    // Draw Company Stamp & Authorized Signature if included
+    if (includeStampAndSignature && stampAndSigBitmap != null) {
+      final double pairX = rightColL + (lineWidth - stampW) / 2;
+      graphics.drawImage(stampAndSigBitmap, Rect.fromLTWH(pairX, commonLineY - stampH - 4, stampW, stampH));
+    }
 
     graphics.drawLine(borderPen, Offset(rightColL, commonLineY), Offset(rightColL + lineWidth, commonLineY));
     graphics.drawString('Authorized Signatory', smallFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(rightColL, commonLineY + 4, lineWidth, 12));

@@ -52,7 +52,11 @@ class BankLoanQuotationService {
   }
 
   /// Generate Single-Page A4 PDF bytes for Bank Loan Solar Quotation
-  static Future<Uint8List> generateQuotationPdfBytes(SolarQuotation quotation) async {
+  static Future<Uint8List> generateQuotationPdfBytes(
+    SolarQuotation quotation, {
+    bool includeStampAndSignature = true,
+    Uint8List? customStampAndSignatureBytes,
+  }) async {
     final pdf = pw.Document();
 
     // Load Company Logo from Assets
@@ -62,6 +66,21 @@ class BankLoanQuotationService {
       logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
     } catch (e) {
       debugPrint('Logo load error in admin quotation service: $e');
+    }
+
+    // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
+    pw.MemoryImage? stampAndSigImage;
+    if (includeStampAndSignature) {
+      if (customStampAndSignatureBytes != null) {
+        stampAndSigImage = pw.MemoryImage(customStampAndSignatureBytes);
+      } else {
+        try {
+          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
+          stampAndSigImage = pw.MemoryImage(pairData.buffer.asUint8List());
+        } catch (e) {
+          debugPrint('Stamp & signature pair load error in admin quotation service: $e');
+        }
+      }
     }
 
     final currencyFormatter = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 2);
@@ -631,8 +650,18 @@ class BankLoanQuotationService {
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
-                              // Completely blank space for manual ink stamp and physical signature
-                              pw.SizedBox(height: 80),
+                              // Company Stamp & Authorized Signature (DEFAULT: included, can be removed)
+                              if (includeStampAndSignature && stampAndSigImage != null) ...[
+                                pw.Container(
+                                  height: 72,
+                                  alignment: pw.Alignment.center,
+                                  child: pw.Image(stampAndSigImage, fit: pw.BoxFit.contain),
+                                ),
+                                pw.SizedBox(height: 8),
+                              ] else ...[
+                                // Completely blank space for manual ink stamp and physical signature
+                                pw.SizedBox(height: 80),
+                              ],
                               pw.Container(width: 160, height: 1.0, color: darkTextColor),
                               pw.SizedBox(height: 3),
                               pw.Text(
@@ -789,8 +818,15 @@ class BankLoanQuotationService {
   }
 
   /// Download quotation PDF to user selected path
-  static Future<void> downloadQuotationPdf(BuildContext context, SolarQuotation quotation) async {
-    final pdfBytes = await generateQuotationPdfBytes(quotation);
+  static Future<void> downloadQuotationPdf(
+    BuildContext context,
+    SolarQuotation quotation, {
+    bool includeStampAndSignature = true,
+  }) async {
+    final pdfBytes = await generateQuotationPdfBytes(
+      quotation,
+      includeStampAndSignature: includeStampAndSignature,
+    );
     final String defaultFileName = quotation.pdfFileName;
 
     try {
@@ -815,8 +851,14 @@ class BankLoanQuotationService {
   }
 
   /// Direct Print Quotation
-  static Future<void> printQuotationPdf(SolarQuotation quotation) async {
-    final pdfBytes = await generateQuotationPdfBytes(quotation);
+  static Future<void> printQuotationPdf(
+    SolarQuotation quotation, {
+    bool includeStampAndSignature = true,
+  }) async {
+    final pdfBytes = await generateQuotationPdfBytes(
+      quotation,
+      includeStampAndSignature: includeStampAndSignature,
+    );
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdfBytes,
       name: quotation.pdfFileName,

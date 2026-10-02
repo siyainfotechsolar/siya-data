@@ -177,6 +177,41 @@ void main() {
       expect(gst.grandTotal, equals(200000.0));
       expect(gst.totalTaxableValue + gst.totalGstIncluded, closeTo(totalAmount, 0.001));
     });
+
+    test('9. Default Stamp & Signature: generateQuotationPdfBytes with includeStampAndSignature true and false', () async {
+      final quotation = SolarQuotation.create(
+        customerId: 'c-test-stamp',
+        consumerNo: '110022334455',
+        customerName: 'SANTOSH PATIL',
+        address: 'Betawad, Shindkheda, Dhule',
+        villageCity: 'Betawad',
+        district: 'Dhule',
+        mobileNo: '9876543210',
+        systemCapacity: '3 kW',
+        systemType: 'Residential Rooftop Grid-Tied Solar PV System',
+        totalSystemCost: 184180.79,
+        gstAmount: 15819.21,
+        grandTotal: 200000.0,
+        bankLoanAmount: 180000.0,
+        customerContribution: 20000.0,
+        quotationNo: 'SIYA-Q-2026-STAMP',
+        quotationDate: DateTime(2026, 10, 2),
+      );
+
+      // Default (included = true)
+      final pdfBytesWithStamp = await BankLoanQuotationService.generateQuotationPdfBytes(
+        quotation,
+        includeStampAndSignature: true,
+      );
+      expect(pdfBytesWithStamp.isNotEmpty, isTrue);
+
+      // Removed option (included = false)
+      final pdfBytesWithoutStamp = await BankLoanQuotationService.generateQuotationPdfBytes(
+        quotation,
+        includeStampAndSignature: false,
+      );
+      expect(pdfBytesWithoutStamp.isNotEmpty, isTrue);
+    });
   });
 }
 

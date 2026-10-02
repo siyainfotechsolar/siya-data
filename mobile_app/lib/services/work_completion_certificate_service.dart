@@ -18,6 +18,8 @@ class WorkCompletionCertificateService {
     String? customCapacity,
     DateTime? customCompletionDate,
     Directory? outputDirectory,
+    bool includeStampAndSignature = true,
+    Uint8List? customStampAndSignatureBytes,
   }) async {
     // 1. Initialize A4 Document (Single Page, Portrait)
     final PdfDocument document = PdfDocument();
@@ -148,6 +150,25 @@ class WorkCompletionCertificateService {
       logoBitmap = PdfBitmap(logoBytes);
     } catch (e) {
       debugPrint('Logo load error in mobile WCR service: $e');
+    }
+
+    // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
+    PdfBitmap? stampAndSigBitmap;
+    if (includeStampAndSignature) {
+      if (customStampAndSignatureBytes != null) {
+        try {
+          stampAndSigBitmap = PdfBitmap(customStampAndSignatureBytes);
+        } catch (e) {
+          debugPrint('Custom stamp/sig load error in mobile WCR: $e');
+        }
+      } else {
+        try {
+          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
+          stampAndSigBitmap = PdfBitmap(pairData.buffer.asUint8List());
+        } catch (e) {
+          debugPrint('Stamp & signature load error in mobile WCR service: $e');
+        }
+      }
     }
 
     if (logoBitmap != null) {
@@ -474,10 +495,15 @@ class WorkCompletionCertificateService {
 
     signY += 16;
 
-    // Official Stamp space: Completely blank for physical rubber stamp (160x66)
+    // Official Stamp space:
     const double stampW = 160;
     const double stampH = 66;
     final double stampL = signLeft + ((signWidth - stampW) / 2);
+
+    // Draw Company Stamp & Authorized Signature if included
+    if (includeStampAndSignature && stampAndSigBitmap != null) {
+      graphics.drawImage(stampAndSigBitmap, Rect.fromLTWH(stampL + 4, signY + 2, stampW - 8, stampH));
+    }
 
     signY += stampH + 12;
 

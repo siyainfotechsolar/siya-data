@@ -50,7 +50,11 @@ class MarginMoneyReceiptService {
   }
 
   /// Generate Single-Page A4 PDF bytes for Customer Margin Money Receipt
-  static Future<Uint8List> generateReceiptPdfBytes(CustomerMarginReceipt receipt) async {
+  static Future<Uint8List> generateReceiptPdfBytes(
+    CustomerMarginReceipt receipt, {
+    bool includeStampAndSignature = true,
+    Uint8List? customStampAndSignatureBytes,
+  }) async {
     final pdf = pw.Document();
 
     pw.MemoryImage? logoImage;
@@ -59,6 +63,21 @@ class MarginMoneyReceiptService {
       logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
     } catch (e) {
       debugPrint('Logo load error in admin margin receipt service: $e');
+    }
+
+    // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
+    pw.MemoryImage? stampAndSigImage;
+    if (includeStampAndSignature) {
+      if (customStampAndSignatureBytes != null) {
+        stampAndSigImage = pw.MemoryImage(customStampAndSignatureBytes);
+      } else {
+        try {
+          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
+          stampAndSigImage = pw.MemoryImage(pairData.buffer.asUint8List());
+        } catch (e) {
+          debugPrint('Stamp & signature pair load error in admin margin receipt service: $e');
+        }
+      }
     }
 
     final currencyFormatter = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 2);
@@ -547,8 +566,18 @@ class MarginMoneyReceiptService {
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
-                              // Completely blank space for manual ink stamp and physical signature
-                              pw.SizedBox(height: 80),
+                              // Company Stamp & Authorized Signature (DEFAULT: included, can be removed)
+                              if (includeStampAndSignature && stampAndSigImage != null) ...[
+                                pw.Container(
+                                  height: 72,
+                                  alignment: pw.Alignment.center,
+                                  child: pw.Image(stampAndSigImage, fit: pw.BoxFit.contain),
+                                ),
+                                pw.SizedBox(height: 8),
+                              ] else ...[
+                                // Completely blank space for manual ink stamp and physical signature
+                                pw.SizedBox(height: 80),
+                              ],
                               pw.Container(width: 160, height: 1.0, color: darkTextColor),
                               pw.SizedBox(height: 3),
                               pw.Text(
@@ -650,8 +679,14 @@ class MarginMoneyReceiptService {
   }
 
   /// Print or Save using printing package
-  static Future<void> printReceipt(CustomerMarginReceipt receipt) async {
-    final pdfBytes = await generateReceiptPdfBytes(receipt);
+  static Future<void> printReceipt(
+    CustomerMarginReceipt receipt, {
+    bool includeStampAndSignature = true,
+  }) async {
+    final pdfBytes = await generateReceiptPdfBytes(
+      receipt,
+      includeStampAndSignature: includeStampAndSignature,
+    );
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdfBytes,
       name: receipt.pdfFileName,
@@ -659,8 +694,14 @@ class MarginMoneyReceiptService {
   }
 
   /// Save PDF file to chosen location
-  static Future<String?> downloadPdf(CustomerMarginReceipt receipt) async {
-    final pdfBytes = await generateReceiptPdfBytes(receipt);
+  static Future<String?> downloadPdf(
+    CustomerMarginReceipt receipt, {
+    bool includeStampAndSignature = true,
+  }) async {
+    final pdfBytes = await generateReceiptPdfBytes(
+      receipt,
+      includeStampAndSignature: includeStampAndSignature,
+    );
     final output = await FilePicker.platform.saveFile(
       dialogTitle: 'Save Customer Margin Money Receipt PDF',
       fileName: receipt.pdfFileName,

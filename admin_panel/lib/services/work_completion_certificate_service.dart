@@ -27,6 +27,8 @@ class WorkCompletionCertificateService {
     String? customAddress,
     String? customCapacity,
     DateTime? customCompletionDate,
+    bool includeStampAndSignature = true,
+    Uint8List? customStampAndSignatureBytes,
   }) async {
     final pdf = pw.Document();
 
@@ -37,6 +39,21 @@ class WorkCompletionCertificateService {
       logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
     } catch (e) {
       debugPrint('Logo load error in admin WCR service: $e');
+    }
+
+    // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
+    pw.MemoryImage? stampAndSigImage;
+    if (includeStampAndSignature) {
+      if (customStampAndSignatureBytes != null) {
+        stampAndSigImage = pw.MemoryImage(customStampAndSignatureBytes);
+      } else {
+        try {
+          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
+          stampAndSigImage = pw.MemoryImage(pairData.buffer.asUint8List());
+        } catch (e) {
+          debugPrint('Stamp & signature pair load error in admin WCR service: $e');
+        }
+      }
     }
 
     final String customerName = (customCustomerName != null && customCustomerName.trim().isNotEmpty)
@@ -457,10 +474,20 @@ class WorkCompletionCertificateService {
                               ),
                               pw.SizedBox(height: 8),
 
-                               // Official Stamp designated space: Completely blank for manual rubber stamp
-                              pw.SizedBox(width: 160, height: 66),
+                              // Company Stamp & Authorized Signature (DEFAULT: included, can be removed)
+                              if (includeStampAndSignature && stampAndSigImage != null) ...[
+                                pw.Container(
+                                  height: 66,
+                                  alignment: pw.Alignment.center,
+                                  child: pw.Image(stampAndSigImage, fit: pw.BoxFit.contain),
+                                ),
+                                pw.SizedBox(height: 12),
+                              ] else ...[
+                                // Official Stamp designated space: Completely blank for manual rubber stamp
+                                pw.SizedBox(width: 160, height: 66),
+                                pw.SizedBox(height: 12),
+                              ],
 
-                              pw.SizedBox(height: 12),
                               pw.Container(width: 160, height: 1.0, color: navyColor),
                               pw.SizedBox(height: 4),
                               pw.Text(
@@ -593,6 +620,7 @@ class WorkCompletionCertificateService {
     String? customAddress,
     String? customCapacity,
     DateTime? customCompletionDate,
+    bool includeStampAndSignature = true,
   }) async {
     try {
       final bytes = await generateCertificatePdfBytes(
@@ -602,6 +630,7 @@ class WorkCompletionCertificateService {
         customAddress: customAddress,
         customCapacity: customCapacity,
         customCompletionDate: customCompletionDate,
+        includeStampAndSignature: includeStampAndSignature,
       );
       final effectiveName = (customCustomerName != null && customCustomerName.trim().isNotEmpty)
           ? customCustomerName.trim()
@@ -648,6 +677,7 @@ class WorkCompletionCertificateService {
     String? customAddress,
     String? customCapacity,
     DateTime? customCompletionDate,
+    bool includeStampAndSignature = true,
   }) async {
     final effectiveConsumerNo = (customConsumerNo != null && customConsumerNo.trim().isNotEmpty)
         ? customConsumerNo.trim()
@@ -661,6 +691,7 @@ class WorkCompletionCertificateService {
           customAddress: customAddress,
           customCapacity: customCapacity,
           customCompletionDate: customCompletionDate,
+          includeStampAndSignature: includeStampAndSignature,
         );
       },
       name: 'Work_Completion_Certificate_$effectiveConsumerNo',

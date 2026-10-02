@@ -78,6 +78,8 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
   List<SolarQuotation> _previousQuotations = [];
   bool _isLoadingHistory = true;
   int _renderKey = 0;
+  bool _includeStampAndSignature = true;
+  bool _receiptIncludeStampAndSignature = true;
   final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 0);
   final gstCurrencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 2);
 
@@ -1607,6 +1609,43 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                         icon: const Icon(Icons.edit_note, size: 15),
                         label: const Text('All Specs', style: TextStyle(fontSize: 11.5)),
                       ),
+                      // Option: Remove/Include Stamp & Signature for Quotation
+                      if (_includeStampAndSignature)
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFDC2626),
+                            side: const BorderSide(color: Color(0xFFFCA5A5)),
+                            backgroundColor: const Color(0xFFFEF2F2),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _includeStampAndSignature = false;
+                              _renderKey++;
+                            });
+                          },
+                          icon: const Icon(Icons.remove_circle_outline_rounded, size: 14, color: Color(0xFFDC2626)),
+                          label: const Text('Remove Stamp & Signature', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                        )
+                      else
+                        FilledButton.tonalIcon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFECFDF5),
+                            foregroundColor: const Color(0xFF047857),
+                            side: const BorderSide(color: Color(0xFFA7F3D0)),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _includeStampAndSignature = true;
+                              _renderKey++;
+                            });
+                          },
+                          icon: const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF047857)),
+                          label: const Text('Include Stamp & Signature', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                        ),
                       // Share WhatsApp
                       FilledButton.tonalIcon(
                         style: FilledButton.styleFrom(
@@ -1630,7 +1669,11 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                         onPressed: () async {
                           await _saveCurrentQuotation();
                           if (context.mounted) {
-                            await BankLoanQuotationService.downloadQuotationPdf(context, quotation);
+                            await BankLoanQuotationService.downloadQuotationPdf(
+                              context,
+                              quotation,
+                              includeStampAndSignature: _includeStampAndSignature,
+                            );
                           }
                         },
                         icon: const Icon(Icons.download_rounded, size: 14),
@@ -1660,6 +1703,43 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                         icon: const Icon(Icons.currency_rupee_rounded, size: 14),
                         label: const Text('Edit Amount', style: TextStyle(fontSize: 11.5)),
                       ),
+                      // Option: Remove/Include Stamp & Signature for Receipt
+                      if (_receiptIncludeStampAndSignature)
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFDC2626),
+                            side: const BorderSide(color: Color(0xFFFCA5A5)),
+                            backgroundColor: const Color(0xFFFEF2F2),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _receiptIncludeStampAndSignature = false;
+                              _renderKey++;
+                            });
+                          },
+                          icon: const Icon(Icons.remove_circle_outline_rounded, size: 14, color: Color(0xFFDC2626)),
+                          label: const Text('Remove Stamp & Signature', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                        )
+                      else
+                        FilledButton.tonalIcon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFECFDF5),
+                            foregroundColor: const Color(0xFF047857),
+                            side: const BorderSide(color: Color(0xFFA7F3D0)),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _receiptIncludeStampAndSignature = true;
+                              _renderKey++;
+                            });
+                          },
+                          icon: const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF047857)),
+                          label: const Text('Include Stamp & Signature', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                        ),
                       // Share Receipt
                       FilledButton.tonalIcon(
                         style: FilledButton.styleFrom(
@@ -1683,7 +1763,10 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                         onPressed: () async {
                           await _saveCurrentMarginReceipt();
                           if (context.mounted) {
-                            await MarginMoneyReceiptService.downloadPdf(marginReceipt);
+                            await MarginMoneyReceiptService.downloadPdf(
+                              marginReceipt,
+                              includeStampAndSignature: _receiptIncludeStampAndSignature,
+                            );
                           }
                         },
                         icon: const Icon(Icons.download_rounded, size: 14),
@@ -1703,12 +1786,18 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                       onPressed: () async {
                         if (_selectedTab == 1) {
                           await Printing.layoutPdf(
-                            onLayout: (format) async => MarginMoneyReceiptService.generateReceiptPdfBytes(marginReceipt),
+                            onLayout: (format) async => MarginMoneyReceiptService.generateReceiptPdfBytes(
+                              marginReceipt,
+                              includeStampAndSignature: _receiptIncludeStampAndSignature,
+                            ),
                             name: marginReceipt.pdfFileName,
                           );
                         } else {
                           await Printing.layoutPdf(
-                            onLayout: (format) async => BankLoanQuotationService.generateQuotationPdfBytes(quotation),
+                            onLayout: (format) async => BankLoanQuotationService.generateQuotationPdfBytes(
+                              quotation,
+                              includeStampAndSignature: _includeStampAndSignature,
+                            ),
                             name: quotation.pdfFileName,
                           );
                         }
@@ -1728,9 +1817,16 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                         await _saveCurrentQuotation();
                         await _saveCurrentMarginReceipt();
                         if (!context.mounted) return;
-                        await BankLoanQuotationService.downloadQuotationPdf(context, quotation);
+                        await BankLoanQuotationService.downloadQuotationPdf(
+                          context,
+                          quotation,
+                          includeStampAndSignature: _includeStampAndSignature,
+                        );
                         if (!context.mounted) return;
-                        await MarginMoneyReceiptService.downloadPdf(marginReceipt);
+                        await MarginMoneyReceiptService.downloadPdf(
+                          marginReceipt,
+                          includeStampAndSignature: _receiptIncludeStampAndSignature,
+                        );
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -1947,12 +2043,18 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: PdfPreview(
-                          key: ValueKey('preview_${_selectedTab}_$_renderKey'),
+                          key: ValueKey('preview_${_selectedTab}_${_renderKey}_${_includeStampAndSignature}_$_receiptIncludeStampAndSignature'),
                           build: (PdfPageFormat format) async {
                             if (_selectedTab == 1) {
-                              return MarginMoneyReceiptService.generateReceiptPdfBytes(marginReceipt);
+                              return MarginMoneyReceiptService.generateReceiptPdfBytes(
+                                marginReceipt,
+                                includeStampAndSignature: _receiptIncludeStampAndSignature,
+                              );
                             }
-                            return BankLoanQuotationService.generateQuotationPdfBytes(quotation);
+                            return BankLoanQuotationService.generateQuotationPdfBytes(
+                              quotation,
+                              includeStampAndSignature: _includeStampAndSignature,
+                            );
                           },
                           useActions: false,
                           canChangeOrientation: false,

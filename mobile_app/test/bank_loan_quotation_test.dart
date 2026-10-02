@@ -215,6 +215,30 @@ void main() {
       expect(gst.grandTotal, equals(200000.0));
       expect(gst.totalTaxableValue + gst.totalGstIncluded, closeTo(totalAmount, 0.001));
     });
+
+    test('8. Default Stamp & Signature inclusion and per-PDF removal support', () async {
+      final quotation = SolarQuotation.create(
+        consumerNo: testCustomer.consumerNo,
+        customerName: testCustomer.name,
+        grandTotal: 200000.0,
+      );
+
+      // Default (with stamp & signature)
+      final pdfWithStamp = await BankLoanQuotationService.generateQuotationPdf(
+        quotation: quotation,
+        includeStampAndSignature: true,
+      );
+      expect(pdfWithStamp.existsSync(), isTrue);
+      expect(await pdfWithStamp.length(), greaterThan(1000));
+
+      // With stamp & signature removed
+      final pdfWithoutStamp = await BankLoanQuotationService.generateQuotationPdf(
+        quotation: quotation,
+        includeStampAndSignature: false,
+      );
+      expect(pdfWithoutStamp.existsSync(), isTrue);
+      expect(await pdfWithoutStamp.length(), greaterThan(1000));
+    });
   });
 }
 

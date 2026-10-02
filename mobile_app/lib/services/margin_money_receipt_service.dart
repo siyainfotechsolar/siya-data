@@ -16,6 +16,8 @@ class MarginMoneyReceiptService {
   static Future<File> generateReceiptPdf({
     required CustomerMarginReceipt receipt,
     Directory? outputDirectory,
+    bool includeStampAndSignature = true,
+    Uint8List? customStampAndSignatureBytes,
   }) async {
     final PdfDocument document = PdfDocument();
     document.pageSettings.size = PdfPageSize.a4; // 595.28 x 841.89 points
@@ -113,6 +115,25 @@ class MarginMoneyReceiptService {
       logoBitmap = PdfBitmap(logoBytes);
     } catch (e) {
       debugPrint('Logo load error in mobile margin receipt service: $e');
+    }
+
+    // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
+    PdfBitmap? stampAndSigBitmap;
+    if (includeStampAndSignature) {
+      if (customStampAndSignatureBytes != null) {
+        try {
+          stampAndSigBitmap = PdfBitmap(customStampAndSignatureBytes);
+        } catch (e) {
+          debugPrint('Custom stamp/sig load error in mobile margin receipt: $e');
+        }
+      } else {
+        try {
+          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
+          stampAndSigBitmap = PdfBitmap(pairData.buffer.asUint8List());
+        } catch (e) {
+          debugPrint('Stamp & signature pair load error in mobile margin receipt service: $e');
+        }
+      }
     }
 
     if (logoBitmap != null) {
@@ -400,12 +421,21 @@ class MarginMoneyReceiptService {
     final double vendorSignL = contentRight - signColW;
     graphics.drawString('For SIYA INFOTECH AND DIGITAL SOLUTIONS', signHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(vendorSignL, signYStart, signColW, 12));
 
-    // Vendor Official Stamp space: Completely blank for manual rubber ink stamp
+    // Vendor Official Stamp space:
     const double stampDiam = 66;
     final double stampY = signYStart + 14;
 
     // Unified Baseline: Both Borrower & Vendor lines sit at the EXACT SAME horizontal Y!
     final double commonLineY = stampY + stampDiam + 22;
+
+    // Draw Company Stamp & Authorized Signature if included
+    if (includeStampAndSignature && stampAndSigBitmap != null) {
+      const double pairW = 152;
+      const double pairH = 72;
+      final double pairX = vendorSignL + (signColW - pairW) / 2;
+      final double pairY = commonLineY - pairH - 4;
+      graphics.drawImage(stampAndSigBitmap, Rect.fromLTWH(pairX, pairY, pairW, pairH));
+    }
 
     // Left Signature Line (160pt width)
     graphics.drawLine(tableOuterPen, Offset(contentLeft, commonLineY), Offset(contentLeft + lineWidth, commonLineY));

@@ -30,6 +30,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
   bool _isGenerating = false;
   File? _cachedFile;
   String? _statusMessage;
+  bool _includeStampAndSignature = true;
 
   late String _customerName;
   late String _consumerNo;
@@ -264,6 +265,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
         customAddress: _address,
         customCapacity: _capacity,
         customCompletionDate: _completionDate,
+        includeStampAndSignature: _includeStampAndSignature,
       );
       if (mounted) {
         setState(() {
@@ -419,6 +421,73 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
               ],
             ),
             const SizedBox(height: 6),
+
+            // Option: [ Remove Stamp & Signature ] / [ Include Stamp & Signature ]
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  if (_includeStampAndSignature)
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          _includeStampAndSignature = false;
+                          _cachedFile = null;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFFCA5A5)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.remove_circle_outline_rounded, size: 14, color: Color(0xFFDC2626)),
+                            SizedBox(width: 6),
+                            Text(
+                              'Remove Stamp & Signature',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFDC2626)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          _includeStampAndSignature = true;
+                          _cachedFile = null;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.verified_rounded, size: 14, color: Color(0xFF047857)),
+                            SizedBox(width: 6),
+                            Text(
+                              'Include Stamp & Signature',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF047857)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
 
             // Details Summary Box
             Container(

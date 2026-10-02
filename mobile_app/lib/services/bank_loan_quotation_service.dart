@@ -14,6 +14,8 @@ class BankLoanQuotationService {
   static Future<File> generateQuotationPdf({
     required SolarQuotation quotation,
     Directory? outputDirectory,
+    bool includeStampAndSignature = true,
+    Uint8List? customStampAndSignatureBytes,
   }) async {
     // 1. Initialize A4 Document (Single Page, Portrait)
     final PdfDocument document = PdfDocument();
@@ -133,6 +135,25 @@ class BankLoanQuotationService {
       logoBitmap = PdfBitmap(logoBytes);
     } catch (e) {
       debugPrint('Logo load error in mobile Quotation service: $e');
+    }
+
+    // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
+    PdfBitmap? stampAndSigBitmap;
+    if (includeStampAndSignature) {
+      if (customStampAndSignatureBytes != null) {
+        try {
+          stampAndSigBitmap = PdfBitmap(customStampAndSignatureBytes);
+        } catch (e) {
+          debugPrint('Custom stamp/sig load error in mobile quotation: $e');
+        }
+      } else {
+        try {
+          final ByteData pairData = await rootBundle.load('assets/images/company_stamp_signature_pair.png');
+          stampAndSigBitmap = PdfBitmap(pairData.buffer.asUint8List());
+        } catch (e) {
+          debugPrint('Stamp & signature pair load error in mobile quotation: $e');
+        }
+      }
     }
 
     if (logoBitmap != null) {
@@ -825,11 +846,20 @@ class BankLoanQuotationService {
     );
     vendorY += 14;
 
-    // Vendor Official Stamp space: Completely blank for manual rubber ink stamp
+    // Vendor Official Stamp space:
     const double stampDiam = 66;
 
     // Unified Baseline: Both Customer & Vendor lines sit at the EXACT SAME horizontal Y!
     final double commonLineY = vendorY + stampDiam + 22;
+
+    // Draw Company Stamp & Authorized Signature if included
+    if (includeStampAndSignature && stampAndSigBitmap != null) {
+      const double pairW = 152;
+      const double pairH = 72;
+      final double pairX = vendorSignLeft + (vendorSignWidth - pairW) / 2;
+      final double pairY = commonLineY - pairH - 4;
+      graphics.drawImage(stampAndSigBitmap, Rect.fromLTWH(pairX, pairY, pairW, pairH));
+    }
 
     // Left Signature Line
     graphics.drawLine(

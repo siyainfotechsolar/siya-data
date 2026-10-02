@@ -34,6 +34,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
   late String _capacity;
   late DateTime _completionDate;
   int _renderKey = 0;
+  bool _includeStampAndSignature = true;
 
   @override
   void initState() {
@@ -304,6 +305,43 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                     ),
                     const SizedBox(width: 8),
 
+                    // Option: Remove/Include Stamp & Signature
+                    if (_includeStampAndSignature)
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFDC2626),
+                          side: const BorderSide(color: Color(0xFFFCA5A5)),
+                          backgroundColor: const Color(0xFFFEF2F2),
+                          padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 10, vertical: 8),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _includeStampAndSignature = false;
+                            _renderKey++;
+                          });
+                        },
+                        icon: const Icon(Icons.remove_circle_outline_rounded, size: 15, color: Color(0xFFDC2626)),
+                        label: Text(isCompact ? 'Remove Stamp' : 'Remove Stamp & Signature', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      )
+                    else
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFECFDF5),
+                          foregroundColor: const Color(0xFF047857),
+                          side: const BorderSide(color: Color(0xFFA7F3D0)),
+                          padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 10, vertical: 8),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _includeStampAndSignature = true;
+                            _renderKey++;
+                          });
+                        },
+                        icon: const Icon(Icons.verified_rounded, size: 15, color: Color(0xFF047857)),
+                        label: Text(isCompact ? 'Add Stamp' : 'Include Stamp & Signature', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    const SizedBox(width: 8),
+
                     // WhatsApp notification
                     FilledButton.tonalIcon(
                       style: FilledButton.styleFrom(
@@ -336,6 +374,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                                 customAddress: _address,
                                 customCapacity: _capacity,
                                 customCompletionDate: _completionDate,
+                                includeStampAndSignature: _includeStampAndSignature,
                               );
                               if (mounted) setState(() => _isDownloading = false);
                             },
@@ -412,7 +451,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: PdfPreview(
-                    key: ValueKey('wcr_preview_$_renderKey'),
+                    key: ValueKey('wcr_preview_${_renderKey}_$_includeStampAndSignature'),
                     build: (PdfPageFormat format) async {
                       return WorkCompletionCertificateService.generateCertificatePdfBytes(
                         widget.customer,
@@ -421,6 +460,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                         customAddress: _address,
                         customCapacity: _capacity,
                         customCompletionDate: _completionDate,
+                        includeStampAndSignature: _includeStampAndSignature,
                       );
                     },
                     canChangeOrientation: false,
