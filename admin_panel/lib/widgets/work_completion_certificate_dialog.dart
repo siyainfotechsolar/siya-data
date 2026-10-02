@@ -8,17 +8,19 @@ import '../services/work_completion_certificate_service.dart';
 
 class WorkCompletionCertificateDialog extends StatefulWidget {
   final ConsumerRecord customer;
+  final int initialTab;
 
   const WorkCompletionCertificateDialog({
     super.key,
     required this.customer,
+    this.initialTab = 0,
   });
 
-  static Future<void> show(BuildContext context, ConsumerRecord customer) {
+  static Future<void> show(BuildContext context, ConsumerRecord customer, {int initialTab = 0}) {
     return showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => WorkCompletionCertificateDialog(customer: customer),
+      builder: (ctx) => WorkCompletionCertificateDialog(customer: customer, initialTab: initialTab),
     );
   }
 
@@ -37,6 +39,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
   @override
   void initState() {
     super.initState();
+    _selectedTab = widget.initialTab.clamp(0, 3);
     _reportData = WorkCompletionReportData.fromCustomer(widget.customer);
   }
 

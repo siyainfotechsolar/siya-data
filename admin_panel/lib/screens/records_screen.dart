@@ -1290,7 +1290,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                                     ),
                                                     IconButton(
                                                       icon: const Icon(Icons.verified_outlined, size: 18, color: Color(0xFF0F2D69)),
-                                                      tooltip: 'Work Completion Certificate (WCR)',
+                                                      tooltip: 'MSEDCL Dossier (WCR, Annexure-1, DCR, Net-Metering)',
                                                       onPressed: () => WorkCompletionCertificateDialog.show(context, r),
                                                     ),
                                                     IconButton(
@@ -1464,7 +1464,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.verified_outlined, size: 16, color: Color(0xFF0F2D69)),
-                  tooltip: 'WCR',
+                  tooltip: 'MSEDCL Dossier (WCR, Annex-1, DCR)',
                   visualDensity: VisualDensity.compact,
                   onPressed: () => WorkCompletionCertificateDialog.show(context, r),
                 ),
@@ -1739,3 +1739,4 @@ class _RecordsScreenState extends State<RecordsScreen> {
     );
   }
 }
+

@@ -899,7 +899,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       ),
                       onPressed: () => WorkCompletionCertificateDialog.show(context, _record),
                       icon: const Icon(Icons.verified_outlined, size: 16),
-                      label: const Text('WCR Certificate', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      label: const Text('WCR & MSEDCL Dossier', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     ),
                     const SizedBox(width: 8),
                     OutlinedButton.icon(
@@ -2567,12 +2567,12 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Work Completion Certificate (WCR)',
+                          'MSEDCL Commissioning Dossier & WCR (4 Documents)',
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69)),
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'A4 Single-Page Bank Submission PDF • Project specs, completion declaration & stamp block',
+                          'Prefilled 1. WCR Report (2P) • 2. Annexure-I • 3. DCR Undertaking • 4. Net-Metering Agreement',
                           style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                         ),
                       ],
@@ -2586,8 +2586,8 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     onPressed: () => WorkCompletionCertificateDialog.show(context, _record),
-                    icon: const Icon(Icons.visibility_rounded, size: 14),
-                    label: const Text('Preview & Download', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                    icon: const Icon(Icons.folder_shared_rounded, size: 14),
+                    label: const Text('Open Dossier (4 Docs)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                   ),
                 ],
               ),
