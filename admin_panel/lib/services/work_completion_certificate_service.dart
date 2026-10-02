@@ -1135,24 +1135,24 @@ class WorkCompletionCertificateService {
                   child: pw.Image(stampPaperImage, fit: pw.BoxFit.fill),
                 ),
               pw.Padding(
-                padding: const pw.EdgeInsets.fromLTRB(40, 360, 40, 24),
+                padding: const pw.EdgeInsets.fromLTRB(72, 495, 36, 20),
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: [
                     pw.Center(
                       child: pw.Column(
                         children: [
-                          pw.Text('Annexure - 3', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                          pw.Text('Annexure - 3', style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
                           pw.SizedBox(height: 2),
-                          pw.Text('Net Metering Connection Agreement', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                          pw.Text('Net Metering Connection Agreement', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
                         ],
                       ),
                     ),
-                    pw.SizedBox(height: 10),
+                    pw.SizedBox(height: 6),
 
                     pw.RichText(
                       text: pw.TextSpan(
-                        style: const pw.TextStyle(fontSize: 7.8, color: blackColor, lineSpacing: 1.25),
+                        style: const pw.TextStyle(fontSize: 7.1, color: blackColor, lineSpacing: 1.18),
                         children: [
                           const pw.TextSpan(text: 'This Agreement is made and entered into at '),
                           pw.TextSpan(text: 'Dhule', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
@@ -1238,7 +1238,7 @@ class WorkCompletionCertificateService {
                   child: pw.Image(stampPaperImage, fit: pw.BoxFit.fill),
                 ),
               pw.Padding(
-                padding: const pw.EdgeInsets.fromLTRB(40, 360, 40, 24),
+                padding: const pw.EdgeInsets.fromLTRB(72, 495, 36, 20),
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: [
@@ -1252,7 +1252,7 @@ class WorkCompletionCertificateService {
                       '6.3  Upon termination of this Agreement under Clause 5, the Eligible Consumer shall disconnect the Renewable Energy Generating System forthwith from the Network of MSEDCL.\n\n'
                       '7  Liabilities\n\n'
                       '7.1  The Parties shall indemnify each other for damages or adverse effects of either Party\'s negligence or misconduct during the installation of the Renewable Energy Generating System, connectivity with the distribution Network and operation of the System.',
-                      style: const pw.TextStyle(fontSize: 8.0, lineSpacing: 1.25),
+                      style: const pw.TextStyle(fontSize: 7.4, lineSpacing: 1.18),
                       textAlign: pw.TextAlign.justify,
                     ),
                   ],
