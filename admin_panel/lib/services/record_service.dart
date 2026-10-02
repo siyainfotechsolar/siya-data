@@ -311,10 +311,24 @@ class RecordService {
     }
   }
 
+  /// Strips out fields that do not exist as direct columns in consumer_records table
+  /// or are trigger-computed fields that should never be sent raw.
+  static Map<String, dynamic> _sanitizePayload(Map<String, dynamic> payload) {
+    // Columns from pending migrations not yet present in consumer_records table
+    payload.remove('additional_paid_amount');
+    payload.remove('total_received_amount');
+    payload.remove('first_payment_amount');
+    payload.remove('second_payment_amount');
+    payload.remove('first_payment_received');
+    payload.remove('second_payment_received');
+    payload.remove('loan_sanctioned_amount');
+    return payload;
+  }
+
   /// Create a new consumer record
   static Future<ConsumerRecord> createRecord(ConsumerRecord record) async {
     final user = SupabaseService.currentUser;
-    final payload = record.toJson();
+    final payload = _sanitizePayload(record.toJson());
     if (user != null) {
       payload['created_by'] = user.id;
       payload['updated_by'] = user.id;
@@ -336,7 +350,7 @@ class RecordService {
     }
 
     final user = SupabaseService.currentUser;
-    final payload = record.toJson();
+    final payload = _sanitizePayload(record.toJson());
 
     // BUG-8 fix: Ensure updated_at is always set to current time
     payload['updated_at'] = DateTime.now().toUtc().toIso8601String();
@@ -593,7 +607,7 @@ class RecordService {
       final batch = records.sublist(i, end);
 
       final payloads = batch.map((r) {
-        final map = r.toJson();
+        final map = _sanitizePayload(r.toJson());
         if (user != null) {
           map['created_by'] = user.id;
           map['updated_by'] = user.id;

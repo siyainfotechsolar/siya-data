@@ -1106,9 +1106,9 @@ class _AdminAddPaymentDialogState extends State<_AdminAddPaymentDialog> {
     try {
       final res = await SupabaseService.client
           .from('consumer_records')
-          .select('id, customer_name, consumer_no, total_amount, paid_amount, pending_amount, additional_paid_amount, total_received_amount, village')
+          .select('id, name, consumer_no, total_amount, paid_amount, pending_amount, mobile, address')
           .eq('deleted', false)
-          .or('customer_name.ilike.%$q%,consumer_no.ilike.%$q%,mobile_number.ilike.%$q%')
+          .or('name.ilike.%$q%,consumer_no.ilike.%$q%,mobile.ilike.%$q%')
           .limit(10);
 
       final list = (res as List).map((m) => ConsumerRecord.fromJson(m as Map<String, dynamic>)).toList();

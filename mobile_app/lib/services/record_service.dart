@@ -705,7 +705,6 @@ class MobileRecordService {
       'system_type': systemType?.trim().isEmpty ?? true ? null : systemType?.trim(),
       'remarks': remarks?.trim().isEmpty ?? true ? null : remarks?.trim(),
       if (totalAmount != null && totalAmount > 0) 'total_amount': totalAmount,
-      if (loanSanctionedAmount != null && loanSanctionedAmount > 0) 'loan_sanctioned_amount': loanSanctionedAmount,
       'created_by': user?.id,
       'updated_by': user?.id,
       'created_at': nowIso,
