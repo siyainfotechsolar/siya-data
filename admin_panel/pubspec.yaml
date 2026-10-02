@@ -46,6 +46,7 @@ dependencies:
   siya_shared:
     path: ../shared
   printing: ^5.14.3
+  image: ^4.3.0
 
 dev_dependencies:
   flutter_test:

@@ -83,6 +83,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
   bool _includeStampAndSignature = true;
   bool _receiptIncludeStampAndSignature = true;
   bool _includeCustomerSignature = true;
+  bool _receiptIncludeCustomerSignature = true;
   final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 0);
   final gstCurrencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 2);
 
@@ -1848,6 +1849,77 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                           icon: const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF047857)),
                           label: const Text('Include Stamp & Signature', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
                         ),
+                      // Option: Margin Receipt Customer Signature ON/OFF
+                      if (_receiptIncludeCustomerSignature)
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF0F3B7A),
+                            side: const BorderSide(color: Color(0xFF93C5FD)),
+                            backgroundColor: const Color(0xFFEFF6FF),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _receiptIncludeCustomerSignature = false;
+                              _renderKey++;
+                            });
+                          },
+                          icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF0F3B7A)),
+                          label: const Text('Cust Sig: ON', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                        )
+                      else
+                        FilledButton.tonalIcon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFF1F5F9),
+                            foregroundColor: const Color(0xFF64748B),
+                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _receiptIncludeCustomerSignature = true;
+                              _renderKey++;
+                            });
+                          },
+                          icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF64748B)),
+                          label: const Text('Cust Sig: OFF', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                        ),
+                      // Customer Signature Upload for Receipt
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                              ? const Color(0xFF047857)
+                              : const Color(0xFF0F3B7A),
+                          side: BorderSide(
+                            color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                                ? const Color(0xFFA7F3D0)
+                                : const Color(0xFF93C5FD),
+                          ),
+                          backgroundColor: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                              ? const Color(0xFFECFDF5)
+                              : Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: _pickCustomerSignature,
+                        icon: Icon(
+                          CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                              ? Icons.check_circle_rounded
+                              : Icons.upload_file_rounded,
+                          size: 14,
+                          color: CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                              ? const Color(0xFF047857)
+                              : const Color(0xFF0F3B7A),
+                        ),
+                        label: Text(
+                          CustomerSignatureHelper.hasCustomerSignature(_consumerNo)
+                              ? 'Sig Uploaded ✓'
+                              : 'Upload Cust Sig',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
+                        ),
+                      ),
                       // Share Receipt
                       FilledButton.tonalIcon(
                         style: FilledButton.styleFrom(
@@ -1874,7 +1946,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                             await MarginMoneyReceiptService.downloadPdf(
                               marginReceipt,
                               includeStampAndSignature: _receiptIncludeStampAndSignature,
-                              includeCustomerSignature: _includeCustomerSignature,
+                              includeCustomerSignature: _receiptIncludeCustomerSignature,
                               customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_consumerNo),
                             );
                           }
@@ -1900,7 +1972,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                             onLayout: (format) async => MarginMoneyReceiptService.generateReceiptPdfBytes(
                               marginReceipt,
                               includeStampAndSignature: _receiptIncludeStampAndSignature,
-                              includeCustomerSignature: _includeCustomerSignature,
+                              includeCustomerSignature: _receiptIncludeCustomerSignature,
                               customCustomerSignatureBytes: custSigBytes,
                             ),
                             name: marginReceipt.pdfFileName,
@@ -1936,11 +2008,15 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                           context,
                           quotation,
                           includeStampAndSignature: _includeStampAndSignature,
+                          includeCustomerSignature: _includeCustomerSignature,
+                          customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_consumerNo),
                         );
                         if (!context.mounted) return;
                         await MarginMoneyReceiptService.downloadPdf(
                           marginReceipt,
                           includeStampAndSignature: _receiptIncludeStampAndSignature,
+                          includeCustomerSignature: _receiptIncludeCustomerSignature,
+                          customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_consumerNo),
                         );
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -2158,14 +2234,14 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: PdfPreview(
-                          key: ValueKey('preview_${_selectedTab}_${_renderKey}_${_includeStampAndSignature}_${_receiptIncludeStampAndSignature}_${_includeCustomerSignature}_${CustomerSignatureHelper.hasCustomerSignature(_consumerNo)}'),
+                          key: ValueKey('preview_${_selectedTab}_${_renderKey}_${_includeStampAndSignature}_${_receiptIncludeStampAndSignature}_${_includeCustomerSignature}_${_receiptIncludeCustomerSignature}_${CustomerSignatureHelper.hasCustomerSignature(_consumerNo)}'),
                           build: (PdfPageFormat format) async {
                             final custSigBytes = CustomerSignatureHelper.getCustomerSignature(_consumerNo);
                             if (_selectedTab == 1) {
                               return MarginMoneyReceiptService.generateReceiptPdfBytes(
                                 marginReceipt,
                                 includeStampAndSignature: _receiptIncludeStampAndSignature,
-                                includeCustomerSignature: _includeCustomerSignature,
+                                includeCustomerSignature: _receiptIncludeCustomerSignature,
                                 customCustomerSignatureBytes: custSigBytes,
                               );
                             }

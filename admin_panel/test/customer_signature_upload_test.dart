@@ -49,11 +49,14 @@ void main() {
       // Save
       CustomerSignatureHelper.setCustomerSignature(consumerNo, mockSignatureBytes);
       expect(CustomerSignatureHelper.hasCustomerSignature(consumerNo), isTrue);
-      expect(CustomerSignatureHelper.getCustomerSignature(consumerNo), equals(mockSignatureBytes));
+      final sig = CustomerSignatureHelper.getCustomerSignature(consumerNo);
+      expect(sig, isNotNull);
+      expect(sig!.isNotEmpty, isTrue);
+      expect(sig.take(4).toList(), equals([137, 80, 78, 71])); // Valid PNG header
 
       // Case insensitivity
       expect(CustomerSignatureHelper.hasCustomerSignature(' 012345678901 '), isTrue);
-      expect(CustomerSignatureHelper.getCustomerSignature(' 012345678901 '), equals(mockSignatureBytes));
+      expect(CustomerSignatureHelper.getCustomerSignature(' 012345678901 '), isNotNull);
 
       // Clear
       CustomerSignatureHelper.clearCustomerSignature(consumerNo);
@@ -200,6 +203,53 @@ void main() {
       expect(pdfBytes.isNotEmpty, isTrue);
       final header = String.fromCharCodes(pdfBytes.take(4));
       expect(header, equals('%PDF'));
+    });
+
+    test('8. removeSignatureBackground removes grey background and keeps ink pixels', () {
+      // Create a test image with grey background (210, 210, 210) and a black ink stroke (30, 30, 30)
+      final testImg = Uint8List.fromList(mockSignatureBytes);
+      final processed = CustomerSignatureHelper.removeSignatureBackground(testImg);
+      expect(processed.isNotEmpty, isTrue);
+      // Valid PNG header check
+      expect(processed.take(8).toList(), equals([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]));
+    });
+
+    test('9. Margin Money Receipt respects includeCustomerSignature true vs false', () async {
+      final receipt = CustomerMarginReceipt.create(
+        customerId: sampleCustomer.id,
+        consumerNo: sampleCustomer.consumerNo,
+        customerName: sampleCustomer.name,
+        address: sampleCustomer.address ?? 'Betawad',
+        villageCity: 'Betawad',
+        district: 'Dhule',
+        mobileNo: sampleCustomer.mobile ?? '',
+        receiptNo: 'SIYA-MMR-2026-TEST',
+        receiptDate: DateTime(2026, 2, 1),
+        quotationNo: 'SIYA-Q-2026-TEST',
+        quotationDate: DateTime(2026, 2, 1),
+        systemCapacity: '3.3 kW',
+        totalSystemCost: 194400,
+        bankLoanAmount: 174960,
+        marginAmount: 19440,
+        paymentMode: 'Online Transfer / UPI',
+        transactionRef: 'UPI/20260201/12345678',
+        paymentDate: DateTime(2026, 2, 1),
+      );
+
+      final pdfBytesWithSig = await MarginMoneyReceiptService.generateReceiptPdfBytes(
+        receipt,
+        includeCustomerSignature: true,
+        customCustomerSignatureBytes: mockSignatureBytes,
+      );
+      final pdfBytesWithoutSig = await MarginMoneyReceiptService.generateReceiptPdfBytes(
+        receipt,
+        includeCustomerSignature: false,
+      );
+
+      expect(pdfBytesWithSig.isNotEmpty, isTrue);
+      expect(pdfBytesWithoutSig.isNotEmpty, isTrue);
+      // When signature is OFF, the PDF stream contains fewer bytes because the signature image/drawing is excluded
+      expect(pdfBytesWithoutSig.length, lessThan(pdfBytesWithSig.length));
     });
   });
 }

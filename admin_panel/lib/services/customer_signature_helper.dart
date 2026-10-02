@@ -1,21 +1,124 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 /// Helper that generates authentic cursive handwritten customer signatures
-/// in realistic blue pen ink from the customer's name.
+/// in realistic blue pen ink from the customer's name, and processes uploaded
+/// signatures by automatically removing dirty/grey paper backgrounds.
 class CustomerSignatureHelper {
   static pw.Font? _cachedSignatureFont;
   static final Map<String, Uint8List> _customSignatures = {};
 
   static String _normalizeKey(String key) => key.trim().toUpperCase();
 
-  /// Saves an uploaded customer signature image in memory for the given customer identifier (consumerNo or customerId)
-  static void setCustomerSignature(String consumerOrCustomerId, Uint8List bytes) {
+  /// Saves an uploaded customer signature image in memory for the given customer identifier (consumerNo or customerId),
+  /// automatically removing background shadows/grey paper and converting to a clean transparent/white background.
+  static void setCustomerSignature(String consumerOrCustomerId, Uint8List rawBytes) {
     if (consumerOrCustomerId.trim().isNotEmpty) {
-      _customSignatures[_normalizeKey(consumerOrCustomerId)] = bytes;
+      final processedBytes = removeSignatureBackground(rawBytes);
+      _customSignatures[_normalizeKey(consumerOrCustomerId)] = processedBytes;
+    }
+  }
+
+  /// Automatically removes grey, yellow, and shadowy paper backgrounds from
+  /// an uploaded signature image, producing a crisp, clean signature with
+  /// transparent/pure white background and smooth anti-aliased ink edges.
+  static Uint8List removeSignatureBackground(Uint8List rawBytes) {
+    try {
+      final image = img.decodeImage(rawBytes);
+      if (image == null) return rawBytes;
+
+      // Ensure RGBA format with 4 channels
+      final rgbaImage = image.hasAlpha ? image : image.convert(numChannels: 4);
+
+      // 1. Analyze brightness distribution to dynamically adapt to lighting
+      final lumSamples = <int>[];
+      for (int y = 0; y < rgbaImage.height; y += 2) {
+        for (int x = 0; x < rgbaImage.width; x += 2) {
+          final p = rgbaImage.getPixel(x, y);
+          final r = p.r.toInt();
+          final g = p.g.toInt();
+          final b = p.b.toInt();
+          final lum = (0.299 * r + 0.587 * g + 0.114 * b).round().clamp(0, 255);
+          lumSamples.add(lum);
+        }
+      }
+
+      if (lumSamples.isEmpty) return rawBytes;
+
+      lumSamples.sort();
+      // Estimate background brightness from 90th percentile
+      final p90Index = (lumSamples.length * 0.90).floor().clamp(0, lumSamples.length - 1);
+      final bgLum = lumSamples[p90Index];
+      // Estimate ink brightness from 10th percentile
+      final p10Index = (lumSamples.length * 0.10).floor().clamp(0, lumSamples.length - 1);
+      final inkLum = lumSamples[p10Index];
+
+      // Dynamic thresholds
+      final highThreshold = (bgLum - (bgLum - inkLum) * 0.28).clamp(160, 245).toDouble();
+      final lowThreshold = (inkLum + (bgLum - inkLum) * 0.22).clamp(40, 150).toDouble();
+
+      int minX = rgbaImage.width;
+      int maxX = 0;
+      int minY = rgbaImage.height;
+      int maxY = 0;
+      bool hasInk = false;
+
+      for (int y = 0; y < rgbaImage.height; y++) {
+        for (int x = 0; x < rgbaImage.width; x++) {
+          final p = rgbaImage.getPixel(x, y);
+          final r = p.r.toInt();
+          final g = p.g.toInt();
+          final b = p.b.toInt();
+          final lum = 0.299 * r + 0.587 * g + 0.114 * b;
+
+          if (lum >= highThreshold) {
+            // Pure background -> make completely transparent
+            rgbaImage.setPixelRgba(x, y, 255, 255, 255, 0);
+          } else if (lum <= lowThreshold) {
+            // Full ink -> sharpen ink contrast slightly (deepen blue/black ink)
+            final newR = (r * 0.85).round().clamp(0, 255);
+            final newG = (g * 0.85).round().clamp(0, 255);
+            final newB = (b * 0.85).round().clamp(0, 255);
+            rgbaImage.setPixelRgba(x, y, newR, newG, newB, 255);
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+            hasInk = true;
+          } else {
+            // Anti-aliased transition edge
+            final factor = (1.0 - (lum - lowThreshold) / (highThreshold - lowThreshold)).clamp(0.0, 1.0);
+            final alpha = (factor * 255).round().clamp(0, 255);
+            rgbaImage.setPixelRgba(x, y, r, g, b, alpha);
+            if (alpha > 40) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+              hasInk = true;
+            }
+          }
+        }
+      }
+
+      // Crop to ink content with an 8px border margin if ink was detected
+      img.Image finalImage = rgbaImage;
+      if (hasInk && maxX > minX && maxY > minY) {
+        final cropX = (minX - 8).clamp(0, rgbaImage.width - 1);
+        final cropY = (minY - 8).clamp(0, rgbaImage.height - 1);
+        final cropW = (maxX - minX + 16).clamp(1, rgbaImage.width - cropX);
+        final cropH = (maxY - minY + 16).clamp(1, rgbaImage.height - cropY);
+        finalImage = img.copyCrop(rgbaImage, x: cropX, y: cropY, width: cropW, height: cropH);
+      }
+
+      return Uint8List.fromList(img.encodePng(finalImage));
+    } catch (e) {
+      debugPrint('Error removing signature background: $e');
+      return rawBytes;
     }
   }
 
