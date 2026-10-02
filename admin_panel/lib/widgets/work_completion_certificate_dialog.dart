@@ -30,7 +30,7 @@ class WorkCompletionCertificateDialog extends StatefulWidget {
 
 class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertificateDialog> {
   bool _isDownloading = false;
-  int _selectedTab = 0; // 0: WCR, 1: Annexure-1, 2: DCR, 3: Net-Metering Agreement
+  int _selectedTab = 0; // 0: Bank WCR, 1: MSEDCL WCR, 2: Annexure-1, 3: DCR, 4: Net-Metering Agreement
   int _renderKey = 0;
   bool _includeStampAndSignature = true;
 
@@ -39,7 +39,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
   @override
   void initState() {
     super.initState();
-    _selectedTab = widget.initialTab.clamp(0, 3);
+    _selectedTab = widget.initialTab.clamp(0, 4);
     _reportData = WorkCompletionReportData.fromCustomer(widget.customer);
   }
 
@@ -410,13 +410,15 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildTabButton(0, '1. WCR Report (2P)', Icons.assignment_turned_in_rounded),
+                      _buildTabButton(0, '1. Bank WCR (1P)', Icons.account_balance_rounded),
                       const SizedBox(width: 4),
-                      _buildTabButton(1, '2. Annexure-I', Icons.description_rounded),
+                      _buildTabButton(1, '2. MSEDCL WCR (2P)', Icons.assignment_turned_in_rounded),
                       const SizedBox(width: 4),
-                      _buildTabButton(2, '3. DCR Undertaking', Icons.verified_user_rounded),
+                      _buildTabButton(2, '3. Annexure-I (2P)', Icons.description_rounded),
                       const SizedBox(width: 4),
-                      _buildTabButton(3, '4. Net-Metering (Annex-3)', Icons.handshake_outlined),
+                      _buildTabButton(3, '4. DCR Undertaking (1P)', Icons.verified_user_rounded),
+                      const SizedBox(width: 4),
+                      _buildTabButton(4, '5. Net-Metering (5P)', Icons.handshake_outlined),
                     ],
                   ),
                 ),
@@ -548,15 +550,17 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                     key: ValueKey('wcr_preview_${_selectedTab}_${_renderKey}_$_includeStampAndSignature'),
                     build: (PdfPageFormat format) async {
                       switch (_selectedTab) {
-                        case 1:
-                          return WorkCompletionCertificateService.generateAnnexure1PdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
-                        case 2:
-                          return WorkCompletionCertificateService.generateDcrPdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
-                        case 3:
-                          return WorkCompletionCertificateService.generateAnnexure3PdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
                         case 0:
-                        default:
+                          return WorkCompletionCertificateService.generateBankWcrPdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
+                        case 1:
                           return WorkCompletionCertificateService.generateWcrPdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
+                        case 2:
+                          return WorkCompletionCertificateService.generateAnnexure1PdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
+                        case 3:
+                          return WorkCompletionCertificateService.generateDcrPdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
+                        case 4:
+                        default:
+                          return WorkCompletionCertificateService.generateAnnexure3PdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
                       }
                     },
                     canChangeOrientation: false,
@@ -564,7 +568,15 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                     allowPrinting: true,
                     allowSharing: true,
                     initialPageFormat: PdfPageFormat.a4,
-                    pdfFileName: 'MSEDCL_WCR_${_reportData.consumerNo}.pdf',
+                    pdfFileName: _selectedTab == 0
+                        ? 'Bank_WCR_${_reportData.consumerNo}.pdf'
+                        : (_selectedTab == 1
+                            ? 'MSEDCL_WCR_${_reportData.consumerNo}.pdf'
+                            : (_selectedTab == 2
+                                ? 'Annexure_1_${_reportData.consumerNo}.pdf'
+                                : (_selectedTab == 3
+                                    ? 'DCR_Undertaking_${_reportData.consumerNo}.pdf'
+                                    : 'Net_Metering_Agreement_${_reportData.consumerNo}.pdf'))),
                   ),
                 ),
               ),

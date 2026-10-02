@@ -24,6 +24,20 @@ void main() {
   const artifactDir = 'C:/Users/Admin/.gemini/antigravity-ide/brain/67039af7-0b8d-4c87-88c6-a2fc95b148ba';
 
   group('Admin Panel Work Completion Certificate & Dossier Tests', () {
+    test('0. generateBankWcrPdfBytes produces valid 1-page Bank Work Completion Certificate', () async {
+      final pdfBytes = await WorkCompletionCertificateService.generateBankWcrPdfBytes(reportData);
+
+      expect(pdfBytes, isNotEmpty);
+      expect(pdfBytes.length, greaterThan(2000));
+
+      final header = ascii.decode(pdfBytes.take(5).toList());
+      expect(header, equals('%PDF-'));
+
+      try {
+        File('$artifactDir/Bank_Work_Completion_Certificate_Sample.pdf').writeAsBytesSync(pdfBytes);
+      } catch (_) {}
+    });
+
     test('1. generateWcrPdfBytes produces valid 2-page A4 PDF with %PDF header', () async {
       final pdfBytes = await WorkCompletionCertificateService.generateWcrPdfBytes(reportData);
 

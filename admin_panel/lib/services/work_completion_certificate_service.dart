@@ -16,7 +16,526 @@ class WorkCompletionCertificateService {
   static const PdfColor darkTextColor = PdfColor.fromInt(0xFF0F172A);
   static const PdfColor slateBodyColor = PdfColor.fromInt(0xFF1E293B);
   static const PdfColor borderDarkColor = PdfColor.fromInt(0xFF000000);
+  static const PdfColor navyColor = PdfColor.fromInt(0xFF0F2D69);
+  static const PdfColor emeraldColor = PdfColor.fromInt(0xFF059669);
+  static const PdfColor lightGreenColor = PdfColor.fromInt(0xFF10B981);
+  static const PdfColor slateMutedColor = PdfColor.fromInt(0xFF64748B);
+  static const PdfColor tableBorderColor = PdfColor.fromInt(0xFFCBD5E1);
+  static const PdfColor zebraBgColor = PdfColor.fromInt(0xFFF8FAFC);
   static const PdfColor lightGreyBg = PdfColor.fromInt(0xFFF8FAFC);
+
+  // =========================================================================
+  // 0. BANK WORK COMPLETION CERTIFICATE (1 Page A4 - For Bank Loan Submission)
+  // =========================================================================
+  static Future<Uint8List> generateBankWcrPdfBytes(
+    WorkCompletionReportData data, {
+    bool includeStampAndSignature = true,
+    Uint8List? customStampAndSignatureBytes,
+  }) async {
+    final pdf = pw.Document();
+
+    // Load Company Logo from Assets
+    pw.MemoryImage? logoImage;
+    try {
+      final ByteData logoData = await rootBundle.load('assets/images/logo.png');
+      logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+    } catch (e) {
+      debugPrint('Logo load error in admin WCR service: $e');
+    }
+
+    // Load Company Stamp & Authorized Signature
+    pw.MemoryImage? stampAndSigImage;
+    if (includeStampAndSignature) {
+      final stampBytes = await AdminCompanyStampHelper.loadStampAndSignatureBytes(
+        customBytes: customStampAndSignatureBytes,
+      );
+      if (stampBytes != null && stampBytes.isNotEmpty) {
+        try {
+          stampAndSigImage = pw.MemoryImage(stampBytes);
+        } catch (e) {
+          debugPrint('Stamp decode error: $e');
+        }
+      }
+    }
+
+    final String formattedCompletionDate = DateFormat('dd MMMM yyyy').format(data.completionDate);
+    final String issueDateStr = DateFormat('dd-MM-yyyy').format(DateTime.now());
+    final String capacityDisplay = '${data.installedCapacityKw.toStringAsFixed(1)} kW Rooftop Solar PV (${data.moduleTotalCapacityKwp.toStringAsFixed(2)} kWp)';
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: pw.EdgeInsets.zero,
+        build: (pw.Context context) {
+          return pw.Container(
+            width: PdfPageFormat.a4.width,
+            height: PdfPageFormat.a4.height,
+            padding: const pw.EdgeInsets.all(18),
+            child: pw.Container(
+              decoration: pw.BoxDecoration(
+                color: PdfColors.white,
+                border: pw.Border.all(color: navyColor, width: 1.5),
+              ),
+              padding: const pw.EdgeInsets.all(3.5),
+              child: pw.Container(
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: lightGreenColor, width: 0.6),
+                ),
+                padding: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    // 1. HEADER: BRANDING & LOGO
+                    pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        if (logoImage != null)
+                          pw.Container(
+                            width: 60,
+                            height: 60,
+                            margin: const pw.EdgeInsets.only(right: 12),
+                            child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+                          )
+                        else
+                          pw.Container(
+                            width: 54,
+                            height: 54,
+                            margin: const pw.EdgeInsets.only(right: 12),
+                            decoration: pw.BoxDecoration(
+                              color: navyColor,
+                              borderRadius: pw.BorderRadius.circular(6),
+                            ),
+                            child: pw.Center(
+                              child: pw.Text(
+                                'SIYA',
+                                style: pw.TextStyle(
+                                  color: PdfColors.white,
+                                  fontWeight: pw.FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                          ),
+                        pw.Expanded(
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text(
+                                data.vendorFirmName,
+                                style: pw.TextStyle(
+                                  color: navyColor,
+                                  fontSize: 14.0,
+                                  fontWeight: pw.FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              pw.SizedBox(height: 2),
+                              pw.Text(
+                                'Solar Solutions & Digital Services',
+                                style: pw.TextStyle(
+                                  color: emeraldColor,
+                                  fontSize: 9.0,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              pw.SizedBox(height: 1.5),
+                              pw.Text(
+                                'Govt. Approved MNRE Channel Partner | Rooftop Solar Systems',
+                                style: const pw.TextStyle(
+                                  color: slateMutedColor,
+                                  fontSize: 7.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.end,
+                          children: [
+                            pw.Text(
+                              'GSTIN: ${data.vendorGstin}',
+                              style: pw.TextStyle(
+                                color: navyColor,
+                                fontSize: 8.2,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.SizedBox(height: 1.5),
+                            pw.Text(
+                              'Phone: ${data.vendorMobile}',
+                              style: pw.TextStyle(
+                                color: navyColor,
+                                fontSize: 8.2,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.SizedBox(height: 1.5),
+                            pw.Text(
+                              'Email: ${data.vendorEmail}',
+                              style: const pw.TextStyle(
+                                color: slateBodyColor,
+                                fontSize: 7.5,
+                              ),
+                            ),
+                            pw.SizedBox(height: 1.5),
+                            pw.Text(
+                              data.vendorAddress,
+                              style: const pw.TextStyle(
+                                color: slateMutedColor,
+                                fontSize: 6.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+
+                    pw.SizedBox(height: 12),
+
+                    // Decorative Dual-Tone Separator
+                    pw.Row(
+                      children: [
+                        pw.Expanded(
+                          flex: 7,
+                          child: pw.Container(height: 2.0, color: navyColor),
+                        ),
+                        pw.Expanded(
+                          flex: 3,
+                          child: pw.Container(height: 2.0, color: lightGreenColor),
+                        ),
+                      ],
+                    ),
+
+                    pw.SizedBox(height: 12),
+
+                    // 2. CERTIFICATE TITLE BOX
+                    pw.Container(
+                      width: double.infinity,
+                      padding: const pw.EdgeInsets.symmetric(vertical: 7, horizontal: 12),
+                      decoration: pw.BoxDecoration(
+                        color: navyColor,
+                        borderRadius: pw.BorderRadius.circular(4),
+                      ),
+                      child: pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: pw.CrossAxisAlignment.center,
+                        children: [
+                          pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text(
+                                'WORK COMPLETION CERTIFICATE',
+                                style: pw.TextStyle(
+                                  color: PdfColors.white,
+                                  fontSize: 13.0,
+                                  fontWeight: pw.FontWeight.bold,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                              pw.SizedBox(height: 2),
+                              pw.Text(
+                                'For Bank / Financial Institution Submission',
+                                style: pw.TextStyle(
+                                  color: lightGreenColor,
+                                  fontSize: 8.0,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.end,
+                            children: [
+                              pw.Text(
+                                'Ref: SIYA-WCR-${data.consumerNo.isNotEmpty ? data.consumerNo : "GEN"}',
+                                style: const pw.TextStyle(
+                                  color: PdfColors.white,
+                                  fontSize: 8.0,
+                                ),
+                              ),
+                              pw.SizedBox(height: 2),
+                              pw.Text(
+                                'Date: $issueDateStr',
+                                style: const pw.TextStyle(
+                                  color: PdfColors.white,
+                                  fontSize: 8.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    pw.SizedBox(height: 12),
+
+                    // 3. STRICT 5-FIELD CUSTOMER SPECIFICATIONS TABLE
+                    pw.Container(
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: tableBorderColor, width: 0.8),
+                        borderRadius: pw.BorderRadius.circular(4),
+                      ),
+                      child: pw.Column(
+                        children: [
+                          pw.Container(
+                            padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: const pw.BoxDecoration(
+                              color: navyColor,
+                              borderRadius: pw.BorderRadius.only(
+                                topLeft: pw.Radius.circular(3),
+                                topRight: pw.Radius.circular(3),
+                              ),
+                            ),
+                            child: pw.Row(
+                              children: [
+                                pw.Text(
+                                  'PROJECT & BENEFICIARY DETAILS',
+                                  style: pw.TextStyle(
+                                    color: PdfColors.white,
+                                    fontSize: 8.8,
+                                    fontWeight: pw.FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          _buildBankTableRow('1. Customer Name', data.customerName, isZebra: false, isBoldValue: true),
+                          _buildBankTableRow('2. Consumer Number', data.consumerNo, isZebra: true, isBoldValue: true),
+                          _buildBankTableRow('3. Project Address', data.customerAddress, isZebra: false),
+                          _buildBankTableRow('4. Solar System Capacity', capacityDisplay, isZebra: true, isBoldValue: true),
+                          _buildBankTableRow('5. Installation Date', formattedCompletionDate, isZebra: false, isBoldValue: true, isLast: true),
+                        ],
+                      ),
+                    ),
+
+                    pw.SizedBox(height: 12),
+
+                    // 4. OFFICIAL COMPLETION DECLARATION
+                    pw.Container(
+                      padding: const pw.EdgeInsets.all(10),
+                      decoration: pw.BoxDecoration(
+                        color: zebraBgColor,
+                        border: pw.Border.all(color: tableBorderColor, width: 0.8),
+                        borderRadius: pw.BorderRadius.circular(4),
+                      ),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Row(
+                            children: [
+                              pw.Container(
+                                width: 5,
+                                height: 5,
+                                decoration: const pw.BoxDecoration(
+                                  color: emeraldColor,
+                                  shape: pw.BoxShape.circle,
+                                ),
+                              ),
+                              pw.SizedBox(width: 5),
+                              pw.Text(
+                                'OFFICIAL WORK COMPLETION DECLARATION',
+                                style: pw.TextStyle(
+                                  color: navyColor,
+                                  fontSize: 8.5,
+                                  fontWeight: pw.FontWeight.bold,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                          pw.SizedBox(height: 4),
+                          pw.Text(
+                            'This is to certify that the Rooftop Solar Photovoltaic (PV) System for the aforementioned customer has been successfully installed, commissioned, and tested in full accordance with the approved scheme, technical specifications, and safety guidelines prescribed by the Ministry of New and Renewable Energy (MNRE) and the State Power Distribution Utility (DISCOM).',
+                            style: const pw.TextStyle(
+                              color: slateBodyColor,
+                              fontSize: 8.0,
+                              lineSpacing: 1.3,
+                            ),
+                          ),
+                          pw.SizedBox(height: 4),
+                          pw.Text(
+                            'The solar PV modules, inverter, structure, earthing, AC/DC protection units, and interconnecting cables have been physically verified, tested, and found completely operational, energised, and ready for regular grid-tied electricity generation and net-metering synchronisation.',
+                            style: const pw.TextStyle(
+                              color: slateBodyColor,
+                              fontSize: 8.0,
+                              lineSpacing: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    pw.SizedBox(height: 10),
+
+                    // Key Technical Compliance Metrics (Compact Grid)
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: tableBorderColor, width: 0.8),
+                        borderRadius: pw.BorderRadius.circular(4),
+                      ),
+                      child: pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildComplianceChip('Grid Compliance', 'Verified & Safe'),
+                          pw.Container(width: 1, height: 20, color: tableBorderColor),
+                          _buildComplianceChip('Inverter Testing', 'Passed 100%'),
+                          pw.Container(width: 1, height: 20, color: tableBorderColor),
+                          _buildComplianceChip('Earthing & Lightning', 'Properly Grounded'),
+                          pw.Container(width: 1, height: 20, color: tableBorderColor),
+                          _buildComplianceChip('Physical Installation', 'Fully Completed'),
+                        ],
+                      ),
+                    ),
+
+                    pw.Spacer(),
+
+                    // 5. SIGNATURE & STAMP BLOCK (RIGHT ALIGNED)
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.end,
+                      children: [
+                        pw.Container(
+                          width: 230,
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.center,
+                            children: [
+                              pw.Text(
+                                'For ${data.vendorFirmName}',
+                                style: pw.TextStyle(
+                                  color: navyColor,
+                                  fontSize: 8.8,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              pw.SizedBox(height: 5),
+
+                              AdminCompanyStampHelper.buildStampAndSignatureWidget(
+                                image: stampAndSigImage,
+                                include: includeStampAndSignature,
+                                height: 65,
+                                width: 150,
+                              ),
+                              pw.Container(width: 150, height: 1.0, color: navyColor),
+                              pw.SizedBox(height: 3),
+                              pw.Text(
+                                'Authorized Signatory',
+                                style: pw.TextStyle(
+                                  color: darkTextColor,
+                                  fontSize: 8.5,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              pw.Text(
+                                '${data.authorizedPerson} | Managing Director',
+                                style: const pw.TextStyle(
+                                  color: slateMutedColor,
+                                  fontSize: 7.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    pw.SizedBox(height: 8),
+
+                    // 6. DOCUMENT FOOTER
+                    pw.Container(height: 1, color: tableBorderColor),
+                    pw.SizedBox(height: 3),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(
+                          'GSTIN: ${data.vendorGstin} | Helpline: ${data.vendorMobile} | Email: ${data.vendorEmail}',
+                          style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.8),
+                        ),
+                        pw.Text(
+                          'Official Bank & DISCOM Submission Document',
+                          style: pw.TextStyle(color: navyColor, fontSize: 6.8, fontWeight: pw.FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  static pw.Widget _buildBankTableRow(
+    String label,
+    String value, {
+    required bool isZebra,
+    bool isBoldValue = false,
+    bool isLast = false,
+  }) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6.0),
+      decoration: pw.BoxDecoration(
+        color: isZebra ? zebraBgColor : PdfColors.white,
+        border: isLast
+            ? null
+            : const pw.Border(
+                bottom: pw.BorderSide(color: tableBorderColor, width: 0.6),
+              ),
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(
+            width: 140,
+            child: pw.Text(
+              label,
+              style: pw.TextStyle(
+                color: navyColor,
+                fontSize: 8.5,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+          pw.Text(':  ', style: pw.TextStyle(color: slateMutedColor, fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+          pw.Expanded(
+            child: pw.Text(
+              value.isNotEmpty ? value : '—',
+              style: pw.TextStyle(
+                color: isBoldValue ? darkTextColor : slateBodyColor,
+                fontSize: 8.5,
+                fontWeight: isBoldValue ? pw.FontWeight.bold : pw.FontWeight.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _buildComplianceChip(String label, String status) {
+    return pw.Column(
+      mainAxisSize: pw.MainAxisSize.min,
+      children: [
+        pw.Text(
+          label,
+          style: const pw.TextStyle(color: slateMutedColor, fontSize: 7.0),
+        ),
+        pw.SizedBox(height: 2),
+        pw.Text(
+          status,
+          style: pw.TextStyle(
+            color: emeraldColor,
+            fontSize: 7.8,
+            fontWeight: pw.FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
 
   // =========================================================================
   // 1. WORK COMPLETION REPORT FOR SOLAR POWER PLANT (2 Pages A4 - Document 1)
@@ -831,22 +1350,26 @@ class WorkCompletionCertificateService {
       Uint8List bytes;
       String docPrefix;
       switch (documentType) {
+        case 0:
+          bytes = await generateBankWcrPdfBytes(data, includeStampAndSignature: includeStampAndSignature);
+          docPrefix = 'Bank_Work_Completion_Certificate';
+          break;
         case 1:
+          bytes = await generateWcrPdfBytes(data, includeStampAndSignature: includeStampAndSignature);
+          docPrefix = 'MSEDCL_WCR_Report';
+          break;
+        case 2:
           bytes = await generateAnnexure1PdfBytes(data, includeStampAndSignature: includeStampAndSignature);
           docPrefix = 'Annexure_1_Commissioning';
           break;
-        case 2:
+        case 3:
           bytes = await generateDcrPdfBytes(data, includeStampAndSignature: includeStampAndSignature);
           docPrefix = 'DCR_Undertaking';
           break;
-        case 3:
+        case 4:
+        default:
           bytes = await generateAnnexure3PdfBytes(data, includeStampAndSignature: includeStampAndSignature);
           docPrefix = 'Annexure_3_Net_Metering';
-          break;
-        case 0:
-        default:
-          bytes = await generateWcrPdfBytes(data, includeStampAndSignature: includeStampAndSignature);
-          docPrefix = 'Work_Completion_Report_WCR';
           break;
       }
 
