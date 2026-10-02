@@ -33,6 +33,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
   int _selectedTab = 0; // 0: Bank WCR, 1: MSEDCL WCR, 2: Annexure-1, 3: DCR, 4: Net-Metering Agreement
   int _renderKey = 0;
   bool _includeStampAndSignature = true;
+  bool _includeCustomerSignature = true;
 
   late WorkCompletionReportData _reportData;
 
@@ -438,9 +439,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                       onPressed: _openEditDetailsDialog,
                       icon: const Icon(Icons.tune_rounded, size: 16),
                       label: const Text('Edit Specs / Details'),
-                    ),
-
-                    if (_includeStampAndSignature)
+                                        if (_includeStampAndSignature)
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFFDC2626),
@@ -455,7 +454,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                           });
                         },
                         icon: const Icon(Icons.remove_circle_outline_rounded, size: 15, color: Color(0xFFDC2626)),
-                        label: const Text('Remove Stamp & Signature', style: TextStyle(fontWeight: FontWeight.w600)),
+                        label: const Text('Remove Stamp & Sig', style: TextStyle(fontWeight: FontWeight.w600)),
                       )
                     else
                       FilledButton.tonalIcon(
@@ -472,7 +471,42 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                           });
                         },
                         icon: const Icon(Icons.verified_rounded, size: 15, color: Color(0xFF047857)),
-                        label: const Text('Include Stamp & Signature', style: TextStyle(fontWeight: FontWeight.bold)),
+                        label: const Text('Include Stamp & Sig', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+
+                    if (_includeCustomerSignature)
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF0F3B7A),
+                          side: const BorderSide(color: Color(0xFF93C5FD)),
+                          backgroundColor: const Color(0xFFEFF6FF),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _includeCustomerSignature = false;
+                            _renderKey++;
+                          });
+                        },
+                        icon: const Icon(Icons.draw_outlined, size: 15, color: Color(0xFF0F3B7A)),
+                        label: const Text('Customer Sig: ON', style: TextStyle(fontWeight: FontWeight.bold)),
+                      )
+                    else
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          foregroundColor: const Color(0xFF64748B),
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _includeCustomerSignature = true;
+                            _renderKey++;
+                          });
+                        },
+                        icon: const Icon(Icons.draw_outlined, size: 15, color: Color(0xFF64748B)),
+                        label: const Text('Customer Sig: OFF', style: TextStyle(fontWeight: FontWeight.w600)),
                       ),
 
                     FilledButton.tonalIcon(
@@ -501,6 +535,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                                 widget.customer,
                                 reportData: _reportData,
                                 includeStampAndSignature: _includeStampAndSignature,
+                                includeCustomerSignature: _includeCustomerSignature,
                                 documentType: _selectedTab,
                               );
                               if (mounted) setState(() => _isDownloading = false);
@@ -547,20 +582,32 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: PdfPreview(
-                    key: ValueKey('wcr_preview_${_selectedTab}_${_renderKey}_$_includeStampAndSignature'),
+                    key: ValueKey('wcr_preview_${_selectedTab}_${_renderKey}_${_includeStampAndSignature}_$_includeCustomerSignature'),
                     build: (PdfPageFormat format) async {
                       switch (_selectedTab) {
                         case 0:
-                          return WorkCompletionCertificateService.generateBankWcrPdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
+                          return WorkCompletionCertificateService.generateBankWcrPdfBytes(
+                            _reportData,
+                            includeStampAndSignature: _includeStampAndSignature,
+                            includeCustomerSignature: _includeCustomerSignature,
+                          );
                         case 1:
-                          return WorkCompletionCertificateService.generateWcrPdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
+                          return WorkCompletionCertificateService.generateWcrPdfBytes(
+                            _reportData,
+                            includeStampAndSignature: _includeStampAndSignature,
+                            includeCustomerSignature: _includeCustomerSignature,
+                          );
                         case 2:
                           return WorkCompletionCertificateService.generateAnnexure1PdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
                         case 3:
                           return WorkCompletionCertificateService.generateDcrPdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
                         case 4:
                         default:
-                          return WorkCompletionCertificateService.generateAnnexure3PdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
+                          return WorkCompletionCertificateService.generateAnnexure3PdfBytes(
+                            _reportData,
+                            includeStampAndSignature: _includeStampAndSignature,
+                            includeCustomerSignature: _includeCustomerSignature,
+                          );
                       }
                     },
                     canChangeOrientation: false,
