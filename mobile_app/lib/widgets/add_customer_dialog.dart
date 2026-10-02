@@ -146,10 +146,37 @@ class _AddCustomerDialogState extends State<AddCustomerDialog> {
                     'Add Consumer',
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => Navigator.pop(context),
+                  Row(
+                    children: [
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.restart_alt_rounded, size: 15, color: Color(0xFFD97706)),
+                        label: const Text('Reset', style: TextStyle(fontSize: 11.5, color: Color(0xFFD97706), fontWeight: FontWeight.bold)),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          side: const BorderSide(color: Color(0xFFFCD34D)),
+                          backgroundColor: const Color(0xFFFFFBEB),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _nameCtrl.clear();
+                            _mobileCtrl.clear();
+                            _consumerNoCtrl.clear();
+                            _villageCtrl.clear();
+                            _addressCtrl.clear();
+                            _capacityCtrl.text = '3 kW';
+                            _remarksCtrl.clear();
+                            _systemType = 'On-Grid';
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
                   ),
                 ],
               ),

@@ -1195,45 +1195,80 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Action Button
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: hasValidationError ? Colors.grey.shade400 : const Color(0xFF0D2B6F),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onPressed: hasValidationError
-                          ? null
-                          : () {
-                        final c = double.tryParse(costCtrl.text.trim()) ?? _totalSystemCost;
-                        final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
-                        final tot = double.tryParse(grandTotalCtrl.text.trim()) ?? (c + g);
-                        final l = double.tryParse(loanCtrl.text.trim()) ?? (tot * 0.9);
-                        final contrib = double.tryParse(contribCtrl.text.trim()) ?? (tot - l).clamp(0.0, double.infinity);
-
-                        setState(() {
-                          _systemCapacity = capacityCtrl.text.trim().isNotEmpty ? capacityCtrl.text.trim() : _systemCapacity;
-                          _totalSystemCost = c;
-                          _gstAmount = g;
-                          _grandTotal = tot;
-                          _bankLoanAmount = l;
-                          _customerContribution = contrib;
-                          _marginAmount = contrib;
-                          _cachedFile = null;
-                          _cachedReceiptFile = null;
-                        });
-                        Navigator.of(ctx).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Quotation amount updated! Ready to generate PDF.'),
-                            backgroundColor: Color(0xFF059669),
-                            duration: Duration(seconds: 2),
+                    // Action Buttons Row: Reset / Clear + Save & Update
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 4,
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: const BorderSide(color: Color(0xFFFCD34D)),
+                              backgroundColor: const Color(0xFFFFFBEB),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            icon: const Icon(Icons.restart_alt_rounded, size: 18, color: Color(0xFFD97706)),
+                            label: const Text(
+                              'Reset',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFFD97706)),
+                            ),
+                            onPressed: () {
+                              setSheetState(() {
+                                capacityCtrl.clear();
+                                costCtrl.clear();
+                                gstCtrl.text = '0';
+                                grandTotalCtrl.clear();
+                                loanCtrl.clear();
+                                contribCtrl.clear();
+                                isReverseCalcMode = true;
+                              });
+                            },
                           ),
-                        );
-                      },
-                      icon: const Icon(Icons.check_circle_outline, size: 18),
-                      label: const Text('Save & Update Quotation Amount', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 6,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: hasValidationError ? Colors.grey.shade400 : const Color(0xFF0D2B6F),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            onPressed: hasValidationError
+                                ? null
+                                : () {
+                              final c = double.tryParse(costCtrl.text.trim()) ?? _totalSystemCost;
+                              final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
+                              final tot = double.tryParse(grandTotalCtrl.text.trim()) ?? (c + g);
+                              final l = double.tryParse(loanCtrl.text.trim()) ?? (tot * 0.9);
+                              final contrib = double.tryParse(contribCtrl.text.trim()) ?? (tot - l).clamp(0.0, double.infinity);
+
+                              setState(() {
+                                _systemCapacity = capacityCtrl.text.trim().isNotEmpty ? capacityCtrl.text.trim() : _systemCapacity;
+                                _totalSystemCost = c;
+                                _gstAmount = g;
+                                _grandTotal = tot;
+                                _bankLoanAmount = l;
+                                _customerContribution = contrib;
+                                _marginAmount = contrib;
+                                _cachedFile = null;
+                                _cachedReceiptFile = null;
+                              });
+                              Navigator.of(ctx).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Quotation amount updated! Ready to generate PDF.'),
+                                  backgroundColor: Color(0xFF059669),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.check_circle_outline, size: 18),
+                            label: const Text('Save & Update', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

@@ -901,6 +901,25 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                 ),
               ),
               actions: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.restart_alt_rounded, size: 16, color: Color(0xFFD97706)),
+                  label: const Text('Reset / Clear', style: TextStyle(color: Color(0xFFD97706), fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFFCD34D)),
+                    backgroundColor: const Color(0xFFFFFBEB),
+                  ),
+                  onPressed: () {
+                    setDlgState(() {
+                      capCtrl.clear();
+                      costCtrl.clear();
+                      gstCtrl.text = '0';
+                      grandTotalCtrl.clear();
+                      loanCtrl.clear();
+                      contribCtrl.clear();
+                      isReverseCalcMode = true;
+                    });
+                  },
+                ),
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
                   child: const Text('Cancel'),
