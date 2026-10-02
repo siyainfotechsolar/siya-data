@@ -687,10 +687,12 @@ class MobileRecordService {
     String? systemCapacity,
     String? systemType,
     String? remarks,
+    double? totalAmount,
+    double? loanSanctionedAmount,
   }) async {
     final user = _client.auth.currentUser;
     final nowIso = DateTime.now().toUtc().toIso8601String();
-    final data = {
+    final data = <String, dynamic>{
       'name': name.trim(),
       'consumer_no': consumerNo.trim(),
       'mobile': mobile?.trim().isEmpty ?? true ? null : mobile?.trim(),
@@ -702,6 +704,8 @@ class MobileRecordService {
       'system_capacity': systemCapacity?.trim().isEmpty ?? true ? null : systemCapacity?.trim(),
       'system_type': systemType?.trim().isEmpty ?? true ? null : systemType?.trim(),
       'remarks': remarks?.trim().isEmpty ?? true ? null : remarks?.trim(),
+      if (totalAmount != null && totalAmount > 0) 'total_amount': totalAmount,
+      if (loanSanctionedAmount != null && loanSanctionedAmount > 0) 'loan_sanctioned_amount': loanSanctionedAmount,
       'created_by': user?.id,
       'updated_by': user?.id,
       'created_at': nowIso,
