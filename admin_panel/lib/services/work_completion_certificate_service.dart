@@ -383,38 +383,27 @@ class WorkCompletionCertificateService {
                 style: const pw.TextStyle(fontSize: 7.5, lineSpacing: 1.25),
                 textAlign: pw.TextAlign.justify,
               ),
-              pw.Spacer(),
+              pw.SizedBox(height: 18),
 
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: pw.CrossAxisAlignment.end,
-                children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.SizedBox(height: 40),
-                      pw.Container(width: 150, height: 0.8, color: blackColor),
-                      pw.SizedBox(height: 4),
-                      pw.Text('Signature of the beneficiary', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                    ],
-                  ),
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      if (stampAndSigImage != null)
-                        pw.Container(
-                          width: 100,
-                          height: 60,
-                          child: pw.Image(stampAndSigImage, fit: pw.BoxFit.contain),
-                        )
-                      else
-                        pw.SizedBox(height: 50),
-                      pw.Container(width: 190, height: 0.8, color: blackColor),
-                      pw.SizedBox(height: 4),
-                      pw.Text('Signature of the agency with name, seal and date', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                    ],
-                  ),
-                ],
+              // Agency Signature with Stamp (Beneficiary signature removed as requested)
+              pw.Align(
+                alignment: pw.Alignment.centerRight,
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    if (stampAndSigImage != null)
+                      pw.Container(
+                        width: 100,
+                        height: 56,
+                        child: pw.Image(stampAndSigImage, fit: pw.BoxFit.contain),
+                      )
+                    else
+                      pw.SizedBox(height: 48),
+                    pw.Container(width: 200, height: 0.8, color: blackColor),
+                    pw.SizedBox(height: 4),
+                    pw.Text('Signature of the agency with name, seal and date', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                  ],
+                ),
               ),
             ],
           );
@@ -481,7 +470,7 @@ class WorkCompletionCertificateService {
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.fromLTRB(40, 34, 40, 30),
+        margin: const pw.EdgeInsets.fromLTRB(40, 32, 40, 26),
         build: (context) {
           final appDateStr = DateFormat('dd/MM/yyyy').format(data.applicationDate);
           return pw.Column(
@@ -492,62 +481,62 @@ class WorkCompletionCertificateService {
                   children: [
                     pw.Text(
                       'Undertaking/Self- Declaration for Domestic Content Requirement fulfillment',
-                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold),
                       textAlign: pw.TextAlign.center,
                     ),
                     pw.SizedBox(height: 3),
-                    pw.Text('(On a plain Paper)', style: const pw.TextStyle(fontSize: 8.5, fontStyle: pw.FontStyle.italic)),
+                    pw.Text('(On a plain Paper)', style: const pw.TextStyle(fontSize: 8.2)),
                   ],
                 ),
               ),
-              pw.SizedBox(height: 16),
+              pw.SizedBox(height: 14),
 
               pw.Text(
                 '1. This is to certify that M/S ${data.vendorFirmName} has installed ${data.installedCapacityKw.toStringAsFixed(1)} KW Grid Connected Rooftop Solar Plant for ${data.customerName} at ${data.customerAddress} under application number ${data.applicationNo} dated $appDateStr under ${data.discomName}.',
-                style: const pw.TextStyle(fontSize: 8.5, lineSpacing: 1.3),
+                style: const pw.TextStyle(fontSize: 8.2, lineSpacing: 1.25),
                 textAlign: pw.TextAlign.justify,
               ),
-              pw.SizedBox(height: 12),
+              pw.SizedBox(height: 10),
 
               pw.Text(
                 '2. It is hereby undertaken that the PV modules installed for the above-mentioned project are domestically manufactured using domestic manufactured solar cells. The details of installed PV Modules are follows:',
-                style: const pw.TextStyle(fontSize: 8.5, lineSpacing: 1.3),
+                style: const pw.TextStyle(fontSize: 8.2, lineSpacing: 1.25),
               ),
               pw.SizedBox(height: 6),
 
               pw.Padding(
-                padding: const pw.EdgeInsets.only(left: 20),
+                padding: const pw.EdgeInsets.only(left: 18),
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('1. PV Module Capacity: ${data.moduleWattage} Wp (${data.moduleTotalCapacityKwp.toStringAsFixed(2)} KWp)', style: const pw.TextStyle(fontSize: 8.2)),
-                    pw.SizedBox(height: 4),
-                    pw.Text('2. Number of PV Modules: ${data.moduleCount} Nos', style: const pw.TextStyle(fontSize: 8.2)),
-                    pw.SizedBox(height: 4),
-                    pw.Text('3. Sr No of PV Module: ${data.moduleSerialNos}', style: const pw.TextStyle(fontSize: 8.2)),
-                    pw.SizedBox(height: 4),
-                    pw.Text('4. PV Module Make: ${data.moduleMake} (${data.moduleAlmmModel})', style: const pw.TextStyle(fontSize: 8.2)),
-                    pw.SizedBox(height: 4),
-                    pw.Text('5. Cell manufacturer\'s name: ${data.cellManufacturer}', style: const pw.TextStyle(fontSize: 8.2)),
-                    pw.SizedBox(height: 4),
-                    pw.Text('6. Cell GST invoice No: ${data.cellGstInvoiceNo}', style: const pw.TextStyle(fontSize: 8.2)),
+                    pw.Text('1. PV Module Capacity: ${data.moduleWattage} Wp (${data.moduleTotalCapacityKwp.toStringAsFixed(2)} KWp)', style: const pw.TextStyle(fontSize: 8.0)),
+                    pw.SizedBox(height: 3.5),
+                    pw.Text('2. Number of PV Modules: ${data.moduleCount} Nos', style: const pw.TextStyle(fontSize: 8.0)),
+                    pw.SizedBox(height: 3.5),
+                    pw.Text('3. Sr No of PV Module: ${data.moduleSerialNos}', style: const pw.TextStyle(fontSize: 8.0)),
+                    pw.SizedBox(height: 3.5),
+                    pw.Text('4. PV Module Make: ${data.moduleMake} (${data.moduleAlmmModel})', style: const pw.TextStyle(fontSize: 8.0)),
+                    pw.SizedBox(height: 3.5),
+                    pw.Text('5. Cell manufacturer\'s name: ${data.cellManufacturer}', style: const pw.TextStyle(fontSize: 8.0)),
+                    pw.SizedBox(height: 3.5),
+                    pw.Text('6. Cell GST invoice No: ${data.cellGstInvoiceNo}', style: const pw.TextStyle(fontSize: 8.0)),
                   ],
                 ),
               ),
-              pw.SizedBox(height: 12),
+              pw.SizedBox(height: 10),
 
               pw.Text(
                 '3. The above undertaking is based on the certificate issued by PV Module manufacturer/supplier while supplying the above mentioned order.',
-                style: const pw.TextStyle(fontSize: 8.5, lineSpacing: 1.3),
+                style: const pw.TextStyle(fontSize: 8.2, lineSpacing: 1.25),
               ),
-              pw.SizedBox(height: 12),
+              pw.SizedBox(height: 10),
 
               pw.Text(
                 '4. I, ${data.authorizedPerson} on behalf of M/S ${data.vendorFirmName} further declare that the information given above is true and correct and nothing has been concealed therein. If anything is found incorrect at any stage, then REC/ MNRE may take any appropriate action against my company for wrong declaration. Supporting documents and proof of the above information will be provided as and when requested by MNRE.',
-                style: const pw.TextStyle(fontSize: 8.5, lineSpacing: 1.3),
+                style: const pw.TextStyle(fontSize: 8.2, lineSpacing: 1.25),
                 textAlign: pw.TextAlign.justify,
               ),
-              pw.Spacer(),
+              pw.SizedBox(height: 16),
 
               // Signatures
               pw.Align(
@@ -557,20 +546,20 @@ class WorkCompletionCertificateService {
                   children: [
                     if (stampAndSigImage != null)
                       pw.Container(
-                        width: 110,
-                        height: 68,
+                        width: 105,
+                        height: 60,
                         child: pw.Image(stampAndSigImage, fit: pw.BoxFit.contain),
                       )
                     else
-                      pw.SizedBox(height: 50),
-                    pw.Text('(Signature With official Seal)', style: const pw.TextStyle(fontSize: 8)),
-                    pw.SizedBox(height: 4),
-                    pw.Text('For M/S ${data.vendorFirmName}', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+                      pw.SizedBox(height: 45),
+                    pw.Text('(Signature With official Seal)', style: const pw.TextStyle(fontSize: 7.8)),
+                    pw.SizedBox(height: 3),
+                    pw.Text('For M/S ${data.vendorFirmName}', style: pw.TextStyle(fontSize: 8.2, fontWeight: pw.FontWeight.bold)),
                     pw.SizedBox(height: 2),
-                    pw.Text('Name: ${data.authorizedPerson}', style: const pw.TextStyle(fontSize: 8.2)),
-                    pw.Text('Designation: Authorized Signatory', style: const pw.TextStyle(fontSize: 8.2)),
-                    pw.Text('Phone: ${data.vendorMobile}', style: const pw.TextStyle(fontSize: 8.2)),
-                    pw.Text('Email: ${data.vendorEmail}', style: const pw.TextStyle(fontSize: 8.2)),
+                    pw.Text('Name: ${data.authorizedPerson}', style: const pw.TextStyle(fontSize: 8.0)),
+                    pw.Text('Designation: Authorized Signatory', style: const pw.TextStyle(fontSize: 8.0)),
+                    pw.Text('Phone: ${data.vendorMobile}', style: const pw.TextStyle(fontSize: 8.0)),
+                    pw.Text('Email: ${data.vendorEmail}', style: const pw.TextStyle(fontSize: 8.0)),
                   ],
                 ),
               ),
