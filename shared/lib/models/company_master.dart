@@ -18,7 +18,6 @@ class CompanyMaster {
   final String accountNo;
   final String ifscCode;
   final String accountType;
-  final String upiId;
   final String signatoryName;
   final String signatoryDesignation;
   final String discomName;
@@ -41,7 +40,6 @@ class CompanyMaster {
     this.accountNo = '40662252403',
     this.ifscCode = 'SBIN0004798',
     this.accountType = 'Current Account',
-    this.upiId = 'siyainfodigital@sbi',
     this.signatoryName = 'Manoj Kshirsagar',
     this.signatoryDesignation = 'Managing Director / Partner',
     this.discomName = 'MSEDCL',
@@ -77,7 +75,6 @@ class CompanyMaster {
     String? accountNo,
     String? ifscCode,
     String? accountType,
-    String? upiId,
     String? signatoryName,
     String? signatoryDesignation,
     String? discomName,
@@ -100,7 +97,6 @@ class CompanyMaster {
       accountNo: accountNo ?? this.accountNo,
       ifscCode: ifscCode ?? this.ifscCode,
       accountType: accountType ?? this.accountType,
-      upiId: upiId ?? this.upiId,
       signatoryName: signatoryName ?? this.signatoryName,
       signatoryDesignation: signatoryDesignation ?? this.signatoryDesignation,
       discomName: discomName ?? this.discomName,
@@ -126,7 +122,6 @@ class CompanyMaster {
       'account_no': accountNo,
       'ifsc_code': ifscCode,
       'account_type': accountType,
-      'upi_id': upiId,
       'signatory_name': signatoryName,
       'signatory_designation': signatoryDesignation,
       'discom_name': discomName,
@@ -152,7 +147,6 @@ class CompanyMaster {
       accountNo: json['account_no'] as String? ?? '40662252403',
       ifscCode: json['ifsc_code'] as String? ?? 'SBIN0004798',
       accountType: json['account_type'] as String? ?? 'Current Account',
-      upiId: json['upi_id'] as String? ?? 'siyainfodigital@sbi',
       signatoryName: json['signatory_name'] as String? ?? 'Manoj Kshirsagar',
       signatoryDesignation: json['signatory_designation'] as String? ?? 'Managing Director / Partner',
       discomName: json['discom_name'] as String? ?? 'MSEDCL',

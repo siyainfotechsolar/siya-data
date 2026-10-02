@@ -365,7 +365,7 @@ class MarginMoneyReceiptService {
     bnkY += 13;
     _drawInlineMeta(graphics, 'Account No.', receipt.accountNo, bankX + 6, bnkY, 78, cellLabelFont, cellValFont, darkTextBrush);
     bnkY += 13;
-    _drawInlineMeta(graphics, 'IFSC & UPI', '${receipt.ifscCode}  |  ${receipt.upiId}', bankX + 6, bnkY, 78, cellLabelFont, cellValFont, darkTextBrush);
+    _drawInlineMeta(graphics, 'IFSC Code', receipt.ifscCode, bankX + 6, bnkY, 78, cellLabelFont, cellValFont, darkTextBrush);
 
     y += 16 + splitBoxH + 12;
 

@@ -66,7 +66,6 @@ class MasterDataHub {
       accountNo: comp.accountNo,
       ifscCode: comp.ifscCode,
       accountType: comp.accountType,
-      upiId: comp.upiId,
       signatoryName: comp.signatoryName,
       signatoryDesignation: comp.signatoryDesignation,
       pdfFilePath: quotation.pdfFilePath,
@@ -232,7 +231,6 @@ class MasterDataHub {
       branch: comp.branch,
       accountNo: comp.accountNo,
       ifscCode: comp.ifscCode,
-      upiId: comp.upiId,
       signatoryName: comp.signatoryName,
       signatoryDesignation: comp.signatoryDesignation,
     );

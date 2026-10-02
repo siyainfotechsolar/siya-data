@@ -487,7 +487,6 @@ class BankLoanQuotationService {
                                     _buildBankRow('Branch', quotation.branch),
                                     _buildBankRow('Account No.', quotation.accountNo, isZebra: true, isBold: true),
                                     _buildBankRow('IFSC Code', quotation.ifscCode, isBold: true),
-                                    _buildBankRow('UPI ID', quotation.upiId, isZebra: true),
                                   ],
                                 ),
                               ),

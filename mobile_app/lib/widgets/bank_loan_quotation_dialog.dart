@@ -69,7 +69,6 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
   late String _accountNo;
   late String _ifscCode;
   late String _accountType;
-  late String _upiId;
 
   // Margin Money Receipt Properties
   late String _receiptNo;
@@ -164,7 +163,6 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     _accountNo = init?.accountNo ?? '40662252403';
     _ifscCode = init?.ifscCode ?? 'SBIN0004798';
     _accountType = init?.accountType ?? 'Current Account';
-    _upiId = init?.upiId ?? 'siyainfodigital@sbi';
   }
 
   String _extractVillage(String addr, String? village) {
@@ -221,7 +219,6 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
       accountNo: _accountNo,
       ifscCode: _ifscCode,
       accountType: _accountType,
-      upiId: _upiId,
       pdfFilePath: _cachedFile?.path,
     );
   }
@@ -354,7 +351,6 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
       branch: _branch,
       accountNo: _accountNo,
       ifscCode: _ifscCode,
-      upiId: _upiId,
       notes: _receiptNotes,
     );
   }
@@ -1369,7 +1365,6 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     final branchCtrl = TextEditingController(text: _branch);
     final accountCtrl = TextEditingController(text: _accountNo);
     final ifscCtrl = TextEditingController(text: _ifscCode);
-    final upiCtrl = TextEditingController(text: _upiId);
 
     DateTime selectedDate = _quotationDate;
 
@@ -1712,11 +1707,6 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: upiCtrl,
-                      decoration: const InputDecoration(labelText: 'UPI ID', border: OutlineInputBorder(), isDense: true),
-                    ),
                     const SizedBox(height: 14),
 
                     // Quotation Date Picker
@@ -1775,7 +1765,6 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                           _branch = branchCtrl.text.trim();
                           _accountNo = accountCtrl.text.trim();
                           _ifscCode = ifscCtrl.text.trim();
-                          _upiId = upiCtrl.text.trim();
                           _quotationDate = selectedDate;
                           _cachedFile = null; // Invalidate cache to regenerate
                           _cachedReceiptFile = null;
@@ -2284,7 +2273,6 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                                     _branch = q.branch;
                                     _accountNo = q.accountNo;
                                     _ifscCode = q.ifscCode;
-                                    _upiId = q.upiId;
                                     _cachedFile = q.pdfFilePath != null ? File(q.pdfFilePath!) : null;
                                   });
                                   _openEditDetailsModal();

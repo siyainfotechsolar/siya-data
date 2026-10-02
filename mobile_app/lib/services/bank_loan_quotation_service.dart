@@ -674,7 +674,6 @@ class BankLoanQuotationService {
       {'label': 'Branch', 'val': quotation.branch, 'bold': 'false'},
       {'label': 'Account No.', 'val': quotation.accountNo, 'bold': 'true'},
       {'label': 'IFSC Code', 'val': quotation.ifscCode, 'bold': 'true'},
-      {'label': 'UPI ID', 'val': quotation.upiId, 'bold': 'false'},
     ];
 
     for (int i = 0; i < bankRows.length; i++) {

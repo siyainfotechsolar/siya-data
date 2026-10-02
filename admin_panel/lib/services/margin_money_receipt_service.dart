@@ -459,7 +459,7 @@ class MarginMoneyReceiptService {
                                     pw.SizedBox(height: 2),
                                     _buildInlineField('Account No.', receipt.accountNo, isBold: true),
                                     pw.SizedBox(height: 2),
-                                    _buildInlineField('IFSC & UPI', '${receipt.ifscCode}  |  ${receipt.upiId}'),
+                                    _buildInlineField('IFSC Code', receipt.ifscCode, isBold: true),
                                   ],
                                 ),
                               ),

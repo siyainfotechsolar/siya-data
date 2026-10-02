@@ -74,7 +74,7 @@ class SolarQuotation {
         accountNo = accountNo ?? CompanyMaster.current.accountNo,
         ifscCode = ifscCode ?? CompanyMaster.current.ifscCode,
         accountType = accountType ?? CompanyMaster.current.accountType,
-        upiId = upiId ?? CompanyMaster.current.upiId,
+        upiId = upiId ?? '',
         signatoryName = signatoryName ?? CompanyMaster.current.signatoryName,
         signatoryDesignation = signatoryDesignation ?? CompanyMaster.current.signatoryDesignation,
         createdAt = createdAt ?? DateTime.now(),

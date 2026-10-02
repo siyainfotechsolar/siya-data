@@ -78,7 +78,7 @@ class CustomerMarginReceipt {
         branch = branch ?? CompanyMaster.current.branch,
         accountNo = accountNo ?? CompanyMaster.current.accountNo,
         ifscCode = ifscCode ?? CompanyMaster.current.ifscCode,
-        upiId = upiId ?? CompanyMaster.current.upiId,
+        upiId = upiId ?? '',
         signatoryName = signatoryName ?? CompanyMaster.current.signatoryName,
         signatoryDesignation = signatoryDesignation ?? CompanyMaster.current.signatoryDesignation,
         paymentDate = paymentDate ?? receiptDate,
