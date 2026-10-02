@@ -388,7 +388,7 @@ class BankLoanQuotationService {
                                 ),
                                 child: pw.Column(
                                   children: [
-                                    _buildFinRow('Total System Cost', currencyFormatter.format(quotation.totalSystemCost)),
+                                    _buildFinRow('Total System Cost', quotation.totalSystemCost > 0 ? currencyFormatter.format(quotation.totalSystemCost) : 'Rs. ____________'),
                                     _buildFinRow('GST (Tax)', quotation.gstAmount > 0 ? currencyFormatter.format(quotation.gstAmount) : 'Exempt / Inclusive', isZebra: true),
                                     // Grand Total: Highlighted with soft cream/gold background, golden yellow indicator bar, and crisp bold text
                                     pw.Container(
@@ -406,7 +406,7 @@ class BankLoanQuotationService {
                                                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                                                 children: [
                                                   pw.Text('GRAND TOTAL', style: pw.TextStyle(fontSize: 8.8, fontWeight: pw.FontWeight.bold, color: darkTextColor)),
-                                                  pw.Text(currencyFormatter.format(quotation.grandTotal), style: pw.TextStyle(fontSize: 10.0, fontWeight: pw.FontWeight.bold, color: darkTextColor)),
+                                                  pw.Text(quotation.grandTotal > 0 ? currencyFormatter.format(quotation.grandTotal) : 'Rs. ____________', style: pw.TextStyle(fontSize: 10.0, fontWeight: pw.FontWeight.bold, color: darkTextColor)),
                                                 ],
                                               ),
                                             ),
@@ -414,8 +414,8 @@ class BankLoanQuotationService {
                                         ],
                                       ),
                                     ),
-                                    _buildFinRow('Bank Loan Amount', currencyFormatter.format(quotation.bankLoanAmount), isBold: true),
-                                    _buildFinRow('Customer Contribution', currencyFormatter.format(quotation.customerContribution), isZebra: true),
+                                    _buildFinRow('Bank Loan Amount', quotation.bankLoanAmount > 0 ? currencyFormatter.format(quotation.bankLoanAmount) : 'Rs. ____________', isBold: true),
+                                    _buildFinRow('Customer Contribution', quotation.customerContribution > 0 ? currencyFormatter.format(quotation.customerContribution) : 'Rs. ____________', isZebra: true),
                                   ],
                                 ),
                               ),
@@ -465,7 +465,9 @@ class BankLoanQuotationService {
                           pw.Text('Amount in Words: ', style: pw.TextStyle(fontSize: 7.8, fontWeight: pw.FontWeight.bold, color: darkTextColor)),
                           pw.Expanded(
                             child: pw.Text(
-                              quotation.amountInWords,
+                              quotation.grandTotal > 0 && quotation.amountInWords.trim().isNotEmpty
+                                  ? quotation.amountInWords
+                                  : '________________________________________________',
                               style: pw.TextStyle(fontSize: 7.8, fontWeight: pw.FontWeight.bold, color: darkTextColor),
                             ),
                           ),
@@ -612,28 +614,8 @@ class BankLoanQuotationService {
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
-                              pw.SizedBox(height: 4),
-                              // Vendor Official Round Stamp (Completely blank inside, pure white background for manual ink stamp)
-                              pw.Container(
-                                width: 66,
-                                height: 66,
-                                decoration: pw.BoxDecoration(
-                                  shape: pw.BoxShape.circle,
-                                  color: PdfColors.white,
-                                  border: pw.Border.all(color: borderDarkColor, style: pw.BorderStyle.dashed, width: 0.8),
-                                ),
-                                child: pw.Center(
-                                  child: pw.Container(
-                                    width: 56,
-                                    height: 56,
-                                    decoration: pw.BoxDecoration(
-                                      shape: pw.BoxShape.circle,
-                                      border: pw.Border.all(color: borderDarkColor, width: 0.5),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              pw.SizedBox(height: 22), // Generous space for physical pen signature above the line!
+                              // Completely blank space for manual ink stamp and physical signature
+                              pw.SizedBox(height: 80),
                               pw.Container(width: 160, height: 1.0, color: darkTextColor),
                               pw.SizedBox(height: 3),
                               pw.Text(

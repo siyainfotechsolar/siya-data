@@ -126,12 +126,12 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
       _ifscCode = q.ifscCode;
       _upiId = q.upiId;
     } else {
-      _totalCost = cust.totalAmount > 0 ? cust.totalAmount : 160000.0;
+      _totalCost = cust.totalAmount > 0 ? cust.totalAmount : 0.0;
       _gstAmount = 0.0;
       _grandTotal = _totalCost + _gstAmount;
       _bankLoan = cust.loanSanctionedAmount > 0
           ? cust.loanSanctionedAmount
-          : (_grandTotal * 0.9).roundToDouble();
+          : (_grandTotal > 0 ? (_grandTotal * 0.9).roundToDouble() : 0.0);
       _contribution = (_grandTotal - _bankLoan).clamp(0.0, double.infinity);
       _bankName = 'STATE BANK OF INDIA';
       _branch = 'Betawad';
@@ -442,11 +442,11 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
 
   Future<void> _openEditAmountDialog() async {
     final capCtrl = TextEditingController(text: _capacity);
-    final costCtrl = TextEditingController(text: _totalCost.toStringAsFixed(0));
-    final gstCtrl = TextEditingController(text: _gstAmount.toStringAsFixed(0));
-    final grandTotalCtrl = TextEditingController(text: _grandTotal.toStringAsFixed(0));
-    final loanCtrl = TextEditingController(text: _bankLoan.toStringAsFixed(0));
-    final contribCtrl = TextEditingController(text: _contribution.toStringAsFixed(0));
+    final costCtrl = TextEditingController(text: _totalCost > 0 ? _totalCost.toStringAsFixed(0) : '');
+    final gstCtrl = TextEditingController(text: _gstAmount > 0 ? _gstAmount.toStringAsFixed(0) : '0');
+    final grandTotalCtrl = TextEditingController(text: _grandTotal > 0 ? _grandTotal.toStringAsFixed(0) : '');
+    final loanCtrl = TextEditingController(text: _bankLoan > 0 ? _bankLoan.toStringAsFixed(0) : '');
+    final contribCtrl = TextEditingController(text: _contribution > 0 ? _contribution.toStringAsFixed(0) : '');
     bool isReverseCalcMode = false;
 
     await showDialog<void>(
@@ -972,11 +972,11 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     final quoteNoCtrl = TextEditingController(text: _quotationNo);
     final capCtrl = TextEditingController(text: _capacity);
 
-    final costCtrl = TextEditingController(text: _totalCost.toStringAsFixed(0));
-    final gstCtrl = TextEditingController(text: _gstAmount.toStringAsFixed(0));
-    final grandTotalCtrl = TextEditingController(text: _grandTotal.toStringAsFixed(0));
-    final loanCtrl = TextEditingController(text: _bankLoan.toStringAsFixed(0));
-    final contribCtrl = TextEditingController(text: _contribution.toStringAsFixed(0));
+    final costCtrl = TextEditingController(text: _totalCost > 0 ? _totalCost.toStringAsFixed(0) : '');
+    final gstCtrl = TextEditingController(text: _gstAmount > 0 ? _gstAmount.toStringAsFixed(0) : '0');
+    final grandTotalCtrl = TextEditingController(text: _grandTotal > 0 ? _grandTotal.toStringAsFixed(0) : '');
+    final loanCtrl = TextEditingController(text: _bankLoan > 0 ? _bankLoan.toStringAsFixed(0) : '');
+    final contribCtrl = TextEditingController(text: _contribution > 0 ? _contribution.toStringAsFixed(0) : '');
 
     DateTime selectedDate = _quotationDate;
 

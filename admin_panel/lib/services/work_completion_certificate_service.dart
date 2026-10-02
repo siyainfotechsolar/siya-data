@@ -457,26 +457,8 @@ class WorkCompletionCertificateService {
                               ),
                               pw.SizedBox(height: 8),
 
-                              // Seal / Stamp designated box
-                              pw.Container(
-                                width: 160,
-                                height: 66,
-                                decoration: pw.BoxDecoration(
-                                  color: PdfColors.white,
-                                  border: pw.Border.all(color: tableBorderColor, width: 0.8, style: pw.BorderStyle.dashed),
-                                  borderRadius: pw.BorderRadius.circular(4),
-                                ),
-                                child: pw.Center(
-                                  child: pw.Text(
-                                    '[ OFFICIAL STAMP / SEAL ]',
-                                    style: pw.TextStyle(
-                                      color: slateMutedColor,
-                                      fontSize: 8.0,
-                                      fontWeight: pw.FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                               // Official Stamp designated space: Completely blank for manual rubber stamp
+                              pw.SizedBox(width: 160, height: 66),
 
                               pw.SizedBox(height: 12),
                               pw.Container(width: 160, height: 1.0, color: navyColor),

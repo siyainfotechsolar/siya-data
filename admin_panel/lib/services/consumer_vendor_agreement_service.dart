@@ -359,7 +359,7 @@ class ConsumerVendorAgreementService {
                       children: [
                         pw.Text('Total Project Cost', style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.8)),
                         pw.SizedBox(height: 2),
-                        pw.Text(currencyFmt.format(agreement.totalProjectCost), style: pw.TextStyle(color: darkTextColor, fontSize: 8.8, fontWeight: pw.FontWeight.bold)),
+                        pw.Text(agreement.totalProjectCost > 0 ? currencyFmt.format(agreement.totalProjectCost) : 'Rs. ____________', style: pw.TextStyle(color: darkTextColor, fontSize: 8.8, fontWeight: pw.FontWeight.bold)),
                       ],
                     ),
                     pw.Column(
@@ -375,7 +375,7 @@ class ConsumerVendorAgreementService {
                       children: [
                         pw.Text('Net Payable', style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.8)),
                         pw.SizedBox(height: 2),
-                        pw.Text(currencyFmt.format(agreement.netCustomerPayable), style: pw.TextStyle(color: darkTextColor, fontSize: 8.8, fontWeight: pw.FontWeight.bold)),
+                        pw.Text(agreement.netCustomerPayable > 0 ? currencyFmt.format(agreement.netCustomerPayable) : 'Rs. ____________', style: pw.TextStyle(color: darkTextColor, fontSize: 8.8, fontWeight: pw.FontWeight.bold)),
                       ],
                     ),
                   ],
@@ -410,7 +410,7 @@ class ConsumerVendorAgreementService {
                         pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text('${m.sr}.', style: const pw.TextStyle(color: slateBodyColor, fontSize: 7.5), textAlign: pw.TextAlign.center)),
                         pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text(m.stage, style: pw.TextStyle(color: darkTextColor, fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
                         pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text('${m.percentage.toStringAsFixed(0)}%', style: const pw.TextStyle(color: slateBodyColor, fontSize: 7.5), textAlign: pw.TextAlign.center)),
-                        pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text(currencyFmt.format(m.amount), style: pw.TextStyle(color: darkTextColor, fontSize: 7.5, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right)),
+                        pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text(m.amount > 0 ? currencyFmt.format(m.amount) : 'Rs. ____________', style: pw.TextStyle(color: darkTextColor, fontSize: 7.5, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right)),
                         pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text(m.description, style: const pw.TextStyle(color: slateBodyColor, fontSize: 7.3, lineSpacing: 1.25))),
                       ],
                     );
@@ -422,7 +422,7 @@ class ConsumerVendorAgreementService {
                       pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text('', textAlign: pw.TextAlign.center)),
                       pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text('Total Agreed Cost', style: pw.TextStyle(color: darkTextColor, fontSize: 7.8, fontWeight: pw.FontWeight.bold))),
                       pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text('100%', style: pw.TextStyle(color: darkTextColor, fontSize: 7.8, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.center)),
-                      pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text(currencyFmt.format(agreement.totalProjectCost), style: pw.TextStyle(color: darkTextColor, fontSize: 7.8, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right)),
+                      pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text(agreement.totalProjectCost > 0 ? currencyFmt.format(agreement.totalProjectCost) : 'Rs. ____________', style: pw.TextStyle(color: darkTextColor, fontSize: 7.8, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right)),
                       pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text('100% of Total Agreed Project', style: pw.TextStyle(color: slateMutedColor, fontSize: 7.3, fontStyle: pw.FontStyle.italic))),
                     ],
                   ),
@@ -522,32 +522,8 @@ class ConsumerVendorAgreementService {
                           child: pw.Column(
                             crossAxisAlignment: pw.CrossAxisAlignment.center,
                             children: [
-                              // Dedicated Company Stamp Box
-                              pw.Container(
-                                width: 110,
-                                height: 70,
-                                decoration: pw.BoxDecoration(
-                                  border: pw.Border.all(color: borderDarkColor, width: 0.8, style: pw.BorderStyle.dashed),
-                                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
-                                ),
-                                alignment: pw.Alignment.center,
-                                child: pw.Column(
-                                  mainAxisAlignment: pw.MainAxisAlignment.center,
-                                  children: [
-                                    pw.Text(
-                                      '[ Company Stamp ]',
-                                      style: pw.TextStyle(color: slateMutedColor, fontSize: 7.2, fontWeight: pw.FontWeight.bold),
-                                      textAlign: pw.TextAlign.center,
-                                    ),
-                                    pw.SizedBox(height: 2),
-                                    pw.Text(
-                                      'Affix Official Stamp Here',
-                                      style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.0),
-                                      textAlign: pw.TextAlign.center,
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              // Completely blank space for manual company stamp
+                              pw.SizedBox(height: 70),
                               pw.SizedBox(height: 36),
                               pw.Container(height: 0.8, color: borderDarkColor),
                               pw.SizedBox(height: 4),

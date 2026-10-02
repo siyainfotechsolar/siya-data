@@ -134,7 +134,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
       _bankLoanAmount = init.bankLoanAmount;
       _customerContribution = init.customerContribution;
     } else {
-      final baseCost = cust.totalAmount > 0 ? cust.totalAmount : 160000.0;
+      final baseCost = cust.totalAmount > 0 ? cust.totalAmount : 0.0;
       _totalSystemCost = baseCost;
       _gstAmount = 0.0;
       _grandTotal = _totalSystemCost + _gstAmount;
@@ -142,7 +142,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
       if (cust.loanSanctionedAmount > 0) {
         _bankLoanAmount = cust.loanSanctionedAmount;
       } else {
-        _bankLoanAmount = (_grandTotal * 0.9).roundToDouble(); // 90% Bank Loan
+        _bankLoanAmount = _grandTotal > 0 ? (_grandTotal * 0.9).roundToDouble() : 0.0; // 90% Bank Loan
       }
       _customerContribution = (_grandTotal - _bankLoanAmount).clamp(0.0, double.infinity); // 10% Contribution
     }
@@ -715,11 +715,11 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
 
   Future<void> _openEditAmountModal() async {
     final capacityCtrl = TextEditingController(text: _systemCapacity);
-    final costCtrl = TextEditingController(text: _totalSystemCost.toStringAsFixed(0));
-    final gstCtrl = TextEditingController(text: _gstAmount.toStringAsFixed(0));
-    final grandTotalCtrl = TextEditingController(text: _grandTotal.toStringAsFixed(0));
-    final loanCtrl = TextEditingController(text: _bankLoanAmount.toStringAsFixed(0));
-    final contribCtrl = TextEditingController(text: _customerContribution.toStringAsFixed(0));
+    final costCtrl = TextEditingController(text: _totalSystemCost > 0 ? _totalSystemCost.toStringAsFixed(0) : '');
+    final gstCtrl = TextEditingController(text: _gstAmount > 0 ? _gstAmount.toStringAsFixed(0) : '0');
+    final grandTotalCtrl = TextEditingController(text: _grandTotal > 0 ? _grandTotal.toStringAsFixed(0) : '');
+    final loanCtrl = TextEditingController(text: _bankLoanAmount > 0 ? _bankLoanAmount.toStringAsFixed(0) : '');
+    final contribCtrl = TextEditingController(text: _customerContribution > 0 ? _customerContribution.toStringAsFixed(0) : '');
     bool isReverseCalcMode = false;
 
     await showModalBottomSheet<void>(
@@ -1289,11 +1289,11 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     final quoteNoCtrl = TextEditingController(text: _quotationNo);
 
     final capacityCtrl = TextEditingController(text: _systemCapacity);
-    final costCtrl = TextEditingController(text: _totalSystemCost.toStringAsFixed(0));
-    final gstCtrl = TextEditingController(text: _gstAmount.toStringAsFixed(0));
-    final grandTotalCtrl = TextEditingController(text: _grandTotal.toStringAsFixed(0));
-    final loanCtrl = TextEditingController(text: _bankLoanAmount.toStringAsFixed(0));
-    final contribCtrl = TextEditingController(text: _customerContribution.toStringAsFixed(0));
+    final costCtrl = TextEditingController(text: _totalSystemCost > 0 ? _totalSystemCost.toStringAsFixed(0) : '');
+    final gstCtrl = TextEditingController(text: _gstAmount > 0 ? _gstAmount.toStringAsFixed(0) : '0');
+    final grandTotalCtrl = TextEditingController(text: _grandTotal > 0 ? _grandTotal.toStringAsFixed(0) : '');
+    final loanCtrl = TextEditingController(text: _bankLoanAmount > 0 ? _bankLoanAmount.toStringAsFixed(0) : '');
+    final contribCtrl = TextEditingController(text: _customerContribution > 0 ? _customerContribution.toStringAsFixed(0) : '');
     final bankNameCtrl = TextEditingController(text: _bankName);
     final branchCtrl = TextEditingController(text: _branch);
     final accountCtrl = TextEditingController(text: _accountNo);

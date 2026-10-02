@@ -200,20 +200,9 @@ class PaymentReceiptService {
     final double rightColL = pageSize.width - lineWidth;
     graphics.drawString('For Siya Infotech & Digital Solutions', boldFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(rightColL, signY, lineWidth, 14));
 
-    // Stamp Guide Box
-    final PdfPen dashPen = PdfPen(PdfColor(203, 213, 225), width: 0.8);
-    dashPen.dashStyle = PdfDashStyle.dash;
+    // Stamp Guide Box: Completely blank for physical stamp
     const double stampW = 100;
     const double stampH = 44;
-    final double stampL = rightColL + (lineWidth - stampW) / 2;
-    graphics.drawRectangle(pen: dashPen, brush: lightBgBrush, bounds: Rect.fromLTWH(stampL, signY + 16, stampW, stampH));
-    graphics.drawString(
-      '[ OFFICIAL STAMP ]',
-      smallFont,
-      brush: PdfSolidBrush(PdfColor(148, 163, 184)),
-      format: PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.middle),
-      bounds: Rect.fromLTWH(stampL, signY + 16, stampW, stampH),
-    );
 
     graphics.drawLine(borderPen, Offset(rightColL, commonLineY), Offset(rightColL + lineWidth, commonLineY));
     graphics.drawString('Authorized Signatory', smallFont, brush: darkBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(rightColL, commonLineY + 4, lineWidth, 12));

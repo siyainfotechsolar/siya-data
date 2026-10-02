@@ -279,7 +279,7 @@ class MarginMoneyReceiptService {
     graphics.drawString('1', bodyFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft + 8, y + 3.5, 25, 12));
     graphics.drawString('Total Solar Project / System Cost (${receipt.systemCapacity} ${receipt.systemType})', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 35, y + 3.5, 300, 12));
     graphics.drawString('100 %', bodyFont, brush: slateBodyBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentRight - 180, y + 3.5, 60, 12));
-    graphics.drawString(currencyFormatter.format(receipt.totalSystemCost), bodyBoldFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.right), bounds: Rect.fromLTWH(contentRight - 110, y + 3.5, 100, 12));
+    graphics.drawString(receipt.totalSystemCost > 0 ? currencyFormatter.format(receipt.totalSystemCost) : 'Rs. ____________', bodyBoldFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.right), bounds: Rect.fromLTWH(contentRight - 110, y + 3.5, 100, 12));
     y += rowH;
 
     // Row 2: Bank Loan (90%)
@@ -287,7 +287,7 @@ class MarginMoneyReceiptService {
     graphics.drawString('2', bodyFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft + 8, y + 3.5, 25, 12));
     graphics.drawString('Proposed Bank Loan Amount (To be financed & disbursed by Bank)', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 35, y + 3.5, 300, 12));
     graphics.drawString('90 %', bodyFont, brush: slateBodyBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentRight - 180, y + 3.5, 60, 12));
-    graphics.drawString(currencyFormatter.format(receipt.bankLoanAmount), bodyBoldFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.right), bounds: Rect.fromLTWH(contentRight - 110, y + 3.5, 100, 12));
+    graphics.drawString(receipt.bankLoanAmount > 0 ? currencyFormatter.format(receipt.bankLoanAmount) : 'Rs. ____________', bodyBoldFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.right), bounds: Rect.fromLTWH(contentRight - 110, y + 3.5, 100, 12));
     y += rowH;
 
     // Row 3: Highlighted Margin Money Received (10%)
@@ -296,14 +296,17 @@ class MarginMoneyReceiptService {
     graphics.drawString('3', bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft + 8, y + 4.5, 25, 12));
     graphics.drawString('CUSTOMER MARGIN MONEY / CONTRIBUTION RECEIVED', bodyBoldFont, brush: amberTextBrush, bounds: Rect.fromLTWH(contentLeft + 35, y + 4.5, 300, 12));
     graphics.drawString('10 %', highlightBigFont, brush: amberTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentRight - 180, y + 4, 60, 14));
-    graphics.drawString(currencyFormatter.format(receipt.marginAmount), highlightBigFont, brush: amberTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.right), bounds: Rect.fromLTWH(contentRight - 110, y + 4, 100, 14));
+    graphics.drawString(receipt.marginAmount > 0 ? currencyFormatter.format(receipt.marginAmount) : 'Rs. ____________', highlightBigFont, brush: amberTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.right), bounds: Rect.fromLTWH(contentRight - 110, y + 4, 100, 14));
     y += marginRowH;
 
     // Amount in Words
     const double wordsRowH = 15;
     graphics.drawRectangle(brush: zebraBgBrush, pen: tableGridPen, bounds: Rect.fromLTWH(contentLeft, y, contentWidth, wordsRowH));
     graphics.drawString('Margin Amount in Words: ', bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft + 8, y + 2.5, 110, 11));
-    graphics.drawString(receipt.marginAmountInWords, bodyBoldFont, brush: emeraldBrush, bounds: Rect.fromLTWH(contentLeft + 120, y + 2.5, contentWidth - 130, 11));
+    final String marginWords = receipt.marginAmount > 0 && receipt.marginAmountInWords.trim().isNotEmpty
+        ? receipt.marginAmountInWords
+        : '________________________________________________';
+    graphics.drawString(marginWords, bodyBoldFont, brush: emeraldBrush, bounds: Rect.fromLTWH(contentLeft + 120, y + 2.5, contentWidth - 130, 11));
     y += wordsRowH + 8;
 
             // 6. Payment Settlement & Vendor Bank Details (Side by side)
@@ -397,18 +400,9 @@ class MarginMoneyReceiptService {
     final double vendorSignL = contentRight - signColW;
     graphics.drawString('For SIYA INFOTECH AND DIGITAL SOLUTIONS', signHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(vendorSignL, signYStart, signColW, 12));
 
-    // Vendor Official Round Stamp (Identical 66x66 dashed circle with 56x56 inner guide)
+    // Vendor Official Stamp space: Completely blank for manual rubber ink stamp
     const double stampDiam = 66;
-    final double stampRoundL = vendorSignL + ((signColW - stampDiam) / 2);
     final double stampY = signYStart + 14;
-
-    final PdfPen dashPen = PdfPen(borderDarkColor, width: 0.8);
-    dashPen.dashStyle = PdfDashStyle.dash;
-    graphics.drawEllipse(Rect.fromLTWH(stampRoundL, stampY, stampDiam, stampDiam), brush: whiteBrush, pen: dashPen);
-
-    // Inner circle outline (blank guide)
-    final PdfPen innerPen = PdfPen(borderDarkColor, width: 0.5);
-    graphics.drawEllipse(Rect.fromLTWH(stampRoundL + 5, stampY + 5, stampDiam - 10, stampDiam - 10), pen: innerPen);
 
     // Unified Baseline: Both Borrower & Vendor lines sit at the EXACT SAME horizontal Y!
     final double commonLineY = stampY + stampDiam + 22;

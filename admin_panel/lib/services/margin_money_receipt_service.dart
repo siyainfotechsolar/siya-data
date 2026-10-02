@@ -296,9 +296,9 @@ class MarginMoneyReceiptService {
                             ),
                           ),
                           // Row 1: System Capacity & Total Cost
-                          _buildTableRow('1', 'Total Solar Project / System Cost (${receipt.systemCapacity} ${receipt.systemType})', '100 %', currencyFormatter.format(receipt.totalSystemCost)),
+                          _buildTableRow('1', 'Total Solar Project / System Cost (${receipt.systemCapacity} ${receipt.systemType})', '100 %', receipt.totalSystemCost > 0 ? currencyFormatter.format(receipt.totalSystemCost) : 'Rs. ____________'),
                           // Row 2: Bank Loan
-                          _buildTableRow('2', 'Proposed / Sanctioned Bank Loan (To be disbursed by Bank)', '90 %', currencyFormatter.format(receipt.bankLoanAmount), isZebra: true),
+                          _buildTableRow('2', 'Proposed / Sanctioned Bank Loan (To be disbursed by Bank)', '90 %', receipt.bankLoanAmount > 0 ? currencyFormatter.format(receipt.bankLoanAmount) : 'Rs. ____________', isZebra: true),
                           // Row 3: HIGHLIGHTED MARGIN MONEY RECEIVED (10%)
                           pw.Container(
                             decoration: pw.BoxDecoration(
@@ -326,7 +326,7 @@ class MarginMoneyReceiptService {
                                 pw.SizedBox(
                                   width: 100,
                                   child: pw.Text(
-                                    currencyFormatter.format(receipt.marginAmount),
+                                    receipt.marginAmount > 0 ? currencyFormatter.format(receipt.marginAmount) : 'Rs. ____________',
                                     textAlign: pw.TextAlign.right,
                                     style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF854D0E)),
                                   ),
@@ -355,7 +355,9 @@ class MarginMoneyReceiptService {
                           pw.Text('Margin Amount in Words: ', style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold, color: darkTextColor)),
                           pw.Expanded(
                             child: pw.Text(
-                              receipt.marginAmountInWords,
+                              receipt.marginAmount > 0 && receipt.marginAmountInWords.trim().isNotEmpty
+                                  ? receipt.marginAmountInWords
+                                  : '________________________________________________',
                               style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold, color: emeraldColor),
                             ),
                           ),
@@ -545,28 +547,8 @@ class MarginMoneyReceiptService {
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
-                              pw.SizedBox(height: 4),
-                              // Vendor Official Round Stamp (Identical 66x66 dashed circle with 56x56 inner guide)
-                              pw.Container(
-                                width: 66,
-                                height: 66,
-                                decoration: pw.BoxDecoration(
-                                  shape: pw.BoxShape.circle,
-                                  color: PdfColors.white,
-                                  border: pw.Border.all(color: borderDarkColor, style: pw.BorderStyle.dashed, width: 0.8),
-                                ),
-                                child: pw.Center(
-                                  child: pw.Container(
-                                    width: 56,
-                                    height: 56,
-                                    decoration: pw.BoxDecoration(
-                                      shape: pw.BoxShape.circle,
-                                      border: pw.Border.all(color: borderDarkColor, width: 0.5),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              pw.SizedBox(height: 22), // Generous space for physical pen signature above the line!
+                              // Completely blank space for manual ink stamp and physical signature
+                              pw.SizedBox(height: 80),
                               pw.Container(width: 160, height: 1.0, color: darkTextColor),
                               pw.SizedBox(height: 3),
                               pw.Text(

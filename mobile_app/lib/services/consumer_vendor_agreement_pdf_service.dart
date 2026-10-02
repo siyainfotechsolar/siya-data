@@ -313,9 +313,9 @@ class ConsumerVendorAgreementPdfService {
     }
 
     drawSummaryMetric('Solar Capacity', agreement.systemCapacity, contentLeft + 12);
-    drawSummaryMetric('Total Project Cost', currencyFormatter.format(agreement.totalProjectCost), contentLeft + colW + 8);
+    drawSummaryMetric('Total Project Cost', agreement.totalProjectCost > 0 ? currencyFormatter.format(agreement.totalProjectCost) : 'Rs. ____________', contentLeft + colW + 8);
     drawSummaryMetric('Govt. CFA Subsidy', currencyFormatter.format(agreement.cfaSubsidyAmount), contentLeft + (colW * 2) + 8);
-    drawSummaryMetric('Net Payable', currencyFormatter.format(agreement.netCustomerPayable), contentLeft + (colW * 3) + 8);
+    drawSummaryMetric('Net Payable', agreement.netCustomerPayable > 0 ? currencyFormatter.format(agreement.netCustomerPayable) : 'Rs. ____________', contentLeft + (colW * 3) + 8);
     y += sumBoxH + 18;
 
     // Milestone Table with Comfortable Cell Padding & Proper Column Widths
@@ -344,7 +344,7 @@ class ConsumerVendorAgreementPdfService {
       row.cells[0].value = '${m.sr}.';
       row.cells[1].value = m.stage;
       row.cells[2].value = '${m.percentage.toStringAsFixed(0)}%';
-      row.cells[3].value = currencyFormatter.format(m.amount);
+      row.cells[3].value = m.amount > 0 ? currencyFormatter.format(m.amount) : 'Rs. ____________';
       row.cells[4].value = m.description;
 
       row.cells[0].style.font = tableCellFont;
@@ -363,7 +363,7 @@ class ConsumerVendorAgreementPdfService {
     totalRow.cells[0].value = '';
     totalRow.cells[1].value = 'Total Agreed Cost';
     totalRow.cells[2].value = '100%';
-    totalRow.cells[3].value = currencyFormatter.format(agreement.totalProjectCost);
+    totalRow.cells[3].value = agreement.totalProjectCost > 0 ? currencyFormatter.format(agreement.totalProjectCost) : 'Rs. ____________';
     totalRow.cells[4].value = '100% of Total Agreed Project';
     totalRow.style.backgroundBrush = headerBgBrush;
     for (int i = 0; i < 5; i++) {
@@ -452,21 +452,12 @@ class ConsumerVendorAgreementPdfService {
     g3.drawString('Name: ${agreement.customerName}', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 12, cSignY + 20, p1Width, 13));
     g3.drawString('Date: ${agreement.formattedExecutionDate}   |   Place: Shindkheda', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft + 12, cSignY + 35, p1Width, 13));
 
-    // Second Party (Vendor) Signature & Stamp Base
+    // Second Party (Vendor) Signature & Stamp Base (Completely blank for physical rubber stamp)
     const double stampW = 120;
     const double stampH = 85;
     final double stampX = p2Left + (p2Width - stampW) / 2;
     final double stampY = baseRowY + 12;
-
-    // Dedicated Stamp Box (Dashed rectangle)
-    g3.drawRectangle(pen: dashedPen, bounds: Rect.fromLTWH(stampX, stampY, stampW, stampH));
-    g3.drawString(
-      '[ Company Stamp ]\nAffix Official Stamp Here',
-      footerFont,
-      brush: slateMutedBrush,
-      format: PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.middle),
-      bounds: Rect.fromLTWH(stampX, stampY, stampW, stampH),
-    );
+    // Area left completely blank for physical ink rubber stamp
 
     // Vendor Signature with aligned baseline
     final double vSignY = cSignY;

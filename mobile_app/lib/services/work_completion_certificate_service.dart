@@ -474,27 +474,10 @@ class WorkCompletionCertificateService {
 
     signY += 16;
 
-    // Dashed Stamp Box (Standardized 160x66)
+    // Official Stamp space: Completely blank for physical rubber stamp (160x66)
     const double stampW = 160;
     const double stampH = 66;
     final double stampL = signLeft + ((signWidth - stampW) / 2);
-
-    final PdfPen dashPen = PdfPen(tableBorderColor, width: 0.8);
-    dashPen.dashStyle = PdfDashStyle.dash;
-
-    graphics.drawRectangle(
-      brush: whiteBrush,
-      pen: dashPen,
-      bounds: Rect.fromLTWH(stampL, signY, stampW, stampH),
-    );
-
-    graphics.drawString(
-      '[ OFFICIAL STAMP / SEAL ]',
-      stampFont,
-      brush: slateMutedBrush,
-      format: PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.middle),
-      bounds: Rect.fromLTWH(stampL, signY, stampW, stampH),
-    );
 
     signY += stampH + 12;
 

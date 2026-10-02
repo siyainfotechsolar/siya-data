@@ -87,9 +87,9 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
     }
     _systemCapacity = cap.isNotEmpty ? cap : '3 kW';
 
-    _totalProjectCost = init?.totalProjectCost ?? (cust.totalAmount > 0 ? cust.totalAmount : 160000.0);
+    _totalProjectCost = init?.totalProjectCost ?? (cust.totalAmount > 0 ? cust.totalAmount : 0.0);
     _cfaSubsidyAmount = init?.cfaSubsidyAmount ?? 78000.0;
-    _netCustomerPayable = init?.netCustomerPayable ?? (_totalProjectCost - _cfaSubsidyAmount);
+    _netCustomerPayable = init?.netCustomerPayable ?? (_totalProjectCost > 0 ? (_totalProjectCost - _cfaSubsidyAmount).clamp(0.0, double.infinity) : 0.0);
 
     if (init != null && init.paymentMilestones.isNotEmpty) {
       _paymentMilestones = List.from(init.paymentMilestones);

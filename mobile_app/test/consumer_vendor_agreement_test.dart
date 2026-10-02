@@ -154,7 +154,6 @@ void main() {
       expect(p3Text, contains('Signature of First Party (Consumer)'));
       expect(p3Text, contains('Second Party (Vendor)'));
       expect(p3Text, contains('Authorized Signatory'));
-      expect(p3Text, contains('Company Stamp'));
       expect(p3Text, contains('Disclaimer'));
       expect(p3Text, contains('Page 3 of 3'));
 

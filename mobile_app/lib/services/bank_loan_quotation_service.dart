@@ -501,11 +501,11 @@ class BankLoanQuotationService {
     drawSectionHeader(y, leftBoxW, 'FINANCIAL DETAILS');
 
     final finRows = [
-      {'label': 'Total System Cost', 'val': currencyFormatter.format(quotation.totalSystemCost), 'bold': 'false', 'highlight': 'false'},
+      {'label': 'Total System Cost', 'val': quotation.totalSystemCost > 0 ? currencyFormatter.format(quotation.totalSystemCost) : 'Rs. ____________', 'bold': 'false', 'highlight': 'false'},
       {'label': 'GST (Tax)', 'val': quotation.gstAmount > 0 ? currencyFormatter.format(quotation.gstAmount) : 'Exempt / Inclusive', 'bold': 'false', 'highlight': 'false'},
-      {'label': 'GRAND TOTAL', 'val': currencyFormatter.format(quotation.grandTotal), 'bold': 'true', 'highlight': 'true'},
-      {'label': 'Bank Loan Amount', 'val': currencyFormatter.format(quotation.bankLoanAmount), 'bold': 'true', 'highlight': 'false'},
-      {'label': 'Customer Contribution', 'val': currencyFormatter.format(quotation.customerContribution), 'bold': 'false', 'highlight': 'false'},
+      {'label': 'GRAND TOTAL', 'val': quotation.grandTotal > 0 ? currencyFormatter.format(quotation.grandTotal) : 'Rs. ____________', 'bold': 'true', 'highlight': 'true'},
+      {'label': 'Bank Loan Amount', 'val': quotation.bankLoanAmount > 0 ? currencyFormatter.format(quotation.bankLoanAmount) : 'Rs. ____________', 'bold': 'true', 'highlight': 'false'},
+      {'label': 'Customer Contribution', 'val': quotation.customerContribution > 0 ? currencyFormatter.format(quotation.customerContribution) : 'Rs. ____________', 'bold': 'false', 'highlight': 'false'},
     ];
 
     double finY = y + sectionHeaderH;
@@ -583,7 +583,10 @@ class BankLoanQuotationService {
     );
     graphics.drawString('Amount in Words: ', wordsFont, brush: darkTextBrush,
       bounds: Rect.fromLTWH(contentLeft + cellPadX, y + cellPadY, 100, wordsBoxH));
-    graphics.drawString(quotation.amountInWords, wordsFont, brush: darkTextBrush,
+    final String qWords = quotation.grandTotal > 0 && quotation.amountInWords.trim().isNotEmpty
+        ? quotation.amountInWords
+        : '________________________________________________';
+    graphics.drawString(qWords, wordsFont, brush: darkTextBrush,
       bounds: Rect.fromLTWH(contentLeft + 108, y + cellPadY, contentWidth - 116, wordsBoxH));
 
     y += wordsBoxH + sectionGap;
@@ -701,24 +704,8 @@ class BankLoanQuotationService {
     );
     vendorY += 14;
 
-    // Vendor Official Round Stamp (Completely blank inside, pure white background for manual ink stamp)
+    // Vendor Official Stamp space: Completely blank for manual rubber ink stamp
     const double stampDiam = 66;
-    final double stampL = vendorSignLeft + ((vendorSignWidth - stampDiam) / 2);
-
-    final PdfPen dashPen = PdfPen(borderDarkColor, width: 0.8);
-    dashPen.dashStyle = PdfDashStyle.dash;
-
-    graphics.drawEllipse(
-      Rect.fromLTWH(stampL, vendorY, stampDiam, stampDiam),
-      brush: whiteBrush,
-      pen: dashPen,
-    );
-
-    final PdfPen innerPen = PdfPen(borderDarkColor, width: 0.5);
-    graphics.drawEllipse(
-      Rect.fromLTWH(stampL + 5, vendorY + 5, stampDiam - 10, stampDiam - 10),
-      pen: innerPen,
-    );
 
     // Unified Baseline: Both Customer & Vendor lines sit at the EXACT SAME horizontal Y!
     final double commonLineY = vendorY + stampDiam + 22;
