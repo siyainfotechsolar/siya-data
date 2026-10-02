@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/customer_margin_receipt.dart';
@@ -698,14 +697,11 @@ class MarginMoneyReceiptService {
       receipt,
       includeStampAndSignature: includeStampAndSignature,
     );
-    final output = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save Customer Margin Money Receipt PDF',
-      fileName: receipt.pdfFileName,
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
+    await Printing.sharePdf(
       bytes: pdfBytes,
+      filename: receipt.pdfFileName,
     );
-    return output;
+    return receipt.pdfFileName;
   }
 
   /// Share Margin Money Receipt via WhatsApp

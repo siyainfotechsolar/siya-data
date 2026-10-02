@@ -439,7 +439,9 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                       onPressed: _openEditDetailsDialog,
                       icon: const Icon(Icons.tune_rounded, size: 16),
                       label: const Text('Edit Specs / Details'),
-                                        if (_includeStampAndSignature)
+                    ),
+
+                    if (_includeStampAndSignature)
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFFDC2626),

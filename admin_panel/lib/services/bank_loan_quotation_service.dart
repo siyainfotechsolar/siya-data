@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/solar_quotation.dart';
@@ -825,24 +824,14 @@ class BankLoanQuotationService {
     );
     final String defaultFileName = quotation.pdfFileName;
 
-    try {
-      final String? selectedPath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save Bank Loan Solar Quotation PDF',
-        fileName: defaultFileName,
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
+    await Printing.sharePdf(bytes: pdfBytes, filename: defaultFileName);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Downloading: $defaultFileName'),
+          backgroundColor: const Color(0xFF0D2B6F),
+        ),
       );
-
-      if (selectedPath != null && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Quotation saved to: $selectedPath'),
-            backgroundColor: const Color(0xFF0D2B6F),
-          ),
-        );
-      }
-    } catch (_) {
-      await Printing.sharePdf(bytes: pdfBytes, filename: defaultFileName);
     }
   }
 

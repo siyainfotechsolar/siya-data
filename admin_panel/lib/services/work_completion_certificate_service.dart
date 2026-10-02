@@ -1546,18 +1546,34 @@ class WorkCompletionCertificateService {
       final safeName = data.customerName.replaceAll(RegExp(r'[^\w\s-]'), '').replaceAll(RegExp(r'\s+'), '_');
       final fileName = '${docPrefix}_${safeName}_${data.consumerNo}.pdf';
 
-      final result = await FilePicker.platform.saveFile(
-        dialogTitle: 'Download $docPrefix PDF',
-        fileName: fileName,
-        bytes: bytes,
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-      );
+      bool downloaded = false;
+      try {
+        await Printing.sharePdf(
+          bytes: bytes,
+          filename: fileName,
+        );
+        downloaded = true;
+      } catch (e) {
+        debugPrint('Printing.sharePdf direct download error: $e');
+      }
 
-      if (result != null && context.mounted) {
+      if (!downloaded) {
+        try {
+          final result = await FilePicker.platform.saveFile(
+            dialogTitle: 'Download $docPrefix PDF',
+            fileName: fileName,
+            bytes: bytes,
+            type: FileType.custom,
+            allowedExtensions: ['pdf'],
+          );
+          if (result != null) downloaded = true;
+        } catch (_) {}
+      }
+
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Document downloaded successfully ($fileName)!'),
+            content: Text('Document downloaded: $fileName'),
             backgroundColor: const Color(0xFF059669),
           ),
         );

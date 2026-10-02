@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/consumer_vendor_agreement.dart';
@@ -627,21 +626,11 @@ class ConsumerVendorAgreementService {
         agreement,
         includeStampAndSignature: includeStampAndSignature,
       );
-      final outputFile = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save Consumer-Vendor Agreement PDF',
-        fileName: agreement.pdfFileName,
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
+      await Printing.sharePdf(
+        bytes: pdfBytes,
+        filename: agreement.pdfFileName,
       );
-
-      if (outputFile != null) {
-        await Printing.sharePdf(
-          bytes: pdfBytes,
-          filename: agreement.pdfFileName,
-        );
-        return outputFile;
-      }
-      return null;
+      return agreement.pdfFileName;
     } catch (e) {
       debugPrint('Error saving agreement PDF: $e');
       return null;
