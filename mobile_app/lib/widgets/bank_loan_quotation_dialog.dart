@@ -277,23 +277,6 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     }
   }
 
-  Future<void> _handleGenerate() async {
-    final file = await _ensurePdfGenerated();
-    if (file != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('A4 Quotation generated: ${file.uri.pathSegments.last}'),
-          backgroundColor: const Color(0xFF059669),
-          action: SnackBarAction(
-            label: 'PREVIEW',
-            textColor: Colors.white,
-            onPressed: () => BankLoanQuotationService.previewQuotation(file),
-          ),
-        ),
-      );
-    }
-  }
-
   Future<void> _handleShare() async {
     final file = await _ensurePdfGenerated();
     if (file != null && mounted) {
@@ -1425,7 +1408,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1549,8 +1532,11 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 500,
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 500,
+          maxHeight: MediaQuery.of(context).size.height * 0.58,
+        ),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1994,6 +1980,32 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                 ),
               ],
 
+              const SizedBox(height: 10),
+              // Universal Bank Set Action Banner
+              InkWell(
+                onTap: _isGenerating ? null : _handleDownloadBoth,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.collections_bookmark_rounded, size: 15, color: Color(0xFF1D4ED8)),
+                      SizedBox(width: 6),
+                      Text(
+                        'Download Complete Bank Set (Quotation + 10% Receipt)',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1D4ED8)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
               if (_isGenerating) ...[
                 const SizedBox(height: 14),
                 Row(
@@ -2018,83 +2030,70 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
       ),
       actions: [
         if (_selectedTab == 0) ...[
-          // Quotation Actions
+          // Quotation Actions (Identical to WCR)
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFF0F2D69),
-              side: const BorderSide(color: Color(0xFF0F2D69), width: 1.1),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              side: const BorderSide(color: Color(0xFF0F2D69), width: 1.2),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
             onPressed: _isGenerating ? null : _handlePreview,
-            icon: const Icon(Icons.visibility_rounded, size: 15),
-            label: const Text('Preview', style: TextStyle(fontSize: 11.5)),
+            icon: const Icon(Icons.visibility_rounded, size: 17),
+            label: const Text('Preview'),
           ),
           FilledButton.tonalIcon(
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
               foregroundColor: const Color(0xFF128C7E),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
             onPressed: _isGenerating ? null : _handleShare,
-            icon: const Icon(Icons.share_rounded, size: 15),
-            label: const Text('Share', style: TextStyle(fontSize: 11.5)),
+            icon: const Icon(Icons.share_rounded, size: 17),
+            label: const Text('Share'),
           ),
           FilledButton.icon(
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF0F2D69),
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             ),
             onPressed: _isGenerating ? null : _handleDownload,
-            icon: const Icon(Icons.download_rounded, size: 15),
-            label: const Text('Download', style: TextStyle(fontSize: 11.5)),
+            icon: const Icon(Icons.download_rounded, size: 17),
+            label: const Text('Download'),
           ),
         ] else ...[
-          // Receipt Actions
+          // Receipt Actions (Identical to WCR)
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFF047857),
-              side: const BorderSide(color: Color(0xFF047857), width: 1.1),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              side: const BorderSide(color: Color(0xFF047857), width: 1.2),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
             onPressed: _isGenerating ? null : _handleReceiptPreview,
-            icon: const Icon(Icons.visibility_rounded, size: 15),
-            label: const Text('Preview', style: TextStyle(fontSize: 11.5)),
+            icon: const Icon(Icons.visibility_rounded, size: 17),
+            label: const Text('Preview'),
           ),
           FilledButton.tonalIcon(
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
               foregroundColor: const Color(0xFF128C7E),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
             onPressed: _isGenerating ? null : _handleReceiptShare,
-            icon: const Icon(Icons.share_rounded, size: 15),
-            label: const Text('Share', style: TextStyle(fontSize: 11.5)),
+            icon: const Icon(Icons.share_rounded, size: 17),
+            label: const Text('Share'),
           ),
           FilledButton.icon(
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF047857),
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             ),
             onPressed: _isGenerating ? null : _handleReceiptDownload,
-            icon: const Icon(Icons.download_rounded, size: 15),
-            label: const Text('Download', style: TextStyle(fontSize: 11.5)),
+            icon: const Icon(Icons.download_rounded, size: 17),
+            label: const Text('Download'),
           ),
         ],
-
-        // Download Both (Bank Set)
-        FilledButton.tonalIcon(
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFFEFF6FF),
-            foregroundColor: const Color(0xFF1D4ED8),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            side: const BorderSide(color: Color(0xFFBFDBFE)),
-          ),
-          onPressed: _isGenerating ? null : _handleDownloadBoth,
-          icon: const Icon(Icons.folder_zip_rounded, size: 15),
-          label: const Text('Both (Bank Set)', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-        ),
       ],
     );
   }

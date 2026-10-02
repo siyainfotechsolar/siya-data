@@ -12,6 +12,8 @@ import '../services/excel_export_service.dart';
 import '../services/realtime_service.dart';
 import '../widgets/record_details_dialog.dart';
 import '../widgets/work_completion_certificate_dialog.dart';
+import '../widgets/bank_loan_quotation_dialog.dart';
+import '../widgets/consumer_vendor_agreement_dialog.dart';
 import '../utils/responsive.dart';
 
 class ReportsScreen extends StatefulWidget {
@@ -56,6 +58,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
     'Subsidy Status',
     'Assigned Staff',
     'WCR',
+    'Quotation',
+    'Margin Receipt',
+    'Agreement',
   ];
 
   late Set<String> _visibleColumns;
@@ -1236,6 +1241,45 @@ class _ReportsScreenState extends State<ReportsScreen> {
           onPressed: () => WorkCompletionCertificateDialog.show(context, r),
           icon: const Icon(Icons.verified_outlined, size: 13),
           label: const Text('WCR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+        );
+      case 'Quotation':
+        return OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF047857),
+            side: const BorderSide(color: Color(0xFF047857)),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: () => BankLoanQuotationDialog.show(context, r),
+          icon: const Icon(Icons.request_quote_outlined, size: 13),
+          label: const Text('Quotation', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+        );
+      case 'Margin Receipt':
+        return OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF854D0E),
+            side: const BorderSide(color: Color(0xFF854D0E)),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: () => BankLoanQuotationDialog.show(context, r, initialTab: 1),
+          icon: const Icon(Icons.receipt_long_rounded, size: 13),
+          label: const Text('Margin Receipt', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+        );
+      case 'Agreement':
+        return OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF0F2D69),
+            side: const BorderSide(color: Color(0xFF0F2D69)),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: () => ConsumerVendorAgreementDialog.show(context, customer: r),
+          icon: const Icon(Icons.handshake_outlined, size: 13),
+          label: const Text('Agreement', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
         );
       default:
         return Text(ExportService.getColumnValue(r, col), style: const TextStyle(fontSize: 12));

@@ -137,14 +137,12 @@ class QuotationStorageService {
           .eq('consumer_no', consumerNo.trim())
           .order('created_at', ascending: false);
 
-      if (res is List) {
-        for (final row in res) {
+      for (final row in res) {
           try {
             final quotation = SolarQuotation.fromJson(row);
             // Supabase entries override or complement local
             quotationMap[quotation.quotationNo] = quotation;
           } catch (_) {}
-        }
       }
     } catch (e) {
       debugPrint('Supabase quotation fetch skipped: $e');

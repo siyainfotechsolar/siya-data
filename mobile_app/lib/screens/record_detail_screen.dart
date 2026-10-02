@@ -50,9 +50,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
   List<PaymentTransaction> _customerPayments = [];
   bool _isLoadingCustomerPayments = true;
   List<SolarQuotation> _customerQuotations = [];
-  bool _isLoadingQuotations = true;
   List<ConsumerVendorAgreement> _customerAgreements = [];
-  bool _isLoadingAgreements = true;
 
   @override
   void initState() {
@@ -70,11 +68,10 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       if (mounted) {
         setState(() {
           _customerAgreements = list;
-          _isLoadingAgreements = false;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoadingAgreements = false);
+      if (mounted) setState(() {});
     }
   }
 
@@ -84,11 +81,10 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       if (mounted) {
         setState(() {
           _customerQuotations = list;
-          _isLoadingQuotations = false;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoadingQuotations = false);
+      if (mounted) setState(() {});
     }
   }
 
@@ -1763,7 +1759,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                             ),
                           ],
                         ),
-                        subtitle: const Text('10% Customer Margin Payment Proof for Bank Loan', style: TextStyle(fontSize: 11.5)),
+                        subtitle: const Text('Tap to preview, edit receipt & download A4 PDF', style: TextStyle(fontSize: 11.5)),
                         trailing: FilledButton.tonal(
                           style: FilledButton.styleFrom(
                             backgroundColor: const Color(0xFFFEFCE8),
@@ -1773,7 +1769,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                             await BankLoanQuotationDialog.show(context, customer: _record, initialTab: 1);
                             _loadCustomerQuotations();
                           },
-                          child: const Text('Receipt (10%)'),
+                          child: const Text('Open Receipt'),
                         ),
                         onTap: () async {
                           await BankLoanQuotationDialog.show(context, customer: _record, initialTab: 1);

@@ -423,7 +423,7 @@ class ConsumerVendorAgreementService {
                       pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text('Total Agreed Cost', style: pw.TextStyle(color: darkTextColor, fontSize: 7.8, fontWeight: pw.FontWeight.bold))),
                       pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text('100%', style: pw.TextStyle(color: darkTextColor, fontSize: 7.8, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.center)),
                       pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text(currencyFmt.format(agreement.totalProjectCost), style: pw.TextStyle(color: darkTextColor, fontSize: 7.8, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right)),
-                      pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text('100% of Total Agreed Project', style: const pw.TextStyle(color: slateMutedColor, fontSize: 7.3, fontStyle: pw.FontStyle.italic))),
+                      pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5.5), child: pw.Text('100% of Total Agreed Project', style: pw.TextStyle(color: slateMutedColor, fontSize: 7.3, fontStyle: pw.FontStyle.italic))),
                     ],
                   ),
                 ],
@@ -619,7 +619,7 @@ class ConsumerVendorAgreementService {
       );
 
       if (outputFile != null) {
-        final file = await Printing.sharePdf(
+        await Printing.sharePdf(
           bytes: pdfBytes,
           filename: agreement.pdfFileName,
         );

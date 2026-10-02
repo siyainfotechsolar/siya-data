@@ -7,7 +7,6 @@ import 'package:printing/printing.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../models/consumer_record.dart';
 import '../models/solar_quotation.dart';
 
 class BankLoanQuotationService {
@@ -260,7 +259,7 @@ class BankLoanQuotationService {
                               ),
                               pw.Text(
                                 'For Bank Loan / Finance Purpose',
-                                style: const pw.TextStyle(
+                                style: pw.TextStyle(
                                   color: slateBodyColor,
                                   fontSize: 7.8,
                                   fontWeight: pw.FontWeight.bold,

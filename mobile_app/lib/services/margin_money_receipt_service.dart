@@ -32,7 +32,6 @@ class MarginMoneyReceiptService {
     final PdfFont companySubTitleFont = PdfStandardFont(PdfFontFamily.helvetica, 8.5, style: PdfFontStyle.bold);
     final PdfFont headerRightBoldFont = PdfStandardFont(PdfFontFamily.helvetica, 8.0, style: PdfFontStyle.bold);
     final PdfFont headerRightFont = PdfStandardFont(PdfFontFamily.helvetica, 7.6);
-    final PdfFont headerRightMutedFont = PdfStandardFont(PdfFontFamily.helvetica, 7.0);
 
     final PdfFont bannerTitleFont = PdfStandardFont(PdfFontFamily.helvetica, 10.5, style: PdfFontStyle.bold);
     final PdfFont bannerSubTitleFont = PdfStandardFont(PdfFontFamily.helvetica, 7.5, style: PdfFontStyle.bold);
@@ -48,7 +47,6 @@ class MarginMoneyReceiptService {
     final PdfFont noteFont = PdfStandardFont(PdfFontFamily.helvetica, 6.8);
     final PdfFont signHeaderFont = PdfStandardFont(PdfFontFamily.helvetica, 8.5, style: PdfFontStyle.bold);
     final PdfFont signTitleFont = PdfStandardFont(PdfFontFamily.helvetica, 8.0, style: PdfFontStyle.bold);
-    final PdfFont stampFont = PdfStandardFont(PdfFontFamily.helvetica, 7.0, style: PdfFontStyle.bold);
     final PdfFont signSubFont = PdfStandardFont(PdfFontFamily.helvetica, 7.0);
 
     final PdfFont footerFont = PdfStandardFont(PdfFontFamily.helvetica, 6.8);
@@ -58,7 +56,6 @@ class MarginMoneyReceiptService {
     final PdfColor navyColor = PdfColor(13, 43, 111); // #0D2B6F
     final PdfColor emeraldColor = PdfColor(4, 120, 87); // #047857
     final PdfColor lightGreenColor = PdfColor(16, 185, 129); // #10B981
-    final PdfColor goldenYellowColor = PdfColor(245, 158, 11); // #F59E0B
     final PdfColor blackColor = PdfColor(15, 23, 42); // #0F172A
     final PdfColor borderDarkColor = PdfColor(51, 65, 85); // #334155
     final PdfColor darkTextColor = PdfColor(15, 23, 42);

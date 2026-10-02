@@ -250,6 +250,12 @@ class ExportService {
         return r.createdBy ?? r.updatedBy ?? '-';
       case 'WCR':
         return r.installationStatus == 'Completed' ? 'Completed' : 'Pending';
+      case 'Quotation':
+        return r.loanRequired.toLowerCase() == 'yes' ? 'Required' : 'Available';
+      case 'Margin Receipt':
+        return r.totalAmount > 0 ? 'Rs. ${(r.totalAmount * 0.10).toStringAsFixed(0)}' : 'Rs. 16,000';
+      case 'Agreement':
+        return r.agreementStatus.isNotEmpty ? r.agreementStatus : 'Pending';
       default:
         return '-';
     }

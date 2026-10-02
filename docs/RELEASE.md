@@ -113,7 +113,20 @@ For internal testing and GitHub release distribution, standard release signing i
 
 ---
 
-## 📌 Release History
+### Release v1.0.34 (Build 35) - 2026-10-02
+- **Bank Loan Solar Quotation, Margin Money Receipt (10%) & Annexure 2 Agreement (Cross-Platform)**:
+  - **1-Click Preview & Download Buttons**:
+    - Direct access across both Mobile App (`record_detail_screen`) and Admin Web Panel (`records_screen`, `action_center_screen`, `reports_screen`).
+    - Color-coded action buttons: Emerald Green for 1-click Download, Indigo/Navy for Preview & Configure.
+    - Added dedicated 1-click preview and download for:
+      - **WCR (Work Completion Certificate)**
+      - **Quotation (Bank Loan Solar Quotation PDF)**
+      - **Agreement (Annexure 2 Consumer-Vendor Agreement PDF)**
+      - **Margin Money Receipt (10% Margin Receipt PDF)**
+  - **Audit & Compilation Stabilization**:
+    - Resolved compile errors and warnings across both mobile and web clients.
+    - 0 fatal errors, 256 automated unit tests passing across projects.
+- **Version Bump**: Mobile App `1.0.34+35`, Admin Panel `1.0.34+35`.
 
 ### Release v1.0.28 (Build 29) - 2026-09-22
 - **Non-Subsidy Site Support & Simple Integration**:

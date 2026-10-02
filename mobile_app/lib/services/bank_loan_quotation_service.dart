@@ -6,7 +6,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
-import '../models/consumer_record.dart';
 import '../models/solar_quotation.dart';
 
 class BankLoanQuotationService {
@@ -50,7 +49,6 @@ class BankLoanQuotationService {
     final PdfFont bulletFont = PdfStandardFont(PdfFontFamily.helvetica, 7.5);
     final PdfFont signHeaderFont = PdfStandardFont(PdfFontFamily.helvetica, 8.5, style: PdfFontStyle.bold);
     final PdfFont signTitleFont = PdfStandardFont(PdfFontFamily.helvetica, 8.0, style: PdfFontStyle.bold);
-    final PdfFont stampFont = PdfStandardFont(PdfFontFamily.helvetica, 7.2, style: PdfFontStyle.bold);
     final PdfFont signSubFont = PdfStandardFont(PdfFontFamily.helvetica, 7.0);
 
     final PdfFont footerFont = PdfStandardFont(PdfFontFamily.helvetica, 7.0);
@@ -59,7 +57,6 @@ class BankLoanQuotationService {
     // Color Palette optimized for normal Black & White office printers AND Color prints
     final PdfColor navyColor = PdfColor(13, 43, 111); // #0D2B6F (Deep Navy)
     final PdfColor emeraldColor = PdfColor(4, 120, 87); // #047857 (Deep Emerald)
-    final PdfColor lightGreenColor = PdfColor(16, 185, 129); // #10B981
     final PdfColor goldenYellowColor = PdfColor(245, 158, 11); // #F59E0B (Golden Yellow Accent)
     final PdfColor blackColor = PdfColor(15, 23, 42); // #0F172A (Pure Dark Black/Charcoal)
     final PdfColor borderDarkColor = PdfColor(51, 65, 85); // #334155 (Clear Black/Charcoal Border for B&W)

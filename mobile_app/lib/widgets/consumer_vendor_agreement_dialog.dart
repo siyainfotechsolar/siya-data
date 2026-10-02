@@ -96,7 +96,7 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
     }
     _systemCapacity = cap.isNotEmpty ? cap : '3 kW';
 
-    _totalProjectCost = init?.totalProjectCost ?? (cust.totalAmount != null && cust.totalAmount! > 0 ? cust.totalAmount! : 160000.0);
+    _totalProjectCost = init?.totalProjectCost ?? (cust.totalAmount > 0 ? cust.totalAmount : 160000.0);
     _cfaSubsidyAmount = init?.cfaSubsidyAmount ?? 78000.0;
     _netCustomerPayable = init?.netCustomerPayable ?? (_totalProjectCost - _cfaSubsidyAmount);
 
@@ -144,8 +144,10 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
     );
   }
 
-  /// Primary Action: [ GENERATE AGREEMENT PDF ]
-  Future<void> _handleGeneratePdf() async {
+  Future<File?> _ensurePdfGenerated() async {
+    if (_generatedFile != null && await _generatedFile!.exists()) {
+      return _generatedFile;
+    }
     setState(() {
       _isGenerating = true;
       _statusMessage = 'Generating official Agreement PDF...';
@@ -167,20 +169,8 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
           _statusMessage = null;
         });
         _loadHistory();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Agreement PDF Generated: ${file.uri.pathSegments.last}'),
-            backgroundColor: const Color(0xFF0F2D69),
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'PREVIEW',
-              textColor: Colors.white,
-              onPressed: () => ConsumerVendorAgreementPdfService.previewAgreement(file),
-            ),
-          ),
-        );
       }
+      return file;
     } catch (e) {
       debugPrint('Error generating agreement PDF: $e');
       if (mounted) {
@@ -192,33 +182,33 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
           SnackBar(content: Text('Failed to generate PDF: $e'), backgroundColor: Colors.red),
         );
       }
+      return null;
     }
   }
 
   Future<void> _handlePreviewPdf() async {
-    if (_generatedFile == null || !await _generatedFile!.exists()) {
-      await _handleGeneratePdf();
-    }
-    if (_generatedFile != null && mounted) {
-      await ConsumerVendorAgreementPdfService.previewAgreement(_generatedFile!);
+    final file = await _ensurePdfGenerated();
+    if (file != null && mounted) {
+      await ConsumerVendorAgreementPdfService.previewAgreement(file);
     }
   }
 
   Future<void> _handleSharePdf() async {
-    if (_generatedFile == null || !await _generatedFile!.exists()) {
-      await _handleGeneratePdf();
-    }
-    if (_generatedFile != null && mounted) {
+    final file = await _ensurePdfGenerated();
+    if (file != null && mounted) {
       final agreement = _buildAgreement();
-      await ConsumerVendorAgreementPdfService.shareAgreement(_generatedFile!, agreement);
+      await ConsumerVendorAgreementPdfService.shareAgreement(file, agreement);
     }
   }
 
   Future<void> _handleDownloadPdf() async {
-    if (_generatedFile == null || !await _generatedFile!.exists()) {
-      await _handleGeneratePdf();
-    }
-    if (_generatedFile != null && mounted) {
+    final file = await _ensurePdfGenerated();
+    if (file != null && mounted) {
+      setState(() {
+        _isGenerating = true;
+        _statusMessage = 'Saving to device storage...';
+      });
+
       try {
         final agreement = _buildAgreement();
         Directory? downloadDir;
@@ -232,13 +222,15 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
         }
 
         final targetPath = '${downloadDir.path}/${agreement.pdfFileName}';
-        final savedFile = await _generatedFile!.copy(targetPath);
+        final savedFile = await file.copy(targetPath);
 
         if (mounted) {
+          setState(() => _isGenerating = false);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Downloaded: ${savedFile.uri.pathSegments.last}'),
+              content: Text('Saved: ${savedFile.uri.pathSegments.last}'),
               backgroundColor: const Color(0xFF047857),
+              duration: const Duration(seconds: 4),
               action: SnackBarAction(
                 label: 'OPEN',
                 textColor: Colors.white,
@@ -249,6 +241,7 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
         }
       } catch (e) {
         if (mounted) {
+          setState(() => _isGenerating = false);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Download failed: $e'), backgroundColor: Colors.red),
           );
@@ -431,293 +424,285 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 720),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFBFDBFE)),
+            ),
+            child: const Icon(Icons.handshake_outlined, color: Color(0xFF0F2D69), size: 24),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Consumer-Vendor Agreement',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'PM Surya Ghar: Muft Bijli Yojana • Annexure 2',
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 500,
+        child: SingleChildScrollView(
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header
+              // Header with Edit Payment Table Button
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F2D69).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFF0F2D69), size: 22),
+                  const Text(
+                    'Agreement Specifications',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69)),
                   ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Consumer-Vendor Agreement',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69)),
-                        ),
-                        Text(
-                          'PM Surya Ghar: Muft Bijli Yojana • Official Annexure 2',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                        ),
-                      ],
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.edit_note_rounded, size: 16, color: Color(0xFF0F2D69)),
+                    label: const Text(
+                      'Edit Milestones',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69)),
+                    ),
+                    onPressed: _openEditPaymentTableModal,
                   ),
                 ],
               ),
-              const Divider(height: 18),
+              const SizedBox(height: 6),
 
-              // Body
-              Expanded(
-                child: ListView(
+              // Summary Box (matching WCR layout)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey.shade900 : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: isDark ? Colors.grey.shade800 : const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
                   children: [
-                    // Auto-fill Details Card
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('AUTO-FILLED CUSTOMER DATA', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                              Text('Date: ${DateFormat('dd-MM-yyyy').format(_executionDate)}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69))),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(_customerName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A))),
-                          const SizedBox(height: 2),
-                          Text('Consumer No: $_consumerNo  •  Mobile: ${_customerMobile.isNotEmpty ? _customerMobile : "N/A"}', style: const TextStyle(fontSize: 11, color: Color(0xFF334155))),
-                          Text('Address: $_customerAddress', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                          const Divider(height: 14),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              _buildMetricItem('Capacity', _systemCapacity),
-                              _buildMetricItem('Project Cost', currencyFmt.format(_totalProjectCost)),
-                              _buildMetricItem('Govt Subsidy', currencyFmt.format(_cfaSubsidyAmount)),
-                              _buildMetricItem('Net Payable', currencyFmt.format(_netCustomerPayable)),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Payment Milestones Overview & Edit
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFCBD5E1)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('PAYMENT TABLE (Clause 19)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0F2D69))),
-                              TextButton(
-                                style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
-                                onPressed: _openEditPaymentTableModal,
-                                child: const Text('Edit Milestones', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          ..._paymentMilestones.map((m) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 2.0),
-                              child: Row(
-                                children: [
-                                  Text('${m.sr}. ${m.stage} (${m.percentage.toStringAsFixed(0)}%):', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-                                  const Spacer(),
-                                  Text(currencyFmt.format(m.amount), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Primary Button: [ GENERATE AGREEMENT PDF ]
-                    FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F2D69),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onPressed: _isGenerating ? null : _handleGeneratePdf,
-                      icon: _isGenerating
-                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.picture_as_pdf, size: 20),
-                      label: Text(
-                        _isGenerating ? (_statusMessage ?? 'Generating...') : 'GENERATE AGREEMENT PDF',
-                        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                      ),
-                    ),
-
-                    // Actions after generation
-                    if (_generatedFile != null) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFECFDF5),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFA7F3D0)),
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.check_circle, color: Color(0xFF047857), size: 18),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    'PDF Ready: ${_generatedFile!.uri.pathSegments.last}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF065F46)),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10), visualDensity: VisualDensity.compact),
-                                    onPressed: _handlePreviewPdf,
-                                    icon: const Icon(Icons.preview_rounded, size: 16),
-                                    label: const Text('Preview PDF', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10), visualDensity: VisualDensity.compact),
-                                    onPressed: _handleSharePdf,
-                                    icon: const Icon(Icons.share_outlined, size: 16),
-                                    label: const Text('Share PDF', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: FilledButton.tonal(
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: const Color(0xFF047857),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 10),
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                    onPressed: _handleDownloadPdf,
-                                    child: const Text('Download', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    // History Section
-                    if (_previousAgreements.isNotEmpty) ...[
-                      const Divider(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Previous Agreements (${_previousAgreements.length})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0F2D69))),
-                          const Text('Annexure 2 A4 PDF', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      ..._previousAgreements.take(3).map((agr) {
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFFDC2626), size: 16),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '${agr.agreementNo} • ${agr.systemCapacity}',
-                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                              TextButton(
-                                style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), minimumSize: Size.zero),
-                                onPressed: () async {
-                                  if (agr.pdfFilePath != null && File(agr.pdfFilePath!).existsSync()) {
-                                    ConsumerVendorAgreementPdfService.previewAgreement(File(agr.pdfFilePath!));
-                                  } else {
-                                    final file = await ConsumerVendorAgreementPdfService.generateAgreementPdf(agreement: agr);
-                                    ConsumerVendorAgreementPdfService.previewAgreement(file);
-                                  }
-                                },
-                                child: const Text('View', style: TextStyle(fontSize: 11)),
-                              ),
-                              const SizedBox(width: 4),
-                              IconButton(
-                                icon: const Icon(Icons.share_outlined, size: 16, color: Color(0xFF0F2D69)),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                tooltip: 'Share',
-                                onPressed: () async {
-                                  final file = (agr.pdfFilePath != null && File(agr.pdfFilePath!).existsSync())
-                                      ? File(agr.pdfFilePath!)
-                                      : await ConsumerVendorAgreementPdfService.generateAgreementPdf(agreement: agr);
-                                  ConsumerVendorAgreementPdfService.shareAgreement(file, agr);
-                                },
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                    ],
+                    _buildDetailRow('Customer Name', _customerName, isBold: true),
+                    const Divider(height: 12),
+                    _buildDetailRow('Consumer No.', _consumerNo),
+                    const Divider(height: 12),
+                    _buildDetailRow('Agreement No.', _agreementNo),
+                    const Divider(height: 12),
+                    _buildDetailRow('Project Address', _customerAddress),
+                    const Divider(height: 12),
+                    _buildDetailRow('Solar Capacity', _systemCapacity),
+                    const Divider(height: 12),
+                    _buildDetailRow('Total Project Cost', currencyFmt.format(_totalProjectCost)),
+                    const Divider(height: 12),
+                    _buildDetailRow('Govt Subsidy (CFA)', currencyFmt.format(_cfaSubsidyAmount)),
+                    const Divider(height: 12),
+                    _buildDetailRow('Net Payable', currencyFmt.format(_netCustomerPayable), isBold: true),
                   ],
                 ),
               ),
+              const SizedBox(height: 10),
+
+              // Payment Milestones Mini Card
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Payment Milestones (Clause 19)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF0F2D69))),
+                        Text('${_paymentMilestones.length} Stages', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ..._paymentMilestones.map((m) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1.5),
+                      child: Row(
+                        children: [
+                          Text('${m.sr}. ${m.stage} (${m.percentage.toStringAsFixed(0)}%):', style: const TextStyle(fontSize: 10.5, color: Color(0xFF334155))),
+                          const Spacer(),
+                          Text(currencyFmt.format(m.amount), style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    )),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // Format Info Pill (identical to WCR)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFA7F3D0)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.check_circle_outline, size: 16, color: Color(0xFF059669)),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'A4 Agreement • Official PM Surya Ghar Model Draft',
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF047857)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (_isGenerating) ...[
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      _statusMessage ?? 'Processing Agreement...',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ],
+
+              // Previous Agreements (Collapsible/compact if available)
+              if (_previousAgreements.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text('Saved Customer Agreements (${_previousAgreements.length})', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69))),
+                const SizedBox(height: 4),
+                ..._previousAgreements.take(2).map((agr) => Container(
+                  margin: const EdgeInsets.only(bottom: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFFDC2626), size: 14),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${agr.agreementNo} • ${agr.systemCapacity}',
+                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      TextButton(
+                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0), minimumSize: Size.zero),
+                        onPressed: () async {
+                          if (agr.pdfFilePath != null && File(agr.pdfFilePath!).existsSync()) {
+                            ConsumerVendorAgreementPdfService.previewAgreement(File(agr.pdfFilePath!));
+                          } else {
+                            final file = await ConsumerVendorAgreementPdfService.generateAgreementPdf(agreement: agr);
+                            ConsumerVendorAgreementPdfService.previewAgreement(file);
+                          }
+                        },
+                        child: const Text('View', style: TextStyle(fontSize: 10.5)),
+                      ),
+                    ],
+                  ),
+                )),
+              ],
             ],
           ),
         ),
       ),
+      actions: [
+        // Preview Button (Identical to WCR)
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF0F2D69),
+            side: const BorderSide(color: Color(0xFF0F2D69), width: 1.2),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          onPressed: _isGenerating ? null : _handlePreviewPdf,
+          icon: const Icon(Icons.visibility_rounded, size: 17),
+          label: const Text('Preview'),
+        ),
+
+        // Share Button (Identical to WCR)
+        FilledButton.tonalIcon(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
+            foregroundColor: const Color(0xFF128C7E),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          onPressed: _isGenerating ? null : _handleSharePdf,
+          icon: const Icon(Icons.share_rounded, size: 17),
+          label: const Text('Share'),
+        ),
+
+        // Download Button (Identical to WCR)
+        FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF059669),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          ),
+          onPressed: _isGenerating ? null : _handleDownloadPdf,
+          icon: const Icon(Icons.download_rounded, size: 17),
+          label: const Text('Download'),
+        ),
+      ],
     );
   }
 
-  Widget _buildMetricItem(String label, String value) {
-    return Column(
+  Widget _buildDetailRow(String label, String value, {bool isBold = false}) {
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
-        const SizedBox(height: 2),
-        Text(value, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69))),
+        SizedBox(
+          width: 110,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ),
+        const Text(': ', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+              color: isBold ? const Color(0xFF0F2D69) : null,
+            ),
+          ),
+        ),
       ],
     );
   }

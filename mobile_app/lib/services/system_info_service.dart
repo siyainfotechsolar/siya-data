@@ -238,8 +238,8 @@ class SystemInfoService {
 
     return SystemDiagnosticsData(
       appName: 'Siya Solar Connect',
-      version: '1.0.28',
-      buildNumber: '29',
+      version: '1.0.34',
+      buildNumber: '35',
       environment: kReleaseMode ? 'Production' : 'Development',
       serverReachability: serverOk ? 'Online' : 'Offline',
       databaseStatus: dbOk ? 'Connected' : 'Disconnected',

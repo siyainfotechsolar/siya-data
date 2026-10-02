@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/customer_task.dart';
 import '../services/supabase_service.dart';
-import '../services/activity_log_service.dart';
+
 
 class WhatsAppTasksScreen extends StatefulWidget {
   const WhatsAppTasksScreen({super.key});
@@ -494,7 +494,6 @@ class _WhatsAppTasksScreenState extends State<WhatsAppTasksScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
     final tasks = _filteredTasks;
 

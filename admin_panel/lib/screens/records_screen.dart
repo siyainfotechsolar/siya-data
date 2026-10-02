@@ -10,6 +10,8 @@ import '../widgets/import_dialog.dart';
 import '../widgets/export_excel_button.dart';
 import '../widgets/global_whatsapp_button.dart';
 import '../widgets/work_completion_certificate_dialog.dart';
+import '../widgets/bank_loan_quotation_dialog.dart';
+import '../widgets/consumer_vendor_agreement_dialog.dart';
 import '../services/excel_export_service.dart';
 import '../services/export_definitions.dart';
 import '../utils/responsive.dart';
@@ -1277,6 +1279,26 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                                       currentStage: r.overallStage,
                                                     ),
                                                     IconButton(
+                                                      icon: const Icon(Icons.request_quote_outlined, size: 18, color: Color(0xFF047857)),
+                                                      tooltip: 'Bank Quotation',
+                                                      onPressed: () => BankLoanQuotationDialog.show(context, r),
+                                                    ),
+                                                    IconButton(
+                                                      icon: const Icon(Icons.receipt_long_rounded, size: 18, color: Color(0xFF854D0E)),
+                                                      tooltip: 'Margin Money Receipt (10%)',
+                                                      onPressed: () => BankLoanQuotationDialog.show(context, r, initialTab: 1),
+                                                    ),
+                                                    IconButton(
+                                                      icon: const Icon(Icons.verified_outlined, size: 18, color: Color(0xFF0F2D69)),
+                                                      tooltip: 'Work Completion Certificate (WCR)',
+                                                      onPressed: () => WorkCompletionCertificateDialog.show(context, r),
+                                                    ),
+                                                    IconButton(
+                                                      icon: const Icon(Icons.handshake_outlined, size: 18, color: Color(0xFF0F2D69)),
+                                                      tooltip: 'Consumer-Vendor Agreement (Annex. 2)',
+                                                      onPressed: () => ConsumerVendorAgreementDialog.show(context, customer: r),
+                                                    ),
+                                                    IconButton(
                                                       icon: const Icon(Icons.edit, size: 18),
                                                       tooltip: 'Edit Record',
                                                       onPressed: () => _openEditRecordDialog(r),
@@ -1428,6 +1450,30 @@ class _RecordsScreenState extends State<RecordsScreen> {
                   ),
                 ),
                 const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.request_quote_outlined, size: 16, color: Color(0xFF047857)),
+                  tooltip: 'Quotation',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => BankLoanQuotationDialog.show(context, r),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.receipt_long_rounded, size: 16, color: Color(0xFF854D0E)),
+                  tooltip: 'Margin Receipt (10%)',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => BankLoanQuotationDialog.show(context, r, initialTab: 1),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.verified_outlined, size: 16, color: Color(0xFF0F2D69)),
+                  tooltip: 'WCR',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => WorkCompletionCertificateDialog.show(context, r),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.handshake_outlined, size: 16, color: Color(0xFF0F2D69)),
+                  tooltip: 'Agreement',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => ConsumerVendorAgreementDialog.show(context, customer: r),
+                ),
                 GlobalWhatsAppButton(
                   phoneNumber: r.mobile,
                   customerName: r.name,
