@@ -499,16 +499,16 @@ class MarginMoneyReceiptService {
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
-                              pw.SizedBox(height: 2),
+                              pw.SizedBox(height: 3),
                               pw.Text(
-                                'I hereby confirm deposit of 10% margin money for solar installation.',
+                                'I hereby confirm deposit of margin money for solar installation.',
                                 style: const pw.TextStyle(
                                   color: slateMutedColor,
                                   fontSize: 6.8,
                                 ),
                               ),
-                              pw.SizedBox(height: 62), // Space for pen signature
-                              pw.Container(width: 165, height: 1.0, color: darkTextColor),
+                              pw.SizedBox(height: 81), // Perfectly aligns Customer signature line with Vendor signature line!
+                              pw.Container(width: 160, height: 1.0, color: darkTextColor),
                               pw.SizedBox(height: 3),
                               pw.Text(
                                 'Borrower Signature',
@@ -518,7 +518,7 @@ class MarginMoneyReceiptService {
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
-                              pw.SizedBox(height: 1.5),
+                              pw.SizedBox(height: 2),
                               pw.Text(
                                 receipt.customerName,
                                 style: const pw.TextStyle(
@@ -530,7 +530,7 @@ class MarginMoneyReceiptService {
                           ),
                         ),
 
-                        // Right: Vendor Authorization (Signature on top, Stamp box below)
+                        // Right: Vendor Authorization & Official Stamp
                         pw.Container(
                           width: 210,
                           child: pw.Column(
@@ -544,51 +544,40 @@ class MarginMoneyReceiptService {
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
-                              pw.SizedBox(height: 70), // Generous signature pen gap on top!
-                              pw.Container(width: 160, height: 1.0, color: darkTextColor),
-                              pw.SizedBox(height: 3),
-                              pw.Text(
-                                receipt.signatoryName,
-                                style: pw.TextStyle(
-                                  color: darkTextColor,
-                                  fontSize: 8.0,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                              pw.SizedBox(height: 1.5),
-                              pw.Text(
-                                '${receipt.signatoryDesignation} | Betawad',
-                                style: const pw.TextStyle(
-                                  color: slateMutedColor,
-                                  fontSize: 7.0,
-                                ),
-                              ),
-                              pw.SizedBox(height: 8),
-                              // Vendor Official Round Stamp boundary below signature (Completely blank inside, pure white background for manual ink stamp)
+                              pw.SizedBox(height: 4),
+                              // Vendor Official Round Stamp (Identical 66x66 dashed circle with 56x56 inner guide)
                               pw.Container(
-                                width: 74,
-                                height: 74,
+                                width: 66,
+                                height: 66,
                                 decoration: pw.BoxDecoration(
                                   shape: pw.BoxShape.circle,
-                                  border: pw.Border.all(
-                                    color: borderDarkColor,
-                                    width: 0.8,
-                                    style: pw.BorderStyle.dashed,
-                                  ),
                                   color: PdfColors.white,
+                                  border: pw.Border.all(color: borderDarkColor, style: pw.BorderStyle.dashed, width: 0.8),
                                 ),
                                 child: pw.Center(
                                   child: pw.Container(
-                                    width: 64,
-                                    height: 64,
+                                    width: 56,
+                                    height: 56,
                                     decoration: pw.BoxDecoration(
                                       shape: pw.BoxShape.circle,
-                                      border: pw.Border.all(
-                                        color: borderDarkColor,
-                                        width: 0.5,
-                                      ),
+                                      border: pw.Border.all(color: borderDarkColor, width: 0.5),
                                     ),
                                   ),
+                                ),
+                              ),
+                              pw.SizedBox(height: 22), // Generous space for physical pen signature above the line!
+                              pw.Container(width: 160, height: 1.0, color: darkTextColor),
+                              pw.SizedBox(height: 3),
+                              pw.Text(
+                                'Authorized Signatory',
+                                style: pw.TextStyle(color: darkTextColor, fontSize: 8.0, fontWeight: pw.FontWeight.bold),
+                              ),
+                              pw.SizedBox(height: 2),
+                              pw.Text(
+                                '${receipt.signatoryName} | ${receipt.signatoryDesignation} | Betawad',
+                                style: const pw.TextStyle(
+                                  color: slateMutedColor,
+                                  fontSize: 7.0,
                                 ),
                               ),
                             ],

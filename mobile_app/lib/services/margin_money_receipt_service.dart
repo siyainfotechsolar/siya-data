@@ -379,33 +379,22 @@ class MarginMoneyReceiptService {
     );
     y += decBoxH + 20;
 
-    // 8. Dual Signatures (Borrower & Vendor Stamp Box) - Signatures above stamp
+    // 8. Dual Signatures (Borrower & Vendor Stamp Box) - Standardized layout matching Quotation
     const double signColW = 210;
+    const double lineWidth = 160;
 
     // Left: Customer Confirmation
     graphics.drawString('Customer / Borrower Confirmation', signHeaderFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft, y, signColW, 12));
-    graphics.drawString('I hereby confirm deposit of 10% margin money.', noteFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft, y + 13, signColW, 10));
+    graphics.drawString('I hereby confirm deposit of margin money for solar installation.', noteFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft, y + 14, signColW, 10));
 
-    final double signLineY = y + 66; // Generous signature gap
-    graphics.drawLine(tableOuterPen, Offset(contentLeft, signLineY), Offset(contentLeft + 160, signLineY));
-    graphics.drawString('Borrower Signature', signTitleFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft, signLineY + 3, signColW, 11));
-    graphics.drawString(receipt.customerName, signSubFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft, signLineY + 14, signColW, 10));
-
-    // Right: Vendor Authorization & Stamp (Signature on top, Stamp below)
+    // Right: Vendor Authorization & Stamp
     final double vendorSignL = contentRight - signColW;
     graphics.drawString('For SIYA INFOTECH AND DIGITAL SOLUTIONS', signHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(vendorSignL, y, signColW, 12));
 
-    const double stampW = 140;
-    final double stampL = vendorSignL + ((signColW - stampW) / 2);
-
-    graphics.drawLine(tableOuterPen, Offset(stampL, signLineY), Offset(stampL + stampW, signLineY));
-    graphics.drawString(receipt.signatoryName, signTitleFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(vendorSignL, signLineY + 3, signColW, 11));
-    graphics.drawString('${receipt.signatoryDesignation} | Betawad', signSubFont, brush: slateMutedBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(vendorSignL, signLineY + 14, signColW, 10));
-
-    // Official Round Stamp below the signature (Completely blank inside, pure white background for manual ink stamp)
-    const double stampDiam = 74;
+    // Vendor Official Round Stamp (Identical 66x66 dashed circle with 56x56 inner guide)
+    const double stampDiam = 66;
     final double stampRoundL = vendorSignL + ((signColW - stampDiam) / 2);
-    final double stampY = signLineY + 32;
+    final double stampY = y + 14;
 
     final PdfPen dashPen = PdfPen(borderDarkColor, width: 0.8);
     dashPen.dashStyle = PdfDashStyle.dash;
@@ -415,7 +404,19 @@ class MarginMoneyReceiptService {
     final PdfPen innerPen = PdfPen(borderDarkColor, width: 0.5);
     graphics.drawEllipse(Rect.fromLTWH(stampRoundL + 5, stampY + 5, stampDiam - 10, stampDiam - 10), pen: innerPen);
 
-    y = stampY + stampDiam + 12;
+    // Unified Baseline: Both Borrower & Vendor lines sit at the EXACT SAME horizontal Y!
+    final double commonLineY = stampY + stampDiam + 22;
+
+    // Left Signature Line (160pt width)
+    graphics.drawLine(tableOuterPen, Offset(contentLeft, commonLineY), Offset(contentLeft + lineWidth, commonLineY));
+    graphics.drawString('Borrower Signature', signTitleFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft, commonLineY + 4, signColW, 11));
+    graphics.drawString(receipt.customerName, signSubFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft, commonLineY + 16, signColW, 10));
+
+    // Right Signature Line (Identical 160pt width, perfectly centered under vendor column)
+    final double vendorLineL = vendorSignL + ((signColW - lineWidth) / 2);
+    graphics.drawLine(tableOuterPen, Offset(vendorLineL, commonLineY), Offset(vendorLineL + lineWidth, commonLineY));
+    graphics.drawString('Authorized Signatory', signTitleFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(vendorSignL, commonLineY + 4, signColW, 11));
+    graphics.drawString('${receipt.signatoryName} • ${receipt.signatoryDesignation} | Betawad', signSubFont, brush: slateMutedBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(vendorSignL, commonLineY + 16, signColW, 10));
 
     // 9. Footer
     const double footerY = pageHeight - 34;

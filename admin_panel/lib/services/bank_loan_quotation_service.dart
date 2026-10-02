@@ -574,7 +574,7 @@ class BankLoanQuotationService {
                                   fontSize: 6.8,
                                 ),
                               ),
-                              pw.SizedBox(height: 44), // Generous space for customer's physical pen signature!
+                              pw.SizedBox(height: 81), // Perfectly aligns Customer signature line with Vendor signature line!
                               pw.Container(width: 160, height: 1.0, color: darkTextColor),
                               pw.SizedBox(height: 3),
                               pw.Text(
@@ -633,7 +633,7 @@ class BankLoanQuotationService {
                                 ),
                               ),
                               pw.SizedBox(height: 22), // Generous space for physical pen signature above the line!
-                              pw.Container(width: 140, height: 1.0, color: darkTextColor),
+                              pw.Container(width: 160, height: 1.0, color: darkTextColor),
                               pw.SizedBox(height: 3),
                               pw.Text(
                                 'Authorized Signatory',

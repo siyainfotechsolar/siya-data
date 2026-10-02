@@ -661,6 +661,7 @@ class BankLoanQuotationService {
     // 8. SIGNATURES & STAMPS (Customer & Vendor Dual Layout)
     // ==========================================
     final double signYStart = y;
+    const double lineWidth = 160;
 
     // --- LEFT COLUMN: Customer Acceptance & Signature ---
     final double custSignLeft = contentLeft;
@@ -677,30 +678,6 @@ class BankLoanQuotationService {
 
     graphics.drawString(
       'I/We accept the quotation, technical specifications & payment terms.',
-      signSubFont,
-      brush: slateMutedBrush,
-      bounds: Rect.fromLTWH(custSignLeft, custY, custSignWidth, 10),
-    );
-    custY += 38; // Generous space for customer physical signature
-
-    const double custLineW = 160;
-    graphics.drawLine(
-      tableOuterPen,
-      Offset(custSignLeft, custY),
-      Offset(custSignLeft + custLineW, custY),
-    );
-    custY += 4;
-
-    graphics.drawString(
-      'Customer Signature',
-      signTitleFont,
-      brush: darkTextBrush,
-      bounds: Rect.fromLTWH(custSignLeft, custY, custSignWidth, 11),
-    );
-    custY += 12;
-
-    graphics.drawString(
-      quotation.customerName,
       signSubFont,
       brush: slateMutedBrush,
       bounds: Rect.fromLTWH(custSignLeft, custY, custSignWidth, 10),
@@ -739,31 +716,52 @@ class BankLoanQuotationService {
       pen: innerPen,
     );
 
-    vendorY += stampDiam + 14; // Generous blank space for physical pen signature above the line
+    // Unified Baseline: Both Customer & Vendor lines sit at the EXACT SAME horizontal Y!
+    final double commonLineY = vendorY + stampDiam + 22;
 
-    // Signature Line
+    // Left Signature Line
     graphics.drawLine(
       tableOuterPen,
-      Offset(stampL, vendorY),
-      Offset(stampL + stampDiam, vendorY),
+      Offset(custSignLeft, commonLineY),
+      Offset(custSignLeft + lineWidth, commonLineY),
     );
-    vendorY += 4;
+
+    graphics.drawString(
+      'Customer Signature',
+      signTitleFont,
+      brush: darkTextBrush,
+      bounds: Rect.fromLTWH(custSignLeft, commonLineY + 4, custSignWidth, 11),
+    );
+
+    graphics.drawString(
+      quotation.customerName,
+      signSubFont,
+      brush: slateMutedBrush,
+      bounds: Rect.fromLTWH(custSignLeft, commonLineY + 16, custSignWidth, 10),
+    );
+
+    // Right Signature Line (Identical 160pt width, perfectly centered under vendor column)
+    final double vendorLineL = vendorSignLeft + ((vendorSignWidth - lineWidth) / 2);
+    graphics.drawLine(
+      tableOuterPen,
+      Offset(vendorLineL, commonLineY),
+      Offset(vendorLineL + lineWidth, commonLineY),
+    );
 
     graphics.drawString(
       'Authorized Signatory',
       signTitleFont,
       brush: darkTextBrush,
       format: PdfStringFormat(alignment: PdfTextAlignment.center),
-      bounds: Rect.fromLTWH(vendorSignLeft, vendorY, vendorSignWidth, 11),
+      bounds: Rect.fromLTWH(vendorSignLeft, commonLineY + 4, vendorSignWidth, 11),
     );
-    vendorY += 12;
 
     graphics.drawString(
       '(Vendor Stamp & Signature)',
       signSubFont,
       brush: slateMutedBrush,
       format: PdfStringFormat(alignment: PdfTextAlignment.center),
-      bounds: Rect.fromLTWH(vendorSignLeft, vendorY, vendorSignWidth, 10),
+      bounds: Rect.fromLTWH(vendorSignLeft, commonLineY + 16, vendorSignWidth, 10),
     );
 
     // ==========================================
