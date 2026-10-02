@@ -39,6 +39,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
   final int _pageSize = 15;
   String _selectedStatus = 'All';
   String _selectedSiteType = 'Subsidy';
+  String _selectedFinancingType = 'All'; // 'All', 'Cash Customer', 'Bank Loan'
   String _selectedWorkflowQueue = 'All';
   String _workQueueScope = 'Active'; // 'Active', 'Completed', 'Old Applications', 'All'
   String _sortBy = 'updated_at';
@@ -166,6 +167,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
         searchQuery: _searchController.text,
         statusFilter: _selectedStatus,
         siteTypeFilter: _selectedSiteType,
+        financingTypeFilter: _selectedFinancingType,
         workflowQueueFilter: _selectedWorkflowQueue,
         workQueueScope: _workQueueScope,
         sortBy: _sortBy,
@@ -597,6 +599,29 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
+                    const Text('FINANCING / FUNDING', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: _selectedFinancingType,
+                      decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                      items: const [
+                        DropdownMenuItem(value: 'All', child: Text('All Funding')),
+                        DropdownMenuItem(value: 'Cash Customer', child: Text('💵 Cash Customer')),
+                        DropdownMenuItem(value: 'Bank Loan', child: Text('🏦 Bank Loan')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _selectedFinancingType = val;
+                            _currentPage = 1;
+                            _selectedRecordIds.clear();
+                          });
+                          setSheetState(() {});
+                          _loadRecords();
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
                     const Text('STATUS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
@@ -961,6 +986,43 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        Text('FINANCING', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.colorScheme.onSurfaceVariant)),
+                        const SizedBox(height: 2),
+                        DropdownButtonHideUnderline(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.teal.shade400),
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors.teal.shade50.withValues(alpha: 0.3),
+                            ),
+                            child: DropdownButton<String>(
+                              value: _selectedFinancingType,
+                              items: const [
+                                DropdownMenuItem(value: 'All', child: Text('All Funding', style: TextStyle(fontWeight: FontWeight.bold))),
+                                DropdownMenuItem(value: 'Cash Customer', child: Text('💵 Cash Customer')),
+                                DropdownMenuItem(value: 'Bank Loan', child: Text('🏦 Bank Loan')),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    _selectedFinancingType = val;
+                                    _currentPage = 1;
+                                    _selectedRecordIds.clear();
+                                  });
+                                  _loadRecords();
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Text('STATUS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.colorScheme.onSurfaceVariant)),
                         const SizedBox(height: 2),
                         DropdownButtonHideUnderline(
@@ -1194,16 +1256,24 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                                           ? (val) => _toggleRecordSelection(r.id!, val)
                                                           : null,
                                                     ),
-                                                    InkWell(
-                                                      onTap: () => _openDetailsDialog(r),
-                                                      child: Text(
-                                                        r.name,
-                                                        style: const TextStyle(
-                                                          fontWeight: FontWeight.w600,
-                                                          color: Color(0xFF2563EB),
-                                                          decoration: TextDecoration.underline,
+                                                    Column(
+                                                      mainAxisAlignment: MainAxisAlignment.center,
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        InkWell(
+                                                          onTap: () => _openDetailsDialog(r),
+                                                          child: Text(
+                                                            r.name,
+                                                            style: const TextStyle(
+                                                              fontWeight: FontWeight.w600,
+                                                              color: Color(0xFF2563EB),
+                                                              decoration: TextDecoration.underline,
+                                                            ),
+                                                          ),
                                                         ),
-                                                      ),
+                                                        const SizedBox(height: 2),
+                                                        _buildFinancingBadge(r),
+                                                      ],
                                                     ),
                                                   ],
                                                 ),
@@ -1412,6 +1482,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
                   ),
                 ),
                 const SizedBox(width: 6),
+                _buildFinancingBadge(r),
+                const SizedBox(width: 6),
                 _buildStatusBadge(r.status),
               ],
             ),
@@ -1542,6 +1614,37 @@ class _RecordsScreenState extends State<RecordsScreen> {
       child: Text(
         status,
         style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 12),
+      ),
+    );
+  Widget _buildFinancingBadge(ConsumerRecord r) {
+    final isLoan = r.loanRequired.trim().toLowerCase() == 'yes';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+      decoration: BoxDecoration(
+        color: isLoan ? const Color(0xFFEFF6FF) : const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: isLoan ? const Color(0xFFBFDBFE) : const Color(0xFFBBF7D0),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isLoan ? Icons.account_balance : Icons.payments_outlined,
+            size: 10,
+            color: isLoan ? const Color(0xFF1D4ED8) : const Color(0xFF15803D),
+          ),
+          const SizedBox(width: 3),
+          Text(
+            isLoan ? 'Bank Loan' : 'Cash',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: isLoan ? const Color(0xFF1D4ED8) : const Color(0xFF15803D),
+            ),
+          ),
+        ],
       ),
     );
   }

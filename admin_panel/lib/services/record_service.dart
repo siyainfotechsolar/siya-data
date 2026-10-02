@@ -137,6 +137,7 @@ class RecordService {
     String? searchQuery,
     String? statusFilter,
     String? siteTypeFilter,
+    String? financingTypeFilter, // 'All', 'Cash', 'Bank Loan'
     String? workflowQueueFilter, // 'Agreement Pending', 'Loan Pending', 'Installation Pending', 'RTS Pending', 'Subsidy Pending', 'Subsidy Processing', 'Completed'
     String workQueueScope = 'Active', // 'Active', 'Completed', 'Old Applications', 'All'
     String sortBy = 'updated_at',
@@ -173,6 +174,14 @@ class RecordService {
 
       if (siteTypeFilter != null && siteTypeFilter.isNotEmpty && siteTypeFilter != 'All') {
         filterBuilder = filterBuilder.eq('site_type', siteTypeFilter);
+      }
+
+      if (financingTypeFilter != null && financingTypeFilter.isNotEmpty && financingTypeFilter != 'All') {
+        if (financingTypeFilter == 'Cash' || financingTypeFilter == 'Cash Customer') {
+          filterBuilder = filterBuilder.or('loan_required.eq.No,loan_required.eq.no,loan_required.is.null');
+        } else if (financingTypeFilter == 'Bank Loan' || financingTypeFilter == 'Loan') {
+          filterBuilder = filterBuilder.or('loan_required.eq.Yes,loan_required.eq.yes');
+        }
       }
 
       // Workflow Queue filter

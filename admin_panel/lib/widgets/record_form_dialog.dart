@@ -26,6 +26,7 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
   late TextEditingController _contributionController;
   late TextEditingController _remarksController;
   late String _siteType;
+  late String _loanRequired;
   late String _status;
   bool _isLoading = false;
   String? _errorMessage;
@@ -50,10 +51,14 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
     _capacityController = TextEditingController(text: r?.systemCapacity ?? '');
     _systemTypeController = TextEditingController(text: r?.systemType ?? '');
     final totalCost = r != null && r.totalAmount > 0 ? r.totalAmount : 0.0;
-    final loanAmt = r != null && r.loanSanctionedAmount > 0 ? r.loanSanctionedAmount : (totalCost > 0 ? (totalCost * 0.9).roundToDouble() : 0.0);
+    _loanRequired = r?.loanRequired ?? 'No';
+    final isLoan = _loanRequired.toLowerCase() == 'yes';
+    final loanAmt = isLoan
+        ? (r != null && r.loanSanctionedAmount > 0 ? r.loanSanctionedAmount : (totalCost > 0 ? (totalCost * 0.9).roundToDouble() : 0.0))
+        : 0.0;
     final contrib = (totalCost - loanAmt).clamp(0.0, double.infinity);
     _costController = TextEditingController(text: totalCost > 0 ? totalCost.toStringAsFixed(0) : '');
-    _loanController = TextEditingController(text: loanAmt > 0 ? loanAmt.toStringAsFixed(0) : '');
+    _loanController = TextEditingController(text: isLoan && loanAmt > 0 ? loanAmt.toStringAsFixed(0) : (isLoan ? '' : '0'));
     _contributionController = TextEditingController(text: contrib > 0 ? contrib.toStringAsFixed(0) : '');
     _remarksController = TextEditingController(text: r?.remarks ?? '');
     _siteType = r?.siteType ?? 'Subsidy';
@@ -85,6 +90,10 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
     });
 
     try {
+      final isLoan = _loanRequired.toLowerCase() == 'yes';
+      final totalCost = double.tryParse(_costController.text.trim()) ?? 0.0;
+      final loanAmt = isLoan ? (double.tryParse(_loanController.text.trim()) ?? 0.0) : 0.0;
+
       final record = ConsumerRecord(
         id: widget.initialRecord?.id,
         consumerNo: _consumerNoController.text.trim(),
@@ -97,8 +106,12 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
         systemType: _systemTypeController.text.trim().isEmpty ? null : _systemTypeController.text.trim(),
         status: _status,
         remarks: _remarksController.text.trim().isEmpty ? null : _remarksController.text.trim(),
-        totalAmount: double.tryParse(_costController.text.trim()) ?? 0.0,
-        loanSanctionedAmount: double.tryParse(_loanController.text.trim()) ?? 0.0,
+        totalAmount: totalCost,
+        loanRequired: _loanRequired,
+        loanStatus: isLoan
+            ? (widget.initialRecord?.loanStatus == 'Not Required' ? 'Pending' : (widget.initialRecord?.loanStatus ?? 'Pending'))
+            : 'Not Required',
+        loanSanctionedAmount: loanAmt,
       );
 
       if (widget.initialRecord == null) {
@@ -188,28 +201,75 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
-                      // Site Type Segmented Button
-                      Row(
+                      // Site Type & Funding / Customer Type Selection
+                      Wrap(
+                        spacing: 20,
+                        runSpacing: 12,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          const Text('Site Type: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                          const SizedBox(width: 12),
-                          SegmentedButton<String>(
-                            segments: const [
-                              ButtonSegment(
-                                value: 'Subsidy',
-                                label: Text('Subsidy'),
-                                icon: Icon(Icons.verified_outlined, size: 16),
-                              ),
-                              ButtonSegment(
-                                value: 'Non-Subsidy',
-                                label: Text('Non-Subsidy'),
-                                icon: Icon(Icons.business_outlined, size: 16),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('Site: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              const SizedBox(width: 8),
+                              SegmentedButton<String>(
+                                segments: const [
+                                  ButtonSegment(
+                                    value: 'Subsidy',
+                                    label: Text('Subsidy', style: TextStyle(fontSize: 12)),
+                                    icon: Icon(Icons.verified_outlined, size: 14),
+                                  ),
+                                  ButtonSegment(
+                                    value: 'Non-Subsidy',
+                                    label: Text('Non-Subsidy', style: TextStyle(fontSize: 12)),
+                                    icon: Icon(Icons.business_outlined, size: 14),
+                                  ),
+                                ],
+                                selected: {_siteType},
+                                onSelectionChanged: (val) {
+                                  setState(() => _siteType = val.first);
+                                },
                               ),
                             ],
-                            selected: {_siteType},
-                            onSelectionChanged: (val) {
-                              setState(() => _siteType = val.first);
-                            },
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('Customer Type: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              const SizedBox(width: 8),
+                              SegmentedButton<String>(
+                                segments: const [
+                                  ButtonSegment(
+                                    value: 'No',
+                                    label: Text('💵 Cash Customer', style: TextStyle(fontSize: 12)),
+                                    icon: Icon(Icons.payments_outlined, size: 14),
+                                  ),
+                                  ButtonSegment(
+                                    value: 'Yes',
+                                    label: Text('🏦 Bank Loan', style: TextStyle(fontSize: 12)),
+                                    icon: Icon(Icons.account_balance_outlined, size: 14),
+                                  ),
+                                ],
+                                selected: {_loanRequired},
+                                onSelectionChanged: (val) {
+                                  setState(() {
+                                    _loanRequired = val.first;
+                                    final cost = double.tryParse(_costController.text.trim()) ?? 0.0;
+                                    if (_loanRequired == 'No') {
+                                      _loanController.text = '0';
+                                      _contributionController.text = cost > 0 ? cost.toStringAsFixed(0) : '';
+                                    } else {
+                                      if (cost > 0) {
+                                        final loan = (cost * 0.9).roundToDouble();
+                                        final contrib = (cost - loan).roundToDouble();
+                                        _loanController.text = loan.toStringAsFixed(0);
+                                        _contributionController.text = contrib.toStringAsFixed(0);
+                                      }
+                                    }
+                                  });
+                                },
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -316,162 +376,206 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
                       const SizedBox(height: 16),
 
                       // ==========================================
-                      // FINANCIAL & LOAN DETAILS (मॅन्युअल / ऑटो)
+                      // FINANCIAL & PAYMENT DETAILS (CASH / BANK LOAN)
                       // ==========================================
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFCBD5E1)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Row(
-                                  children: [
-                                    Icon(Icons.currency_rupee_rounded, size: 16, color: Color(0xFF0F2D69)),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      'Financial & Loan (Manual / Auto)',
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69)),
-                                    ),
-                                  ],
-                                ),
-                                TextButton.icon(
-                                  style: TextButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  icon: const Icon(Icons.restart_alt_rounded, size: 14, color: Color(0xFFD97706)),
-                                  label: const Text('Reset', style: TextStyle(fontSize: 11, color: Color(0xFFD97706), fontWeight: FontWeight.bold)),
-                                  onPressed: () {
-                                    setState(() {
-                                      _costController.clear();
-                                      _loanController.clear();
-                                      _contributionController.clear();
-                                    });
-                                  },
-                                ),
-                              ],
+                      Builder(builder: (context) {
+                        final isLoan = _loanRequired.toLowerCase() == 'yes';
+
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isLoan ? const Color(0xFFF8FAFC) : const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isLoan ? const Color(0xFFCBD5E1) : const Color(0xFF86EFAC),
                             ),
-                            const SizedBox(height: 8),
-
-                            // Quick Presets: 3kW=1.8L, 3.5kW=2.0L, 4kW=2.4L, 5kW=3.0L
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              children: [
-                                {'cap': '3 kW', 'cost': 180000, 'loan': 162000, 'contrib': 18000},
-                                {'cap': '3.5 kW', 'cost': 200000, 'loan': 180000, 'contrib': 20000},
-                                {'cap': '4 kW', 'cost': 240000, 'loan': 216000, 'contrib': 24000},
-                                {'cap': '5 kW', 'cost': 300000, 'loan': 270000, 'contrib': 30000},
-                              ].map((preset) {
-                                final pCap = preset['cap'] as String;
-                                final pCost = preset['cost'] as int;
-                                final pLoan = preset['loan'] as int;
-                                final pContrib = preset['contrib'] as int;
-                                final isSelected = _capacityController.text.trim() == pCap && _costController.text.trim() == pCost.toString();
-
-                                return ChoiceChip(
-                                  label: Text(
-                                    '$pCap: ₹${(pCost / 100000).toStringAsFixed(pCost % 100000 == 0 ? 0 : 1)}L',
-                                    style: TextStyle(fontSize: 11, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        isLoan ? Icons.account_balance_rounded : Icons.payments_rounded,
+                                        size: 16,
+                                        color: isLoan ? const Color(0xFF0F2D69) : const Color(0xFF15803D),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        isLoan
+                                            ? 'Bank Loan Financials (90% Loan + 10% Contribution)'
+                                            : 'Cash Customer Financials (100% Direct Payment)',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: isLoan ? const Color(0xFF0F2D69) : const Color(0xFF15803D),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  selected: isSelected,
-                                  selectedColor: const Color(0xFFFEF3C7),
-                                  visualDensity: VisualDensity.compact,
-                                  onSelected: (_) {
-                                    setState(() {
-                                      _capacityController.text = pCap;
-                                      _costController.text = pCost.toString();
-                                      _loanController.text = pLoan.toString();
-                                      _contributionController.text = pContrib.toString();
-                                    });
-                                  },
-                                );
-                              }).toList(),
-                            ),
-                            const SizedBox(height: 10),
-
-                            // Manual Inputs: Project Cost & Loan Amount
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _costController,
-                                    keyboardType: TextInputType.number,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Project Cost (Rs.)',
-                                      hintText: 'e.g. 180000',
-                                      prefixIcon: Icon(Icons.solar_power, size: 18),
-                                      border: OutlineInputBorder(),
-                                      isDense: true,
+                                  TextButton.icon(
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                     ),
-                                    onChanged: (val) {
-                                      final cost = double.tryParse(val.trim()) ?? 0.0;
-                                      if (cost > 0) {
-                                        final loan = (cost * 0.9).roundToDouble();
-                                        final contrib = (cost - loan).roundToDouble();
-                                        _loanController.text = loan.toStringAsFixed(0);
-                                        _contributionController.text = contrib.toStringAsFixed(0);
-                                      }
+                                    icon: const Icon(Icons.restart_alt_rounded, size: 14, color: Color(0xFFD97706)),
+                                    label: const Text('Reset', style: TextStyle(fontSize: 11, color: Color(0xFFD97706), fontWeight: FontWeight.bold)),
+                                    onPressed: () {
+                                      setState(() {
+                                        _costController.clear();
+                                        _loanController.text = isLoan ? '' : '0';
+                                        _contributionController.clear();
+                                      });
                                     },
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _loanController,
-                                    keyboardType: TextInputType.number,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Bank Loan (90%)',
-                                      hintText: 'e.g. 162000',
-                                      prefixIcon: Icon(Icons.account_balance, size: 18),
-                                      border: OutlineInputBorder(),
-                                      isDense: true,
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+
+                              // Quick Presets: 3kW=1.8L, 3.5kW=2.0L, 4kW=2.4L, 5kW=3.0L
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: [
+                                  {'cap': '3 kW', 'cost': 180000, 'loan': 162000, 'contrib': 18000},
+                                  {'cap': '3.5 kW', 'cost': 200000, 'loan': 180000, 'contrib': 20000},
+                                  {'cap': '4 kW', 'cost': 240000, 'loan': 216000, 'contrib': 24000},
+                                  {'cap': '5 kW', 'cost': 300000, 'loan': 270000, 'contrib': 30000},
+                                ].map((preset) {
+                                  final pCap = preset['cap'] as String;
+                                  final pCost = preset['cost'] as int;
+                                  final pLoan = preset['loan'] as int;
+                                  final pContrib = preset['contrib'] as int;
+                                  final isSelected = _capacityController.text.trim() == pCap && _costController.text.trim() == pCost.toString();
+
+                                  return ChoiceChip(
+                                    label: Text(
+                                      isLoan
+                                          ? '$pCap: ₹${(pCost / 100000).toStringAsFixed(pCost % 100000 == 0 ? 0 : 1)}L (Loan)'
+                                          : '$pCap: ₹${(pCost / 100000).toStringAsFixed(pCost % 100000 == 0 ? 0 : 1)}L (Cash)',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                        color: isSelected ? (isLoan ? Colors.amber.shade900 : Colors.green.shade900) : null,
+                                      ),
                                     ),
-                                    onChanged: (val) {
-                                      final loan = double.tryParse(val.trim()) ?? 0.0;
-                                      if (loan > 0) {
-                                        final cost = (loan / 0.9).roundToDouble();
-                                        final contrib = (cost - loan).clamp(0.0, double.infinity);
-                                        _costController.text = cost.toStringAsFixed(0);
-                                        _contributionController.text = contrib.toStringAsFixed(0);
-                                      }
+                                    selected: isSelected,
+                                    selectedColor: isLoan ? const Color(0xFFFEF3C7) : const Color(0xFFDCFCE7),
+                                    visualDensity: VisualDensity.compact,
+                                    onSelected: (_) {
+                                      setState(() {
+                                        _capacityController.text = pCap;
+                                        _costController.text = pCost.toString();
+                                        if (isLoan) {
+                                          _loanController.text = pLoan.toString();
+                                          _contributionController.text = pContrib.toString();
+                                        } else {
+                                          _loanController.text = '0';
+                                          _contributionController.text = pCost.toString();
+                                        }
+                                      });
                                     },
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _contributionController,
-                                    keyboardType: TextInputType.number,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Contribution (10%)',
-                                      hintText: 'e.g. 18000',
-                                      prefixIcon: Icon(Icons.payments_outlined, size: 18),
-                                      border: OutlineInputBorder(),
-                                      isDense: true,
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 10),
+
+                              // Inputs
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _costController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Project Cost (Rs.) *',
+                                        hintText: 'e.g. 180000',
+                                        prefixIcon: Icon(Icons.solar_power, size: 18),
+                                        border: OutlineInputBorder(),
+                                        isDense: true,
+                                      ),
+                                      onChanged: (val) {
+                                        final cost = double.tryParse(val.trim()) ?? 0.0;
+                                        if (isLoan) {
+                                          if (cost > 0) {
+                                            final loan = (cost * 0.9).roundToDouble();
+                                            final contrib = (cost - loan).roundToDouble();
+                                            _loanController.text = loan.toStringAsFixed(0);
+                                            _contributionController.text = contrib.toStringAsFixed(0);
+                                          }
+                                        } else {
+                                          _loanController.text = '0';
+                                          _contributionController.text = cost > 0 ? cost.toStringAsFixed(0) : '';
+                                        }
+                                      },
                                     ),
-                                    onChanged: (val) {
-                                      final contrib = double.tryParse(val.trim()) ?? 0.0;
-                                      final cost = double.tryParse(_costController.text.trim()) ?? 0.0;
-                                      if (cost > 0 && contrib >= 0) {
-                                        _loanController.text = (cost - contrib).clamp(0.0, double.infinity).toStringAsFixed(0);
-                                      }
-                                    },
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _loanController,
+                                      readOnly: !isLoan,
+                                      keyboardType: TextInputType.number,
+                                      decoration: InputDecoration(
+                                        labelText: isLoan ? 'Bank Loan (90%)' : 'Bank Loan (No Loan)',
+                                        hintText: isLoan ? 'e.g. 162000' : '₹0',
+                                        prefixIcon: Icon(
+                                          isLoan ? Icons.account_balance : Icons.block,
+                                          size: 18,
+                                          color: isLoan ? null : Colors.grey,
+                                        ),
+                                        border: const OutlineInputBorder(),
+                                        filled: !isLoan,
+                                        fillColor: isLoan ? null : Colors.grey.shade100,
+                                        isDense: true,
+                                      ),
+                                      onChanged: isLoan
+                                          ? (val) {
+                                              final loan = double.tryParse(val.trim()) ?? 0.0;
+                                              if (loan > 0) {
+                                                final cost = (loan / 0.9).roundToDouble();
+                                                final contrib = (cost - loan).clamp(0.0, double.infinity);
+                                                _costController.text = cost.toStringAsFixed(0);
+                                                _contributionController.text = contrib.toStringAsFixed(0);
+                                              }
+                                            }
+                                          : null,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _contributionController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: InputDecoration(
+                                        labelText: isLoan ? 'Contribution (10%)' : 'Customer Cash (100%)',
+                                        hintText: isLoan ? 'e.g. 18000' : 'e.g. 180000',
+                                        prefixIcon: const Icon(Icons.payments_outlined, size: 18),
+                                        border: const OutlineInputBorder(),
+                                        isDense: true,
+                                      ),
+                                      onChanged: (val) {
+                                        final contrib = double.tryParse(val.trim()) ?? 0.0;
+                                        final cost = double.tryParse(_costController.text.trim()) ?? 0.0;
+                                        if (isLoan && cost > 0 && contrib >= 0) {
+                                          _loanController.text = (cost - contrib).clamp(0.0, double.infinity).toStringAsFixed(0);
+                                        } else if (!isLoan && contrib > 0) {
+                                          _costController.text = contrib.toStringAsFixed(0);
+                                          _loanController.text = '0';
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _addressController,

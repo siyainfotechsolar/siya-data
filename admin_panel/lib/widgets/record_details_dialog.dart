@@ -844,6 +844,36 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                                 ),
                               ),
                             ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _record.loanRequired.toLowerCase() == 'yes' ? const Color(0xFFEFF6FF) : const Color(0xFFF0FDF4),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _record.loanRequired.toLowerCase() == 'yes' ? const Color(0xFF93C5FD) : const Color(0xFF86EFAC),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _record.loanRequired.toLowerCase() == 'yes' ? Icons.account_balance : Icons.payments_outlined,
+                                    size: 11,
+                                    color: _record.loanRequired.toLowerCase() == 'yes' ? const Color(0xFF1D4ED8) : const Color(0xFF15803D),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _record.loanRequired.toLowerCase() == 'yes' ? 'Bank Loan' : 'Cash Customer',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: _record.loanRequired.toLowerCase() == 'yes' ? const Color(0xFF1D4ED8) : const Color(0xFF15803D),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                             if (_record.systemCapacity != null && _record.systemCapacity!.isNotEmpty) ...[
                               const SizedBox(width: 6),
                               Container(
