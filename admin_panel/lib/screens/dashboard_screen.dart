@@ -19,6 +19,7 @@ import 'payments_screen.dart';
 import 'office_tasks_screen.dart';
 import 'action_center_screen.dart';
 import 'invoices_screen.dart';
+import '../models/user_profile.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -36,6 +37,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String? _selectedQueueFilter;
   String? _selectedPaymentFilter;
   String _selectedSiteType = 'Subsidy';
+  String _userName = '';
+  String _userRole = '';
+  String _userEmail = '';
 
   final List<_NavItem> _navItems = [
     _NavItem('Dashboard', Icons.home_outlined, Icons.home, true), // 0
@@ -58,8 +62,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUserProfile();
     _loadMetrics();
     _initMetricsRealtime();
+  }
+
+  Future<void> _loadUserProfile() async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    _userEmail = user.email ?? '';
+    try {
+      final profile = await SupabaseService.fetchProfile(user.id);
+      if (profile != null && mounted) {
+        setState(() {
+          final fullName = (profile['full_name'] as String?)?.trim() ?? '';
+          _userName = fullName.isNotEmpty ? fullName : (user.email?.split('@').first ?? 'User');
+          _userRole = (profile['role'] as String?) ?? 'staff';
+        });
+        return;
+      }
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _userName = user.email?.split('@').first ?? 'User';
+        _userRole = 'staff';
+      });
+    }
   }
 
   void _initMetricsRealtime() {
@@ -234,6 +262,51 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ],
           ),
           actions: [
+            if (_userName.isNotEmpty) ...[
+              Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: (_userRole == 'admin' || _userRole == 'super_admin' || _userRole == 'owner')
+                          ? const Color(0xFF1E40AF)
+                          : const Color(0xFF047857),
+                      child: Text(
+                        _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _userName,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                        ),
+                        Text(
+                          UserRole.displayName(_userRole),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (_isLoadingMetrics)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
@@ -243,12 +316,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.primary),
                 ),
               ),
-            IconButton(icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh', onPressed: _loadMetrics),
+            IconButton(icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh', onPressed: () {
+              _loadMetrics();
+              _loadUserProfile();
+            }),
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert),
               tooltip: 'More options',
               onSelected: (v) { if (v == 'signout') _handleSignOut(); },
               itemBuilder: (_) => [
+                PopupMenuItem(
+                  enabled: false,
+                  child: ListTile(
+                    leading: const Icon(Icons.person, color: Color(0xFF0F2D69)),
+                    title: Text(_userName.isNotEmpty ? _userName : 'Logged In', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    subtitle: Text(_userEmail.isNotEmpty ? _userEmail : UserRole.displayName(_userRole), style: const TextStyle(fontSize: 11)),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuDivider(),
                 const PopupMenuItem(
                   value: 'signout',
                   child: ListTile(
@@ -338,6 +425,37 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ],
         ),
         actions: [
+          if (_userName.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 9,
+                      backgroundColor: (_userRole == 'admin' || _userRole == 'super_admin' || _userRole == 'owner')
+                          ? const Color(0xFF1E40AF)
+                          : const Color(0xFF047857),
+                      child: Text(
+                        _userName[0].toUpperCase(),
+                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      _userName.split(' ').first,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (_isLoadingMetrics)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -350,7 +468,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           IconButton(
             icon: const Icon(Icons.refresh_rounded, size: 20),
             tooltip: 'Refresh',
-            onPressed: _loadMetrics,
+            onPressed: () {
+              _loadMetrics();
+              _loadUserProfile();
+            },
           ),
         ],
       ),
@@ -465,6 +586,41 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (_userName.isNotEmpty) ...[
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.waving_hand_rounded, color: Color(0xFFFDE047), size: 14),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'Welcome, $_userName',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.95),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.1,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    UserRole.displayName(_userRole),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                          ],
                           Text(
                             '$_selectedSiteType Dashboard',
                             style: const TextStyle(
