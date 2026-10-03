@@ -48,6 +48,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
   // Multi-delete selection state
   final Set<String> _selectedRecordIds = {};
   bool _canDelete = true;
+  bool _canImport = false;
+  bool _canAddCustomer = true;
   bool _isDeleting = false;
 
   final List<String> _statusFilters = [
@@ -73,7 +75,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
     if (widget.initialSiteType != null) {
       _selectedSiteType = widget.initialSiteType!;
     }
-    _checkDeletePermission();
+    _checkActionPermissions();
     _loadRecords();
     _initRealtimeSync();
   }
@@ -129,10 +131,44 @@ class _RecordsScreenState extends State<RecordsScreen> {
     });
   }
 
-  Future<void> _checkDeletePermission() async {
+  Future<void> _checkActionPermissions() async {
     final canDel = await RecordService.canCurrentUserDelete();
+    final user = SupabaseService.currentUser;
+    bool canImp = false;
+    bool canAdd = true;
+
+    if (user != null) {
+      try {
+        final profile = await SupabaseService.fetchProfile(user.id);
+        if (profile != null) {
+          final role = (profile['role'] as String? ?? 'staff').toLowerCase();
+          final isAdmin = role == 'admin' || role == 'super_admin' || role == 'owner';
+          if (isAdmin) {
+            canImp = true;
+            canAdd = true;
+          } else {
+            final perms = profile['permissions'];
+            if (perms != null && perms is Map) {
+              final imp = perms['import'];
+              if (imp is List) {
+                canImp = imp.contains('create') || imp.contains('view') || imp.contains('*');
+              }
+              final cust = perms['customer'];
+              if (cust is List) {
+                canAdd = cust.contains('create') || cust.contains('*');
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
     if (mounted) {
-      setState(() => _canDelete = canDel);
+      setState(() {
+        _canDelete = canDel;
+        _canImport = canImp;
+        _canAddCustomer = canAdd;
+      });
     }
   }
 
@@ -685,15 +721,16 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       'Customers',
                       style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                     ),
-                    FilledButton.icon(
-                      onPressed: _openAddRecordDialog,
-                      style: FilledButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    if (_canAddCustomer)
+                      FilledButton.icon(
+                        onPressed: _openAddRecordDialog,
+                        style: FilledButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        icon: const Icon(Icons.person_add_rounded, size: 18),
+                        label: const Text('Add Consumer'),
                       ),
-                      icon: const Icon(Icons.person_add_rounded, size: 18),
-                      label: const Text('Add Consumer'),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -731,25 +768,29 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       columns: ExportDefinitions.consumerRecordColumns,
                       onFetchFullDataset: _fetchFilteredRecordsForExport,
                     ),
-                    const SizedBox(width: 12),
-                    OutlinedButton.icon(
-                      onPressed: _openImportDialog,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                        side: BorderSide(color: theme.colorScheme.primary),
+                    if (_canImport) ...[
+                      const SizedBox(width: 12),
+                      OutlinedButton.icon(
+                        onPressed: _openImportDialog,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                          side: BorderSide(color: theme.colorScheme.primary),
+                        ),
+                        icon: const Icon(Icons.upload_file_rounded),
+                        label: const Text('Import Excel / CSV'),
                       ),
-                      icon: const Icon(Icons.upload_file_rounded),
-                      label: const Text('Import Excel / CSV'),
-                    ),
-                    const SizedBox(width: 12),
-                    FilledButton.icon(
-                      onPressed: _openAddRecordDialog,
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    ],
+                    if (_canAddCustomer) ...[
+                      const SizedBox(width: 12),
+                      FilledButton.icon(
+                        onPressed: _openAddRecordDialog,
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                        ),
+                        icon: const Icon(Icons.person_add_rounded),
+                        label: const Text('Add Consumer'),
                       ),
-                      icon: const Icon(Icons.person_add_rounded),
-                      label: const Text('Add Consumer'),
-                    ),
+                    ],
                   ],
                 ),
               ],
