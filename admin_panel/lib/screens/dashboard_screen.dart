@@ -249,7 +249,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: Image.asset(
                     'assets/images/logo.png',
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Icon(
+                    errorBuilder: (context, error, stackTrace) => Icon(
                       Icons.solar_power_rounded,
                       color: theme.colorScheme.primary,
                       size: 16,
@@ -408,7 +408,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: Image.asset(
                   'assets/images/logo.png',
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Icon(
+                  errorBuilder: (context, error, stackTrace) => Icon(
                     Icons.solar_power_rounded,
                     color: theme.colorScheme.primary,
                     size: 14,
