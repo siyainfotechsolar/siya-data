@@ -40,24 +40,48 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String _userName = '';
   String _userRole = '';
   String _userEmail = '';
+  Map<String, dynamic>? _userProfile;
 
-  final List<_NavItem> _navItems = [
-    _NavItem('Dashboard', Icons.home_outlined, Icons.home, true), // 0
-    _NavItem('Customers', Icons.people_alt_outlined, Icons.people_alt, true), // 1 (Records)
-    _NavItem('Action Center', Icons.bolt_outlined, Icons.bolt, true), // 2
-    _NavItem('Payments', Icons.payments_outlined, Icons.payments, true), // 3
-    _NavItem('Invoices', Icons.receipt_long_outlined, Icons.receipt_long, true), // 4
-    _NavItem('Office Tasks', Icons.assignment_ind_outlined, Icons.assignment_ind, false), // 5
-    _NavItem('WhatsApp', Icons.share_rounded, Icons.share, false), // 6
-    _NavItem('Leads', Icons.leaderboard_outlined, Icons.leaderboard, false), // 7
-    _NavItem('Import', Icons.upload_file_outlined, Icons.upload_file, false), // 8
-    _NavItem('Reports', Icons.bar_chart_outlined, Icons.bar_chart, false), // 9
-    _NavItem('History', Icons.history_outlined, Icons.history, false), // 10
-    _NavItem('Duplicates', Icons.find_in_page_outlined, Icons.find_in_page, false), // 11
-    _NavItem('Recycle Bin', Icons.delete_sweep_outlined, Icons.delete_sweep, false), // 12
-    _NavItem('Users', Icons.group_outlined, Icons.group, false), // 13
-    _NavItem('Settings', Icons.settings_outlined, Icons.settings, false), // 14
+  final List<_NavItem> _allNavItems = const [
+    _NavItem(id: 'dashboard', label: 'Dashboard', icon: Icons.home_outlined, selectedIcon: Icons.home, isMainBottomNav: true),
+    _NavItem(id: 'customers', label: 'Customers', icon: Icons.people_alt_outlined, selectedIcon: Icons.people_alt, isMainBottomNav: true, moduleKey: 'customer'),
+    _NavItem(id: 'action_center', label: 'Action Center', icon: Icons.bolt_outlined, selectedIcon: Icons.bolt, isMainBottomNav: true, moduleKey: 'customer'),
+    _NavItem(id: 'payments', label: 'Payments', icon: Icons.payments_outlined, selectedIcon: Icons.payments, isMainBottomNav: true, moduleKey: 'payment'),
+    _NavItem(id: 'invoices', label: 'Invoices', icon: Icons.receipt_long_outlined, selectedIcon: Icons.receipt_long, isMainBottomNav: true, moduleKey: 'payment'),
+    _NavItem(id: 'office_tasks', label: 'Office Tasks', icon: Icons.assignment_ind_outlined, selectedIcon: Icons.assignment_ind, isMainBottomNav: false),
+    _NavItem(id: 'whatsapp', label: 'WhatsApp', icon: Icons.share_rounded, selectedIcon: Icons.share, isMainBottomNav: false, moduleKey: 'customer'),
+    _NavItem(id: 'leads', label: 'Leads', icon: Icons.leaderboard_outlined, selectedIcon: Icons.leaderboard, isMainBottomNav: false, moduleKey: 'customer'),
+    _NavItem(id: 'import', label: 'Import', icon: Icons.upload_file_outlined, selectedIcon: Icons.upload_file, isMainBottomNav: false, moduleKey: 'import'),
+    _NavItem(id: 'reports', label: 'Reports', icon: Icons.bar_chart_outlined, selectedIcon: Icons.bar_chart, isMainBottomNav: false, moduleKey: 'reports'),
+    _NavItem(id: 'history', label: 'History', icon: Icons.history_outlined, selectedIcon: Icons.history, isMainBottomNav: false, moduleKey: 'customer'),
+    _NavItem(id: 'duplicates', label: 'Duplicates', icon: Icons.find_in_page_outlined, selectedIcon: Icons.find_in_page, isMainBottomNav: false, moduleKey: 'customer'),
+    _NavItem(id: 'recycle_bin', label: 'Recycle Bin', icon: Icons.delete_sweep_outlined, selectedIcon: Icons.delete_sweep, isMainBottomNav: false, adminOnly: true),
+    _NavItem(id: 'users', label: 'Users', icon: Icons.group_outlined, selectedIcon: Icons.group, isMainBottomNav: false, moduleKey: 'user_management', adminOnly: true),
+    _NavItem(id: 'settings', label: 'Settings', icon: Icons.settings_outlined, selectedIcon: Icons.settings, isMainBottomNav: false, moduleKey: 'settings', adminOnly: true),
   ];
+
+  bool _canAccessItem(_NavItem item) {
+    final isAdmin = _userRole == 'admin' || _userRole == 'super_admin' || _userRole == 'owner';
+    if (isAdmin) return true;
+    if (item.adminOnly) return false;
+    if (item.moduleKey == null) return true;
+
+    // Check granular permissions from profile if available
+    final perms = _userProfile?['permissions'];
+    if (perms != null && perms is Map) {
+      final actions = perms[item.moduleKey];
+      if (actions is List) {
+        return actions.isNotEmpty;
+      }
+    }
+
+    // Default role-based fallback
+    final defaultPerms = UserRole.defaultPermissions(_userRole);
+    final roleActions = defaultPerms[item.moduleKey];
+    return roleActions != null && roleActions.isNotEmpty;
+  }
+
+  List<_NavItem> get _visibleNavItems => _allNavItems.where(_canAccessItem).toList();
 
   @override
   void initState() {
@@ -124,9 +148,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void _openActionCenter(String stage) {
+    final visible = _visibleNavItems;
+    final idx = visible.indexWhere((it) => it.id == 'action_center');
     setState(() {
       _selectedStageFilter = stage;
-      _selectedIndex = 2; // Action Center
+      _selectedIndex = idx >= 0 ? idx : 0;
     });
   }
 
@@ -178,7 +204,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Flexible(
                   child: SingleChildScrollView(
                     child: Column(
-                      children: _navItems.asMap().entries.map((entry) {
+                      children: _visibleNavItems.asMap().entries.map((entry) {
                         final idx = entry.key;
                         final item = entry.value;
                         final isSelected = _selectedIndex == idx;
@@ -200,7 +226,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             setState(() {
                               _selectedIndex = idx;
                             });
-                            if (idx == 0) _loadMetrics();
+                            if (item.id == 'dashboard') _loadMetrics();
                           },
                         );
                       }).toList(),
@@ -358,13 +384,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: IntrinsicHeight(
                   child: NavigationRail(
                     extended: isExtended,
-                    selectedIndex: _selectedIndex,
+                    selectedIndex: _selectedIndex.clamp(0, _visibleNavItems.isEmpty ? 0 : _visibleNavItems.length - 1),
                     useIndicator: true,
                     onDestinationSelected: (i) {
                       setState(() => _selectedIndex = i);
-                      if (i == 0) _loadMetrics();
+                      final visible = _visibleNavItems;
+                      if (i < visible.length && visible[i].id == 'dashboard') _loadMetrics();
                     },
-                    destinations: _navItems
+                    destinations: _visibleNavItems
                         .map((d) => NavigationRailDestination(
                               icon: Icon(d.icon),
                               selectedIcon: Icon(d.selectedIcon),
@@ -418,7 +445,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
             const SizedBox(width: 8),
             Text(
-              _navItems[_selectedIndex].label,
+              _selectedIndex < _visibleNavItems.length ? _visibleNavItems[_selectedIndex].label : 'Dashboard',
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
               overflow: TextOverflow.ellipsis,
             ),
@@ -527,30 +554,51 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildBodyContent() {
-    switch (_selectedIndex) {
-      case 0: return _buildDashboardView();
-      case 1: return RecordsScreen(
-        key: ValueKey('$_selectedQueueFilter-$_selectedSiteType'),
-        initialWorkflowQueue: _selectedQueueFilter,
-        initialSiteType: _selectedSiteType,
-      );
-      case 2: return ActionCenterScreen(key: ValueKey(_selectedStageFilter), initialStageFilter: _selectedStageFilter);
-      case 3: return PaymentsScreen(
-        key: ValueKey(_selectedPaymentFilter),
-        initialStatusFilter: _selectedPaymentFilter,
-      );
-      case 4: return const InvoicesScreen();
-      case 5: return const OfficeTasksScreen();
-      case 6: return const WhatsAppTasksScreen();
-      case 7: return const LeadsScreen();
-      case 8: return _buildImportView();
-      case 9: return const ReportsScreen();
-      case 10: return const HistoryScreen();
-      case 11: return const DuplicateFinderScreen();
-      case 12: return const RecycleBinScreen();
-      case 13: return const UsersScreen();
-      case 14: return const SettingsScreen();
-      default: return _buildDashboardView();
+    final visible = _visibleNavItems;
+    final activeItem = (_selectedIndex >= 0 && _selectedIndex < visible.length)
+        ? visible[_selectedIndex]
+        : (visible.isNotEmpty ? visible.first : _allNavItems.first);
+
+    switch (activeItem.id) {
+      case 'dashboard':
+        return _buildDashboardView();
+      case 'customers':
+        return RecordsScreen(
+          key: ValueKey('$_selectedQueueFilter-$_selectedSiteType'),
+          initialWorkflowQueue: _selectedQueueFilter,
+          initialSiteType: _selectedSiteType,
+        );
+      case 'action_center':
+        return ActionCenterScreen(key: ValueKey(_selectedStageFilter), initialStageFilter: _selectedStageFilter);
+      case 'payments':
+        return PaymentsScreen(
+          key: ValueKey(_selectedPaymentFilter),
+          initialStatusFilter: _selectedPaymentFilter,
+        );
+      case 'invoices':
+        return const InvoicesScreen();
+      case 'office_tasks':
+        return const OfficeTasksScreen();
+      case 'whatsapp':
+        return const WhatsAppTasksScreen();
+      case 'leads':
+        return const LeadsScreen();
+      case 'import':
+        return _buildImportView();
+      case 'reports':
+        return const ReportsScreen();
+      case 'history':
+        return const HistoryScreen();
+      case 'duplicates':
+        return const DuplicateFinderScreen();
+      case 'recycle_bin':
+        return const RecycleBinScreen();
+      case 'users':
+        return const UsersScreen();
+      case 'settings':
+        return const SettingsScreen();
+      default:
+        return _buildDashboardView();
     }
   }
 
@@ -1606,9 +1654,21 @@ class _TD extends StatelessWidget {
 }
 
 class _NavItem {
+  final String id;
   final String label;
   final IconData icon;
   final IconData selectedIcon;
   final bool isMainBottomNav;
-  _NavItem(this.label, this.icon, this.selectedIcon, this.isMainBottomNav);
+  final String? moduleKey;
+  final bool adminOnly;
+
+  const _NavItem({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.selectedIcon,
+    this.isMainBottomNav = false,
+    this.moduleKey,
+    this.adminOnly = false,
+  });
 }
