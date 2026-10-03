@@ -8,6 +8,7 @@ import '../widgets/import_dialog.dart';
 import 'login_screen.dart';
 import 'records_screen.dart';
 import 'history_screen.dart';
+import 'audit_screen.dart';
 import 'recycle_bin_screen.dart';
 import 'users_screen.dart';
 import 'duplicate_finder_screen.dart';
@@ -54,6 +55,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItem(id: 'import', label: 'Import', icon: Icons.upload_file_outlined, selectedIcon: Icons.upload_file, isMainBottomNav: false, moduleKey: 'import'),
     _NavItem(id: 'reports', label: 'Reports', icon: Icons.bar_chart_outlined, selectedIcon: Icons.bar_chart, isMainBottomNav: false, moduleKey: 'reports'),
     _NavItem(id: 'history', label: 'History', icon: Icons.history_outlined, selectedIcon: Icons.history, isMainBottomNav: false, moduleKey: 'customer'),
+    _NavItem(id: 'audit', label: 'Audit', icon: Icons.shield_outlined, selectedIcon: Icons.shield, isMainBottomNav: false, moduleKey: 'settings'),
     _NavItem(id: 'duplicates', label: 'Duplicates', icon: Icons.find_in_page_outlined, selectedIcon: Icons.find_in_page, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'recycle_bin', label: 'Recycle Bin', icon: Icons.delete_sweep_outlined, selectedIcon: Icons.delete_sweep, isMainBottomNav: false, adminOnly: true),
     _NavItem(id: 'users', label: 'Users', icon: Icons.group_outlined, selectedIcon: Icons.group, isMainBottomNav: false, moduleKey: 'user_management', adminOnly: true),
@@ -589,6 +591,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return const ReportsScreen();
       case 'history':
         return const HistoryScreen();
+      case 'audit':
+        return const AuditScreen();
       case 'duplicates':
         return const DuplicateFinderScreen();
       case 'recycle_bin':
