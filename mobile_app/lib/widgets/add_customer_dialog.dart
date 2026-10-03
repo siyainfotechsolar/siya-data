@@ -493,8 +493,13 @@ class _AddCustomerDialogState extends State<AddCustomerDialog> {
                       onChanged: (val) {
                         final contrib = double.tryParse(val.trim()) ?? 0.0;
                         final cost = double.tryParse(_costCtrl.text.trim()) ?? 0.0;
-                        if (cost > 0 && contrib >= 0) {
+                        if (cost > 0 && contrib >= 0 && contrib <= cost) {
                           _loanCtrl.text = (cost - contrib).clamp(0.0, double.infinity).toStringAsFixed(0);
+                        } else if (contrib > 0) {
+                          final autoCost = (contrib / 0.1).roundToDouble();
+                          final autoLoan = (autoCost - contrib).clamp(0.0, double.infinity);
+                          _costCtrl.text = autoCost.toStringAsFixed(0);
+                          _loanCtrl.text = autoLoan.toStringAsFixed(0);
                         }
                       },
                     ),

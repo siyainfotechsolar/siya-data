@@ -1548,10 +1548,32 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               isDense: true,
                             ),
                             onChanged: (val) => setSheetState(() {
-                              final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
                               final loan = double.tryParse(val.trim()) ?? 0.0;
-                              final contrib = (gt - loan).clamp(0.0, double.infinity);
-                              contribCtrl.text = contrib.toStringAsFixed(0);
+                              final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
+
+                              if (loan <= 0) {
+                                if (gt == 0) {
+                                  grandTotalCtrl.clear();
+                                  costCtrl.clear();
+                                  contribCtrl.clear();
+                                } else {
+                                  contribCtrl.text = gt.toStringAsFixed(0);
+                                }
+                                return;
+                              }
+
+                              if (gt == 0 || loan > gt) {
+                                final autoGrand = (loan / 0.9).roundToDouble();
+                                final autoContrib = (autoGrand - loan).clamp(0.0, double.infinity);
+                                final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
+
+                                grandTotalCtrl.text = autoGrand > 0 ? autoGrand.toStringAsFixed(0) : '';
+                                costCtrl.text = (autoGrand - g).clamp(0.0, double.infinity).toStringAsFixed(0);
+                                contribCtrl.text = autoContrib > 0 ? autoContrib.toStringAsFixed(0) : '';
+                              } else {
+                                final contrib = (gt - loan).clamp(0.0, double.infinity);
+                                contribCtrl.text = contrib.toStringAsFixed(0);
+                              }
                             }),
                           ),
                         ),
@@ -1568,10 +1590,32 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               isDense: true,
                             ),
                             onChanged: (val) => setSheetState(() {
-                              final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
                               final contrib = double.tryParse(val.trim()) ?? 0.0;
-                              final loan = (gt - contrib).clamp(0.0, double.infinity);
-                              loanCtrl.text = loan.toStringAsFixed(0);
+                              final gt = double.tryParse(grandTotalCtrl.text.trim()) ?? 0.0;
+
+                              if (contrib <= 0) {
+                                if (gt == 0) {
+                                  grandTotalCtrl.clear();
+                                  costCtrl.clear();
+                                  loanCtrl.clear();
+                                } else {
+                                  loanCtrl.text = gt.toStringAsFixed(0);
+                                }
+                                return;
+                              }
+
+                              if (gt == 0 || contrib > gt) {
+                                final autoGrand = (contrib / 0.1).roundToDouble();
+                                final autoLoan = (autoGrand - contrib).clamp(0.0, double.infinity);
+                                final g = double.tryParse(gstCtrl.text.trim()) ?? 0.0;
+
+                                grandTotalCtrl.text = autoGrand > 0 ? autoGrand.toStringAsFixed(0) : '';
+                                costCtrl.text = (autoGrand - g).clamp(0.0, double.infinity).toStringAsFixed(0);
+                                loanCtrl.text = autoLoan > 0 ? autoLoan.toStringAsFixed(0) : '';
+                              } else {
+                                final loan = (gt - contrib).clamp(0.0, double.infinity);
+                                loanCtrl.text = loan.toStringAsFixed(0);
+                              }
                             }),
                           ),
                         ),
