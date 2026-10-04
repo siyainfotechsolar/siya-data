@@ -16,6 +16,7 @@ import 'global_whatsapp_button.dart';
 import 'work_completion_certificate_dialog.dart';
 import 'bank_loan_quotation_dialog.dart';
 import 'consumer_vendor_agreement_dialog.dart';
+import 'record_form_dialog.dart';
 
 class RecordDetailsDialog extends StatefulWidget {
   final ConsumerRecord record;
@@ -670,94 +671,29 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
     }
   }
 
-  Future<void> _showEditNameDialog() async {
-    final nameCtrl = TextEditingController(text: _record.name);
-    final formKey = GlobalKey<FormState>();
-
-    final updatedName = await showDialog<String>(
+  Future<void> _showEditProfileDialog() async {
+    final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.edit_note_rounded, color: Colors.blue),
-            SizedBox(width: 8),
-            Text('Edit Customer Name'),
-          ],
-        ),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Consumer No: ${_record.consumerNo}',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: nameCtrl,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Customer Name *',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                validator: (val) {
-                  if (val == null || val.trim().isEmpty) {
-                    return 'Customer Name cannot be empty';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(ctx, nameCtrl.text.trim());
-              }
-            },
-            child: const Text('Save Name'),
-          ),
-        ],
+      builder: (ctx) => RecordFormDialog(
+        initialRecord: _record,
+        onRecordSaved: (updated) {
+          if (mounted) {
+            setState(() {
+              _record = updated;
+            });
+            widget.onRecordUpdated?.call();
+          }
+        },
       ),
     );
 
-    if (updatedName != null && updatedName != _record.name && _record.id != null && mounted) {
-      setState(() => _isSaving = true);
-      try {
-        final updated = await RecordService.updateCustomerName(
-          recordId: _record.id!,
-          newName: updatedName,
-        );
-        if (mounted) {
-          setState(() {
-            _record = updated;
-            _isSaving = false;
-          });
-          widget.onRecordUpdated?.call();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Customer Name updated to "$updatedName" successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() => _isSaving = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to update name: $e'), backgroundColor: Colors.red),
-          );
-        }
-      }
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Customer Profile updated successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
     }
   }
 
@@ -804,10 +740,10 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                             const SizedBox(width: 6),
                             IconButton(
                               icon: const Icon(Icons.edit_outlined, size: 18),
-                              tooltip: 'Edit Customer Name',
+                              tooltip: 'Edit Customer Profile',
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
-                              onPressed: _showEditNameDialog,
+                              onPressed: _showEditProfileDialog,
                             ),
                           ],
                         ),
@@ -898,6 +834,17 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF059669),
+                        side: const BorderSide(color: Color(0xFF059669)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      ),
+                      onPressed: _showEditProfileDialog,
+                      icon: const Icon(Icons.manage_accounts_outlined, size: 16),
+                      label: const Text('Edit Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                    const SizedBox(width: 8),
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF047857),

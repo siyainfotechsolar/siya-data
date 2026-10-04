@@ -131,9 +131,11 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
             );
 
       if (widget.initialRecord == null) {
-        await RecordService.createRecord(record);
+        final created = await RecordService.createRecord(record);
+        widget.onRecordSaved?.call(created);
       } else {
-        await RecordService.updateRecord(record);
+        final updated = await RecordService.updateRecord(record);
+        widget.onRecordSaved?.call(updated);
       }
 
       if (mounted) {

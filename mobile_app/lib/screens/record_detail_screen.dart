@@ -144,100 +144,299 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     }
   }
 
-  Future<void> _showEditConsumerNameDialog() async {
-    final nameCtrl = TextEditingController(text: _record.name);
+  Future<void> _showEditCustomerProfileDialog() async {
     final formKey = GlobalKey<FormState>();
+    final nameCtrl = TextEditingController(text: _record.name);
+    final consumerNoCtrl = TextEditingController(text: _record.consumerNo);
+    final mobileCtrl = TextEditingController(text: _record.mobile ?? '');
+    final addressCtrl = TextEditingController(text: _record.address ?? '');
+    final appIdCtrl = TextEditingController(text: _record.applicationId ?? '');
+    final capacityCtrl = TextEditingController(text: _record.systemCapacity ?? '');
+    final costCtrl = TextEditingController(
+        text: _record.totalAmount > 0 ? _record.totalAmount.toStringAsFixed(0) : '');
+    final remarksCtrl = TextEditingController(text: _record.remarks ?? '');
 
-    final updatedName = await showDialog<String>(
+    String selectedSiteType = _record.siteType.isNotEmpty ? _record.siteType : 'Subsidy';
+    String selectedSystemType = _record.systemType ?? 'On-Grid';
+    String selectedLoanReq = _record.loanRequired.isNotEmpty ? _record.loanRequired : 'No';
+
+    final systemTypeOptions = ['On-Grid', 'Off-Grid', 'Hybrid', 'Solar Pump'];
+
+    final result = await showDialog<bool>(
       context: context,
       builder: (ctx) {
+        bool isModified() {
+          if (nameCtrl.text.trim() != _record.name) return true;
+          if (consumerNoCtrl.text.trim() != _record.consumerNo) return true;
+          if (mobileCtrl.text.trim() != (_record.mobile ?? '')) return true;
+          if (addressCtrl.text.trim() != (_record.address ?? '')) return true;
+          if (appIdCtrl.text.trim() != (_record.applicationId ?? '')) return true;
+          if (capacityCtrl.text.trim() != (_record.systemCapacity ?? '')) return true;
+          if (remarksCtrl.text.trim() != (_record.remarks ?? '')) return true;
+          if (selectedSiteType != _record.siteType) return true;
+          if (selectedSystemType != (_record.systemType ?? 'On-Grid')) return true;
+          if (selectedLoanReq != _record.loanRequired) return true;
+          final currentCost = double.tryParse(costCtrl.text.trim()) ?? 0.0;
+          if (currentCost != _record.totalAmount) return true;
+          return false;
+        }
+
         Future<void> handleCancel() async {
-          if (nameCtrl.text.trim() != _record.name) {
+          if (isModified()) {
             final discard = await BackNavigationHelper.showDiscardDialog(
               ctx,
-              title: 'Discard Name Change?',
-              message: 'Unsaved name change will be lost.',
+              title: 'Discard Changes?',
+              message: 'You have unsaved changes to customer profile. Discard them?',
             );
             if (!discard) return;
           }
-          Navigator.pop(ctx);
+          Navigator.pop(ctx, false);
         }
 
         return PopScope(
           canPop: false,
-          onPopInvokedWithResult: (didPop, result) async {
+          onPopInvokedWithResult: (didPop, res) async {
             if (didPop) return;
             await handleCancel();
           },
-          child: AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Row(
-              children: [
-                Icon(Icons.edit_note_rounded, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                const Text('Edit Consumer Name', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ],
-            ),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Consumer No: ${_record.consumerNo}',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: nameCtrl,
-                autofocus: true,
-                textCapitalization: TextCapitalization.words,
-                decoration: InputDecoration(
-                  labelText: 'Consumer Name *',
-                  hintText: 'Enter full consumer name',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  isDense: true,
+          child: StatefulBuilder(
+            builder: (ctx, setDialogState) {
+              return AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                title: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF059669).withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.manage_accounts_rounded, color: Color(0xFF059669)),
+                    ),
+                    const SizedBox(width: 10),
+                    const Text('Edit Customer Profile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  ],
                 ),
-                validator: (val) {
-                  if (val == null || val.trim().isEmpty) {
-                    return 'Consumer Name cannot be empty';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: handleCancel,
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF059669),
-            ),
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(ctx, nameCtrl.text.trim());
-              }
+                content: SizedBox(
+                  width: double.maxFinite,
+                  child: SingleChildScrollView(
+                    child: Form(
+                      key: formKey,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('PERSONAL & CONTACT DETAILS',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: nameCtrl,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: InputDecoration(
+                              labelText: 'Customer Name *',
+                              prefixIcon: const Icon(Icons.person_outline, size: 20),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              isDense: true,
+                            ),
+                            validator: (val) => val == null || val.trim().isEmpty ? 'Customer Name is required' : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: consumerNoCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Consumer No. *',
+                              prefixIcon: const Icon(Icons.tag_rounded, size: 20),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              isDense: true,
+                            ),
+                            validator: (val) => val == null || val.trim().isEmpty ? 'Consumer No. is required' : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: mobileCtrl,
+                            keyboardType: TextInputType.phone,
+                            maxLength: 10,
+                            decoration: InputDecoration(
+                              labelText: 'Mobile Number',
+                              counterText: '',
+                              prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              isDense: true,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: addressCtrl,
+                            maxLines: 2,
+                            textCapitalization: TextCapitalization.sentences,
+                            decoration: InputDecoration(
+                              labelText: 'Site Address',
+                              prefixIcon: const Icon(Icons.location_on_outlined, size: 20),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              isDense: true,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Divider(),
+                          const SizedBox(height: 8),
+                          const Text('PROJECT & SYSTEM DETAILS',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: appIdCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Application ID',
+                              prefixIcon: const Icon(Icons.assignment_outlined, size: 20),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              isDense: true,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: selectedSiteType,
+                                  decoration: InputDecoration(
+                                    labelText: 'Site Category',
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                    isDense: true,
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(value: 'Subsidy', child: Text('Subsidy')),
+                                    DropdownMenuItem(value: 'Non-Subsidy', child: Text('Non-Subsidy')),
+                                  ],
+                                  onChanged: (v) {
+                                    if (v != null) setDialogState(() => selectedSiteType = v);
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: selectedLoanReq,
+                                  decoration: InputDecoration(
+                                    labelText: 'Loan Required',
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                    isDense: true,
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(value: 'Yes', child: Text('Yes (Bank Loan)')),
+                                    DropdownMenuItem(value: 'No', child: Text('No (Self/Cash)')),
+                                  ],
+                                  onChanged: (v) {
+                                    if (v != null) setDialogState(() => selectedLoanReq = v);
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: capacityCtrl,
+                                  decoration: InputDecoration(
+                                    labelText: 'System Capacity (kW)',
+                                    hintText: 'e.g. 3 kW',
+                                    prefixIcon: const Icon(Icons.bolt_outlined, size: 20),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                    isDense: true,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: systemTypeOptions.contains(selectedSystemType)
+                                      ? selectedSystemType
+                                      : systemTypeOptions.first,
+                                  decoration: InputDecoration(
+                                    labelText: 'System Type',
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                    isDense: true,
+                                  ),
+                                  items: systemTypeOptions
+                                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                                      .toList(),
+                                  onChanged: (v) {
+                                    if (v != null) setDialogState(() => selectedSystemType = v);
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: costCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: 'Total System Cost (₹)',
+                              prefixIcon: const Icon(Icons.currency_rupee_rounded, size: 20),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              isDense: true,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: remarksCtrl,
+                            maxLines: 2,
+                            decoration: InputDecoration(
+                              labelText: 'Remarks / Internal Notes',
+                              prefixIcon: const Icon(Icons.notes_rounded, size: 20),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              isDense: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: handleCancel,
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+                    icon: const Icon(Icons.save_rounded, size: 18),
+                    label: const Text('Save Profile'),
+                    onPressed: () {
+                      if (formKey.currentState!.validate()) {
+                        Navigator.pop(ctx, true);
+                      }
+                    },
+                  ),
+                ],
+              );
             },
-            child: const Text('Save Name'),
           ),
-        ],
-      ),
-      );
+        );
       },
     );
 
-    if (updatedName != null && updatedName != _record.name && _record.id != null && mounted) {
+    if (result == true && _record.id != null && mounted) {
       setState(() => _isSaving = true);
       try {
-        final updated = await MobileRecordService.updateCustomerName(
+        final totalAmt = double.tryParse(costCtrl.text.trim()) ?? 0.0;
+        final updated = await MobileRecordService.updateCustomerProfile(
           recordId: _record.id!,
-          newName: updatedName,
+          name: nameCtrl.text.trim(),
+          consumerNo: consumerNoCtrl.text.trim(),
+          mobile: mobileCtrl.text.trim(),
+          address: addressCtrl.text.trim(),
+          applicationId: appIdCtrl.text.trim(),
+          siteType: selectedSiteType,
+          systemCapacity: capacityCtrl.text.trim(),
+          systemType: selectedSystemType,
+          totalAmount: totalAmt,
+          loanRequired: selectedLoanReq,
+          remarks: remarksCtrl.text.trim(),
         );
+
         if (mounted) {
           setState(() {
             _record = updated;
@@ -245,9 +444,9 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             _isSaving = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Consumer name updated to "$updatedName" successfully!'),
-              backgroundColor: const Color(0xFF059669),
+            const SnackBar(
+              content: Text('Customer Profile updated successfully!'),
+              backgroundColor: Color(0xFF059669),
             ),
           );
         }
@@ -256,7 +455,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           setState(() => _isSaving = false);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to update consumer name: $e'),
+              content: Text('Failed to update profile: $e'),
               backgroundColor: Colors.red,
             ),
           );
@@ -1087,11 +1286,18 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             onPressed: () => Navigator.of(context).pop(_hasChanged),
           ),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.manage_accounts_outlined),
+              tooltip: 'Edit Customer Profile',
+              onPressed: _isSaving ? null : _showEditCustomerProfileDialog,
+            ),
             PopupMenuButton<String>(
               icon: const Icon(Icons.description_outlined),
               tooltip: 'Reports & Quotations',
               onSelected: (val) async {
-                if (val == 'bank_loan_quotation') {
+                if (val == 'edit_profile') {
+                  _showEditCustomerProfileDialog();
+                } else if (val == 'bank_loan_quotation') {
                   await BankLoanQuotationDialog.show(context, customer: _record);
                   _loadCustomerQuotations();
                 } else if (val == 'margin_money_receipt') {
@@ -1105,6 +1311,17 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                 }
               },
               itemBuilder: (ctx) => [
+                const PopupMenuItem(
+                  value: 'edit_profile',
+                  child: Row(
+                    children: [
+                      Icon(Icons.manage_accounts_rounded, color: Color(0xFF059669), size: 20),
+                      SizedBox(width: 10),
+                      Text('Edit Customer Profile', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF059669))),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
                 const PopupMenuItem(
                   value: 'consumer_vendor_agreement',
                   child: Row(
@@ -1220,9 +1437,9 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                           const SizedBox(width: 6),
                           IconButton(
                             icon: const Icon(Icons.edit_outlined, size: 20),
-                            tooltip: 'Edit Consumer Name',
+                            tooltip: 'Edit Customer Profile',
                             visualDensity: VisualDensity.compact,
-                            onPressed: _isSaving ? null : _showEditConsumerNameDialog,
+                            onPressed: _isSaving ? null : _showEditCustomerProfileDialog,
                           ),
                         ],
                       ),
@@ -1260,6 +1477,19 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                             ],
                           ),
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF059669),
+                          side: const BorderSide(color: Color(0xFF059669)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        icon: const Icon(Icons.manage_accounts_rounded, size: 18),
+                        label: const Text('Edit Customer Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        onPressed: _isSaving ? null : _showEditCustomerProfileDialog,
                       ),
                       const SizedBox(height: 10),
                       // Site Type, Stage & Capacity Badges Row

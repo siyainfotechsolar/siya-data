@@ -559,6 +559,156 @@ class MobileRecordService {
     }
   }
 
+  /// Comprehensive Customer Profile update via Mobile App (Offline-First)
+  static Future<ConsumerRecord> updateCustomerProfile({
+    required String recordId,
+    required String name,
+    required String consumerNo,
+    String? mobile,
+    String? address,
+    String? applicationId,
+    required String siteType,
+    String? systemCapacity,
+    String? systemType,
+    required double totalAmount,
+    required String loanRequired,
+    String? remarks,
+  }) async {
+    final cleanName = name.trim();
+    final cleanConsumerNo = consumerNo.trim();
+    if (cleanName.isEmpty) {
+      throw Exception('Customer Name cannot be empty.');
+    }
+    if (cleanConsumerNo.isEmpty) {
+      throw Exception('Consumer No. cannot be empty.');
+    }
+
+    final user = SupabaseService.currentUser;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final existing = await AppDatabase.getConsumerRecordById(recordId);
+    final oldPaidAmount = existing?.paidAmount ?? 0.0;
+    final newPendingAmount = (totalAmount - oldPaidAmount).clamp(0.0, double.infinity);
+
+    final updatePayload = <String, dynamic>{
+      'name': cleanName,
+      'consumer_no': cleanConsumerNo,
+      'mobile': mobile?.trim().isEmpty == true ? null : mobile?.trim(),
+      'address': address?.trim().isEmpty == true ? null : address?.trim(),
+      'application_id': applicationId?.trim().isEmpty == true ? null : applicationId?.trim(),
+      'site_type': siteType,
+      'system_capacity': systemCapacity?.trim().isEmpty == true ? null : systemCapacity?.trim(),
+      'system_type': systemType?.trim().isEmpty == true ? null : systemType?.trim(),
+      'total_amount': totalAmount,
+      'pending_amount': newPendingAmount,
+      'loan_required': loanRequired,
+      'remarks': remarks?.trim().isEmpty == true ? null : remarks?.trim(),
+      'updated_at': nowIso,
+    };
+    if (user != null) {
+      updatePayload['updated_by'] = user.id;
+    }
+
+    final localUpdated = existing != null
+        ? existing.copyWith(
+            name: cleanName,
+            consumerNo: cleanConsumerNo,
+            mobile: mobile?.trim().isEmpty == true ? null : mobile?.trim(),
+            address: address?.trim().isEmpty == true ? null : address?.trim(),
+            applicationId: applicationId?.trim().isEmpty == true ? null : applicationId?.trim(),
+            siteType: siteType,
+            systemCapacity: systemCapacity?.trim().isEmpty == true ? null : systemCapacity?.trim(),
+            systemType: systemType?.trim().isEmpty == true ? null : systemType?.trim(),
+            totalAmount: totalAmount,
+            pendingAmount: newPendingAmount,
+            loanRequired: loanRequired,
+            remarks: remarks?.trim().isEmpty == true ? null : remarks?.trim(),
+            updatedAt: DateTime.now(),
+          )
+        : ConsumerRecord(
+            id: recordId,
+            consumerNo: cleanConsumerNo,
+            name: cleanName,
+            mobile: mobile?.trim(),
+            address: address?.trim(),
+            applicationId: applicationId?.trim(),
+            siteType: siteType,
+            systemCapacity: systemCapacity?.trim(),
+            systemType: systemType?.trim(),
+            totalAmount: totalAmount,
+            pendingAmount: newPendingAmount,
+            loanRequired: loanRequired,
+            remarks: remarks?.trim(),
+            updatedAt: DateTime.now(),
+          );
+
+    await AppDatabase.upsertConsumerRecord(localUpdated, syncStatus: 'Pending Sync');
+
+    if (ConnectivityService.isOffline) {
+      await AppDatabase.enqueueOperation(
+        OfflineOperation(
+          operationId: 'op_${DateTime.now().microsecondsSinceEpoch}',
+          entityType: 'consumer_record',
+          entityId: recordId,
+          action: 'UPDATE_PROFILE',
+          payload: updatePayload,
+          userId: user?.id,
+          createdAt: DateTime.now(),
+        ),
+      );
+      await AppDatabase.logOfflineActivity(
+        recordId: recordId,
+        consumerNo: cleanConsumerNo,
+        customerName: cleanName,
+        staffName: user?.email?.split('@')[0] ?? 'Staff',
+        action: 'PROFILE_UPDATED',
+        remarks: 'Profile updated offline',
+      );
+      return localUpdated;
+    }
+
+    try {
+      final response = await _client
+          .from('consumer_records')
+          .update(updatePayload)
+          .eq('id', recordId)
+          .select()
+          .single();
+
+      final updated = ConsumerRecord.fromJson(response);
+      await AppDatabase.upsertConsumerRecord(updated, syncStatus: 'SYNCED');
+
+      try {
+        await ActivityLogService.logActivity(
+          recordId: recordId,
+          consumerNo: cleanConsumerNo,
+          customerName: cleanName,
+          module: 'Customer',
+          action: 'Customer Profile Update',
+          oldValue: existing?.name ?? '',
+          newValue: cleanName,
+          remarks: 'Customer profile updated via Mobile App',
+        );
+      } catch (_) {}
+
+      return updated;
+    } catch (e) {
+      _log('updateCustomerProfile', e, context: 'recordId=$recordId');
+      await AppDatabase.enqueueOperation(
+        OfflineOperation(
+          operationId: 'op_${DateTime.now().microsecondsSinceEpoch}',
+          entityType: 'consumer_record',
+          entityId: recordId,
+          action: 'UPDATE_PROFILE',
+          payload: updatePayload,
+          userId: user?.id,
+          createdAt: DateTime.now(),
+        ),
+      );
+      return localUpdated;
+    }
+  }
+
   /// Fetch current staff profile details
   static Future<Map<String, dynamic>?> getCurrentStaffProfile() async {
     try {
