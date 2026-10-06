@@ -81,8 +81,8 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
 
   List<SolarQuotation> _previousQuotations = [];
   bool _isLoadingHistory = true;
-  bool _includeStampAndSignature = true;
-  bool _receiptIncludeStampAndSignature = true;
+  bool _includeStampAndSignature = false;
+  bool _receiptIncludeStampAndSignature = false;
 
   final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 2);
 
@@ -135,17 +135,24 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
       _bankLoanAmount = init.bankLoanAmount;
       _customerContribution = init.customerContribution;
     } else {
-      final baseCost = cust.totalAmount > 0 ? cust.totalAmount : 0.0;
+      final isCashCustomer = cust.isNonSubsidy;
+      final baseCost = cust.totalAmount > 0
+          ? cust.totalAmount
+          : (isCashCustomer ? 200000.0 : 222222.0);
       _totalSystemCost = baseCost;
       _gstAmount = 0.0;
       _grandTotal = _totalSystemCost + _gstAmount;
 
-      if (cust.loanSanctionedAmount > 0) {
+      if (isCashCustomer) {
+        _bankLoanAmount = 0.0;
+        _customerContribution = _grandTotal;
+      } else if (cust.loanSanctionedAmount > 0) {
         _bankLoanAmount = cust.loanSanctionedAmount;
+        _customerContribution = (_grandTotal - _bankLoanAmount).clamp(0.0, double.infinity);
       } else {
-        _bankLoanAmount = _grandTotal > 0 ? (_grandTotal * 0.9).roundToDouble() : 0.0; // 90% Bank Loan
+        _bankLoanAmount = _grandTotal == 222222.0 ? 200000.0 : (_grandTotal > 0 ? (_grandTotal * 0.9).roundToDouble() : 200000.0);
+        _customerContribution = (_grandTotal - _bankLoanAmount).clamp(0.0, double.infinity);
       }
-      _customerContribution = (_grandTotal - _bankLoanAmount).clamp(0.0, double.infinity); // 10% Contribution
     }
 
     _selectedTab = widget.initialTab;

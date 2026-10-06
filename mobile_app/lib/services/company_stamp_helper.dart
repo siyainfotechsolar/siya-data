@@ -58,7 +58,7 @@ class CompanyStampHelper {
     required PdfGraphics graphics,
     required Rect bounds,
     PdfBitmap? bitmap,
-    bool include = true,
+    bool include = false,
   }) {
     if (!include) return;
 

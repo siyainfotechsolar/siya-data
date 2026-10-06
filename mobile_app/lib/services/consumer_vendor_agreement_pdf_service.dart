@@ -26,7 +26,7 @@ class ConsumerVendorAgreementPdfService {
   static Future<File> generateAgreementPdf({
     required ConsumerVendorAgreement agreement,
     Directory? outputDirectory,
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
   }) async {
     final PdfDocument document = PdfDocument();

@@ -18,7 +18,7 @@ class MarginMoneyReceiptService {
   static Future<File> generateReceiptPdf({
     required CustomerMarginReceipt receipt,
     Directory? outputDirectory,
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
   }) async {
     final PdfDocument document = PdfDocument();

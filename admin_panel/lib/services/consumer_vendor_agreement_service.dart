@@ -129,9 +129,9 @@ class ConsumerVendorAgreementService {
   /// Generate exact 3-Page A4 PDF bytes with Table-Based First & Second Party Signatures
   static Future<Uint8List> generateAgreementPdfBytes(
     ConsumerVendorAgreement agreement, {
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
-    bool includeCustomerSignature = true,
+    bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdf = pw.Document();
@@ -620,8 +620,8 @@ class ConsumerVendorAgreementService {
   static Future<void> previewAgreement(
     BuildContext context,
     ConsumerVendorAgreement agreement, {
-    bool includeStampAndSignature = true,
-    bool includeCustomerSignature = true,
+    bool includeStampAndSignature = false,
+    bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdfBytes = await generateAgreementPdfBytes(
@@ -641,8 +641,8 @@ class ConsumerVendorAgreementService {
   static Future<String?> downloadAgreementPdf(
     BuildContext context,
     ConsumerVendorAgreement agreement, {
-    bool includeStampAndSignature = true,
-    bool includeCustomerSignature = true,
+    bool includeStampAndSignature = false,
+    bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
     try {

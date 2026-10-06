@@ -255,7 +255,7 @@ class CustomerSignatureHelper {
     String? consumerNo,
     Uint8List? customSignatureBytes,
     pw.Font? font,
-    bool includeSignature = true,
+    bool includeSignature = false,
     double height = 48.0,
     double fontSize = 16.0,
     bool includeUnderline = true,

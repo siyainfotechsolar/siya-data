@@ -92,7 +92,7 @@ class AdminCompanyStampHelper {
   /// If image is null but include is true, displays the crisp vector official badge.
   static pw.Widget buildStampAndSignatureWidget({
     pw.MemoryImage? image,
-    bool include = true,
+    bool include = false,
     double height = 72,
     double width = 160,
   }) {

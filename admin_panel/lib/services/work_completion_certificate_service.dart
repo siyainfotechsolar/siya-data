@@ -30,9 +30,9 @@ class WorkCompletionCertificateService {
   // =========================================================================
   static Future<Uint8List> generateBankWcrPdfBytes(
     WorkCompletionReportData data, {
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
-    bool includeCustomerSignature = true,
+    bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdf = pw.Document();
@@ -589,9 +589,9 @@ class WorkCompletionCertificateService {
   // =========================================================================
   static Future<Uint8List> generateWcrPdfBytes(
     WorkCompletionReportData data, {
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
-    bool includeCustomerSignature = true,
+    bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdf = pw.Document();
@@ -867,7 +867,7 @@ class WorkCompletionCertificateService {
   // =========================================================================
   static Future<Uint8List> generateAnnexure1PdfBytes(
     WorkCompletionReportData data, {
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
   }) async {
     final pdf = pw.Document();
@@ -1031,7 +1031,7 @@ class WorkCompletionCertificateService {
   // =========================================================================
   static Future<Uint8List> generateDcrPdfBytes(
     WorkCompletionReportData data, {
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
   }) async {
     final pdf = pw.Document();
@@ -1171,10 +1171,10 @@ class WorkCompletionCertificateService {
   // =========================================================================
   static Future<Uint8List> generateAnnexure3PdfBytes(
     WorkCompletionReportData data, {
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
     Uint8List? customStampPaperBytes,
-    bool includeCustomerSignature = true,
+    bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdf = pw.Document();
@@ -1456,7 +1456,7 @@ class WorkCompletionCertificateService {
     String? customAddress,
     String? customCapacity,
     DateTime? customCompletionDate,
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
   }) async {
     final data = WorkCompletionReportData.fromCustomer(
@@ -1484,8 +1484,8 @@ class WorkCompletionCertificateService {
     String? customAddress,
     String? customCapacity,
     DateTime? customCompletionDate,
-    bool includeStampAndSignature = true,
-    bool includeCustomerSignature = true,
+    bool includeStampAndSignature = false,
+    bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
     int documentType = 0, // 0: WCR, 1: Annexure-1, 2: DCR, 3: Annexure-3
     WorkCompletionReportData? reportData,

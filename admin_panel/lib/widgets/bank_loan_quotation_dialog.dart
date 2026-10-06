@@ -83,10 +83,10 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
   List<SolarQuotation> _previousQuotations = [];
   bool _isLoadingHistory = true;
   int _renderKey = 0;
-  bool _includeStampAndSignature = true;
-  bool _receiptIncludeStampAndSignature = true;
-  bool _includeCustomerSignature = true;
-  bool _receiptIncludeCustomerSignature = true;
+  bool _includeStampAndSignature = false;
+  bool _receiptIncludeStampAndSignature = false;
+  bool _includeCustomerSignature = false;
+  bool _receiptIncludeCustomerSignature = false;
   final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 0);
   final gstCurrencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 2);
 
@@ -169,14 +169,21 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
       _accountNo = q.accountNo;
       _ifscCode = q.ifscCode;
       _upiId = q.upiId;
-    } else {
-      _totalCost = cust.totalAmount > 0 ? cust.totalAmount : 0.0;
+      final isCashCustomer = cust.isNonSubsidy;
+      _totalCost = cust.totalAmount > 0
+          ? cust.totalAmount
+          : (isCashCustomer ? 200000.0 : 222222.0);
       _gstAmount = 0.0;
       _grandTotal = _totalCost + _gstAmount;
-      _bankLoan = cust.loanSanctionedAmount > 0
-          ? cust.loanSanctionedAmount
-          : (_grandTotal > 0 ? (_grandTotal * 0.9).roundToDouble() : 0.0);
-      _contribution = (_grandTotal - _bankLoan).clamp(0.0, double.infinity);
+      if (isCashCustomer) {
+        _bankLoan = 0.0;
+        _contribution = _grandTotal;
+      } else {
+        _bankLoan = cust.loanSanctionedAmount > 0
+            ? cust.loanSanctionedAmount
+            : (_grandTotal == 222222.0 ? 200000.0 : (_grandTotal > 0 ? (_grandTotal * 0.9).roundToDouble() : 200000.0));
+        _contribution = (_grandTotal - _bankLoan).clamp(0.0, double.infinity);
+      }
       _bankName = 'STATE BANK OF INDIA';
       _branch = 'Betawad';
       _accountNo = '40662252403';

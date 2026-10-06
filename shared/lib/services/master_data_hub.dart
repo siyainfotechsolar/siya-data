@@ -206,9 +206,10 @@ class MasterDataHub {
     String transactionRef = 'Paid in Cash',
   }) {
     final comp = customCompany ?? _company;
-    final cost = totalSystemCost ?? (customer.totalAmount > 0 ? customer.totalAmount : 160000.0);
-    final loan = bankLoanAmount ?? (customer.loanSanctionedAmount > 0 ? customer.loanSanctionedAmount : (cost * 0.9).roundToDouble());
-    final margin = marginAmount ?? (cost - loan > 0 ? cost - loan : (cost * 0.1).roundToDouble());
+    final isCash = customer.isNonSubsidy;
+    final cost = totalSystemCost ?? (customer.totalAmount > 0 ? customer.totalAmount : (isCash ? 200000.0 : 222222.0));
+    final loan = bankLoanAmount ?? (isCash ? 0.0 : (customer.loanSanctionedAmount > 0 ? customer.loanSanctionedAmount : (cost == 222222.0 ? 200000.0 : (cost * 0.9).roundToDouble())));
+    final margin = marginAmount ?? (cost - loan > 0 ? cost - loan : (isCash ? 200000.0 : 22222.0));
 
     return CustomerMarginReceipt.create(
       customerId: customer.id,

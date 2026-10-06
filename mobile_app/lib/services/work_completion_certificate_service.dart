@@ -20,7 +20,7 @@ class WorkCompletionCertificateService {
     String? customCapacity,
     DateTime? customCompletionDate,
     Directory? outputDirectory,
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
   }) async {
     // 1. Initialize A4 Document (Single Page, Portrait)

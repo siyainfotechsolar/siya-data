@@ -30,7 +30,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
   bool _isGenerating = false;
   File? _cachedFile;
   String? _statusMessage;
-  bool _includeStampAndSignature = true;
+  bool _includeStampAndSignature = false;
 
   late String _customerName;
   late String _consumerNo;

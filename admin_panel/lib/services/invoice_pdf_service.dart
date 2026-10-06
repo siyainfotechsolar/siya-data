@@ -29,7 +29,7 @@ class InvoicePdfService {
   /// Generate professional A4 Invoice PDF bytes
   static Future<Uint8List> generateInvoicePdfBytes(
     Invoice invoice, {
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampBytes,
   }) async {
     final pdf = pw.Document();

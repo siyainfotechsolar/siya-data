@@ -107,7 +107,7 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
     }
   }
 
-  bool _includeStampAndSignature = true;
+  bool _includeStampAndSignature = false;
 
   Future<void> _loadHistory() async {
     final history = await AgreementStorageService.getAgreementsForCustomer(_consumerNo);

@@ -16,7 +16,7 @@ class PaymentReceiptService {
   static Future<File> generateReceiptPdf({
     required PaymentTransaction tx,
     required ConsumerRecord customer,
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
   }) async {
     // 1. Create a PDF document

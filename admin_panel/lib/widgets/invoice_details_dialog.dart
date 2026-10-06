@@ -32,7 +32,7 @@ class InvoiceDetailsDialog extends StatefulWidget {
 
 class _InvoiceDetailsDialogState extends State<InvoiceDetailsDialog> {
   late Invoice _invoice;
-  bool _includeStampAndSignature = true;
+  bool _includeStampAndSignature = false;
   int _selectedTab = 0; // 0 = Details, 1 = PDF Preview
   UniqueKey _renderKey = UniqueKey();
   bool _isGenerating = false;

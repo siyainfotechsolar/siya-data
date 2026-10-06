@@ -16,7 +16,7 @@ class BankLoanQuotationService {
   static Future<File> generateQuotationPdf({
     required SolarQuotation quotation,
     Directory? outputDirectory,
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
   }) async {
     // 1. Initialize A4 Document (Single Page, Portrait)

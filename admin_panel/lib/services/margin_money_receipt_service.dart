@@ -53,9 +53,9 @@ class MarginMoneyReceiptService {
   /// Generate Single-Page A4 PDF bytes for Customer Margin Money Receipt
   static Future<Uint8List> generateReceiptPdfBytes(
     CustomerMarginReceipt receipt, {
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
-    bool includeCustomerSignature = true,
+    bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdf = pw.Document();
@@ -694,8 +694,8 @@ class MarginMoneyReceiptService {
   /// Print or Save using printing package
   static Future<void> printReceipt(
     CustomerMarginReceipt receipt, {
-    bool includeStampAndSignature = true,
-    bool includeCustomerSignature = true,
+    bool includeStampAndSignature = false,
+    bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdfBytes = await generateReceiptPdfBytes(
@@ -713,8 +713,8 @@ class MarginMoneyReceiptService {
   /// Save PDF file to chosen location
   static Future<String?> downloadPdf(
     CustomerMarginReceipt receipt, {
-    bool includeStampAndSignature = true,
-    bool includeCustomerSignature = true,
+    bool includeStampAndSignature = false,
+    bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdfBytes = await generateReceiptPdfBytes(

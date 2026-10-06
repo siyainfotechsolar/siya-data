@@ -34,8 +34,8 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
   bool _isDownloading = false;
   int _selectedTab = 0; // 0: Bank WCR, 1: MSEDCL WCR, 2: Annexure-1, 3: DCR, 4: Net-Metering Agreement
   int _renderKey = 0;
-  bool _includeStampAndSignature = true;
-  bool _includeCustomerSignature = true;
+  bool _includeStampAndSignature = false;
+  bool _includeCustomerSignature = false;
 
   late WorkCompletionReportData _reportData;
 

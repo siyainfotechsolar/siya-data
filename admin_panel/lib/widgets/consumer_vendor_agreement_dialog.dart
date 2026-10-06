@@ -100,8 +100,8 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
     }
   }
 
-  bool _includeStampAndSignature = true;
-  bool _includeCustomerSignature = true;
+  bool _includeStampAndSignature = false;
+  bool _includeCustomerSignature = false;
 
   ConsumerVendorAgreement _buildAgreement() {
     return ConsumerVendorAgreement(

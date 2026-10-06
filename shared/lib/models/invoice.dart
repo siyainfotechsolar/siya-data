@@ -65,7 +65,7 @@ class Invoice {
     this.pdfFileName,
     this.pdfFilePath,
     this.fileUrl,
-    this.includeStampAndSignature = true,
+    this.includeStampAndSignature = false,
     this.createdBy,
     DateTime? createdAt,
     this.updatedAt,
@@ -116,7 +116,7 @@ class Invoice {
       totalPending: quotation.grandTotal,
       paymentStatus: 'Pending',
       pdfFileName: fileName,
-      includeStampAndSignature: true,
+      includeStampAndSignature: false,
       createdBy: createdBy,
     );
   }

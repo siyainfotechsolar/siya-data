@@ -55,9 +55,9 @@ class BankLoanQuotationService {
   /// Generate Single-Page A4 PDF bytes for Bank Loan Solar Quotation
   static Future<Uint8List> generateQuotationPdfBytes(
     SolarQuotation quotation, {
-    bool includeStampAndSignature = true,
+    bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
-    bool includeCustomerSignature = true,
+    bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdf = pw.Document();
@@ -833,8 +833,8 @@ class BankLoanQuotationService {
   static Future<void> downloadQuotationPdf(
     BuildContext context,
     SolarQuotation quotation, {
-    bool includeStampAndSignature = true,
-    bool includeCustomerSignature = true,
+    bool includeStampAndSignature = false,
+    bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdfBytes = await generateQuotationPdfBytes(
@@ -859,8 +859,8 @@ class BankLoanQuotationService {
   /// Direct Print Quotation
   static Future<void> printQuotationPdf(
     SolarQuotation quotation, {
-    bool includeStampAndSignature = true,
-    bool includeCustomerSignature = true,
+    bool includeStampAndSignature = false,
+    bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
     final pdfBytes = await generateQuotationPdfBytes(
