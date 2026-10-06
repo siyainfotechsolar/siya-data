@@ -169,6 +169,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
       _accountNo = q.accountNo;
       _ifscCode = q.ifscCode;
       _upiId = q.upiId;
+    } else {
       final isCashCustomer = cust.isNonSubsidy;
       _totalCost = cust.totalAmount > 0
           ? cust.totalAmount
