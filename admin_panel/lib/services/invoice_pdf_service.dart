@@ -539,146 +539,95 @@ class InvoicePdfService {
                     pw.SizedBox(height: 6),
 
                     // ==================================================
-                    // 7. TERMS & CONDITIONS (Full Width Clean Grid)
+                    // 7. TERMS & CONDITIONS (LEFT) + VENDOR STAMP & SIGNATURE (RIGHT)
                     // ==================================================
-                    _buildSectionHeader('TERMS & CONDITIONS & STATUTORY DECLARATION'),
-                    pw.Container(
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                      decoration: pw.BoxDecoration(
-                        color: PdfColors.white,
-                        border: pw.Border.all(color: borderDarkColor, width: 0.8),
-                      ),
-                      child: pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          pw.Row(
+                    pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        // Left: Terms & Conditions and Declaration
+                        pw.Expanded(
+                          flex: 11,
+                          child: pw.Column(
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
-                              pw.Expanded(
+                              _buildSectionHeader('TERMS & CONDITIONS'),
+                              pw.Container(
+                                padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                decoration: pw.BoxDecoration(
+                                  color: PdfColors.white,
+                                  border: pw.Border.all(color: borderDarkColor, width: 0.8),
+                                ),
                                 child: pw.Column(
                                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                                   children: [
                                     _buildTermItem('1. Goods once sold will not be taken back.'),
                                     _buildTermItem('2. Warranty void if goods physically damaged or burnt.'),
                                     _buildTermItem('3. Our responsibility ceases once goods are handed to transporter.'),
-                                  ],
-                                ),
-                              ),
-                              pw.SizedBox(width: 12),
-                              pw.Expanded(
-                                child: pw.Column(
-                                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                                  children: [
                                     _buildTermItem('4. Interest at 24% P.A. will be charged after due date.'),
                                     _buildTermItem('5. Cheque bouncing will incur statutory charges of Rs. 500/-.'),
                                     _buildTermItem('6. All disputes are subject to Dhule Jurisdiction only.'),
+                                    pw.SizedBox(height: 3),
+                                    pw.Container(height: 0.5, color: borderDarkColor),
+                                    pw.SizedBox(height: 2.5),
+                                    pw.Text(
+                                      'Declaration: We declare that this invoice shows the actual price of the goods & services described and that all particulars are true and correct.',
+                                      style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.5),
+                                    ),
                                   ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          pw.SizedBox(height: 3),
-                          pw.Container(height: 0.5, color: borderDarkColor),
-                          pw.SizedBox(height: 2.5),
-                          pw.Text(
-                            'Declaration: We declare that this invoice shows the actual price of the goods & services described and that all particulars are true and correct.',
-                            style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.5),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    pw.SizedBox(height: 6),
-
-                    // ==================================================
-                    // 8. DUAL SIGNATURES (Customer Acceptance + Vendor Stamp)
-                    // ==================================================
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: pw.CrossAxisAlignment.end,
-                      children: [
-                        // Left: Customer Acceptance
-                        pw.Container(
-                          width: 220,
-                          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                          decoration: pw.BoxDecoration(
-                            color: PdfColors.white,
-                            border: pw.Border.all(color: borderDarkColor, width: 0.8),
-                          ),
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
-                            children: [
-                              pw.Text(
-                                'Customer Acceptance & Receipt',
-                                style: pw.TextStyle(
-                                  color: darkTextColor,
-                                  fontSize: 8.2,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                              pw.SizedBox(height: 2),
-                              pw.Text(
-                                'Received goods & installation in good working condition.',
-                                style: const pw.TextStyle(
-                                  color: slateMutedColor,
-                                  fontSize: 6.8,
-                                ),
-                              ),
-                              pw.SizedBox(height: 36),
-                              pw.Container(width: 160, height: 0.8, color: darkTextColor),
-                              pw.SizedBox(height: 2.5),
-                              pw.Text(
-                                'Customer Signature',
-                                style: pw.TextStyle(color: darkTextColor, fontSize: 7.8, fontWeight: pw.FontWeight.bold),
-                              ),
-                              pw.Text(
-                                invoice.customerName.isNotEmpty ? invoice.customerName : 'Authorized Signatory',
-                                style: const pw.TextStyle(
-                                  color: slateMutedColor,
-                                  fontSize: 6.8,
                                 ),
                               ),
                             ],
                           ),
                         ),
 
+                        pw.SizedBox(width: 10),
+
                         // Right: Vendor Authorization & Official Stamp
-                        pw.Container(
-                          width: 230,
-                          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                          decoration: pw.BoxDecoration(
-                            color: PdfColors.white,
-                            border: pw.Border.all(color: borderDarkColor, width: 0.8),
-                          ),
+                        pw.Expanded(
+                          flex: 10,
                           child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.center,
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
-                              pw.Text(
-                                'For SIYA INFOTECH & DIGITAL SOLUTIONS',
-                                style: pw.TextStyle(
-                                  color: darkTextColor,
-                                  fontSize: 8.2,
-                                  fontWeight: pw.FontWeight.bold,
+                              _buildSectionHeader('AUTHORIZATION & OFFICIAL STAMP'),
+                              pw.Container(
+                                width: double.infinity,
+                                padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                decoration: pw.BoxDecoration(
+                                  color: PdfColors.white,
+                                  border: pw.Border.all(color: borderDarkColor, width: 0.8),
                                 ),
-                              ),
-                              pw.SizedBox(height: 2),
-                              AdminCompanyStampHelper.buildStampAndSignatureWidget(
-                                image: stampImage,
-                                include: includeStampAndSignature,
-                                height: 52,
-                                width: 140,
-                              ),
-                              pw.Container(width: 150, height: 0.8, color: darkTextColor),
-                              pw.SizedBox(height: 2.5),
-                              pw.Text(
-                                'Authorized Signatory',
-                                style: pw.TextStyle(color: darkTextColor, fontSize: 7.8, fontWeight: pw.FontWeight.bold),
-                              ),
-                              pw.Text(
-                                '(Vendor Stamp & Signature)',
-                                style: const pw.TextStyle(
-                                  color: slateMutedColor,
-                                  fontSize: 6.8,
+                                child: pw.Column(
+                                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                                  children: [
+                                    pw.Text(
+                                      'For SIYA INFOTECH & DIGITAL SOLUTIONS',
+                                      style: pw.TextStyle(
+                                        color: darkTextColor,
+                                        fontSize: 8.0,
+                                        fontWeight: pw.FontWeight.bold,
+                                      ),
+                                    ),
+                                    pw.SizedBox(height: 2),
+                                    AdminCompanyStampHelper.buildStampAndSignatureWidget(
+                                      image: stampImage,
+                                      include: includeStampAndSignature,
+                                      height: 56,
+                                      width: 145,
+                                    ),
+                                    pw.Container(width: 145, height: 0.8, color: darkTextColor),
+                                    pw.SizedBox(height: 2.5),
+                                    pw.Text(
+                                      'Authorized Signatory',
+                                      style: pw.TextStyle(color: darkTextColor, fontSize: 7.8, fontWeight: pw.FontWeight.bold),
+                                    ),
+                                    pw.Text(
+                                      '(Vendor Stamp & Signature)',
+                                      style: const pw.TextStyle(
+                                        color: slateMutedColor,
+                                        fontSize: 6.8,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
