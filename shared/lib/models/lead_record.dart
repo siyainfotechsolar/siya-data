@@ -33,6 +33,38 @@ class LeadRecord {
   bool get isNonSubsidy => siteType.trim().toLowerCase() == 'non-subsidy';
   bool get isSubsidy => !isNonSubsidy;
 
+  /// Numerical capacity in kW extracted from approxSystemSize or remarks
+  double get capacityKw {
+    if (approxSystemSize != null && approxSystemSize!.trim().isNotEmpty) {
+      final m = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(approxSystemSize!);
+      if (m != null) {
+        final val = double.tryParse(m.group(1)!);
+        if (val != null) return val;
+      }
+    }
+    if (remarks != null && remarks!.trim().isNotEmpty) {
+      final m = RegExp(r'(\d+(?:\.\d+)?)\s*(?:kw|kW|KW|Kw)').firstMatch(remarks!);
+      if (m != null) {
+        final val = double.tryParse(m.group(1)!);
+        if (val != null) return val;
+      }
+    }
+    return 3.0;
+  }
+
+  /// Above 6 kW requires 3-Phase (415V, 50Hz) connection
+  bool get isThreePhase => capacityKw > 6.0;
+
+  /// Electrical phase label: '3-Phase' if capacity > 6 kW, otherwise '1-Phase'
+  String get electricalPhase => isThreePhase ? '3-Phase' : '1-Phase';
+
+  /// Complete electrical rating string
+  String get phaseVoltage => isThreePhase ? '3-Phase 415V, 50Hz' : '1-Phase 230V, 50Hz';
+
+  /// DCR (Domestic Content Requirement) fulfillment is required ONLY for Subsidy sites.
+  /// Non-subsidy sites (including > 6 kW non-subsidy) do NOT require DCR panels or undertaking.
+  bool get isDcrRequired => !isNonSubsidy;
+
   const LeadRecord({
     required this.id,
     required this.customerName,

@@ -115,12 +115,15 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
     final laCtrl = TextEditingController(text: _reportData.lightningArrester);
 
     DateTime compDate = _reportData.completionDate;
+    String selectedSiteType = _reportData.siteType;
+    String selectedPhase = _reportData.electricalPhase;
 
     await showDialog<void>(
       context: context,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final currentCap = double.tryParse(capKwCtrl.text.trim()) ?? _reportData.installedCapacityKw;
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: const Row(
@@ -143,7 +146,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                       ),
                       const SizedBox(height: 16),
 
-                      // SECTION 1: Consumer & Sanction Details
+                      // SECTION 1: Consumer & Site Information
                       const Text('1. Consumer & Site Information', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69))),
                       const SizedBox(height: 8),
                       Row(
@@ -166,9 +169,122 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                         children: [
                           Expanded(child: TextField(controller: sanctionCtrl, decoration: const InputDecoration(labelText: 'Sanction / Appln No *', isDense: true, border: OutlineInputBorder()))),
                           const SizedBox(width: 10),
-                          Expanded(child: TextField(controller: capKwCtrl, decoration: const InputDecoration(labelText: 'System Capacity (KW) *', isDense: true, border: OutlineInputBorder()))),
+                          Expanded(
+                            child: TextField(
+                              controller: capKwCtrl,
+                              decoration: const InputDecoration(labelText: 'System Capacity (KW) *', isDense: true, border: OutlineInputBorder()),
+                              onChanged: (val) {
+                                final parsedCap = double.tryParse(val.trim());
+                                if (parsedCap != null) {
+                                  setDialogState(() {
+                                    if (parsedCap > 6.0) {
+                                      selectedPhase = '3-Phase';
+                                      selectedSiteType = 'Non-Subsidy';
+                                      invRatingCtrl.text = '${parsedCap.toStringAsFixed(1)} kW, 3-Phase 415V, 50Hz';
+                                      invModelCtrl.text = 'MOD ${parsedCap.ceil()}KTL3-X';
+                                      invTypeCtrl.text = 'Dual MPPT / 3-Phase Grid-Tied';
+                                      earthDetailsCtrl.text = '4 Earthings (AC, DC, Body, LA) < 5 Ohms';
+                                      cellMfrCtrl.text = 'N/A (Non-DCR / Non-Subsidy)';
+                                      cellGstCtrl.text = 'N/A (Non-Subsidy)';
+                                      categoryCtrl.text = 'Commercial / Non-Subsidy';
+                                    } else {
+                                      selectedPhase = '1-Phase';
+                                      invRatingCtrl.text = '${parsedCap.toStringAsFixed(1)} kW, 1-Phase 230V, 50Hz';
+                                      invModelCtrl.text = parsedCap <= 3.3 ? 'MIC 3300TL-X' : 'MIN 6000TL-X';
+                                      invTypeCtrl.text = 'Dual MPPT / String Inverter';
+                                      earthDetailsCtrl.text = '3 Earthings (AC, DC, LA) < 5 Ohms';
+                                    }
+                                    invCapCtrl.text = parsedCap <= 3.0 ? '3.3' : parsedCap.toStringAsFixed(1);
+                                  });
+                                }
+                              },
+                            ),
+                          ),
                         ],
                       ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: selectedSiteType,
+                              decoration: const InputDecoration(labelText: 'Site Type', isDense: true, border: OutlineInputBorder()),
+                              items: const [
+                                DropdownMenuItem(value: 'Subsidy', child: Text('Subsidy (DCR Required)')),
+                                DropdownMenuItem(value: 'Non-Subsidy', child: Text('Non-Subsidy (DCR Not Required)')),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setDialogState(() {
+                                    selectedSiteType = val;
+                                    if (val == 'Non-Subsidy') {
+                                      cellMfrCtrl.text = 'N/A (Non-DCR / Non-Subsidy)';
+                                      cellGstCtrl.text = 'N/A (Non-Subsidy)';
+                                      categoryCtrl.text = 'Commercial / Non-Subsidy';
+                                    } else {
+                                      cellMfrCtrl.text = 'Premier Energies Ltd';
+                                      cellGstCtrl.text = 'PE/GST/2024/6710';
+                                      categoryCtrl.text = 'Private Sector / Residential';
+                                    }
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: selectedPhase,
+                              decoration: const InputDecoration(labelText: 'Electrical Phase', isDense: true, border: OutlineInputBorder()),
+                              items: const [
+                                DropdownMenuItem(value: '1-Phase', child: Text('1-Phase (230V, 50Hz)')),
+                                DropdownMenuItem(value: '3-Phase', child: Text('3-Phase (415V, 50Hz)')),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setDialogState(() {
+                                    selectedPhase = val;
+                                    final cap = double.tryParse(capKwCtrl.text.trim()) ?? 3.0;
+                                    if (val == '3-Phase') {
+                                      invRatingCtrl.text = '${cap.toStringAsFixed(1)} kW, 3-Phase 415V, 50Hz';
+                                      invModelCtrl.text = 'MOD ${cap.ceil()}KTL3-X';
+                                      invTypeCtrl.text = 'Dual MPPT / 3-Phase Grid-Tied';
+                                      earthDetailsCtrl.text = '4 Earthings (AC, DC, Body, LA) < 5 Ohms';
+                                    } else {
+                                      invRatingCtrl.text = '${cap.toStringAsFixed(1)} kW, 1-Phase 230V, 50Hz';
+                                      invModelCtrl.text = cap <= 3.3 ? 'MIC 3300TL-X' : 'MIN 6000TL-X';
+                                      invTypeCtrl.text = 'Dual MPPT / String Inverter';
+                                      earthDetailsCtrl.text = '3 Earthings (AC, DC, LA) < 5 Ohms';
+                                    }
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (currentCap > 6.0)
+                        Container(
+                          margin: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F3FF),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFDDD6FE)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.bolt, size: 16, color: Color(0xFF7C3AED)),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '⚡ Above 6 kW is configured as 3-Phase (415V) Non-Subsidy site (DCR not required).',
+                                  style: TextStyle(fontSize: 11.5, color: Color(0xFF5B21B6), fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 10),
                       Row(
                         children: [
@@ -293,6 +409,8 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                         customerAddress: addressCtrl.text.trim(),
                         customerMobile: mobileCtrl.text.trim(),
                         category: categoryCtrl.text.trim(),
+                        siteType: selectedSiteType,
+                        electricalPhase: selectedPhase,
                         sanctionNo: sanctionCtrl.text.trim(),
                         consumerAadhar: aadharCtrl.text.trim(),
                         sanctionedCapacityKw: cap,
@@ -504,7 +622,11 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                           const SizedBox(width: 4),
                           _buildTabButton(2, '3. Annexure-I (2P)', Icons.description_rounded),
                           const SizedBox(width: 4),
-                          _buildTabButton(3, '4. DCR Undertaking (1P)', Icons.verified_user_rounded),
+                          _buildTabButton(
+                            3,
+                            _reportData.isNonSubsidy ? '4. DCR (Not Required)' : '4. DCR Undertaking (1P)',
+                            Icons.verified_user_rounded,
+                          ),
                           const SizedBox(width: 4),
                           _buildTabButton(4, '5. Net-Metering (5P)', Icons.handshake_outlined),
                         ],
@@ -713,17 +835,43 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: const Color(0xFFA7F3D0)),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                alignment: WrapAlignment.spaceBetween,
                 children: [
                   Text('Modules: ${_reportData.moduleCount}x ${_reportData.moduleMake} (${_reportData.moduleWattage}Wp)', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF065F46), fontSize: 11.5)),
-                  Text('Inverter: ${_reportData.inverterMake} ${_reportData.inverterModel} (${_reportData.inverterCapacityKw.toStringAsFixed(1)} kW)', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF047857), fontSize: 11.5)),
-                  Text('Earthing: ${_reportData.earthResistanceDetails}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F2D69), fontSize: 11.5)),
+                  Text('Inverter: ${_reportData.inverterMake} ${_reportData.inverterModel} (${_reportData.inverterRating})', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF047857), fontSize: 11.5)),
+                  Text('Site: ${_reportData.siteType} • ${_reportData.electricalPhase} (${_reportData.isDcrRequired ? "DCR Required" : "DCR Not Required"})', style: TextStyle(fontWeight: FontWeight.bold, color: _reportData.isNonSubsidy ? const Color(0xFF7C3AED) : const Color(0xFF0F2D69), fontSize: 11.5)),
                   Text('Date: ${DateFormat('dd MMM yyyy').format(_reportData.completionDate)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF334155), fontSize: 11.5)),
                 ],
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
+
+            // Non-Subsidy DCR Notice Banner
+            if (_selectedTab == 3 && _reportData.isNonSubsidy)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, color: Color(0xFFB45309), size: 18),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Notice: DCR (Domestic Content Requirement) undertaking is NOT required for Non-Subsidy sites. Domestic Content Requirement applies only to PM Surya Ghar CFA subsidy schemes. Available here if custom requested by DISCOM.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             // Live Interactive PDF Preview
             Expanded(

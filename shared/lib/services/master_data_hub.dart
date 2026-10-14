@@ -138,12 +138,19 @@ class MasterDataHub {
     final comp = customCompany ?? _company;
     final capNum = _parseCapacityNumber(customer.systemCapacity);
 
+    final bool isThreePhase = capNum > 6.0;
+    final String phaseStr = isThreePhase ? '3-Phase 415V, 50Hz' : '1-Phase 230V, 50Hz';
+    final String phaseShort = isThreePhase ? '3-Phase' : '1-Phase';
+    final bool isNonSubsidy = customer.isNonSubsidy;
+
     return WorkCompletionReportData(
       customerName: customer.name,
       consumerNo: customer.consumerNo,
       customerAddress: customer.address ?? '',
       customerMobile: customer.mobile ?? '',
-      category: 'Private Sector / Residential',
+      category: isNonSubsidy ? 'Commercial / Non-Subsidy' : 'Private Sector / Residential',
+      siteType: customer.siteType,
+      electricalPhase: phaseShort,
       sanctionNo: customSanctionNo ?? customer.applicationId ?? 'SAN-${customer.consumerNo}',
       applicationNo: customApplicationNo ?? customer.applicationId ?? customer.consumerNo,
       applicationDate: applicationDate ?? customer.submitDate ?? customer.createdAt ?? DateTime.now(),
@@ -152,6 +159,15 @@ class MasterDataHub {
       installedCapacityKw: capNum,
       moduleCount: (capNum * 2).round().clamp(1, 100),
       moduleTotalCapacityKwp: capNum,
+      cellManufacturer: isNonSubsidy ? 'N/A (Non-DCR / Non-Subsidy)' : 'Premier Energies Ltd',
+      cellGstInvoiceNo: isNonSubsidy ? 'N/A (Non-Subsidy)' : 'PE/INV/2024/7821',
+      inverterModel: capNum <= 3.3
+          ? 'MIC 3300TL-X'
+          : (capNum <= 6.0 ? 'MIN 6000TL-X' : 'MOD ${capNum.ceil()}KTL3-X'),
+      inverterRating: '${capNum.toStringAsFixed(1)} kW, $phaseStr',
+      inverterControllerType: isThreePhase ? 'Dual MPPT / 3-Phase Grid-Tied' : 'Dual MPPT / String Inverter',
+      inverterCapacityKw: capNum <= 3.0 ? 3.3 : capNum,
+      earthResistanceDetails: isThreePhase ? '4 Earthings (AC, DC, Body, LA) < 5 Ohms' : '3 Earthings (AC, DC, LA) < 5 Ohms',
       vendorFirmName: comp.companyName,
       vendorGstin: comp.gstin,
       vendorAddress: comp.address,

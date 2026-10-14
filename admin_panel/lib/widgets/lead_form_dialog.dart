@@ -90,10 +90,35 @@ class _LeadFormDialogState extends State<LeadFormDialog> {
     _leadStatus = (l != null && _statuses.contains(l.leadStatus)) ? l.leadStatus : 'New';
     _siteType = (l != null && l.siteType.isNotEmpty) ? l.siteType : 'Subsidy';
     _nextFollowupDate = l?.nextFollowupDate ?? DateTime.now().add(const Duration(days: 1));
+
+    _systemSizeController.addListener(_onSystemSizeChanged);
+  }
+
+  void _onSystemSizeChanged() {
+    final text = _systemSizeController.text.trim();
+    if (text.isEmpty) return;
+    final m = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(text);
+    if (m != null) {
+      final cap = double.tryParse(m.group(1)!);
+      if (cap != null && cap > 6.0 && _siteType != 'Non-Subsidy') {
+        setState(() {
+          _siteType = 'Non-Subsidy';
+        });
+      }
+    }
+  }
+
+  double get _currentSystemSizeKw {
+    final text = _systemSizeController.text.trim();
+    if (text.isEmpty) return 0.0;
+    final m = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(text);
+    if (m != null) return double.tryParse(m.group(1)!) ?? 0.0;
+    return 0.0;
   }
 
   @override
   void dispose() {
+    _systemSizeController.removeListener(_onSystemSizeChanged);
     _nameController.dispose();
     _mobileController.dispose();
     _whatsappController.dispose();
@@ -389,8 +414,48 @@ class _LeadFormDialogState extends State<LeadFormDialog> {
                               ),
                             ),
                           ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _siteType,
+                              decoration: const InputDecoration(
+                                labelText: 'Site Type',
+                                prefixIcon: Icon(Icons.bolt_outlined),
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 'Subsidy', child: Text('Subsidy (DCR Req)')),
+                                DropdownMenuItem(value: 'Non-Subsidy', child: Text('Non-Subsidy (Non-DCR)')),
+                              ],
+                              onChanged: (v) => setState(() => _siteType = v!),
+                            ),
+                          ),
                         ],
                       ),
+                      if (_currentSystemSizeKw > 6.0) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F3FF),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFDDD6FE)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.bolt, size: 16, color: Color(0xFF7C3AED)),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '⚡ Above 6 kW: 3-Phase (415V) Non-Subsidy site (DCR not required).',
+                                  style: TextStyle(fontSize: 11.5, color: Color(0xFF5B21B6), fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       Row(
                         children: [

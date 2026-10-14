@@ -1611,10 +1611,10 @@ Your Rooftop Solar PV System (${data.installedCapacityKw.toStringAsFixed(1)} kW)
 • Sanction No: ${data.sanctionNo}
 • Installed Capacity: ${data.installedCapacityKw.toStringAsFixed(1)} kW (${data.moduleTotalCapacityKwp.toStringAsFixed(2)} kWp)
 • Solar Modules: ${data.moduleCount}x ${data.moduleMake} (${data.moduleWattage} Wp)
-• Inverter: ${data.inverterMake} ${data.inverterModel}
+• Inverter: ${data.inverterMake} ${data.inverterModel} (${data.inverterRating})
 • 5-Year Comprehensive Maintenance Contract (CMC): Active
 
-All official documents (WCR, Annexure-1, DCR & Net-Metering Agreement) are ready for MSEDCL submission.
+All official documents (${data.isNonSubsidy ? 'WCR, Annexure-1 & Net-Metering Agreement' : 'WCR, Annexure-1, DCR & Net-Metering Agreement'}) are ready for MSEDCL submission.${data.isNonSubsidy ? ' (DCR not required for Non-Subsidy sites)' : ''}
 
 For assistance:
 📞 ${data.vendorMobile}

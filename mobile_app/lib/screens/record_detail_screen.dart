@@ -1552,6 +1552,38 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                                 style: TextStyle(fontWeight: FontWeight.w600, color: Colors.amber.shade900, fontSize: 12),
                               ),
                             ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _record.isThreePhase ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: _record.isThreePhase ? const Color(0xFFF59E0B) : const Color(0xFFCBD5E1)),
+                            ),
+                            child: Text(
+                              _record.electricalPhase,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: _record.isThreePhase ? const Color(0xFFB45309) : const Color(0xFF475569),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _record.isDcrRequired ? const Color(0xFFECFDF5) : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: _record.isDcrRequired ? const Color(0xFF10B981) : const Color(0xFFCBD5E1)),
+                            ),
+                            child: Text(
+                              _record.isDcrRequired ? 'DCR Required' : 'DCR Not Required',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: _record.isDcrRequired ? const Color(0xFF047857) : const Color(0xFF64748B),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ],

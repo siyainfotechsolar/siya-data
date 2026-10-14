@@ -83,6 +83,11 @@ class SolarQuotation {
   /// Default 9 standard components as specified in solar quotation requirements
   static List<Map<String, String>> defaultItems([String? capacity]) {
     final capStr = (capacity != null && capacity.trim().isNotEmpty) ? capacity.trim() : '3 kW';
+    double capKw = 3.0;
+    final m = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(capStr);
+    if (m != null) capKw = double.tryParse(m.group(1)!) ?? 3.0;
+    final bool isThreePhase = capKw > 6.0;
+
     return [
       {
         'sr': '1',
@@ -93,7 +98,7 @@ class SolarQuotation {
       {
         'sr': '2',
         'item': 'Grid-Tied Inverter',
-        'spec': '$capStr Grid-Tied Inverter',
+        'spec': '$capStr ${isThreePhase ? '3-Phase' : '1-Phase'} Grid-Tied Inverter',
         'qty': '1 No.',
       },
       {
@@ -111,19 +116,19 @@ class SolarQuotation {
       {
         'sr': '5',
         'item': 'AC Cable',
-        'spec': 'Armoured AC Cable',
+        'spec': '${isThreePhase ? '4-Core ' : ''}Armoured AC Cable',
         'qty': 'As Required',
       },
       {
         'sr': '6',
         'item': 'ACDB & DCDB',
-        'spec': 'Protection Distribution Box',
+        'spec': isThreePhase ? '3-Phase Protection Distribution Box' : 'Protection Distribution Box',
         'qty': '1 Set',
       },
       {
         'sr': '7',
         'item': 'Earthing',
-        'spec': 'Chemical GI Earthing Electrodes',
+        'spec': isThreePhase ? 'Chemical GI Earthing Electrodes (AC, DC, Body, LA)' : 'Chemical GI Earthing Electrodes',
         'qty': 'As Required',
       },
       {

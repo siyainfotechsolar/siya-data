@@ -112,5 +112,59 @@ void main() {
       final header = ascii.decode(pdfBytes.take(5).toList());
       expect(header, equals('%PDF-'));
     });
+
+    test('7. System Capacity above 6 kW is configured as 3-Phase 415V, 50Hz', () {
+      final customer8Kw = ConsumerRecord(
+        consumerNo: '012345678902',
+        name: 'Mahesh Patil',
+        systemCapacity: '8 kW',
+        siteType: 'Non-Subsidy',
+      );
+
+      final report8Kw = WorkCompletionReportData.fromCustomer(customer8Kw);
+      expect(report8Kw.installedCapacityKw, equals(8.0));
+      expect(report8Kw.isThreePhase, isTrue);
+      expect(report8Kw.electricalPhase, equals('3-Phase'));
+      expect(report8Kw.inverterRating, contains('3-Phase 415V, 50Hz'));
+      expect(report8Kw.inverterModel, equals('MOD 8KTL3-X'));
+      expect(report8Kw.inverterControllerType, contains('3-Phase'));
+      expect(report8Kw.earthResistanceDetails, contains('4 Earthings'));
+    });
+
+    test('8. Non-Subsidy site sets DCR as not required and formats cell fields accordingly', () {
+      final nonSubsidyCustomer = ConsumerRecord(
+        consumerNo: '012345678903',
+        name: 'Ketan Deshmukh',
+        systemCapacity: '10 kW',
+        siteType: 'Non-Subsidy',
+      );
+
+      final reportNs = WorkCompletionReportData.fromCustomer(nonSubsidyCustomer);
+      expect(reportNs.isNonSubsidy, isTrue);
+      expect(reportNs.isDcrRequired, isFalse);
+      expect(reportNs.cellManufacturer, equals('N/A (Non-DCR / Non-Subsidy)'));
+      expect(reportNs.cellGstInvoiceNo, equals('N/A (Non-Subsidy)'));
+      expect(reportNs.moduleAlmmModel, equals('WST-540-Non-DCR'));
+    });
+
+    test('9. Subsidy site <= 6 kW is 1-Phase 230V and DCR is required', () {
+      final subsidyCustomer = ConsumerRecord(
+        consumerNo: '012345678904',
+        name: 'Sopan Shinde',
+        systemCapacity: '3 kW',
+        siteType: 'Subsidy',
+      );
+
+      final reportSub = WorkCompletionReportData.fromCustomer(subsidyCustomer);
+      expect(reportSub.installedCapacityKw, equals(3.0));
+      expect(reportSub.isThreePhase, isFalse);
+      expect(reportSub.electricalPhase, equals('1-Phase'));
+      expect(reportSub.inverterRating, contains('1-Phase 230V, 50Hz'));
+      expect(reportSub.inverterModel, equals('MIC 3300TL-X'));
+      expect(reportSub.isSubsidy, isTrue);
+      expect(reportSub.isDcrRequired, isTrue);
+      expect(reportSub.cellManufacturer, equals('Premier Energies Ltd'));
+      expect(reportSub.cellGstInvoiceNo, equals('PE/GST/2024/6710'));
+    });
   });
 }

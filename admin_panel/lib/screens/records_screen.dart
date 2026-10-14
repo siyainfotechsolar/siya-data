@@ -1356,7 +1356,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                                 ),
                                               ),
                                               DataCell(_buildWorkflowStageBadge(r)),
-                                              DataCell(_buildStatusBadge(r.status)),
+                                              DataCell(_buildStatusBadge(r.currentStatus)),
                                               DataCell(_buildActionRequiredBadge(r.actionRequired)),
                                               DataCell(
                                                 Text(
@@ -1405,7 +1405,9 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                                     ),
                                                     IconButton(
                                                       icon: const Icon(Icons.verified_outlined, size: 18, color: Color(0xFF0F2D69)),
-                                                      tooltip: 'MSEDCL Dossier (WCR, Annexure-1, DCR, Net-Metering)',
+                                                      tooltip: r.isNonSubsidy
+                                                          ? 'MSEDCL Dossier (WCR, Annexure-1, Net-Metering - DCR Not Required)'
+                                                          : 'MSEDCL Dossier (WCR, Annexure-1, DCR, Net-Metering)',
                                                       onPressed: () => WorkCompletionCertificateDialog.show(context, r),
                                                     ),
                                                     IconButton(
@@ -1529,7 +1531,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                 const SizedBox(width: 6),
                 _buildFinancingBadge(r),
                 const SizedBox(width: 6),
-                _buildStatusBadge(r.status),
+                _buildStatusBadge(r.currentStatus),
               ],
             ),
             const SizedBox(height: 6),
@@ -1581,7 +1583,9 @@ class _RecordsScreenState extends State<RecordsScreen> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.verified_outlined, size: 16, color: Color(0xFF0F2D69)),
-                  tooltip: 'MSEDCL Dossier (WCR, Annex-1, DCR)',
+                  tooltip: r.isNonSubsidy
+                      ? 'MSEDCL Dossier (WCR, Annex-1 - DCR Not Required)'
+                      : 'MSEDCL Dossier (WCR, Annex-1, DCR)',
                   visualDensity: VisualDensity.compact,
                   onPressed: () => WorkCompletionCertificateDialog.show(context, r),
                 ),

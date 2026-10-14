@@ -825,6 +825,40 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                                 ),
                               ),
                             ],
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _record.isThreePhase ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: _record.isThreePhase ? const Color(0xFFF59E0B) : const Color(0xFFCBD5E1)),
+                              ),
+                              child: Text(
+                                _record.electricalPhase,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: _record.isThreePhase ? const Color(0xFFB45309) : const Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _record.isDcrRequired ? const Color(0xFFECFDF5) : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: _record.isDcrRequired ? const Color(0xFF10B981) : const Color(0xFFCBD5E1)),
+                              ),
+                              child: Text(
+                                _record.isDcrRequired ? 'DCR Required' : 'DCR Not Required',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: _record.isDcrRequired ? const Color(0xFF047857) : const Color(0xFF64748B),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -2539,18 +2573,22 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                     child: const Icon(Icons.verified_rounded, color: Color(0xFF059669), size: 22),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'MSEDCL Commissioning Dossier & WCR (4 Documents)',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69)),
+                          _record.isNonSubsidy
+                              ? 'MSEDCL Commissioning Dossier & WCR (3 Documents • Non-Subsidy)'
+                              : 'MSEDCL Commissioning Dossier & WCR (4 Documents)',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69)),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
-                          'Prefilled 1. WCR Report (2P) • 2. Annexure-I • 3. DCR Undertaking • 4. Net-Metering Agreement',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                          _record.isNonSubsidy
+                              ? 'Prefilled 1. WCR Report (2P) • 2. Annexure-I • 3. Net-Metering Agreement (DCR Not Required for Non-Subsidy)'
+                              : 'Prefilled 1. WCR Report (2P) • 2. Annexure-I • 3. DCR Undertaking • 4. Net-Metering Agreement',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                         ),
                       ],
                     ),
@@ -2564,7 +2602,7 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                     ),
                     onPressed: () => WorkCompletionCertificateDialog.show(context, _record),
                     icon: const Icon(Icons.folder_shared_rounded, size: 14),
-                    label: const Text('Open Dossier (4 Docs)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                    label: Text(_record.isNonSubsidy ? 'Open Dossier (3 Docs)' : 'Open Dossier (4 Docs)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                   ),
                 ],
               ),

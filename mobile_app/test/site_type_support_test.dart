@@ -182,4 +182,71 @@ void main() {
       expect(states[WorkflowStage.subsidy]?.isUnlocked, isFalse);
     });
   });
+
+  group('Above 6 kW is 3-Phase & Non-Subsidy DCR Not Required Rules', () {
+    test('Capacity > 6 kW is 3-Phase (415V, 50Hz)', () {
+      final record8Kw = ConsumerRecord(
+        consumerNo: '096590001608',
+        name: 'Ganesh Shinde',
+        systemCapacity: '8 kW',
+        siteType: 'Non-Subsidy',
+      );
+
+      expect(record8Kw.capacityKw, equals(8.0));
+      expect(record8Kw.isThreePhase, isTrue);
+      expect(record8Kw.electricalPhase, equals('3-Phase'));
+      expect(record8Kw.phaseVoltage, equals('3-Phase 415V, 50Hz'));
+      expect(record8Kw.isNonSubsidy, isTrue);
+      expect(record8Kw.isDcrRequired, isFalse);
+    });
+
+    test('Capacity <= 6 kW is 1-Phase (230V, 50Hz)', () {
+      final record3Kw = ConsumerRecord(
+        consumerNo: '096590001609',
+        name: 'Sachin Patil',
+        systemCapacity: '3 kW',
+        siteType: 'Subsidy',
+      );
+
+      expect(record3Kw.capacityKw, equals(3.0));
+      expect(record3Kw.isThreePhase, isFalse);
+      expect(record3Kw.electricalPhase, equals('1-Phase'));
+      expect(record3Kw.phaseVoltage, equals('1-Phase 230V, 50Hz'));
+      expect(record3Kw.isSubsidy, isTrue);
+      expect(record3Kw.isDcrRequired, isTrue);
+
+      final record6Kw = ConsumerRecord(
+        consumerNo: '096590001610',
+        name: 'Nitin Deshmukh',
+        systemCapacity: '6 kW',
+        siteType: 'Subsidy',
+      );
+
+      expect(record6Kw.capacityKw, equals(6.0));
+      expect(record6Kw.isThreePhase, isFalse);
+      expect(record6Kw.electricalPhase, equals('1-Phase'));
+    });
+
+    test('LeadRecord capacity, 3-phase and DCR flags work properly', () {
+      final leadLarge = LeadRecord(
+        id: 'lead_large',
+        customerName: 'Kailas Sugar Factory',
+        mobileNo: '9822114477',
+        leadSource: 'Field',
+        interestedIn: 'On-Grid',
+        approxSystemSize: '10 kW',
+        siteType: 'Non-Subsidy',
+        leadStatus: 'Quotation',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      expect(leadLarge.capacityKw, equals(10.0));
+      expect(leadLarge.isThreePhase, isTrue);
+      expect(leadLarge.electricalPhase, equals('3-Phase'));
+      expect(leadLarge.phaseVoltage, equals('3-Phase 415V, 50Hz'));
+      expect(leadLarge.isNonSubsidy, isTrue);
+      expect(leadLarge.isDcrRequired, isFalse);
+    });
+  });
 }

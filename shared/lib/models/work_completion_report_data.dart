@@ -9,6 +9,8 @@ class WorkCompletionReportData {
   final String customerMobile;
   final String customerEmail;
   final String category;
+  final String siteType;
+  final String electricalPhase;
   final String sanctionNo;
   final String applicationNo;
   final DateTime applicationDate;
@@ -53,6 +55,11 @@ class WorkCompletionReportData {
   // Consumer Identity
   final String consumerAadhar;
 
+  bool get isNonSubsidy => siteType.trim().toLowerCase() == 'non-subsidy';
+  bool get isSubsidy => !isNonSubsidy;
+  bool get isDcrRequired => !isNonSubsidy;
+  bool get isThreePhase => installedCapacityKw > 6.0 || electricalPhase.contains('3');
+
   WorkCompletionReportData({
     required this.customerName,
     required this.consumerNo,
@@ -60,6 +67,8 @@ class WorkCompletionReportData {
     this.customerMobile = '',
     this.customerEmail = '',
     this.category = 'Private Sector / Residential',
+    this.siteType = 'Subsidy',
+    this.electricalPhase = '1-Phase',
     required this.sanctionNo,
     required this.applicationNo,
     required this.applicationDate,
@@ -146,6 +155,14 @@ class WorkCompletionReportData {
       if (m != null) capKw = double.tryParse(m.group(1)!) ?? 3.0;
     }
 
+    // Above 6 kW is 3-Phase (415V, 50Hz); <= 6 kW is 1-Phase (230V, 50Hz)
+    final bool isThreePhase = capKw > 6.0;
+    final String phaseStr = isThreePhase ? '3-Phase 415V, 50Hz' : '1-Phase 230V, 50Hz';
+    final String phaseShort = isThreePhase ? '3-Phase' : '1-Phase';
+
+    // Non-subsidy sites do not require DCR
+    final bool isNonSubsidy = customer.isNonSubsidy;
+
     final int modCount = (capKw * 1000 / 540).ceil();
     final double totalKwp = double.parse((modCount * 0.54).toStringAsFixed(2));
 
@@ -165,7 +182,9 @@ class WorkCompletionReportData {
       customerAddress: addr,
       customerMobile: customer.mobile?.trim() ?? '',
       customerEmail: '',
-      category: 'Private Sector / Residential',
+      category: isNonSubsidy ? 'Commercial / Non-Subsidy' : 'Private Sector / Residential',
+      siteType: customer.siteType,
+      electricalPhase: phaseShort,
       sanctionNo: sanction,
       applicationNo: customer.applicationId?.trim().isNotEmpty == true ? customer.applicationId!.trim() : cNo,
       applicationDate: customer.applicationDate ?? customer.submitDate ?? compDate.subtract(const Duration(days: 30)),
@@ -173,22 +192,24 @@ class WorkCompletionReportData {
       sanctionedCapacityKw: capKw,
       installedCapacityKw: capKw,
       moduleMake: 'Waaree Energies Ltd',
-      moduleAlmmModel: 'WST-540-ALMM',
+      moduleAlmmModel: isNonSubsidy ? 'WST-540-Non-DCR' : 'WST-540-ALMM',
       moduleWattage: 540,
       moduleCount: modCount,
       moduleTotalCapacityKwp: totalKwp,
       moduleWarranty: '12 Years Product + 25 Years Performance',
       moduleSerialNos: 'WST540-001 to WST540-${modCount.toString().padLeft(3, '0')}',
-      cellManufacturer: 'Premier Energies Ltd',
-      cellGstInvoiceNo: 'PE/GST/2024/6710',
+      cellManufacturer: isNonSubsidy ? 'N/A (Non-DCR / Non-Subsidy)' : 'Premier Energies Ltd',
+      cellGstInvoiceNo: isNonSubsidy ? 'N/A (Non-Subsidy)' : 'PE/GST/2024/6710',
       inverterMake: 'Growatt New Energy',
-      inverterModel: capKw <= 3.3 ? 'MIC 3300TL-X' : 'MOD ${capKw.ceil()}KTL3-X',
-      inverterRating: '${capKw.toStringAsFixed(1)} kW, 1-Phase 230V, 50Hz',
-      inverterControllerType: 'Dual MPPT / String Inverter',
+      inverterModel: capKw <= 3.3
+          ? 'MIC 3300TL-X'
+          : (capKw <= 6.0 ? 'MIN 6000TL-X' : 'MOD ${capKw.ceil()}KTL3-X'),
+      inverterRating: '${capKw.toStringAsFixed(1)} kW, $phaseStr',
+      inverterControllerType: isThreePhase ? 'Dual MPPT / 3-Phase Grid-Tied' : 'Dual MPPT / String Inverter',
       inverterCapacityKw: capKw <= 3.0 ? 3.3 : capKw,
       inverterHpd: 'Yes',
       inverterMfgYear: compDate.year,
-      earthResistanceDetails: '3 Earthings (AC, DC, LA) < 5 Ohms',
+      earthResistanceDetails: isThreePhase ? '4 Earthings (AC, DC, Body, LA) < 5 Ohms' : '3 Earthings (AC, DC, LA) < 5 Ohms',
       earthResistanceCertified: 'Certified & Found in order (< 5 Ohms) as per MNRE OM Dtd. 07.06.24',
       lightningArrester: 'Installed with dedicated copper earth',
       vendorFirmName: comp.companyName,
@@ -209,6 +230,8 @@ class WorkCompletionReportData {
     String? customerMobile,
     String? customerEmail,
     String? category,
+    String? siteType,
+    String? electricalPhase,
     String? sanctionNo,
     String? applicationNo,
     DateTime? applicationDate,
@@ -250,6 +273,8 @@ class WorkCompletionReportData {
       customerMobile: customerMobile ?? this.customerMobile,
       customerEmail: customerEmail ?? this.customerEmail,
       category: category ?? this.category,
+      siteType: siteType ?? this.siteType,
+      electricalPhase: electricalPhase ?? this.electricalPhase,
       sanctionNo: sanctionNo ?? this.sanctionNo,
       applicationNo: applicationNo ?? this.applicationNo,
       applicationDate: applicationDate ?? this.applicationDate,
@@ -286,3 +311,4 @@ class WorkCompletionReportData {
     );
   }
 }
+

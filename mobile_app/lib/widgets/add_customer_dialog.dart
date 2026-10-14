@@ -50,10 +50,34 @@ class _AddCustomerDialogState extends State<AddCustomerDialog> {
   void initState() {
     super.initState();
     _siteType = widget.initialSiteType;
+    _capacityCtrl.addListener(_onCapacityChanged);
+  }
+
+  void _onCapacityChanged() {
+    final text = _capacityCtrl.text.trim();
+    if (text.isEmpty) return;
+    final m = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(text);
+    if (m != null) {
+      final cap = double.tryParse(m.group(1)!);
+      if (cap != null && cap > 6.0 && _siteType != 'Non-Subsidy') {
+        setState(() {
+          _siteType = 'Non-Subsidy';
+        });
+      }
+    }
+  }
+
+  double get _currentCapacityKw {
+    final text = _capacityCtrl.text.trim();
+    if (text.isEmpty) return 0.0;
+    final m = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(text);
+    if (m != null) return double.tryParse(m.group(1)!) ?? 0.0;
+    return 0.0;
   }
 
   @override
   void dispose() {
+    _capacityCtrl.removeListener(_onCapacityChanged);
     _nameCtrl.dispose();
     _mobileCtrl.dispose();
     _consumerNoCtrl.dispose();
@@ -197,9 +221,22 @@ class _AddCustomerDialogState extends State<AddCustomerDialog> {
               const SizedBox(height: 12),
 
               // SITE TYPE SELECTOR
-              const Text(
-                'SITE TYPE',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: Colors.grey),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'SITE TYPE',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: Colors.grey),
+                  ),
+                  Text(
+                    _siteType == 'Non-Subsidy' ? 'Non-Subsidy • DCR Not Required' : 'Subsidy • DCR Required',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _siteType == 'Non-Subsidy' ? const Color(0xFF7C3AED) : const Color(0xFF059669),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 6),
               SegmentedButton<String>(
@@ -320,6 +357,29 @@ class _AddCustomerDialogState extends State<AddCustomerDialog> {
                   ),
                 ],
               ),
+              if (_currentCapacityKw > 6.0) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F3FF),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFDDD6FE)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.bolt, size: 16, color: Color(0xFF7C3AED)),
+                      SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '⚡ Above 6 kW: 3-Phase (415V) Non-Subsidy site (DCR not required).',
+                          style: TextStyle(fontSize: 11.5, color: Color(0xFF5B21B6), fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
 
               // System Type Dropdown
