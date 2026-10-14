@@ -383,7 +383,9 @@ class InvoicePdfService {
                           pw.Expanded(
                             child: pw.Text(
                               invoice.amountInWords.isNotEmpty
-                                  ? 'Indian Rupee ${invoice.amountInWords} Only'
+                                  ? (invoice.amountInWords.toLowerCase().contains('rupee')
+                                      ? invoice.amountInWords
+                                      : 'Indian Rupee ${invoice.amountInWords} Only')
                                   : 'Indian Rupee ________________________________________ Only',
                               style: pw.TextStyle(
                                 fontSize: 7.5,
@@ -666,16 +668,16 @@ class InvoicePdfService {
       border: tableBorder,
       columnWidths: const {
         0: pw.FixedColumnWidth(16), // #
-        1: pw.FlexColumnWidth(3.2), // Description
-        2: pw.FixedColumnWidth(24), // Qty
-        3: pw.FixedColumnWidth(44), // Rate
-        4: pw.FixedColumnWidth(46), // Amount
-        5: pw.FixedColumnWidth(48), // Taxable Amount
-        6: pw.FixedColumnWidth(22), // CGST %
-        7: pw.FixedColumnWidth(38), // CGST Amt
-        8: pw.FixedColumnWidth(22), // SGST %
-        9: pw.FixedColumnWidth(38), // SGST Amt
-        10: pw.FixedColumnWidth(50), // Total
+        1: pw.FlexColumnWidth(3.0), // Description
+        2: pw.FixedColumnWidth(22), // Qty
+        3: pw.FixedColumnWidth(42), // Rate
+        4: pw.FixedColumnWidth(42), // Amount
+        5: pw.FixedColumnWidth(46), // Taxable Amount
+        6: pw.FixedColumnWidth(28), // CGST %
+        7: pw.FixedColumnWidth(36), // CGST Amt
+        8: pw.FixedColumnWidth(28), // SGST %
+        9: pw.FixedColumnWidth(36), // SGST Amt
+        10: pw.FixedColumnWidth(48), // Total
       },
       children: [
         // Header Row
