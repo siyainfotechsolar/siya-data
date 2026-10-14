@@ -35,6 +35,7 @@ class SolarQuotation {
   final DateTime createdAt;
   final String? createdBy;
   final List<Map<String, String>> items;
+  final String status;
 
   SolarQuotation({
     required this.id,
@@ -69,6 +70,7 @@ class SolarQuotation {
     DateTime? createdAt,
     this.createdBy,
     List<Map<String, String>>? items,
+    this.status = 'Issued',
   })  : bankName = bankName ?? CompanyMaster.current.bankName,
         branch = branch ?? CompanyMaster.current.branch,
         accountNo = accountNo ?? CompanyMaster.current.accountNo,
@@ -199,6 +201,7 @@ class SolarQuotation {
     String? fileUrl,
     String? createdBy,
     List<Map<String, String>>? items,
+    String status = 'Issued',
   }) {
     final effectiveQuotationDate = quotationDate ?? DateTime.now();
     final effectiveGrandTotal = grandTotal ?? (totalSystemCost + gstAmount);
@@ -269,6 +272,7 @@ class SolarQuotation {
       createdAt: DateTime.now(),
       createdBy: createdBy,
       items: items ?? defaultItems(systemCapacity),
+      status: status,
     );
   }
 
@@ -306,10 +310,19 @@ class SolarQuotation {
       'created_at': createdAt.toIso8601String(),
       'created_by': createdBy,
       'items': items,
+      'status': status,
     };
   }
 
   factory SolarQuotation.fromJson(Map<String, dynamic> json) {
+    // If metadata contains status, use it
+    String parsedStatus = 'Issued';
+    if (json['status'] != null && json['status'].toString().isNotEmpty) {
+      parsedStatus = json['status'].toString();
+    } else if (json['metadata'] is Map && (json['metadata'] as Map)['status'] != null) {
+      parsedStatus = (json['metadata'] as Map)['status'].toString();
+    }
+
     return SolarQuotation(
       id: json['id']?.toString() ?? '',
       customerId: json['customer_id']?.toString(),
@@ -360,7 +373,12 @@ class SolarQuotation {
           ? (json['items'] as List)
               .map((item) => Map<String, String>.from(item as Map))
               .toList()
-          : defaultItems(json['system_capacity']?.toString() ?? '3 kW'),
+          : (json['metadata'] is Map && (json['metadata'] as Map)['items'] is List)
+              ? ((json['metadata'] as Map)['items'] as List)
+                  .map((item) => Map<String, String>.from(item as Map))
+                  .toList()
+              : defaultItems(json['system_capacity']?.toString() ?? '3 kW'),
+      status: parsedStatus,
     );
   }
 
@@ -397,6 +415,7 @@ class SolarQuotation {
     DateTime? createdAt,
     String? createdBy,
     List<Map<String, String>>? items,
+    String? status,
   }) {
     return SolarQuotation(
       id: id ?? this.id,
@@ -431,6 +450,7 @@ class SolarQuotation {
       createdAt: createdAt ?? this.createdAt,
       createdBy: createdBy ?? this.createdBy,
       items: items ?? this.items,
+      status: status ?? this.status,
     );
   }
 

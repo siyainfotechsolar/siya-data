@@ -20,6 +20,8 @@ import 'payments_screen.dart';
 import 'office_tasks_screen.dart';
 import 'action_center_screen.dart';
 import 'invoices_screen.dart';
+import 'quotations_screen.dart';
+import 'margin_receipts_screen.dart';
 import '../models/user_profile.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -49,6 +51,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItem(id: 'action_center', label: 'Action Center', icon: Icons.bolt_outlined, selectedIcon: Icons.bolt, isMainBottomNav: true, moduleKey: 'customer'),
     _NavItem(id: 'payments', label: 'Payments', icon: Icons.payments_outlined, selectedIcon: Icons.payments, isMainBottomNav: true, moduleKey: 'payment'),
     _NavItem(id: 'invoices', label: 'Invoices', icon: Icons.receipt_long_outlined, selectedIcon: Icons.receipt_long, isMainBottomNav: true, moduleKey: 'payment'),
+    _NavItem(id: 'quotations', label: 'Quotations', icon: Icons.request_quote_outlined, selectedIcon: Icons.request_quote, isMainBottomNav: false, moduleKey: 'customer'),
+    _NavItem(id: 'margin_receipts', label: 'Margin Receipts', icon: Icons.description_outlined, selectedIcon: Icons.description, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'office_tasks', label: 'Office Tasks', icon: Icons.assignment_ind_outlined, selectedIcon: Icons.assignment_ind, isMainBottomNav: false),
     _NavItem(id: 'whatsapp', label: 'WhatsApp', icon: Icons.share_rounded, selectedIcon: Icons.share, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'leads', label: 'Leads', icon: Icons.leaderboard_outlined, selectedIcon: Icons.leaderboard, isMainBottomNav: false, moduleKey: 'customer'),
@@ -579,6 +583,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         );
       case 'invoices':
         return const InvoicesScreen();
+      case 'quotations':
+        return const QuotationsScreen();
+      case 'margin_receipts':
+        return const MarginReceiptsScreen();
       case 'office_tasks':
         return const OfficeTasksScreen();
       case 'whatsapp':

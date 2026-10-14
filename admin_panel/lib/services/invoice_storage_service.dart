@@ -9,21 +9,19 @@ import '../models/invoice.dart';
 class InvoiceStorageService {
   static const String _storageKeyPrefix = 'customer_invoices_';
   static const String _allInvoicesKey = 'all_invoices_ids';
-  static const String _invoiceCounterKey = 'invoice_counter';
   static const String _quotationInvoiceMapKey = 'quotation_invoice_map';
 
   // ── Invoice Number Generation ──────────────────────────────────────────────
 
-  /// Generate next unique invoice number: INV-YYYY-NNNN
+  /// Generate next unique invoice number: SID000321 format matching live GST invoices.
   /// Only called when user explicitly confirms [Generate Invoice].
   static Future<String> generateInvoiceNumber() async {
     final prefs = await SharedPreferences.getInstance();
-    final year = DateTime.now().year;
-    final yearKey = '${_invoiceCounterKey}_$year';
+    const sidCounterKey = 'invoice_sid_counter';
 
-    int counter = prefs.getInt(yearKey) ?? 0;
+    int counter = prefs.getInt(sidCounterKey) ?? 321;
     counter++;
-    await prefs.setInt(yearKey, counter);
+    await prefs.setInt(sidCounterKey, counter);
 
     // Also try to get the max from Supabase for consistency
     try {
@@ -31,27 +29,25 @@ class InvoiceStorageService {
       final res = await client
           .from('customer_invoices')
           .select('invoice_number')
-          .like('invoice_number', 'INV-$year-%')
+          .like('invoice_number', 'SID%')
           .order('created_at', ascending: false)
           .limit(1);
 
       if (res.isNotEmpty) {
         final lastNo = res[0]['invoice_number']?.toString() ?? '';
-        final parts = lastNo.split('-');
-        if (parts.length == 3) {
-          final dbCounter = int.tryParse(parts[2]) ?? 0;
-          if (dbCounter >= counter) {
-            counter = dbCounter + 1;
-            await prefs.setInt(yearKey, counter);
-          }
+        final digits = lastNo.replaceAll(RegExp(r'[^0-9]'), '');
+        final dbCounter = int.tryParse(digits) ?? 0;
+        if (dbCounter >= counter) {
+          counter = dbCounter + 1;
+          await prefs.setInt(sidCounterKey, counter);
         }
       }
     } catch (_) {
       // Offline — use local counter
     }
 
-    final paddedCounter = counter.toString().padLeft(4, '0');
-    return 'INV-$year-$paddedCounter';
+    final padded = counter.toString().padLeft(6, '0');
+    return 'SID$padded';
   }
 
   // ── Duplicate Protection ───────────────────────────────────────────────────

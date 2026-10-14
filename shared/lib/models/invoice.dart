@@ -90,6 +90,11 @@ class Invoice {
         .replaceAll(RegExp(r'[^\w\s-]'), '_');
     final fileName = 'Invoice_${safeCustomerName}_$safeInvoiceNo.pdf';
 
+    final twoItems = generateTwoLineItems(
+      systemCapacity: quotation.systemCapacity,
+      grandTotal: quotation.grandTotal,
+    );
+
     return Invoice(
       id: 'inv_${DateTime.now().millisecondsSinceEpoch}',
       invoiceNumber: invoiceNumber,
@@ -105,7 +110,7 @@ class Invoice {
       invoiceDate: DateTime.now(),
       systemCapacity: quotation.systemCapacity,
       systemType: quotation.systemType,
-      items: quotation.items.map((item) => Map<String, String>.from(item)).toList(),
+      items: twoItems,
       taxableAmount: gst.totalTaxableValue,
       gst5: gst.gst5,
       gst18: gst.gst18,
@@ -281,4 +286,43 @@ class Invoice {
   /// GST breakdown (reusable from SolarQuotation module)
   SolarQuotationGstBreakdown get gstBreakdown =>
       SolarQuotationGstBreakdown.calculate(grandTotal);
+
+  /// Generates the standard 2-line items matching live Siya GST invoices:
+  /// 1. solar power generation system {capacity} rooftop Grid tie (Goods portion ~70% @ 5% GST)
+  /// 2. Solar Bos INC (Balance of System / Services ~30% @ 18% GST)
+  static List<Map<String, String>> generateTwoLineItems({
+    required String systemCapacity,
+    required double grandTotal,
+  }) {
+    final gst = SolarQuotationGstBreakdown.calculate(grandTotal);
+    return [
+      {
+        'sr': '1',
+        'description':
+            'solar power generation system $systemCapacity rooftop Grid tie',
+        'qty': '1.00',
+        'rate': gst.taxable70.toStringAsFixed(2),
+        'amount': gst.taxable70.toStringAsFixed(2),
+        'taxable': gst.taxable70.toStringAsFixed(2),
+        'cgst_pct': '2.5%',
+        'cgst_amt': (gst.gst5 / 2).toStringAsFixed(2),
+        'sgst_pct': '2.5%',
+        'sgst_amt': (gst.gst5 / 2).toStringAsFixed(2),
+        'total': gst.portion70.toStringAsFixed(2),
+      },
+      {
+        'sr': '2',
+        'description': 'Solar Bos INC',
+        'qty': '1.00',
+        'rate': gst.taxable30.toStringAsFixed(2),
+        'amount': gst.taxable30.toStringAsFixed(2),
+        'taxable': gst.taxable30.toStringAsFixed(2),
+        'cgst_pct': '9%',
+        'cgst_amt': (gst.gst18 / 2).toStringAsFixed(2),
+        'sgst_pct': '9%',
+        'sgst_amt': (gst.gst18 / 2).toStringAsFixed(2),
+        'total': gst.portion30.toStringAsFixed(2),
+      },
+    ];
+  }
 }

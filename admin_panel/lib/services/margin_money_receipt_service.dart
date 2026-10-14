@@ -225,7 +225,7 @@ class MarginMoneyReceiptService {
                       child: pw.Column(
                         children: [
                           pw.Text(
-                            'CUSTOMER MARGIN MONEY / ADVANCE PAYMENT RECEIPT',
+                            'CUSTOMER MARGIN CONTRIBUTION DECLARATION',
                             textAlign: pw.TextAlign.center,
                             style: pw.TextStyle(
                               color: PdfColors.white,
@@ -236,7 +236,7 @@ class MarginMoneyReceiptService {
                           ),
                           pw.SizedBox(height: 1),
                           pw.Text(
-                            'For Bank Solar Loan / Finance Purpose - PM Surya Ghar Muft Bijli Yojana',
+                            'For Bank Solar Loan / Finance Processing Only — PM Surya Ghar Muft Bijli Yojana',
                             textAlign: pw.TextAlign.center,
                             style: pw.TextStyle(
                               color: lightGreenColor,
@@ -272,13 +272,15 @@ class MarginMoneyReceiptService {
                                 pw.SizedBox(height: 2),
                                 _buildInlineField('Receipt Date', dateFormatter.format(receipt.receiptDate)),
                                 pw.SizedBox(height: 2),
-                                _buildInlineField('Linked Quotation', receipt.quotationNo),
+                                _buildInlineField('Bank / Finance Co.', receipt.financeCompanyName.isNotEmpty ? receipt.financeCompanyName : receipt.bankName),
                                 pw.SizedBox(height: 2),
-                                _buildInlineField('Quotation Date', dateFormatter.format(receipt.quotationDate)),
+                                _buildInlineField('Loan App No.', receipt.loanApplicationNo.isNotEmpty ? receipt.loanApplicationNo : 'Under Processing'),
+                                pw.SizedBox(height: 2),
+                                _buildInlineField('Linked Quotation', receipt.quotationNo),
                               ],
                             ),
                           ),
-                          pw.Container(width: 0.8, height: 42, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 8)),
+                          pw.Container(width: 0.8, height: 50, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 8)),
                           // Right col: Customer Info
                           pw.Expanded(
                             flex: 6,
@@ -626,11 +628,11 @@ class MarginMoneyReceiptService {
                         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                         children: [
                           pw.Text(
-                            'Siya Infotech and Digital Solutions | Customer Margin Money Receipt | PM Surya Ghar',
+                            'Siya Infotech | Margin Contribution Declaration | Loan Documentation Only | Not a Ledger Entry',
                             style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.2),
                           ),
                           pw.Text(
-                            'Page 1 of 1 | Single-Page A4 Bank Document',
+                            'Page 1 of 1 | Bank Loan Documentation Set',
                             style: const pw.TextStyle(color: slateMutedColor, fontSize: 6.2),
                           ),
                         ],

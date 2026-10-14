@@ -17,6 +17,16 @@ import 'work_completion_certificate_dialog.dart';
 import 'bank_loan_quotation_dialog.dart';
 import 'consumer_vendor_agreement_dialog.dart';
 import 'record_form_dialog.dart';
+import 'package:printing/printing.dart';
+import '../models/solar_quotation.dart';
+import '../models/customer_margin_receipt.dart';
+import '../models/invoice.dart';
+import '../services/quotation_storage_service.dart';
+import '../services/invoice_storage_service.dart';
+import '../services/bank_loan_quotation_service.dart';
+import '../services/margin_money_receipt_service.dart';
+import 'invoice_details_dialog.dart';
+import 'package:intl/intl.dart';
 
 class RecordDetailsDialog extends StatefulWidget {
   final ConsumerRecord record;
@@ -39,12 +49,40 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
   bool _isLoadingPayments = false;
   bool _isLoadingIssues = false;
 
+  int _financeTab = 0; // 0: Quotations, 1: Margin Receipts, 2: Invoices, 3: Actual Payments
+  List<SolarQuotation> _quotations = [];
+  List<CustomerMarginReceipt> _marginReceipts = [];
+  List<Invoice> _invoices = [];
+  bool _isLoadingFinanceDocs = false;
+
   @override
   void initState() {
     super.initState();
     _record = widget.record;
     _loadPayments();
     _loadIssues();
+    _loadFinanceDocs();
+  }
+
+  Future<void> _loadFinanceDocs() async {
+    final cNo = _record.consumerNo.trim();
+    if (cNo.isEmpty) return;
+    setState(() => _isLoadingFinanceDocs = true);
+    try {
+      final qList = await QuotationStorageService.getQuotationsForCustomer(cNo);
+      final mrList = await QuotationStorageService.getMarginReceiptsForCustomer(cNo);
+      final invList = await InvoiceStorageService.getInvoicesForCustomer(cNo);
+      if (mounted) {
+        setState(() {
+          _quotations = qList;
+          _marginReceipts = mrList;
+          _invoices = invList;
+          _isLoadingFinanceDocs = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingFinanceDocs = false);
+    }
   }
 
   Future<void> _loadPayments() async {
@@ -1995,20 +2033,18 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
   }
 
   Widget _buildPaymentCard() {
-    final hasAdditional = _record.additionalPaidAmount > 0;
-
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: Colors.green.shade200),
+        side: BorderSide(color: Colors.blueGrey.shade200),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with [ + Add Payment ]
+            // Top Section Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -2017,257 +2053,1148 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: Colors.green.shade50,
+                        color: const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Icon(Icons.payments_rounded, color: Color(0xFF059669), size: 20),
+                      child: const Icon(Icons.account_balance_wallet_outlined, color: Color(0xFF1D4ED8), size: 20),
                     ),
                     const SizedBox(width: 8),
-                    const Text('Payment', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const Text('Financials & Documents Hub', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ],
                 ),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF059669),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  ),
-                  onPressed: () async {
-                    final res = await PaymentDialog.show(context, customerRecord: _record);
-                    if (res == true) {
-                      _loadPayments();
-                      final updated = await RecordService.fetchRecordById(_record.id!);
-                      if (updated != null && mounted) setState(() => _record = updated);
-                      widget.onRecordUpdated?.call();
-                    }
+                IconButton(
+                  tooltip: 'Refresh Financial Records',
+                  icon: const Icon(Icons.refresh, size: 18),
+                  onPressed: () {
+                    _loadPayments();
+                    _loadFinanceDocs();
                   },
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('+ Add Payment', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
             const SizedBox(height: 12),
 
-            // Summary Metrics: Total Payment, Paid, Pending, Additional
+            // Tab Bar: 0: Quotations, 1: Margin Receipts, 2: Invoices, 3: Actual Payments
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.green.shade50.withOpacity(0.5),
+                color: Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.shade100),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Total Payment (editable)
-                      InkWell(
-                        onTap: _showEditTotalPaymentDialog,
-                        borderRadius: BorderRadius.circular(4),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Text('Total Payment', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                                  const SizedBox(width: 4),
-                                  Icon(Icons.edit_outlined, size: 13, color: Colors.green.shade800),
-                                ],
-                              ),
-                              Text(
-                                '₹${_record.totalAmount.toStringAsFixed(0)}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Paid
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Paid', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                          Text(
-                            '₹${_record.paidAmount.toStringAsFixed(0)}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF059669)),
-                          ),
-                        ],
-                      ),
-
-                      // Pending
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Pending', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                          Text(
-                            '₹${_record.pendingAmount.toStringAsFixed(0)}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: _record.pendingAmount > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      // Additional (if any)
-                      if (hasAdditional)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Additional', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                            Text(
-                              '₹${_record.additionalPaidAmount.toStringAsFixed(0)}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF7C3AED)),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                  if (_record.loanSanctionedAmount > 0) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(color: const Color(0xFFBFDBFE)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.account_balance_outlined, size: 13, color: Color(0xFF1D4ED8)),
-                          const SizedBox(width: 5),
-                          Text(
-                            'Loan Approved: ₹${_record.loanSanctionedAmount.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF1D4ED8),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-
-            if (_isLoadingPayments)
-              const Padding(
-                padding: EdgeInsets.all(12),
-                child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
-              )
-            else if (_transactions.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Center(child: Text('No payment transactions recorded yet.', style: TextStyle(fontSize: 12, color: Colors.grey))),
-              )
-            else ...[
-              const SizedBox(height: 12),
-              const Text('Payment History', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: Table(
-                  border: TableBorder.all(color: Colors.grey.shade200),
-                  columnWidths: const {
-                    0: FlexColumnWidth(2), // Date
-                    1: FlexColumnWidth(2), // Amount
-                    2: FlexColumnWidth(2), // Mode
-                    3: FlexColumnWidth(3), // Remarks
-                    4: FlexColumnWidth(1.5), // Actions
-                  },
+              padding: const EdgeInsets.all(3),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
                   children: [
-                    TableRow(
-                      decoration: BoxDecoration(color: Colors.grey.shade100),
-                      children: const [
-                        Padding(padding: EdgeInsets.all(6), child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        Padding(padding: EdgeInsets.all(6), child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        Padding(padding: EdgeInsets.all(6), child: Text('Payment Mode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        Padding(padding: EdgeInsets.all(6), child: Text('Remarks', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        Padding(padding: EdgeInsets.all(6), child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                      ],
-                    ),
-                    ..._transactions.map((tx) {
-                      return TableRow(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Text(
-                              '${tx.paymentDate.day.toString().padLeft(2, '0')}/${tx.paymentDate.month.toString().padLeft(2, '0')}/${tx.paymentDate.year}',
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Row(
-                              children: [
-                                Text(
-                                  '₹${tx.amount.toStringAsFixed(0)}',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
-                                ),
-                                if (tx.isAdditional) ...[
-                                  const SizedBox(width: 4),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFEDE9FE),
-                                      borderRadius: BorderRadius.circular(3),
-                                    ),
-                                    child: const Text('Addl', style: TextStyle(fontSize: 9, color: Color(0xFF7C3AED), fontWeight: FontWeight.bold)),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Text(tx.paymentMode, style: const TextStyle(fontSize: 11)),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Text(tx.remarks?.isNotEmpty == true ? tx.remarks! : '—', style: const TextStyle(fontSize: 11)),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                InkWell(
-                                  onTap: () => _openEditPaymentDialog(tx),
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(2),
-                                    child: Icon(Icons.edit_outlined, size: 15, color: Colors.blue),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                InkWell(
-                                  onTap: () => _confirmDeletePayment(tx),
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(2),
-                                    child: Icon(Icons.delete_outline, size: 15, color: Colors.red),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-                    }),
+                    _buildHubTabItem(0, 'Quotations (${_quotations.length})', Icons.request_quote_outlined),
+                    const SizedBox(width: 4),
+                    _buildHubTabItem(1, 'Margin Receipts (${_marginReceipts.length})', Icons.receipt_long_outlined),
+                    const SizedBox(width: 4),
+                    _buildHubTabItem(2, 'Invoices (${_invoices.length})', Icons.receipt_outlined),
+                    const SizedBox(width: 4),
+                    _buildHubTabItem(3, 'Actual Payments (${_transactions.length})', Icons.payments_outlined),
                   ],
                 ),
               ),
-            ],
+            ),
+            const SizedBox(height: 14),
+
+            // Tab Body Content
+            if (_isLoadingFinanceDocs && (_financeTab != 3))
+              const Padding(
+                padding: EdgeInsets.all(24.0),
+                child: Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))),
+              )
+            else if (_financeTab == 0)
+              _buildQuotationsTab()
+            else if (_financeTab == 1)
+              _buildMarginReceiptsTab()
+            else if (_financeTab == 2)
+              _buildInvoicesTab()
+            else
+              _buildActualPaymentsTab(),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildHubTabItem(int index, String label, IconData icon) {
+    final isSelected = _financeTab == index;
+    return InkWell(
+      onTap: () => setState(() => _financeTab = index),
+      borderRadius: BorderRadius.circular(6),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: isSelected
+              ? [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4, offset: const Offset(0, 1))]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: isSelected ? const Color(0xFF1E3A8A) : Colors.grey.shade600,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? const Color(0xFF1E3A8A) : Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuotationsTab() {
+    final currencyFmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Quotations History',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF1E3A8A),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+              icon: const Icon(Icons.add, size: 14),
+              label: const Text('Create Quotation', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              onPressed: () async {
+                await BankLoanQuotationDialog.show(context, _record, initialTab: 0);
+                _loadFinanceDocs();
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (_quotations.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.request_quote_outlined, size: 36, color: Colors.grey.shade400),
+                  const SizedBox(height: 8),
+                  const Text('No quotations generated for this customer yet.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.add, size: 14),
+                    label: const Text('Generate First Quotation', style: TextStyle(fontSize: 12)),
+                    onPressed: () async {
+                      await BankLoanQuotationDialog.show(context, _record, initialTab: 0);
+                      _loadFinanceDocs();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Table(
+              border: TableBorder.all(color: Colors.grey.shade200),
+              columnWidths: const {
+                0: FlexColumnWidth(2.2), // Quotation No
+                1: FlexColumnWidth(1.6), // Date
+                2: FlexColumnWidth(1.4), // Capacity
+                3: FlexColumnWidth(1.8), // Amount
+                4: FlexColumnWidth(1.4), // Status
+                5: FlexColumnWidth(2.2), // Actions
+              },
+              children: [
+                TableRow(
+                  decoration: BoxDecoration(color: Colors.grey.shade100),
+                  children: const [
+                    Padding(padding: EdgeInsets.all(6), child: Text('Quotation No', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Capacity', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                  ],
+                ),
+                ..._quotations.map((q) {
+                  final statusLower = q.status.toLowerCase();
+                  Color badgeBg = Colors.grey.shade100;
+                  Color badgeFg = Colors.grey.shade700;
+                  if (statusLower == 'accepted' || statusLower == 'approved') {
+                    badgeBg = const Color(0xFFDEF7EC);
+                    badgeFg = const Color(0xFF03543F);
+                  } else if (statusLower == 'issued') {
+                    badgeBg = const Color(0xFFE1EFFE);
+                    badgeFg = const Color(0xFF1E429F);
+                  } else if (statusLower == 'rejected') {
+                    badgeBg = const Color(0xFFFDE8E8);
+                    badgeFg = const Color(0xFF9B1C1C);
+                  }
+
+                  return TableRow(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(q.quotationNo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF1E3A8A))),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(DateFormat('dd/MM/yyyy').format(q.quotationDate), style: const TextStyle(fontSize: 11)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(q.systemCapacity, style: const TextStyle(fontSize: 11)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(currencyFmt.format(q.grandTotal), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(5),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(4)),
+                          child: Text(
+                            q.status,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: badgeFg),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // View / Edit
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, size: 15, color: Colors.blue),
+                              tooltip: 'View & Edit (Preserves ID & No)',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => _handleEditQuotation(q),
+                            ),
+                            const SizedBox(width: 6),
+                            // Print / Download PDF
+                            IconButton(
+                              icon: const Icon(Icons.picture_as_pdf_outlined, size: 15, color: Color(0xFFDC2626)),
+                              tooltip: 'Download / Print PDF',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => _handleDownloadQuotationPdf(q),
+                            ),
+                            const SizedBox(width: 6),
+                            // WhatsApp Share
+                            IconButton(
+                              icon: const Icon(Icons.chat_outlined, size: 15, color: Color(0xFF059669)),
+                              tooltip: 'Share on WhatsApp',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => _handleShareQuotation(q),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _handleEditQuotation(SolarQuotation q) async {
+    if (q.status.toLowerCase() == 'issued' || q.status.toLowerCase() == 'approved') {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          icon: const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 36),
+          title: const Text('Modify Issued Quotation?'),
+          content: Text(
+            'Quotation "${q.quotationNo}" has already been issued to ${_record.name}.\n\n'
+            'Modifying will update the existing record while preserving the Quotation Number. Do you want to proceed?',
+            style: const TextStyle(fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD97706)),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Proceed to Edit'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true || !mounted) return;
+    }
+
+    await BankLoanQuotationDialog.show(
+      context,
+      _record,
+      initialQuotation: q,
+      initialTab: 0,
+    );
+    _loadFinanceDocs();
+  }
+
+  Future<void> _handleDownloadQuotationPdf(SolarQuotation q) async {
+    try {
+      final pdfBytes = await BankLoanQuotationService.generateQuotationPdfBytes(
+        q,
+        includeStampAndSignature: true,
+      );
+      await Printing.layoutPdf(
+        onLayout: (_) => pdfBytes,
+        name: q.pdfFileName,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error generating PDF: $e')));
+      }
+    }
+  }
+
+  Future<void> _handleShareQuotation(SolarQuotation q) async {
+    final rawMob = (_record.mobile != null && _record.mobile!.isNotEmpty) ? _record.mobile! : q.mobileNo;
+    final mob = rawMob.replaceAll(RegExp(r'\D'), '');
+    final cleanMob = mob.length == 10 ? '91$mob' : mob;
+    final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final text = 'Namaskar ${_record.name},\n\n'
+        'Here are the details of your Solar Quotation from Siya Infotech & Digital Solutions:\n'
+        '• Quotation No: ${q.quotationNo}\n'
+        '• Solar Capacity: ${q.systemCapacity}\n'
+        '• Total Project Cost: ${fmt.format(q.grandTotal)}\n'
+        '• Proposed Bank Loan: ${fmt.format(q.bankLoanAmount)}\n'
+        '• Customer Margin: ${fmt.format(q.customerContribution)}\n'
+        '• Quotation Date: ${DateFormat('dd/MM/yyyy').format(q.quotationDate)}\n\n'
+        'Please contact us if you have any questions.';
+    final uri = Uri.parse('https://wa.me/$cleanMob?text=${Uri.encodeComponent(text)}');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Widget _buildMarginReceiptsTab() {
+    final currencyFmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Accounting separation notice banner
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEF3C7),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFFFDE68A)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.gavel_rounded, color: Color(0xFFB45309), size: 16),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'LOAN DOCUMENTATION ONLY: Margin receipts are declared strictly for bank loan processing and do NOT alter actual payment balance, ledger, or cash accounting.',
+                  style: TextStyle(fontSize: 10.5, color: Color(0xFF92400E), fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Margin Declarations',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF047857),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+              icon: const Icon(Icons.add, size: 14),
+              label: const Text('Create Margin Receipt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              onPressed: () async {
+                await BankLoanQuotationDialog.show(context, _record, initialTab: 1);
+                _loadFinanceDocs();
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (_marginReceipts.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.receipt_long_outlined, size: 36, color: Colors.grey.shade400),
+                  const SizedBox(height: 8),
+                  const Text('No margin receipts created for this customer yet.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.add, size: 14),
+                    label: const Text('Generate Margin Receipt', style: TextStyle(fontSize: 12)),
+                    onPressed: () async {
+                      await BankLoanQuotationDialog.show(context, _record, initialTab: 1);
+                      _loadFinanceDocs();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Table(
+              border: TableBorder.all(color: Colors.grey.shade200),
+              columnWidths: const {
+                0: FlexColumnWidth(2.2), // Receipt No
+                1: FlexColumnWidth(1.6), // Date
+                2: FlexColumnWidth(1.8), // Margin Amount
+                3: FlexColumnWidth(2.2), // Bank / Finance Co
+                4: FlexColumnWidth(1.8), // Loan App No
+                5: FlexColumnWidth(1.8), // Actions
+              },
+              children: [
+                TableRow(
+                  decoration: BoxDecoration(color: Colors.grey.shade100),
+                  children: const [
+                    Padding(padding: EdgeInsets.all(6), child: Text('Receipt No', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Margin Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Bank / Finance Co', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Loan App No', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                  ],
+                ),
+                ..._marginReceipts.map((mr) {
+                  return TableRow(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(mr.receiptNo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF047857))),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(DateFormat('dd/MM/yyyy').format(mr.receiptDate), style: const TextStyle(fontSize: 11)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(currencyFmt.format(mr.marginAmount), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(mr.financeCompanyName.isNotEmpty ? mr.financeCompanyName : (mr.bankName.isNotEmpty ? mr.bankName : '—'), style: const TextStyle(fontSize: 11)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(mr.loanApplicationNo.isNotEmpty ? mr.loanApplicationNo : '—', style: const TextStyle(fontSize: 11)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, size: 15, color: Colors.blue),
+                              tooltip: 'Edit (Preserves No & ID)',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => _handleEditMarginReceipt(mr),
+                            ),
+                            const SizedBox(width: 6),
+                            IconButton(
+                              icon: const Icon(Icons.picture_as_pdf_outlined, size: 15, color: Color(0xFFDC2626)),
+                              tooltip: 'Download / Print Declaration PDF',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => _handleDownloadMarginReceiptPdf(mr),
+                            ),
+                            const SizedBox(width: 6),
+                            IconButton(
+                              icon: const Icon(Icons.chat_outlined, size: 15, color: Color(0xFF059669)),
+                              tooltip: 'Share on WhatsApp',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => _handleShareMarginReceipt(mr),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _handleEditMarginReceipt(CustomerMarginReceipt receipt) async {
+    final receiptNoCtrl = TextEditingController(text: receipt.receiptNo);
+    final txnRefCtrl = TextEditingController(text: receipt.transactionRef);
+    final amountCtrl = TextEditingController(text: receipt.marginAmount.toStringAsFixed(0));
+    final bankCtrl = TextEditingController(text: receipt.financeCompanyName.isNotEmpty ? receipt.financeCompanyName : receipt.bankName);
+    final loanAppCtrl = TextEditingController(text: receipt.loanApplicationNo);
+    final notesCtrl = TextEditingController(text: receipt.notes);
+    String selectedMode = receipt.paymentMode;
+    DateTime selectedDate = receipt.receiptDate;
+
+    final updated = await showDialog<CustomerMarginReceipt?>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDlgState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.edit_document, color: Color(0xFF047857), size: 22),
+                  ),
+                  const SizedBox(width: 10),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Edit Margin Receipt (Loan Doc)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text('Preserves Receipt No. & ID • For Bank Loan Processing Only', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    ],
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 500,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFFDE68A)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Color(0xFFB45309), size: 18),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Modifications here preserve the original receipt number and are recorded purely for bank loan documentation.',
+                                style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: receiptNoCtrl,
+                              readOnly: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Receipt No. (Locked)',
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                                filled: true,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final d = await showDatePicker(
+                                  context: context,
+                                  initialDate: selectedDate,
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2035),
+                                );
+                                if (d != null) setDlgState(() => selectedDate = d);
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(
+                                  labelText: 'Document Date',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                  suffixIcon: Icon(Icons.calendar_today, size: 16),
+                                ),
+                                child: Text(DateFormat('dd/MM/yyyy').format(selectedDate)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: amountCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Margin Amount (₹) *',
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: loanAppCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Loan Application No.',
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: bankCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Bank / Finance Company Name',
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 5,
+                            child: DropdownButtonFormField<String>(
+                              value: selectedMode,
+                              decoration: const InputDecoration(
+                                labelText: 'Payment Mode *',
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                              ),
+                              items: ['Cash', 'Online / UPI', 'Cheque / DD', 'NEFT / RTGS', 'Bank Transfer']
+                                  .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                                  .toList(),
+                              onChanged: (v) {
+                                if (v != null) setDlgState(() => selectedMode = v);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 6,
+                            child: TextField(
+                              controller: txnRefCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Transaction Ref / Cheque No.',
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: notesCtrl,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          labelText: 'Remarks / Notes',
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF047857)),
+                  icon: const Icon(Icons.save_rounded, size: 16),
+                  label: const Text('Save Changes'),
+                  onPressed: () {
+                    final newAmt = double.tryParse(amountCtrl.text.trim()) ?? receipt.marginAmount;
+                    final edited = receipt.copyWith(
+                      marginAmount: newAmt,
+                      paymentMode: selectedMode,
+                      transactionRef: txnRefCtrl.text.trim(),
+                      financeCompanyName: bankCtrl.text.trim(),
+                      bankName: bankCtrl.text.trim(),
+                      loanApplicationNo: loanAppCtrl.text.trim(),
+                      notes: notesCtrl.text.trim(),
+                      receiptDate: selectedDate,
+                    );
+                    Navigator.pop(ctx, edited);
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (updated != null) {
+      await QuotationStorageService.saveMarginReceipt(updated);
+      _loadFinanceDocs();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Margin receipt updated successfully! Record preserved.'),
+            backgroundColor: Color(0xFF047857),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleDownloadMarginReceiptPdf(CustomerMarginReceipt mr) async {
+    try {
+      final pdfBytes = await MarginMoneyReceiptService.generateReceiptPdfBytes(
+        mr,
+        includeStampAndSignature: true,
+      );
+      await Printing.layoutPdf(
+        onLayout: (_) => pdfBytes,
+        name: mr.pdfFileName,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error generating PDF: $e')));
+      }
+    }
+  }
+
+  Future<void> _handleShareMarginReceipt(CustomerMarginReceipt mr) async {
+    final rawMob = (_record.mobile != null && _record.mobile!.isNotEmpty) ? _record.mobile! : mr.mobileNo;
+    final mob = rawMob.replaceAll(RegExp(r'\D'), '');
+    final cleanMob = mob.length == 10 ? '91$mob' : mob;
+    final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final bankInfo = mr.financeCompanyName.isNotEmpty ? mr.financeCompanyName : (mr.bankName.isNotEmpty ? mr.bankName : 'Bank Loan');
+    final loanApp = mr.loanApplicationNo.isNotEmpty ? mr.loanApplicationNo : 'N/A';
+    final text = 'Namaskar ${_record.name},\n\n'
+        'Here are the details of your Margin Contribution Declaration for Bank Solar Loan:\n'
+        '• Receipt No: ${mr.receiptNo}\n'
+        '• Document Date: ${DateFormat('dd/MM/yyyy').format(mr.receiptDate)}\n'
+        '• Margin Amount: ${fmt.format(mr.marginAmount)}\n'
+        '• Bank / NBFC: $bankInfo\n'
+        '• Loan App No: $loanApp\n\n'
+        '*Note: This document is issued strictly for bank loan processing.*';
+    final uri = Uri.parse('https://wa.me/$cleanMob?text=${Uri.encodeComponent(text)}');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Widget _buildInvoicesTab() {
+    final currencyFmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Customer Invoices',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (_invoices.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.receipt_outlined, size: 36, color: Colors.grey.shade400),
+                  const SizedBox(height: 8),
+                  const Text('No invoices generated for this customer yet.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '(Invoices can be generated manually via Invoice Management or Quotations)',
+                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Table(
+              border: TableBorder.all(color: Colors.grey.shade200),
+              columnWidths: const {
+                0: FlexColumnWidth(2.2), // Invoice No
+                1: FlexColumnWidth(1.8), // Date
+                2: FlexColumnWidth(2), // Total Amount
+                3: FlexColumnWidth(2), // Paid Amount
+                4: FlexColumnWidth(1.5), // Actions
+              },
+              children: [
+                TableRow(
+                  decoration: BoxDecoration(color: Colors.grey.shade100),
+                  children: const [
+                    Padding(padding: EdgeInsets.all(6), child: Text('Invoice No', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Total Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Paid Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                  ],
+                ),
+                ..._invoices.map((inv) {
+                  return TableRow(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(inv.invoiceNumber, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF2563EB))),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(DateFormat('dd/MM/yyyy').format(inv.invoiceDate), style: const TextStyle(fontSize: 11)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(currencyFmt.format(inv.grandTotal), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(currencyFmt.format(inv.totalPaid), style: const TextStyle(fontSize: 11)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.visibility_outlined, size: 16, color: Colors.blue),
+                              tooltip: 'View Invoice',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => InvoiceDetailsDialog.show(context, inv),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+
+  Widget _buildActualPaymentsTab() {
+    final hasAdditional = _record.additionalPaidAmount > 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header with [ + Add Payment ]
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Actual Payment Ledger & Hishob',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              ),
+              onPressed: () async {
+                final res = await PaymentDialog.show(context, customerRecord: _record);
+                if (res == true) {
+                  _loadPayments();
+                  final updated = await RecordService.fetchRecordById(_record.id!);
+                  if (updated != null && mounted) setState(() => _record = updated);
+                  widget.onRecordUpdated?.call();
+                }
+              },
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('+ Add Payment', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Summary Metrics: Total Payment, Paid, Pending, Additional
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.green.shade100),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Total Payment (editable)
+                  InkWell(
+                    onTap: _showEditTotalPaymentDialog,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text('Total Payment', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                              const SizedBox(width: 4),
+                              Icon(Icons.edit_outlined, size: 13, color: Colors.green.shade800),
+                            ],
+                          ),
+                          Text(
+                            '₹${_record.totalAmount.toStringAsFixed(0)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Paid
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Paid', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                      Text(
+                        '₹${_record.paidAmount.toStringAsFixed(0)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF059669)),
+                      ),
+                    ],
+                  ),
+
+                  // Pending
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Pending', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                      Text(
+                        '₹${_record.pendingAmount.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: _record.pendingAmount > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Additional (if any)
+                  if (hasAdditional)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Additional', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                        Text(
+                          '₹${_record.additionalPaidAmount.toStringAsFixed(0)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF7C3AED)),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+              if (_record.loanSanctionedAmount > 0) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.account_balance_outlined, size: 13, color: Color(0xFF1D4ED8)),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Loan Approved: ₹${_record.loanSanctionedAmount.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1D4ED8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        if (_isLoadingPayments)
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+          )
+        else if (_transactions.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(child: Text('No payment transactions recorded yet.', style: TextStyle(fontSize: 12, color: Colors.grey))),
+          )
+        else ...[
+          const SizedBox(height: 12),
+          const Text('Payment History', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Table(
+              border: TableBorder.all(color: Colors.grey.shade200),
+              columnWidths: const {
+                0: FlexColumnWidth(2), // Date
+                1: FlexColumnWidth(2), // Amount
+                2: FlexColumnWidth(2), // Mode
+                3: FlexColumnWidth(3), // Remarks
+                4: FlexColumnWidth(1.5), // Actions
+              },
+              children: [
+                TableRow(
+                  decoration: BoxDecoration(color: Colors.grey.shade100),
+                  children: const [
+                    Padding(padding: EdgeInsets.all(6), child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Payment Mode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Remarks', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    Padding(padding: EdgeInsets.all(6), child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                  ],
+                ),
+                ..._transactions.map((tx) {
+                  return TableRow(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(
+                          '${tx.paymentDate.day.toString().padLeft(2, '0')}/${tx.paymentDate.month.toString().padLeft(2, '0')}/${tx.paymentDate.year}',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Row(
+                          children: [
+                            Text(
+                              '₹${tx.amount.toStringAsFixed(0)}',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                            ),
+                            if (tx.isAdditional) ...[
+                              const SizedBox(width: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEDE9FE),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                                child: const Text('Addl', style: TextStyle(fontSize: 9, color: Color(0xFF7C3AED), fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(tx.paymentMode, style: const TextStyle(fontSize: 11)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text(tx.remarks?.isNotEmpty == true ? tx.remarks! : '—', style: const TextStyle(fontSize: 11)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            InkWell(
+                              onTap: () => _openEditPaymentDialog(tx),
+                              child: const Padding(
+                                padding: EdgeInsets.all(2),
+                                child: Icon(Icons.edit_outlined, size: 15, color: Colors.blue),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            InkWell(
+                              onTap: () => _confirmDeletePayment(tx),
+                              child: const Padding(
+                                padding: EdgeInsets.all(2),
+                                child: Icon(Icons.delete_outline, size: 15, color: Colors.red),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 

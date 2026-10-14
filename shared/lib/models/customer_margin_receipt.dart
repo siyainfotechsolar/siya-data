@@ -38,6 +38,10 @@ class CustomerMarginReceipt {
   final String? fileUrl;
   final DateTime createdAt;
   final String? createdBy;
+  final String financeCompanyName;
+  final String loanApplicationNo;
+  final DateTime? updatedAt;
+  final String? updatedBy;
 
   CustomerMarginReceipt({
     required this.id,
@@ -74,7 +78,12 @@ class CustomerMarginReceipt {
     this.fileUrl,
     DateTime? createdAt,
     this.createdBy,
+    String? financeCompanyName,
+    this.loanApplicationNo = '',
+    this.updatedAt,
+    this.updatedBy,
   })  : bankName = bankName ?? CompanyMaster.current.bankName,
+        financeCompanyName = financeCompanyName ?? (bankName ?? CompanyMaster.current.bankName),
         branch = branch ?? CompanyMaster.current.branch,
         accountNo = accountNo ?? CompanyMaster.current.accountNo,
         ifscCode = ifscCode ?? CompanyMaster.current.ifscCode,
@@ -115,6 +124,10 @@ class CustomerMarginReceipt {
     String? signatoryDesignation,
     String? notes,
     String? createdBy,
+    String? financeCompanyName,
+    String loanApplicationNo = '',
+    DateTime? updatedAt,
+    String? updatedBy,
   }) {
     final now = DateTime.now();
     final rDate = receiptDate ?? now;
@@ -164,6 +177,10 @@ class CustomerMarginReceipt {
       notes: notes ?? 'Received 10% Customer Margin Contribution in Cash towards PM Surya Ghar Bank Solar Loan installation.',
       pdfFileName: fileName,
       createdBy: createdBy,
+      financeCompanyName: financeCompanyName,
+      loanApplicationNo: loanApplicationNo,
+      updatedAt: updatedAt,
+      updatedBy: updatedBy,
     );
   }
 
@@ -177,6 +194,8 @@ class CustomerMarginReceipt {
     DateTime? paymentDate,
     double? marginAmount,
     String? notes,
+    String? financeCompanyName,
+    String loanApplicationNo = '',
   }) {
     final now = DateTime.now();
     final rDate = receiptDate ?? now;
@@ -222,6 +241,8 @@ class CustomerMarginReceipt {
       notes: notes ?? 'Received 10% Customer Margin Contribution towards PM Surya Ghar Bank Solar Loan installation.',
       pdfFileName: fileName,
       createdBy: q.createdBy,
+      financeCompanyName: financeCompanyName ?? q.bankName,
+      loanApplicationNo: loanApplicationNo,
     );
   }
 
@@ -249,6 +270,8 @@ class CustomerMarginReceipt {
       'transaction_ref': transactionRef,
       'payment_date': paymentDate.toIso8601String(),
       'bank_name': bankName,
+      'finance_company_name': financeCompanyName,
+      'loan_application_no': loanApplicationNo,
       'branch': branch,
       'account_no': accountNo,
       'ifsc_code': ifscCode,
@@ -261,6 +284,8 @@ class CustomerMarginReceipt {
       'file_url': fileUrl,
       'created_at': createdAt.toIso8601String(),
       'created_by': createdBy,
+      'updated_at': updatedAt?.toIso8601String(),
+      'updated_by': updatedBy,
     };
   }
 
@@ -294,6 +319,8 @@ class CustomerMarginReceipt {
           ? DateTime.tryParse(map['payment_date'].toString()) ?? DateTime.now()
           : DateTime.now(),
       bankName: map['bank_name']?.toString() ?? 'STATE BANK OF INDIA',
+      financeCompanyName: map['finance_company_name']?.toString() ?? map['bank_name']?.toString() ?? 'STATE BANK OF INDIA',
+      loanApplicationNo: map['loan_application_no']?.toString() ?? '',
       branch: map['branch']?.toString() ?? 'Betawad',
       accountNo: map['account_no']?.toString() ?? '40662252403',
       ifscCode: map['ifsc_code']?.toString() ?? 'SBIN0004798',
@@ -308,6 +335,10 @@ class CustomerMarginReceipt {
           ? DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
       createdBy: map['created_by']?.toString(),
+      updatedAt: map['updated_at'] != null
+          ? DateTime.tryParse(map['updated_at'].toString())
+          : null,
+      updatedBy: map['updated_by']?.toString(),
     );
   }
 
@@ -334,6 +365,8 @@ class CustomerMarginReceipt {
     String? transactionRef,
     DateTime? paymentDate,
     String? bankName,
+    String? financeCompanyName,
+    String? loanApplicationNo,
     String? branch,
     String? accountNo,
     String? ifscCode,
@@ -346,6 +379,8 @@ class CustomerMarginReceipt {
     String? fileUrl,
     DateTime? createdAt,
     String? createdBy,
+    DateTime? updatedAt,
+    String? updatedBy,
   }) {
     return CustomerMarginReceipt(
       id: id ?? this.id,
@@ -370,6 +405,8 @@ class CustomerMarginReceipt {
       transactionRef: transactionRef ?? this.transactionRef,
       paymentDate: paymentDate ?? this.paymentDate,
       bankName: bankName ?? this.bankName,
+      financeCompanyName: financeCompanyName ?? this.financeCompanyName,
+      loanApplicationNo: loanApplicationNo ?? this.loanApplicationNo,
       branch: branch ?? this.branch,
       accountNo: accountNo ?? this.accountNo,
       ifscCode: ifscCode ?? this.ifscCode,
@@ -382,6 +419,8 @@ class CustomerMarginReceipt {
       fileUrl: fileUrl ?? this.fileUrl,
       createdAt: createdAt ?? this.createdAt,
       createdBy: createdBy ?? this.createdBy,
+      updatedAt: updatedAt ?? this.updatedAt,
+      updatedBy: updatedBy ?? this.updatedBy,
     );
   }
 }
