@@ -646,6 +646,26 @@ class _ImportDialogState extends State<ImportDialog> {
                 setState(() => _mapping.loanStatusIndex = idx);
                 _revalidate();
               }),
+              _buildMappingRow('Loan Required', 'Loan flag (Yes, No, Required)', _mapping.loanRequiredIndex, headers, (idx) {
+                setState(() => _mapping.loanRequiredIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('Loan Sanctioned Amount', 'Sanctioned / approved loan amount in Rupees', _mapping.loanSanctionedAmountIndex, headers, (idx) {
+                setState(() => _mapping.loanSanctionedAmountIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('Bank Name / Remarks', 'Bank name, branch, or bank processing notes', _mapping.bankRemarksIndex, headers, (idx) {
+                setState(() => _mapping.bankRemarksIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('Total System Cost', 'Total project cost or quotation amount in Rupees', _mapping.totalAmountIndex, headers, (idx) {
+                setState(() => _mapping.totalAmountIndex = idx);
+                _revalidate();
+              }),
+              _buildMappingRow('System Capacity', 'Solar plant capacity in kW', _mapping.systemCapacityIndex, headers, (idx) {
+                setState(() => _mapping.systemCapacityIndex = idx);
+                _revalidate();
+              }),
               _buildMappingRow('Installation Status', 'Pending, Scheduled, Structure Pending, Completed', _mapping.installationStatusIndex, headers, (idx) {
                 setState(() => _mapping.installationStatusIndex = idx);
                 _revalidate();
@@ -929,6 +949,8 @@ class _ImportDialogState extends State<ImportDialog> {
                       DataColumn(label: Text('Calculated Days')),
                       DataColumn(label: Text('Calculated Priority')),
                       DataColumn(label: Text('Status')),
+                      DataColumn(label: Text('Loan Sanctioned')),
+                      DataColumn(label: Text('Bank Name')),
                       DataColumn(label: Text('Errors')),
                     ],
                     rows: rowsToShow.take(50).map((row) {
@@ -978,9 +1000,9 @@ class _ImportDialogState extends State<ImportDialog> {
                               child: Text(
                                 row.isValid ? 'Valid' : 'Error',
                                 style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: row.isValid ? const Color(0xFF065F46) : Colors.red.shade800,
+                                   fontSize: 11,
+                                   fontWeight: FontWeight.bold,
+                                   color: row.isValid ? const Color(0xFF065F46) : Colors.red.shade800,
                                 ),
                               ),
                             ),
@@ -1023,6 +1045,15 @@ class _ImportDialogState extends State<ImportDialog> {
                                   )
                                 : Text(row.status),
                           ),
+                          DataCell(
+                            row.loanSanctionedAmount != null
+                                ? Text(
+                                    '₹${row.loanSanctionedAmount!.toStringAsFixed(0)}',
+                                    style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF0F766E)),
+                                  )
+                                : const Text('—'),
+                          ),
+                          DataCell(Text(row.bankRemarks ?? '—')),
                           DataCell(
                             row.errors.isEmpty
                                 ? const Text('None', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12))

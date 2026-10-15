@@ -185,8 +185,13 @@ class DuplicateDetectionService {
       'remarks',
       'application_date',
       'submit_date',
+      'loan_required',
       'loan_status',
       'loan_sub_stage',
+      'loan_sanctioned_amount',
+      'bank_remarks',
+      'total_amount',
+      'system_capacity',
       'installation_status',
       'rts_status',
       'subsidy_status',
@@ -210,6 +215,25 @@ class DuplicateDetectionService {
             fieldLabel: label,
             oldValue: oldVal?.trim(),
             newValue: newVal?.trim(),
+          ),
+        );
+      }
+    }
+
+    void checkDouble(String key, String label, double? oldVal, double? newVal) {
+      if (!allowed.contains(key)) return;
+      if (ignoreBlankValues && (newVal == null || newVal <= 0.0)) return;
+
+      final o = oldVal ?? 0.0;
+      final n = newVal ?? 0.0;
+
+      if ((o - n).abs() > 0.01) {
+        diffs.add(
+          FieldDiff(
+            fieldKey: key,
+            fieldLabel: label,
+            oldValue: o > 0 ? o.toStringAsFixed(0) : '0',
+            newValue: n > 0 ? n.toStringAsFixed(0) : '0',
           ),
         );
       }
@@ -260,6 +284,10 @@ class DuplicateDetectionService {
     check('loan_required', 'Loan Required', existing.loanRequired, incoming.loanRequired);
     check('loan_status', 'Loan Status', existing.loanStatus, incoming.loanStatus);
     check('loan_sub_stage', 'Loan Sub-Stage', existing.loanSubStage, incoming.loanSubStage);
+    check('bank_remarks', 'Bank / Remarks', existing.bankRemarks, incoming.bankRemarks);
+    check('system_capacity', 'System Capacity', existing.systemCapacity, incoming.systemCapacity);
+    checkDouble('loan_sanctioned_amount', 'Loan Sanctioned Amount', existing.loanSanctionedAmount, incoming.loanSanctionedAmount);
+    checkDouble('total_amount', 'Total Amount', existing.totalAmount, incoming.totalAmount);
     check('installation_status', 'Installation Status', existing.installationStatus, incoming.installationStatus);
     check('installer_team', 'Installer Team', existing.installerTeam, incoming.installerTeam);
     check('rts_status', 'RTS Status', existing.rtsStatus, incoming.rtsStatus);

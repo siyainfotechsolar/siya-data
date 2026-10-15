@@ -39,6 +39,11 @@ class ImportColumnMapping {
   int? workStageIndex;
   int? subStageIndex;
   int? loanStatusIndex;
+  int? loanRequiredIndex;
+  int? loanSanctionedAmountIndex;
+  int? bankRemarksIndex;
+  int? totalAmountIndex;
+  int? systemCapacityIndex;
   int? installationStatusIndex;
   int? rtsStatusIndex;
   int? subsidyStatusIndex;
@@ -59,6 +64,11 @@ class ImportColumnMapping {
     this.workStageIndex,
     this.subStageIndex,
     this.loanStatusIndex,
+    this.loanRequiredIndex,
+    this.loanSanctionedAmountIndex,
+    this.bankRemarksIndex,
+    this.totalAmountIndex,
+    this.systemCapacityIndex,
     this.installationStatusIndex,
     this.rtsStatusIndex,
     this.subsidyStatusIndex,
@@ -82,6 +92,11 @@ class ImportColumnMapping {
     if (workStageIndex != null) keys.add('work_stage');
     if (subStageIndex != null) keys.add('loan_sub_stage');
     if (loanStatusIndex != null) keys.add('loan_status');
+    if (loanRequiredIndex != null) keys.add('loan_required');
+    if (loanSanctionedAmountIndex != null) keys.add('loan_sanctioned_amount');
+    if (bankRemarksIndex != null) keys.add('bank_remarks');
+    if (totalAmountIndex != null) keys.add('total_amount');
+    if (systemCapacityIndex != null) keys.add('system_capacity');
     if (installationStatusIndex != null) keys.add('installation_status');
     if (rtsStatusIndex != null) keys.add('rts_status');
     if (subsidyStatusIndex != null) keys.add('subsidy_status');
@@ -107,6 +122,11 @@ class ValidatedImportRow {
   final String? workStage;
   final String? subStage;
   final String? loanStatus;
+  final String? loanRequired;
+  final double? loanSanctionedAmount;
+  final String? bankRemarks;
+  final double? totalAmount;
+  final String? systemCapacity;
   final String? installationStatus;
   final String? rtsStatus;
   final String? subsidyStatus;
@@ -129,6 +149,11 @@ class ValidatedImportRow {
     this.workStage,
     this.subStage,
     this.loanStatus,
+    this.loanRequired,
+    this.loanSanctionedAmount,
+    this.bankRemarks,
+    this.totalAmount,
+    this.systemCapacity,
     this.installationStatus,
     this.rtsStatus,
     this.subsidyStatus,
@@ -161,15 +186,22 @@ class ValidatedImportRow {
     final resolvedStatus = WorkflowEngine.resolveMappedStatus(status);
     final effectiveStatus = status.isNotEmpty ? status : 'Pending';
 
-    final isLoan = WorkflowEngine.isLoanStatusOrSubStage(resolvedStatus) ||
+    final isLoan = (loanRequired != null &&
+            (loanRequired!.trim().toLowerCase() == 'yes' ||
+                loanRequired!.trim() == '1' ||
+                loanRequired!.trim().toLowerCase() == 'true')) ||
+        WorkflowEngine.isLoanStatusOrSubStage(resolvedStatus) ||
         (workStage != null && workStage!.trim().toLowerCase() == 'loan') ||
-        (subStage != null && WorkflowEngine.isLoanStatusOrSubStage(subStage!));
+        (subStage != null && WorkflowEngine.isLoanStatusOrSubStage(subStage!)) ||
+        (loanSanctionedAmount != null && loanSanctionedAmount! > 0);
 
     final effectiveLoanSubStage = subStage?.isNotEmpty == true
         ? subStage!
         : (WorkflowEngine.isLoanStatusOrSubStage(resolvedStatus) ? resolvedStatus : 'Loan Applied');
 
-    final effectiveLoanReq = isLoan ? 'Yes' : 'No';
+    final effectiveLoanReq = loanRequired?.isNotEmpty == true
+        ? (loanRequired!.trim().toLowerCase() == 'yes' || loanRequired!.trim() == '1' ? 'Yes' : 'No')
+        : (isLoan ? 'Yes' : 'No');
     final effectiveAgreeStatus = isLoan ? 'Verified' : 'Pending';
 
     return ConsumerRecord(
@@ -185,6 +217,10 @@ class ValidatedImportRow {
       loanRequired: effectiveLoanReq,
       loanStatus: loanStatus ?? (isLoan ? 'Applied' : 'Not Required'),
       loanSubStage: effectiveLoanSubStage,
+      loanSanctionedAmount: loanSanctionedAmount ?? 0.0,
+      bankRemarks: bankRemarks,
+      totalAmount: totalAmount ?? 0.0,
+      systemCapacity: systemCapacity,
       agreementStatus: effectiveAgreeStatus,
       installationStatus: installationStatus ?? 'Not Started',
       rtsStatus: rtsStatus ?? 'Not Started',
@@ -423,6 +459,26 @@ class ImportParserService {
       else if (mapping.loanStatusIndex == null && _matches(h, _loanStatusAliases)) {
         mapping.loanStatusIndex = i;
       }
+      // Loan Sanctioned Amount (Checked before loan required so 'loanamount' maps to amount)
+      else if (mapping.loanSanctionedAmountIndex == null && _matches(h, _loanSanctionedAmountAliases)) {
+        mapping.loanSanctionedAmountIndex = i;
+      }
+      // Loan Required
+      else if (mapping.loanRequiredIndex == null && _matches(h, _loanRequiredAliases)) {
+        mapping.loanRequiredIndex = i;
+      }
+      // Bank Name / Remarks
+      else if (mapping.bankRemarksIndex == null && _matches(h, _bankRemarksAliases)) {
+        mapping.bankRemarksIndex = i;
+      }
+      // Total Amount / Cost
+      else if (mapping.totalAmountIndex == null && _matches(h, _totalAmountAliases)) {
+        mapping.totalAmountIndex = i;
+      }
+      // System Capacity
+      else if (mapping.systemCapacityIndex == null && _matches(h, _systemCapacityAliases)) {
+        mapping.systemCapacityIndex = i;
+      }
       // Installation Status
       else if (mapping.installationStatusIndex == null && _matches(h, _installationStatusAliases)) {
         mapping.installationStatusIndex = i;
@@ -438,6 +494,13 @@ class ImportParserService {
     }
 
     return mapping;
+  }
+
+  /// Helper to safely parse decimal numbers from cells (handles currency symbols, commas, spaces)
+  static double? _parseDoubleCell(String text) {
+    if (text.trim().isEmpty) return null;
+    final cleaned = text.replaceAll(RegExp(r'[^0-9.]'), '');
+    return double.tryParse(cleaned);
   }
 
   /// Validate rows against mapping and detect errors or duplicates
@@ -462,11 +525,27 @@ class ImportParserService {
       final workStage = _getCellValue(row, mapping.workStageIndex);
       final subStage = _getCellValue(row, mapping.subStageIndex);
       final loanStatus = _getCellValue(row, mapping.loanStatusIndex);
+      final loanReqStr = _getCellValue(row, mapping.loanRequiredIndex);
+      final loanSanctionAmtStr = _getCellValue(row, mapping.loanSanctionedAmountIndex);
+      final bankRemarks = _getCellValue(row, mapping.bankRemarksIndex);
+      final totalAmtStr = _getCellValue(row, mapping.totalAmountIndex);
+      final systemCapacity = _getCellValue(row, mapping.systemCapacityIndex);
       final installationStatus = _getCellValue(row, mapping.installationStatusIndex);
       final rtsStatus = _getCellValue(row, mapping.rtsStatusIndex);
       final subsidyStatus = _getCellValue(row, mapping.subsidyStatusIndex);
 
       final errors = <String>[];
+
+      // Safe numeric parsing for loan sanctioned amount and total amount
+      double? loanSanctionedAmount;
+      if (loanSanctionAmtStr.isNotEmpty) {
+        loanSanctionedAmount = _parseDoubleCell(loanSanctionAmtStr);
+      }
+
+      double? totalAmount;
+      if (totalAmtStr.isNotEmpty) {
+        totalAmount = _parseDoubleCell(totalAmtStr);
+      }
 
       // Strict Date Validation (Prompt Requirement 3: If date is invalid: Do NOT silently change it. Show: Invalid Date)
       DateTime? applicationDate;
@@ -526,6 +605,11 @@ class ImportParserService {
         workStage: workStage.isEmpty ? null : workStage,
         subStage: subStage.isEmpty ? null : subStage,
         loanStatus: loanStatus.isEmpty ? null : loanStatus,
+        loanRequired: loanReqStr.isEmpty ? null : loanReqStr,
+        loanSanctionedAmount: loanSanctionedAmount,
+        bankRemarks: bankRemarks.isEmpty ? null : bankRemarks,
+        totalAmount: totalAmount,
+        systemCapacity: systemCapacity.isEmpty ? null : systemCapacity,
         installationStatus: installationStatus.isEmpty ? null : installationStatus,
         rtsStatus: rtsStatus.isEmpty ? null : rtsStatus,
         subsidyStatus: subsidyStatus.isEmpty ? null : subsidyStatus,
@@ -565,7 +649,12 @@ class ImportParserService {
       'Status',
       'Work Stage',
       'Sub Stage',
+      'Loan Required',
       'Loan Status',
+      'Loan Amount',
+      'Bank Name',
+      'Total Cost',
+      'Capacity',
       'Installation Status',
       'RTS Status',
       'Subsidy Status',
@@ -581,7 +670,12 @@ class ImportParserService {
       'Loan Applied',
       'Loan',
       'Loan Applied',
+      'Yes',
       'Applied',
+      '180000',
+      'State Bank of India',
+      '200000',
+      '3 kW',
       'Not Started',
       'Not Started',
       'Not Applied',
@@ -795,6 +889,27 @@ class ImportParserService {
       if (alias == 'name') {
         return normalizedHeader == 'name' || normalizedHeader == 'fullname' || (normalizedHeader.endsWith('name') && !normalizedHeader.contains('discom'));
       }
+      if (alias == 'loan') {
+        return normalizedHeader == 'loan';
+      }
+      if (alias == 'status') {
+        return normalizedHeader == 'status' ||
+            normalizedHeader == 'currentstatus' ||
+            normalizedHeader == 'overallstatus' ||
+            normalizedHeader == 'leadstatus';
+      }
+      if (alias == 'stage') {
+        return normalizedHeader == 'stage' ||
+            normalizedHeader == 'workstage' ||
+            normalizedHeader == 'currentstage' ||
+            normalizedHeader == 'mainstage';
+      }
+      if (alias == 'city') {
+        return normalizedHeader == 'city' || normalizedHeader == 'customercity' || normalizedHeader == 'cityname';
+      }
+      if (alias == 'cost' || alias == 'amount') {
+        return normalizedHeader == alias || normalizedHeader == 'total$alias';
+      }
       return normalizedHeader == alias || normalizedHeader.contains(alias);
     });
   }
@@ -890,6 +1005,64 @@ class ImportParserService {
     'loanstatus',
     'loan_status',
     'loanstate',
+  ];
+
+  static const _loanRequiredAliases = [
+    'loanrequired',
+    'loan_required',
+    'bankloan',
+    'isloan',
+    'loanreq',
+    'loanfacility',
+    'loan',
+  ];
+
+  static const _loanSanctionedAmountAliases = [
+    'loansanctionedamount',
+    'loansanctionamount',
+    'sanctionedamount',
+    'sanctionamount',
+    'loanamount',
+    'bankloanamount',
+    'sanctionedloan',
+    'approvedloanamount',
+    'loan_amount',
+    'bank_loan_amount',
+    'sanction_amount',
+    'sanctioned_amount',
+    'loansanctioned',
+  ];
+
+  static const _bankRemarksAliases = [
+    'bankremarks',
+    'bankname',
+    'bank_name',
+    'bank_remarks',
+    'bank',
+    'bankbranch',
+    'branch',
+    'financier',
+  ];
+
+  static const _totalAmountAliases = [
+    'totalamount',
+    'total_amount',
+    'totalcost',
+    'systemcost',
+    'projectcost',
+    'quotationamount',
+    'total_cost',
+    'cost',
+    'amount',
+  ];
+
+  static const _systemCapacityAliases = [
+    'systemcapacity',
+    'system_capacity',
+    'capacity',
+    'plantcapacity',
+    'kw',
+    'capacitykw',
   ];
 
   static const _installationStatusAliases = [

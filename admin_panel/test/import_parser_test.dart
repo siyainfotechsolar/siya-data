@@ -227,5 +227,64 @@ CN-3006,Test User,01/07/2026,15/08/2026
       expect(diffs.first.oldValue, equals('2026-01-15'));
       expect(diffs.first.newValue, equals('2026-07-01'));
     });
+
+    test('Auto-detects Loan columns and parses amounts and bank correctly', () async {
+      const csvData = '''Consumer No,Customer Name,Loan Amount,Bank Name,Loan Status,Sub Stage,Total Cost,Capacity
+CN-9001,Suresh Patil,150000,State Bank of India,Approved,Loan Sanctioned,210000,3.5
+''';
+      final bytes = Uint8List.fromList(utf8.encode(csvData));
+      final parsed = await ImportParserService.parseFile('loan_data.csv', bytes);
+
+      final mapping = ImportParserService.autoDetectColumns(parsed.headers);
+      expect(mapping.isValid, isTrue);
+      expect(mapping.consumerNoIndex, equals(0));
+      expect(mapping.nameIndex, equals(1));
+      expect(mapping.loanSanctionedAmountIndex, equals(2));
+      expect(mapping.bankRemarksIndex, equals(3));
+      expect(mapping.loanStatusIndex, equals(4));
+      expect(mapping.subStageIndex, equals(5));
+      expect(mapping.totalAmountIndex, equals(6));
+      expect(mapping.systemCapacityIndex, equals(7));
+
+      final validation = ImportParserService.validateData(parsed, mapping);
+      expect(validation.validRowsCount, equals(1));
+      final row = validation.rows.first;
+      expect(row.loanSanctionedAmount, equals(150000.0));
+      expect(row.bankRemarks, equals('State Bank of India'));
+      expect(row.loanStatus, equals('Approved'));
+      expect(row.subStage, equals('Loan Sanctioned'));
+      expect(row.totalAmount, equals(210000.0));
+      expect(row.systemCapacity, equals('3.5'));
+
+      final record = row.toConsumerRecord();
+      expect(record.loanSanctionedAmount, equals(150000.0));
+      expect(record.bankRemarks, equals('State Bank of India'));
+      expect(record.loanStatus, equals('Approved'));
+
+      // Check diff computation for loan sanction amount and bank
+      final existing = ConsumerRecord(
+        id: 'rec-1',
+        consumerNo: 'CN-9001',
+        name: 'Suresh Patil',
+        loanSanctionedAmount: 100000.0,
+        bankRemarks: 'Bank of Baroda',
+      );
+
+      final diffs = DuplicateDetectionService.computeFieldDiffs(
+        existing,
+        record,
+        allowedFieldKeys: mapping.mappedFieldKeys,
+        ignoreBlankValues: true,
+      );
+
+      final amountDiff = diffs.firstWhere((d) => d.fieldKey == 'loan_sanctioned_amount');
+      expect(amountDiff.oldValue, equals('100000'));
+      expect(amountDiff.newValue, equals('150000'));
+
+      final bankDiff = diffs.firstWhere((d) => d.fieldKey == 'bank_remarks');
+      expect(bankDiff.oldValue, equals('Bank of Baroda'));
+      expect(bankDiff.newValue, equals('State Bank of India'));
+    });
   });
 }
+

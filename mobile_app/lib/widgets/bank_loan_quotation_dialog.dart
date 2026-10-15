@@ -86,6 +86,8 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
 
   final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 2);
 
+  bool _isCustomizedByUser = false;
+
   @override
   void initState() {
     super.initState();
@@ -196,10 +198,53 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
         setState(() {
           _previousQuotations = list;
           _isLoadingHistory = false;
+          // Auto-load latest saved quotation if no specific quotation was passed and user hasn't edited
+          if (widget.initialQuotation == null && !_isCustomizedByUser && list.isNotEmpty) {
+            _applyExistingQuotation(list.first);
+          }
         });
       }
     } catch (_) {
       if (mounted) setState(() => _isLoadingHistory = false);
+    }
+  }
+
+  void _applyExistingQuotation(SolarQuotation q) {
+    _customerName = q.customerName.isNotEmpty ? q.customerName : _customerName;
+    _consumerNo = q.consumerNo.isNotEmpty ? q.consumerNo : _consumerNo;
+    _mobileNo = q.mobileNo.isNotEmpty ? q.mobileNo : _mobileNo;
+    _address = q.address.isNotEmpty ? q.address : _address;
+    _villageCity = q.villageCity.isNotEmpty ? q.villageCity : _villageCity;
+    _district = q.district.isNotEmpty ? q.district : _district;
+    _quotationNo = q.quotationNo.isNotEmpty ? q.quotationNo : _quotationNo;
+    _quotationDate = q.quotationDate;
+    _systemCapacity = q.systemCapacity.isNotEmpty ? q.systemCapacity : _systemCapacity;
+    _systemType = q.systemType.isNotEmpty ? q.systemType : _systemType;
+    _totalSystemCost = q.totalSystemCost;
+    _gstAmount = q.gstAmount;
+    _grandTotal = q.grandTotal;
+    _bankLoanAmount = q.bankLoanAmount;
+    _customerContribution = q.customerContribution;
+    _marginAmount = q.customerContribution;
+    if (q.bankName.isNotEmpty) _bankName = q.bankName;
+    if (q.branch.isNotEmpty) _branch = q.branch;
+    if (q.accountNo.isNotEmpty) _accountNo = q.accountNo;
+    if (q.ifscCode.isNotEmpty) _ifscCode = q.ifscCode;
+    if (q.accountType.isNotEmpty) _accountType = q.accountType;
+    if (q.pdfFilePath != null && File(q.pdfFilePath!).existsSync()) {
+      _cachedFile = File(q.pdfFilePath!);
+    }
+  }
+
+  Future<void> _saveCurrentQuotation() async {
+    try {
+      final quotation = _buildCurrentQuotation();
+      await QuotationStorageService.saveQuotation(quotation);
+      final receipt = _buildCurrentReceipt();
+      await QuotationStorageService.saveMarginReceipt(receipt);
+      _loadHistory();
+    } catch (e) {
+      debugPrint('Error auto-saving quotation: $e');
     }
   }
 
@@ -1316,6 +1361,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                               final l = double.tryParse(loanCtrl.text.trim()) ?? (tot * 0.9);
                               final contrib = double.tryParse(contribCtrl.text.trim()) ?? (tot - l).clamp(0.0, double.infinity);
 
+                              _isCustomizedByUser = true;
                               setState(() {
                                 _systemCapacity = capacityCtrl.text.trim().isNotEmpty ? capacityCtrl.text.trim() : _systemCapacity;
                                 _totalSystemCost = gst.totalTaxableValue;
@@ -1329,9 +1375,10 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                                 _cachedReceiptFile = null;
                               });
                               Navigator.of(ctx).pop();
+                              _saveCurrentQuotation();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Quotation amount updated! Ready to generate PDF.'),
+                                  content: Text('Quotation amount updated and saved!'),
                                   backgroundColor: Color(0xFF059669),
                                   duration: Duration(seconds: 2),
                                 ),
@@ -1797,6 +1844,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                         final parsedLoan = double.tryParse(loanCtrl.text.trim()) ?? (parsedTotal * 0.9);
                         final parsedContrib = double.tryParse(contribCtrl.text.trim()) ?? (parsedTotal - parsedLoan).clamp(0.0, double.infinity);
 
+                        _isCustomizedByUser = true;
                         setState(() {
                           _customerName = nameCtrl.text.trim();
                           _consumerNo = consumerCtrl.text.trim();
@@ -1821,9 +1869,10 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                           _cachedReceiptFile = null;
                         });
                         Navigator.of(ctx).pop();
+                        _saveCurrentQuotation();
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Quotation specifications updated! Ready to generate PDF.'),
+                            content: Text('Quotation specifications updated and saved!'),
                             backgroundColor: Color(0xFF059669),
                             duration: Duration(seconds: 2),
                           ),

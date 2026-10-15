@@ -68,6 +68,11 @@ class RecordDiff {
       'agreement_status',
       'loan_required',
       'loan_status',
+      'loan_sub_stage',
+      'loan_sanctioned_amount',
+      'bank_remarks',
+      'total_amount',
+      'system_capacity',
       'installation_status',
       'installer_team',
       'rts_status',
@@ -88,6 +93,15 @@ class RecordDiff {
 
       if (cleanOld != cleanNew) {
         payload[key] = (newVal == null || cleanNew.isEmpty) ? null : cleanNew;
+      }
+    }
+
+    void checkAndAddDouble(String key, double oldVal, double newVal) {
+      if (!allowed.contains(key)) return;
+      if (ignoreBlankValues && newVal <= 0.0) return;
+
+      if ((oldVal - newVal).abs() > 0.01) {
+        payload[key] = newVal;
       }
     }
 
@@ -117,6 +131,10 @@ class RecordDiff {
     checkAndAdd('loan_required', existingRecord.loanRequired, incomingRecord.loanRequired);
     checkAndAdd('loan_status', existingRecord.loanStatus, incomingRecord.loanStatus);
     checkAndAdd('loan_sub_stage', existingRecord.loanSubStage, incomingRecord.loanSubStage);
+    checkAndAdd('bank_remarks', existingRecord.bankRemarks, incomingRecord.bankRemarks);
+    checkAndAdd('system_capacity', existingRecord.systemCapacity, incomingRecord.systemCapacity);
+    checkAndAddDouble('loan_sanctioned_amount', existingRecord.loanSanctionedAmount, incomingRecord.loanSanctionedAmount);
+    checkAndAddDouble('total_amount', existingRecord.totalAmount, incomingRecord.totalAmount);
     checkAndAdd('installation_status', existingRecord.installationStatus, incomingRecord.installationStatus);
     checkAndAdd('installer_team', existingRecord.installerTeam, incomingRecord.installerTeam);
     checkAndAdd('rts_status', existingRecord.rtsStatus, incomingRecord.rtsStatus);
@@ -174,6 +192,10 @@ class RecordDiff {
       loanRequired: payload.containsKey('loan_required') ? (payload['loan_required'] as String? ?? existingRecord.loanRequired) : existingRecord.loanRequired,
       loanStatus: payload.containsKey('loan_status') ? (payload['loan_status'] as String? ?? existingRecord.loanStatus) : existingRecord.loanStatus,
       loanSubStage: payload.containsKey('loan_sub_stage') ? (payload['loan_sub_stage'] as String? ?? existingRecord.loanSubStage) : existingRecord.loanSubStage,
+      bankRemarks: payload.containsKey('bank_remarks') ? payload['bank_remarks'] as String? : existingRecord.bankRemarks,
+      loanSanctionedAmount: payload.containsKey('loan_sanctioned_amount') ? ((payload['loan_sanctioned_amount'] as num?)?.toDouble() ?? existingRecord.loanSanctionedAmount) : existingRecord.loanSanctionedAmount,
+      totalAmount: payload.containsKey('total_amount') ? ((payload['total_amount'] as num?)?.toDouble() ?? existingRecord.totalAmount) : existingRecord.totalAmount,
+      systemCapacity: payload.containsKey('system_capacity') ? payload['system_capacity'] as String? : existingRecord.systemCapacity,
       loanAppliedDate: existingRecord.loanAppliedDate,
       loanApprovedDate: existingRecord.loanApprovedDate,
       installationStatus: payload.containsKey('installation_status') ? (payload['installation_status'] as String? ?? existingRecord.installationStatus) : existingRecord.installationStatus,

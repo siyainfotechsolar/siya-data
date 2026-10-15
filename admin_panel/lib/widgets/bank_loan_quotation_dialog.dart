@@ -89,6 +89,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
   bool _receiptIncludeCustomerSignature = false;
   final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 0);
   final gstCurrencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 2);
+  bool _isCustomizedByUser = false;
 
   @override
   void initState() {
@@ -209,11 +210,40 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
         setState(() {
           _previousQuotations = list;
           _isLoadingHistory = false;
+          // Auto-load latest saved quotation if no specific quotation was passed and user hasn't edited
+          if (widget.initialQuotation == null && !_isCustomizedByUser && list.isNotEmpty) {
+            _applyExistingQuotation(list.first);
+          }
         });
       }
     } catch (_) {
       if (mounted) setState(() => _isLoadingHistory = false);
     }
+  }
+
+  void _applyExistingQuotation(SolarQuotation q) {
+    _customerName = q.customerName.isNotEmpty ? q.customerName : _customerName;
+    _consumerNo = q.consumerNo.isNotEmpty ? q.consumerNo : _consumerNo;
+    _mobileNo = q.mobileNo.isNotEmpty ? q.mobileNo : _mobileNo;
+    _address = q.address.isNotEmpty ? q.address : _address;
+    _villageCity = q.villageCity.isNotEmpty ? q.villageCity : _villageCity;
+    _district = q.district.isNotEmpty ? q.district : _district;
+    _quotationNo = q.quotationNo.isNotEmpty ? q.quotationNo : _quotationNo;
+    _quotationDate = q.quotationDate;
+    _capacity = q.systemCapacity.isNotEmpty ? q.systemCapacity : _capacity;
+    _systemType = q.systemType.isNotEmpty ? q.systemType : _systemType;
+    _totalCost = q.totalSystemCost;
+    _gstAmount = q.gstAmount;
+    _grandTotal = q.grandTotal;
+    _bankLoan = q.bankLoanAmount;
+    _contribution = q.customerContribution;
+    _marginAmount = q.customerContribution;
+    if (q.bankName.isNotEmpty) _bankName = q.bankName;
+    if (q.branch.isNotEmpty) _branch = q.branch;
+    if (q.accountNo.isNotEmpty) _accountNo = q.accountNo;
+    if (q.ifscCode.isNotEmpty) _ifscCode = q.ifscCode;
+    if (q.upiId.isNotEmpty) _upiId = q.upiId;
+    _renderKey++;
   }
 
   SolarQuotation _buildQuotation() {
@@ -1204,6 +1234,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                     final l = double.tryParse(loanCtrl.text.trim()) ?? (tot * 0.9);
                     final contrib = double.tryParse(contribCtrl.text.trim()) ?? (tot - l).clamp(0.0, double.infinity);
 
+                    _isCustomizedByUser = true;
                     setState(() {
                       _capacity = capCtrl.text.trim().isNotEmpty ? capCtrl.text.trim() : _capacity;
                       _totalCost = gst.totalTaxableValue;
@@ -1593,6 +1624,7 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
                     final l = double.tryParse(loanCtrl.text.trim()) ?? (tot * 0.9);
                     final contrib = double.tryParse(contribCtrl.text.trim()) ?? (tot - l).clamp(0.0, double.infinity);
 
+                    _isCustomizedByUser = true;
                     setState(() {
                       _customerName = nameCtrl.text.trim();
                       _consumerNo = consumerCtrl.text.trim();

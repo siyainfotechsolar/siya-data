@@ -1298,10 +1298,12 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                 if (val == 'edit_profile') {
                   _showEditCustomerProfileDialog();
                 } else if (val == 'bank_loan_quotation') {
-                  await BankLoanQuotationDialog.show(context, customer: _record);
+                  final latestQ = _customerQuotations.isNotEmpty ? _customerQuotations.first : null;
+                  await BankLoanQuotationDialog.show(context, customer: _record, initialQuotation: latestQ);
                   _loadCustomerQuotations();
                 } else if (val == 'margin_money_receipt') {
-                  await BankLoanQuotationDialog.show(context, customer: _record, initialTab: 1);
+                  final latestQ = _customerQuotations.isNotEmpty ? _customerQuotations.first : null;
+                  await BankLoanQuotationDialog.show(context, customer: _record, initialQuotation: latestQ, initialTab: 1);
                   _loadCustomerQuotations();
                 } else if (val == 'work_completion_certificate') {
                   WorkCompletionCertificateDialog.show(context, customer: _record);
@@ -1980,13 +1982,15 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                             foregroundColor: const Color(0xFF047857),
                           ),
                           onPressed: () async {
-                            await BankLoanQuotationDialog.show(context, customer: _record);
+                            final latestQ = _customerQuotations.isNotEmpty ? _customerQuotations.first : null;
+                            await BankLoanQuotationDialog.show(context, customer: _record, initialQuotation: latestQ);
                             _loadCustomerQuotations();
                           },
                           child: const Text('Edit / View'),
                         ),
                         onTap: () async {
-                          await BankLoanQuotationDialog.show(context, customer: _record);
+                          final latestQ = _customerQuotations.isNotEmpty ? _customerQuotations.first : null;
+                          await BankLoanQuotationDialog.show(context, customer: _record, initialQuotation: latestQ);
                           _loadCustomerQuotations();
                         },
                       ),
@@ -2028,13 +2032,15 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                             foregroundColor: const Color(0xFF854D0E),
                           ),
                           onPressed: () async {
-                            await BankLoanQuotationDialog.show(context, customer: _record, initialTab: 1);
+                            final latestQ = _customerQuotations.isNotEmpty ? _customerQuotations.first : null;
+                            await BankLoanQuotationDialog.show(context, customer: _record, initialQuotation: latestQ, initialTab: 1);
                             _loadCustomerQuotations();
                           },
                           child: const Text('Open Receipt'),
                         ),
                         onTap: () async {
-                          await BankLoanQuotationDialog.show(context, customer: _record, initialTab: 1);
+                          final latestQ = _customerQuotations.isNotEmpty ? _customerQuotations.first : null;
+                          await BankLoanQuotationDialog.show(context, customer: _record, initialQuotation: latestQ, initialTab: 1);
                           _loadCustomerQuotations();
                         },
                       ),

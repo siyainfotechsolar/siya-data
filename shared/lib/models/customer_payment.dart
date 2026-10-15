@@ -299,6 +299,8 @@ class PaymentTransaction {
   final String? additionalCategory;
   final String paymentMode;
   final String? referenceNumber;
+  final String? invoiceNumber;
+  final String? invoiceId;
   final String? receivedBy;
   final String? remarks;
   final String? attachmentUrl;
@@ -338,6 +340,8 @@ class PaymentTransaction {
     this.additionalCategory,
     required this.paymentMode,
     this.referenceNumber,
+    this.invoiceNumber,
+    this.invoiceId,
     this.receivedBy,
     this.remarks,
     this.attachmentUrl,
@@ -401,6 +405,8 @@ class PaymentTransaction {
       additionalCategory: json['additional_category']?.toString(),
       paymentMode: json['payment_mode']?.toString() ?? PaymentMode.cash,
       referenceNumber: json['reference_number']?.toString(),
+      invoiceNumber: json['invoice_number']?.toString(),
+      invoiceId: json['invoice_id']?.toString(),
       receivedBy: json['received_by']?.toString(),
       remarks: json['remarks']?.toString(),
       attachmentUrl: json['attachment_url']?.toString(),
@@ -447,6 +453,8 @@ class PaymentTransaction {
       if (additionalCategory != null) 'additional_category': additionalCategory,
       'payment_mode': paymentMode,
       if (referenceNumber != null) 'reference_number': referenceNumber,
+      if (invoiceNumber != null) 'invoice_number': invoiceNumber,
+      if (invoiceId != null) 'invoice_id': invoiceId,
       if (receivedBy != null) 'received_by': receivedBy,
       if (remarks != null) 'remarks': remarks,
       if (attachmentUrl != null) 'attachment_url': attachmentUrl,
@@ -488,6 +496,8 @@ class PaymentTransaction {
     String? additionalCategory,
     String? paymentMode,
     String? referenceNumber,
+    String? invoiceNumber,
+    String? invoiceId,
     String? receivedBy,
     String? remarks,
     String? attachmentUrl,
@@ -527,6 +537,8 @@ class PaymentTransaction {
       additionalCategory: additionalCategory ?? this.additionalCategory,
       paymentMode: paymentMode ?? this.paymentMode,
       referenceNumber: referenceNumber ?? this.referenceNumber,
+      invoiceNumber: invoiceNumber ?? this.invoiceNumber,
+      invoiceId: invoiceId ?? this.invoiceId,
       receivedBy: receivedBy ?? this.receivedBy,
       remarks: remarks ?? this.remarks,
       attachmentUrl: attachmentUrl ?? this.attachmentUrl,

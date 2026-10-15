@@ -614,6 +614,7 @@ class ConsumerRecord {
       'rts_application_id': rtsApplicationId?.trim(),
       'subsidy_status': subsidyStatus,
       // Step 7: Payment Tracking
+      'loan_sanctioned_amount': loanSanctionedAmount,
       'total_amount': totalAmount,
       'paid_amount': paidAmount,
       'pending_amount': pendingAmount,
