@@ -37,13 +37,6 @@ class WorkCompletionCertificateService {
   }) async {
     final pdf = pw.Document();
 
-    pw.Font? customerSignatureFont;
-    if (includeCustomerSignature) {
-      try {
-        customerSignatureFont = await CustomerSignatureHelper.loadSignatureFont();
-      } catch (_) {}
-    }
-
     // Load Company Logo from Assets
     pw.MemoryImage? logoImage;
     try {
@@ -401,47 +394,11 @@ class WorkCompletionCertificateService {
 
                     pw.Spacer(),
 
-                    // 5. SIGNATURE & STAMP BLOCK (Beneficiary Left, Vendor Right)
+                    // 5. SIGNATURE & STAMP BLOCK (Vendor Authorized Signatory Right Aligned)
                     pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: pw.MainAxisAlignment.end,
                       crossAxisAlignment: pw.CrossAxisAlignment.end,
                       children: [
-                        pw.Container(
-                          width: 180,
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.center,
-                            children: [
-                              CustomerSignatureHelper.buildSignatureWidget(
-                                customerName: data.customerName,
-                                consumerNo: data.consumerNo,
-                                customSignatureBytes: customCustomerSignatureBytes,
-                                font: customerSignatureFont,
-                                includeSignature: includeCustomerSignature,
-                                height: 52,
-                                fontSize: 15,
-                              ),
-                              pw.Container(width: 140, height: 1.0, color: navyColor),
-                              pw.SizedBox(height: 3),
-                              pw.Text(
-                                'Signature of Beneficiary',
-                                style: pw.TextStyle(
-                                  color: navyColor,
-                                  fontSize: 8.0,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                              pw.SizedBox(height: 2),
-                              pw.Text(
-                                data.customerName,
-                                style: const pw.TextStyle(
-                                  color: slateMutedColor,
-                                  fontSize: 7.0,
-                                ),
-                                maxLines: 1,
-                              ),
-                            ],
-                          ),
-                        ),
                         pw.Container(
                           width: 210,
                           child: pw.Column(
