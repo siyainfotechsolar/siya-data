@@ -9,6 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/solar_quotation.dart';
 import 'company_stamp_helper.dart';
 import 'customer_signature_helper.dart';
+import 'package:siya_shared/siya_shared.dart';
+import 'settings_service.dart';
 
 class BankLoanQuotationService {
   static const PdfColor navyColor = PdfColor.fromInt(0xFF0D2B6F);
@@ -69,13 +71,25 @@ class BankLoanQuotationService {
       } catch (_) {}
     }
 
-    // Load Company Logo from Assets
+    final comp = MasterDataHub.company;
+
+    // Load Company Logo from MasterDataHub or Assets
     pw.MemoryImage? logoImage;
-    try {
-      final ByteData logoData = await rootBundle.load('assets/images/logo.png');
-      logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
-    } catch (e) {
-      debugPrint('Logo load error in admin quotation service: $e');
+    if (comp.logoImagePath != null && comp.logoImagePath!.isNotEmpty) {
+      final customLogoBytes = SettingsService.decodeImageFromDataUri(comp.logoImagePath);
+      if (customLogoBytes != null && customLogoBytes.isNotEmpty) {
+        try {
+          logoImage = pw.MemoryImage(customLogoBytes);
+        } catch (_) {}
+      }
+    }
+    if (logoImage == null) {
+      try {
+        final ByteData logoData = await rootBundle.load('assets/images/logo.png');
+        logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+      } catch (e) {
+        debugPrint('Logo load error in admin quotation service: $e');
+      }
     }
 
     // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
@@ -157,7 +171,7 @@ class BankLoanQuotationService {
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
                               pw.Text(
-                                'SIYA INFOTECH & DIGITAL SOLUTIONS',
+                                comp.companyName,
                                 style: pw.TextStyle(
                                   color: navyColor,
                                   fontSize: 14.5,
@@ -167,7 +181,7 @@ class BankLoanQuotationService {
                               ),
                               pw.SizedBox(height: 2),
                               pw.Text(
-                                'Solar Solutions & Digital Services',
+                                comp.tagline.isNotEmpty ? comp.tagline : 'Solar Solutions & Digital Services',
                                 style: pw.TextStyle(
                                   color: emeraldColor,
                                   fontSize: 9.0,
@@ -185,7 +199,7 @@ class BankLoanQuotationService {
                               ),
                               pw.SizedBox(height: 1.0),
                               pw.Text(
-                                'Betawad, Taluka Shindkheda, District Dhule, Maharashtra',
+                                comp.address,
                                 style: const pw.TextStyle(
                                   color: slateMutedColor,
                                   fontSize: 7.0,
@@ -198,7 +212,7 @@ class BankLoanQuotationService {
                           crossAxisAlignment: pw.CrossAxisAlignment.end,
                           children: [
                             pw.Text(
-                              'GSTIN: 27CVTPK6358P1ZD',
+                              'GSTIN: ${comp.gstin}',
                               style: pw.TextStyle(
                                 color: navyColor,
                                 fontSize: 8.0,
@@ -207,7 +221,7 @@ class BankLoanQuotationService {
                             ),
                             pw.SizedBox(height: 1.5),
                             pw.Text(
-                              'Phone: 7972143798',
+                              'Phone: ${comp.displayPhones}',
                               style: pw.TextStyle(
                                 color: navyColor,
                                 fontSize: 8.0,
@@ -216,7 +230,7 @@ class BankLoanQuotationService {
                             ),
                             pw.SizedBox(height: 1.5),
                             pw.Text(
-                              'Email: siyainfodigital@gmail.com',
+                              'Email: ${comp.email}',
                               style: const pw.TextStyle(
                                 color: slateBodyColor,
                                 fontSize: 7.2,
@@ -482,11 +496,11 @@ class BankLoanQuotationService {
                                 ),
                                 child: pw.Column(
                                   children: [
-                                    _buildBankRow('Account Name', 'SIYA INFOTECH & DIGITAL SOLUTIONS', isBold: true),
-                                    _buildBankRow('Bank Name', quotation.bankName, isZebra: true),
-                                    _buildBankRow('Branch', quotation.branch),
-                                    _buildBankRow('Account No.', quotation.accountNo, isZebra: true, isBold: true),
-                                    _buildBankRow('IFSC Code', quotation.ifscCode, isBold: true),
+                                    _buildBankRow('Account Name', comp.companyName, isBold: true),
+                                    _buildBankRow('Bank Name', quotation.bankName.isNotEmpty ? quotation.bankName : comp.bankName, isZebra: true),
+                                    _buildBankRow('Branch', quotation.branch.isNotEmpty ? quotation.branch : comp.branch),
+                                    _buildBankRow('Account No.', quotation.accountNo.isNotEmpty ? quotation.accountNo : comp.accountNo, isZebra: true, isBold: true),
+                                    _buildBankRow('IFSC Code', quotation.ifscCode.isNotEmpty ? quotation.ifscCode : comp.ifscCode, isBold: true),
                                   ],
                                 ),
                               ),
@@ -660,7 +674,7 @@ class BankLoanQuotationService {
                             crossAxisAlignment: pw.CrossAxisAlignment.center,
                             children: [
                               pw.Text(
-                                'For SIYA INFOTECH & DIGITAL SOLUTIONS',
+                                'For ${comp.companyName}',
                                 style: pw.TextStyle(
                                   color: darkTextColor,
                                   fontSize: 8.5,

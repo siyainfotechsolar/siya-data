@@ -6,6 +6,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../models/consumer_record.dart';
+import 'package:siya_shared/siya_shared.dart';
+import 'settings_service.dart';
 
 class BankSubmissionStickerService {
   static const PdfColor darkPrimary = PdfColor.fromInt(0xFF0F172A);
@@ -41,12 +43,22 @@ class BankSubmissionStickerService {
       return pdf.save();
     }
 
+    final comp = MasterDataHub.company;
+
     // Load Company Logo
     pw.MemoryImage? logoImage;
     if (customLogoBytes != null && customLogoBytes.isNotEmpty) {
       try {
         logoImage = pw.MemoryImage(customLogoBytes);
       } catch (_) {}
+    }
+    if (logoImage == null && comp.logoImagePath != null && comp.logoImagePath!.isNotEmpty) {
+      final customBytes = SettingsService.decodeImageFromDataUri(comp.logoImagePath);
+      if (customBytes != null && customBytes.isNotEmpty) {
+        try {
+          logoImage = pw.MemoryImage(customBytes);
+        } catch (_) {}
+      }
     }
     if (logoImage == null) {
       try {
@@ -229,6 +241,7 @@ class BankSubmissionStickerService {
     final mobileNo = (customer.mobile ?? '').trim();
     final consumerNo = customer.consumerNo.trim();
     final capacity = _formatCapacity(customer);
+    final comp = MasterDataHub.company;
 
     return pw.Container(
       decoration: pw.BoxDecoration(
@@ -279,7 +292,7 @@ class BankSubmissionStickerService {
                       mainAxisAlignment: pw.MainAxisAlignment.center,
                       children: [
                         pw.Text(
-                          'SIYA INFOTECH & SOLAR ENERGY',
+                          comp.companyName,
                           style: pw.TextStyle(
                             color: darkPrimary,
                             fontSize: 13.5,
@@ -289,7 +302,7 @@ class BankSubmissionStickerService {
                         ),
                         pw.SizedBox(height: 1),
                         pw.Text(
-                          'Authorised Solar EPC & Digital Solutions | Betawad, Tal. Sindkheda, Dist. Dhule',
+                          comp.tagline.isNotEmpty ? comp.tagline : 'Authorised Solar EPC & Digital Solutions | Betawad, Tal. Sindkheda, Dist. Dhule',
                           style: pw.TextStyle(
                             color: slateSubtext,
                             fontSize: 7.2,
@@ -297,7 +310,7 @@ class BankSubmissionStickerService {
                           ),
                         ),
                         pw.Text(
-                          'Helpline / Contact: 7588003220 / 7972143798',
+                          'Helpline / Contact: ${comp.displayPhones}',
                           style: pw.TextStyle(
                             color: darkPrimary,
                             fontSize: 7.6,
@@ -501,7 +514,7 @@ class BankSubmissionStickerService {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text(
-                    'AUTHORISED EPC: SIYA INFOTECH & SOLAR ENERGY  |  OFFICIAL BANK DOCKET',
+                    'AUTHORISED EPC: ${comp.companyName}  |  OFFICIAL BANK DOCKET',
                     style: pw.TextStyle(
                       color: slateSubtext,
                       fontSize: 6.8,

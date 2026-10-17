@@ -3,6 +3,8 @@ library siya_shared;
 // Models
 export 'models/activity_log.dart';
 export 'models/company_master.dart';
+export 'models/company_bank_account.dart';
+export 'models/company_settings.dart';
 export 'models/consumer_record.dart';
 export 'models/consumer_vendor_agreement.dart';
 export 'models/customer_hishob.dart';

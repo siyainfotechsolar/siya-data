@@ -8,6 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/invoice.dart';
 import 'company_stamp_helper.dart';
+import 'package:siya_shared/siya_shared.dart';
+import 'settings_service.dart';
 
 /// Professional A4 GST Tax Invoice PDF Generator matching the Quotation template design system
 class InvoicePdfService {
@@ -64,13 +66,25 @@ class InvoicePdfService {
   }) async {
     final pdf = pw.Document();
 
-    // 1. Load Company Logo from Assets
+    final comp = MasterDataHub.company;
+
+    // 1. Load Company Logo from MasterDataHub or Assets
     pw.MemoryImage? logoImage;
-    try {
-      final ByteData logoData = await rootBundle.load('assets/images/logo.png');
-      logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
-    } catch (e) {
-      debugPrint('Logo load error in admin invoice service: $e');
+    if (comp.logoImagePath != null && comp.logoImagePath!.isNotEmpty) {
+      final customLogoBytes = SettingsService.decodeImageFromDataUri(comp.logoImagePath);
+      if (customLogoBytes != null && customLogoBytes.isNotEmpty) {
+        try {
+          logoImage = pw.MemoryImage(customLogoBytes);
+        } catch (_) {}
+      }
+    }
+    if (logoImage == null) {
+      try {
+        final ByteData logoData = await rootBundle.load('assets/images/logo.png');
+        logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+      } catch (e) {
+        debugPrint('Logo load error in admin invoice service: $e');
+      }
     }
 
     // 2. Load Company Stamp & Authorized Signature
@@ -152,7 +166,7 @@ class InvoicePdfService {
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
                               pw.Text(
-                                'SIYA INFOTECH & DIGITAL SOLUTIONS',
+                                comp.companyName,
                                 style: pw.TextStyle(
                                   color: navyColor,
                                   fontSize: 14.5,
@@ -162,7 +176,7 @@ class InvoicePdfService {
                               ),
                               pw.SizedBox(height: 2.0),
                               pw.Text(
-                                'Solar Solutions & Digital Services',
+                                comp.tagline.isNotEmpty ? comp.tagline : 'Solar Solutions & Digital Services',
                                 style: pw.TextStyle(
                                   color: emeraldColor,
                                   fontSize: 9.2,
@@ -180,7 +194,7 @@ class InvoicePdfService {
                               ),
                               pw.SizedBox(height: 1.5),
                               pw.Text(
-                                'Betawad, Taluka Shindkheda, District Dhule, Maharashtra',
+                                comp.address,
                                 style: const pw.TextStyle(
                                   color: slateMutedColor,
                                   fontSize: 7.2,
@@ -193,7 +207,7 @@ class InvoicePdfService {
                           crossAxisAlignment: pw.CrossAxisAlignment.end,
                           children: [
                             pw.Text(
-                              'GSTIN: 27CVTPK6358P1ZD',
+                              'GSTIN: ${comp.gstin}',
                               style: pw.TextStyle(
                                 color: navyColor,
                                 fontSize: 8.5,
@@ -202,7 +216,7 @@ class InvoicePdfService {
                             ),
                             pw.SizedBox(height: 2.0),
                             pw.Text(
-                              'Phone: 7588003220 / 7972143798',
+                              'Phone: ${comp.displayPhones}',
                               style: pw.TextStyle(
                                 color: navyColor,
                                 fontSize: 8.2,
@@ -211,7 +225,7 @@ class InvoicePdfService {
                             ),
                             pw.SizedBox(height: 1.8),
                             pw.Text(
-                              'Email: siyainfodigital@gmail.com',
+                              'Email: ${comp.email}',
                               style: const pw.TextStyle(
                                 color: slateBodyColor,
                                 fontSize: 7.2,
@@ -421,11 +435,11 @@ class InvoicePdfService {
                                 ),
                                 child: pw.Column(
                                   children: [
-                                    _buildBankRow('Account Name', 'SIYA INFOTECH ADN DIGITAL SOLUTIONS', isBold: true),
-                                    _buildBankRow('Bank Name', 'State Bank of India', isZebra: true),
-                                    _buildBankRow('Branch', 'STATE BANK OF INDIA BETAWAD'),
-                                    _buildBankRow('Account No.', '45489966347', isZebra: true, isBold: true),
-                                    _buildBankRow('IFSC Code', 'SBIN0004798', isBold: true),
+                                    _buildBankRow('Account Name', comp.companyName, isBold: true),
+                                    _buildBankRow('Bank Name', comp.bankName, isZebra: true),
+                                    _buildBankRow('Branch', comp.branch.isNotEmpty ? comp.branch : comp.bankName),
+                                    _buildBankRow('Account No.', comp.accountNo, isZebra: true, isBold: true),
+                                    _buildBankRow('IFSC Code', comp.ifscCode, isBold: true),
                                   ],
                                 ),
                               ),
@@ -450,7 +464,7 @@ class InvoicePdfService {
                                       ),
                                       child: pw.BarcodeWidget(
                                         barcode: pw.Barcode.qrCode(),
-                                        data: 'upi://pay?pa=45489966347@sbi&pn=SIYA%20INFOTECH%20ADN%20DIGITAL%20SOLUTIONS&am=${invoice.grandTotal.toStringAsFixed(2)}&cu=INR',
+                                        data: 'upi://pay?pa=${comp.upiId.isNotEmpty ? comp.upiId : "${comp.accountNo}@sbi"}&pn=${Uri.encodeComponent(comp.companyName)}&am=${invoice.grandTotal.toStringAsFixed(2)}&cu=INR',
                                       ),
                                     ),
                                     pw.SizedBox(width: 10),
@@ -464,12 +478,12 @@ class InvoicePdfService {
                                           ),
                                           pw.SizedBox(height: 2),
                                           pw.Text(
-                                            'Beneficiary: SIYA INFOTECH ADN DIGITAL SOLUTIONS',
+                                            'Beneficiary: ${comp.companyName}',
                                             style: const pw.TextStyle(color: slateBodyColor, fontSize: 7.0),
                                           ),
                                           pw.SizedBox(height: 1.5),
                                           pw.Text(
-                                            'UPI ID: 45489966347@sbi',
+                                            'UPI ID: ${comp.upiId.isNotEmpty ? comp.upiId : "${comp.accountNo}@sbi"}',
                                             style: pw.TextStyle(color: darkTextColor, fontSize: 7.5, fontWeight: pw.FontWeight.bold),
                                           ),
                                         ],
@@ -600,7 +614,7 @@ class InvoicePdfService {
                                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                                   children: [
                                     pw.Text(
-                                      'For SIYA INFOTECH & DIGITAL SOLUTIONS',
+                                      'For ${comp.companyName}',
                                       style: pw.TextStyle(
                                         color: darkTextColor,
                                         fontSize: 8.0,

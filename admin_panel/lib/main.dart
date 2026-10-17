@@ -4,9 +4,12 @@ import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'services/supabase_service.dart';
 
+import 'services/settings_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseService.initialize();
+  await SettingsService.initialize();
   runApp(const SiyaAdminApp());
 }
 

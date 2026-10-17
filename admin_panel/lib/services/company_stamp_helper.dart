@@ -4,11 +4,21 @@ import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import 'package:siya_shared/siya_shared.dart';
+import 'settings_service.dart';
+
 class AdminCompanyStampHelper {
   /// Robustly loads stamp and signature bytes with multi-stage fallback
   static Future<Uint8List?> loadStampAndSignatureBytes({Uint8List? customBytes}) async {
     if (customBytes != null && customBytes.isNotEmpty) {
       return customBytes;
+    }
+
+    // 0. Check custom stamp from Central Settings / MasterDataHub
+    final comp = MasterDataHub.company;
+    if (comp.stampImagePath != null && comp.stampImagePath!.isNotEmpty) {
+      final decoded = SettingsService.decodeImageFromDataUri(comp.stampImagePath);
+      if (decoded != null && decoded.isNotEmpty) return decoded;
     }
 
     // 1. Try primary rootBundle pair
