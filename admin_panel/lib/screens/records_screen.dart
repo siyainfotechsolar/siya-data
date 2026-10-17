@@ -13,6 +13,7 @@ import '../widgets/global_whatsapp_button.dart';
 import '../widgets/work_completion_certificate_dialog.dart';
 import '../widgets/bank_loan_quotation_dialog.dart';
 import '../widgets/consumer_vendor_agreement_dialog.dart';
+import '../widgets/bank_submission_sticker_dialog.dart';
 import '../services/excel_export_service.dart';
 import '../services/export_definitions.dart';
 import '../utils/responsive.dart';
@@ -481,6 +482,24 @@ class _RecordsScreenState extends State<RecordsScreen> {
     );
   }
 
+  void _openStickersForSelected() {
+    final selectedRecords = _records.where((r) => r.id != null && _selectedRecordIds.contains(r.id)).toList();
+    BankSubmissionStickerDialog.show(
+      context,
+      preselectedCustomers: selectedRecords,
+      allCustomers: _records,
+    );
+  }
+
+  void _openStickersDialog() {
+    final selectedRecords = _records.where((r) => r.id != null && _selectedRecordIds.contains(r.id)).toList();
+    BankSubmissionStickerDialog.show(
+      context,
+      preselectedCustomers: selectedRecords.isNotEmpty ? selectedRecords : null,
+      allCustomers: _records,
+    );
+  }
+
   Future<List<ConsumerRecord>> _fetchFilteredRecordsForExport() async {
     final result = await RecordService.fetchRecords(
       page: 1,
@@ -768,6 +787,16 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       filterSummary: 'Scope: $_workQueueScope, Queue: $_selectedWorkflowQueue, Status: $_selectedStatus${_searchController.text.trim().isNotEmpty ? ', Search: "${_searchController.text.trim()}"' : ''}',
                       columns: ExportDefinitions.consumerRecordColumns,
                       onFetchFullDataset: _fetchFilteredRecordsForExport,
+                    ),
+                    const SizedBox(width: 12),
+                    OutlinedButton.icon(
+                      onPressed: _openStickersDialog,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        side: BorderSide(color: Colors.blueGrey.shade700),
+                      ),
+                      icon: const Icon(Icons.print_outlined),
+                      label: const Text('Bank File Stickers'),
                     ),
                     if (_canImport) ...[
                       const SizedBox(width: 12),
@@ -1169,6 +1198,17 @@ class _RecordsScreenState extends State<RecordsScreen> {
                     ),
                   ),
                   const Spacer(),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F172A),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    ),
+                    icon: const Icon(Icons.print_rounded, size: 18),
+                    label: Text('Print Selected Stickers (${_selectedRecordIds.length})'),
+                    onPressed: _openStickersForSelected,
+                  ),
+                  const SizedBox(width: 8),
                   TextButton(
                     onPressed: () => setState(() => _selectedRecordIds.clear()),
                     child: const Text('Deselect All'),
@@ -1416,6 +1456,11 @@ class _RecordsScreenState extends State<RecordsScreen> {
                                                       onPressed: () => ConsumerVendorAgreementDialog.show(context, customer: r),
                                                     ),
                                                     IconButton(
+                                                      icon: const Icon(Icons.bookmark_outline, size: 18, color: Color(0xFF1E293B)),
+                                                      tooltip: 'Bank Submission Sticker (A4)',
+                                                      onPressed: () => BankSubmissionStickerDialog.show(context, preselectedCustomers: [r]),
+                                                    ),
+                                                    IconButton(
                                                       icon: const Icon(Icons.edit, size: 18),
                                                       tooltip: 'Edit Record',
                                                       onPressed: () => _openEditRecordDialog(r),
@@ -1594,6 +1639,12 @@ class _RecordsScreenState extends State<RecordsScreen> {
                   tooltip: 'Agreement',
                   visualDensity: VisualDensity.compact,
                   onPressed: () => ConsumerVendorAgreementDialog.show(context, customer: r),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.bookmark_outline, size: 16, color: Color(0xFF1E293B)),
+                  tooltip: 'Bank Sticker (A4)',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => BankSubmissionStickerDialog.show(context, preselectedCustomers: [r]),
                 ),
                 GlobalWhatsAppButton(
                   phoneNumber: r.mobile,

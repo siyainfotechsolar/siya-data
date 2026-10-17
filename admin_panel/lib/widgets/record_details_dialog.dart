@@ -16,6 +16,7 @@ import 'global_whatsapp_button.dart';
 import 'work_completion_certificate_dialog.dart';
 import 'bank_loan_quotation_dialog.dart';
 import 'consumer_vendor_agreement_dialog.dart';
+import 'bank_submission_sticker_dialog.dart';
 import 'record_form_dialog.dart';
 import 'package:printing/printing.dart';
 import '../models/solar_quotation.dart';
@@ -960,6 +961,17 @@ class _RecordDetailsDialogState extends State<RecordDetailsDialog> {
                       onPressed: () => ConsumerVendorAgreementDialog.show(context, customer: _record),
                       icon: const Icon(Icons.handshake_outlined, size: 16),
                       label: const Text('Agreement (Annex. 2)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0F172A),
+                        side: const BorderSide(color: Color(0xFF0F172A)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      ),
+                      onPressed: () => BankSubmissionStickerDialog.show(context, preselectedCustomers: [_record]),
+                      icon: const Icon(Icons.bookmark_outline, size: 16),
+                      label: const Text('Bank File Sticker', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     ),
                     const SizedBox(width: 8),
                     GlobalWhatsAppButton.outlined(
