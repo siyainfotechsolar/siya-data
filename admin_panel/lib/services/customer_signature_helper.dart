@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Helper that generates authentic cursive handwritten customer signatures
 /// in realistic blue pen ink from the customer's name, and processes uploaded
@@ -19,7 +22,68 @@ class CustomerSignatureHelper {
   static void setCustomerSignature(String consumerOrCustomerId, Uint8List rawBytes) {
     if (consumerOrCustomerId.trim().isNotEmpty) {
       final processedBytes = removeSignatureBackground(rawBytes);
-      _customSignatures[_normalizeKey(consumerOrCustomerId)] = processedBytes;
+      final key = _normalizeKey(consumerOrCustomerId);
+      _customSignatures[key] = processedBytes;
+
+      // Persist locally in SharedPreferences and in Supabase in background
+      _persistCustomerSignatureAsync(consumerOrCustomerId.trim(), processedBytes);
+    }
+  }
+
+  static Future<void> _persistCustomerSignatureAsync(String consumerNo, Uint8List bytes) async {
+    final b64 = base64Encode(bytes);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('customer_signature_${_normalizeKey(consumerNo)}', b64);
+    } catch (_) {}
+
+    try {
+      final client = Supabase.instance.client;
+      final userId = client.auth.currentUser?.id;
+
+      // Resolve customerId if possible
+      String? customerId;
+      try {
+        final res = await client
+            .from('consumer_records')
+            .select('id')
+            .eq('consumer_no', consumerNo)
+            .limit(1);
+        if (res.isNotEmpty) {
+          customerId = res.first['id']?.toString();
+        }
+      } catch (_) {}
+
+      final existing = await client
+          .from('customer_documents')
+          .select('id')
+          .eq('consumer_no', consumerNo)
+          .eq('document_type', 'Customer Signature')
+          .limit(1);
+
+      final docData = {
+        'customer_id': customerId,
+        'consumer_no': consumerNo,
+        'document_type': 'Customer Signature',
+        'document_name': 'Customer_Signature_$consumerNo.png',
+        'file_url': 'data:image/png;base64,$b64',
+        'source': 'Signature Upload Helper',
+        'extracted_data': {
+          'base64': b64,
+          'consumer_no': consumerNo,
+          'customer_id': customerId,
+        },
+        'uploaded_by': userId,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      };
+
+      if (existing.isNotEmpty) {
+        await client.from('customer_documents').update(docData).eq('id', existing.first['id']);
+      } else {
+        await client.from('customer_documents').insert(docData);
+      }
+    } catch (e) {
+      debugPrint('Notice saving customer signature to Supabase: $e');
     }
   }
 
@@ -134,10 +198,71 @@ class CustomerSignatureHelper {
     return _customSignatures.containsKey(_normalizeKey(consumerOrCustomerId));
   }
 
+  /// Ensures customer signature is loaded from memory, SharedPreferences, or Supabase
+  static Future<bool> ensureCustomerSignatureLoaded(String consumerOrCustomerId) async {
+    if (consumerOrCustomerId.trim().isEmpty) return false;
+    final key = _normalizeKey(consumerOrCustomerId);
+    if (_customSignatures.containsKey(key)) return true;
+
+    // 1. Try local SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final localB64 = prefs.getString('customer_signature_$key');
+      if (localB64 != null && localB64.isNotEmpty) {
+        final decoded = base64Decode(localB64);
+        _customSignatures[key] = decoded;
+        return true;
+      }
+    } catch (_) {}
+
+    // 2. Try Supabase customer_documents
+    try {
+      final client = Supabase.instance.client;
+      final clean = consumerOrCustomerId.trim();
+      final res = await client
+          .from('customer_documents')
+          .select('extracted_data')
+          .eq('consumer_no', clean)
+          .eq('document_type', 'Customer Signature')
+          .limit(1);
+
+      if (res.isNotEmpty) {
+        final extracted = res.first['extracted_data'] as Map<String, dynamic>?;
+        final b64 = extracted?['base64']?.toString();
+        if (b64 != null && b64.isNotEmpty) {
+          final decoded = base64Decode(b64);
+          _customSignatures[key] = decoded;
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('customer_signature_$key', b64);
+          } catch (_) {}
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    return false;
+  }
+
   /// Clears an uploaded customer signature
   static void clearCustomerSignature(String consumerOrCustomerId) {
     if (consumerOrCustomerId.trim().isNotEmpty) {
-      _customSignatures.remove(_normalizeKey(consumerOrCustomerId));
+      final key = _normalizeKey(consumerOrCustomerId);
+      _customSignatures.remove(key);
+
+      // Remove from SharedPreferences & Supabase in background
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.remove('customer_signature_$key');
+      }).catchError((_) {});
+
+      try {
+        Supabase.instance.client
+            .from('customer_documents')
+            .delete()
+            .eq('consumer_no', consumerOrCustomerId.trim())
+            .eq('document_type', 'Customer Signature')
+            .catchError((_) {});
+      } catch (_) {}
     }
   }
 

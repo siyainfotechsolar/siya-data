@@ -87,20 +87,35 @@ class QuotationStorageService {
         'created_at': quotation.createdAt.toUtc().toIso8601String(),
       });
 
+      // Resolve customerId if missing
+      String? customerId = quotation.customerId;
+      if (customerId == null || customerId.isEmpty) {
+        try {
+          final custRes = await client
+              .from('consumer_records')
+              .select('id')
+              .eq('consumer_no', quotation.consumerNo.trim())
+              .limit(1);
+          if (custRes.isNotEmpty) {
+            customerId = custRes.first['id']?.toString();
+          }
+        } catch (_) {}
+      }
+
       // Maintain in customer_documents for cross-visibility without duplicating
-      if (quotation.customerId != null && quotation.customerId!.isNotEmpty) {
+      if (customerId != null && customerId.isNotEmpty) {
         try {
           // Check if document entry exists
           final existingDocs = await client
               .from('customer_documents')
               .select('id')
-              .eq('customer_id', quotation.customerId!)
+              .eq('customer_id', customerId)
               .eq('document_type', 'Bank Loan Quotation')
               .filter('extracted_data->>quotation_no', 'eq', quotation.quotationNo.trim())
               .limit(1);
 
           final docData = {
-            'customer_id': quotation.customerId,
+            'customer_id': customerId,
             'consumer_no': quotation.consumerNo.trim(),
             'document_type': 'Bank Loan Quotation',
             'document_name': quotation.pdfFileName,
@@ -122,6 +137,32 @@ class QuotationStorageService {
           } else {
             await client.from('customer_documents').insert(docData);
           }
+        } catch (_) {}
+
+        // Propagate updates to consumer_records so all modules remain in sync
+        try {
+          final updateMap = <String, dynamic>{
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          };
+          if (quotation.grandTotal > 0) {
+            updateMap['total_amount'] = quotation.grandTotal;
+          }
+          if (quotation.bankLoanAmount > 0) {
+            updateMap['loan_sanctioned_amount'] = quotation.bankLoanAmount;
+          }
+          if (quotation.customerName.trim().isNotEmpty) {
+            updateMap['name'] = quotation.customerName.trim();
+          }
+          if (quotation.mobileNo.trim().isNotEmpty) {
+            updateMap['mobile'] = quotation.mobileNo.trim();
+          }
+          if (quotation.address.trim().isNotEmpty) {
+            updateMap['address'] = quotation.address.trim();
+          }
+          if (quotation.systemCapacity.trim().isNotEmpty) {
+            updateMap['system_capacity'] = quotation.systemCapacity.trim();
+          }
+          await client.from('consumer_records').update(updateMap).eq('id', customerId);
         } catch (_) {}
       }
     } catch (e) {
@@ -332,17 +373,32 @@ class QuotationStorageService {
       final client = Supabase.instance.client;
       final userId = client.auth.currentUser?.id;
 
-      if (receipt.customerId != null && receipt.customerId!.isNotEmpty) {
+      // Resolve customerId if missing
+      String? customerId = receipt.customerId;
+      if (customerId == null || customerId.isEmpty) {
+        try {
+          final custRes = await client
+              .from('consumer_records')
+              .select('id')
+              .eq('consumer_no', receipt.consumerNo.trim())
+              .limit(1);
+          if (custRes.isNotEmpty) {
+            customerId = custRes.first['id']?.toString();
+          }
+        } catch (_) {}
+      }
+
+      if (customerId != null && customerId.isNotEmpty) {
         final existingDocs = await client
             .from('customer_documents')
             .select('id')
-            .eq('customer_id', receipt.customerId!)
+            .eq('customer_id', customerId)
             .eq('document_type', 'Customer Margin Money Receipt')
             .filter('extracted_data->>receipt_no', 'eq', receipt.receiptNo.trim())
             .limit(1);
 
         final docData = {
-          'customer_id': receipt.customerId,
+          'customer_id': customerId,
           'consumer_no': receipt.consumerNo.trim(),
           'document_type': 'Customer Margin Money Receipt',
           'document_name': receipt.pdfFileName,
@@ -390,6 +446,32 @@ class QuotationStorageService {
         } else {
           await client.from('customer_documents').insert(docData);
         }
+
+        // Propagate updates to consumer_records so financial numbers stay in sync
+        try {
+          final updateMap = <String, dynamic>{
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          };
+          if (receipt.bankLoanAmount > 0) {
+            updateMap['loan_sanctioned_amount'] = receipt.bankLoanAmount;
+          }
+          if (receipt.totalSystemCost > 0) {
+            updateMap['total_amount'] = receipt.totalSystemCost;
+          }
+          if (receipt.customerName.trim().isNotEmpty) {
+            updateMap['name'] = receipt.customerName.trim();
+          }
+          if (receipt.mobileNo.trim().isNotEmpty) {
+            updateMap['mobile'] = receipt.mobileNo.trim();
+          }
+          if (receipt.address.trim().isNotEmpty) {
+            updateMap['address'] = receipt.address.trim();
+          }
+          if (receipt.systemCapacity.trim().isNotEmpty) {
+            updateMap['system_capacity'] = receipt.systemCapacity.trim();
+          }
+          await client.from('consumer_records').update(updateMap).eq('id', customerId);
+        } catch (_) {}
       }
     } catch (e) {
       debugPrint('Supabase margin receipt sync error: $e');

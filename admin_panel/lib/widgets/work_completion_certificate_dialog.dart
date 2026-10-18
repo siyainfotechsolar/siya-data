@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
 import '../models/work_completion_report_data.dart';
 import '../services/customer_signature_helper.dart';
@@ -44,6 +47,149 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
     super.initState();
     _selectedTab = widget.initialTab.clamp(0, 4);
     _reportData = WorkCompletionReportData.fromCustomer(widget.customer);
+    _loadSavedWcrDossierAndSignature();
+  }
+
+  Future<void> _loadSavedWcrDossierAndSignature() async {
+    final consumerNo = widget.customer.consumerNo.trim();
+    if (consumerNo.isEmpty) return;
+
+    // 1. Check and load customer signature
+    CustomerSignatureHelper.ensureCustomerSignatureLoaded(consumerNo).then((hasSig) {
+      if (hasSig && mounted) {
+        setState(() {
+          _includeCustomerSignature = true;
+          _renderKey++;
+        });
+      }
+    });
+
+    // 2. Load saved WCR equipment specs from local SharedPreferences or Supabase
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final localJson = prefs.getString('wcr_dossier_$consumerNo');
+      if (localJson != null && localJson.isNotEmpty) {
+        final map = jsonDecode(localJson) as Map<String, dynamic>;
+        final saved = WorkCompletionReportData.fromJson(map);
+        if (mounted) {
+          setState(() {
+            _reportData = saved;
+            _renderKey++;
+          });
+        }
+      }
+    } catch (_) {}
+
+    // Check Supabase customer_documents for authoritative cloud specifications
+    try {
+      final client = Supabase.instance.client;
+      final res = await client
+          .from('customer_documents')
+          .select('extracted_data')
+          .eq('consumer_no', consumerNo)
+          .eq('document_type', 'Work Completion Dossier')
+          .order('created_at', ascending: false)
+          .limit(1);
+
+      if (res.isNotEmpty) {
+        final extracted = res.first['extracted_data'] as Map<String, dynamic>?;
+        if (extracted != null) {
+          final saved = WorkCompletionReportData.fromJson(extracted);
+          if (mounted) {
+            setState(() {
+              _reportData = saved;
+              _renderKey++;
+            });
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _persistWcrDossier(WorkCompletionReportData data) async {
+    final consumerNo = data.consumerNo.trim();
+    if (consumerNo.isEmpty) return;
+
+    // 1. Save locally in SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('wcr_dossier_$consumerNo', jsonEncode(data.toJson()));
+    } catch (_) {}
+
+    // 2. Persist to Supabase customer_documents and update consumer_records
+    try {
+      final client = Supabase.instance.client;
+      final userId = client.auth.currentUser?.id;
+
+      // Resolve customer_id
+      String? customerId = widget.customer.id;
+      if (customerId == null || customerId.isEmpty) {
+        try {
+          final custRes = await client
+              .from('consumer_records')
+              .select('id')
+              .eq('consumer_no', consumerNo)
+              .limit(1);
+          if (custRes.isNotEmpty) {
+            customerId = custRes.first['id']?.toString();
+          }
+        } catch (_) {}
+      }
+
+      final docData = {
+        'customer_id': customerId,
+        'consumer_no': consumerNo,
+        'document_type': 'Work Completion Dossier',
+        'document_name': 'WCR_Specifications_$consumerNo.json',
+        'file_url': '',
+        'source': 'WCR Dossier Generator',
+        'extracted_data': data.toJson(),
+        'uploaded_by': userId,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      };
+
+      if (customerId != null && customerId.isNotEmpty) {
+        final existing = await client
+            .from('customer_documents')
+            .select('id')
+            .eq('customer_id', customerId)
+            .eq('document_type', 'Work Completion Dossier')
+            .limit(1);
+
+        if (existing.isNotEmpty) {
+          await client.from('customer_documents').update(docData).eq('id', existing.first['id']);
+        } else {
+          await client.from('customer_documents').insert(docData);
+        }
+
+        // Update consumer_records with new specs
+        final updateMap = <String, dynamic>{
+          'installation_date': data.completionDate.toIso8601String(),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        };
+        if (data.customerName.trim().isNotEmpty) {
+          updateMap['name'] = data.customerName.trim();
+        }
+        if (data.customerMobile.trim().isNotEmpty) {
+          updateMap['mobile'] = data.customerMobile.trim();
+        }
+        if (data.customerAddress.trim().isNotEmpty) {
+          updateMap['address'] = data.customerAddress.trim();
+        }
+        if (data.installedCapacityKw > 0) {
+          updateMap['system_capacity'] = '${data.installedCapacityKw} kW';
+        }
+        if (data.siteType.trim().isNotEmpty) {
+          updateMap['site_type'] = data.siteType.trim();
+        }
+        if (data.sanctionNo.trim().isNotEmpty) {
+          updateMap['application_id'] = data.sanctionNo.trim();
+        }
+        await client.from('consumer_records').update(updateMap).eq('id', customerId);
+      }
+    } catch (e) {
+      debugPrint('Error syncing WCR dossier to Supabase: $e');
+    }
   }
 
   Future<void> _pickCustomerSignature() async {
@@ -437,7 +583,16 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                       );
                       _renderKey++;
                     });
+                    _persistWcrDossier(_reportData);
                     Navigator.of(ctx).pop();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Specifications saved & synchronized across all modules!'),
+                          backgroundColor: Color(0xFF047857),
+                        ),
+                      );
+                    }
                   },
                   child: const Text('Apply Changes & Re-generate'),
                 ),

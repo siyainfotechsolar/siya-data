@@ -96,6 +96,15 @@ class _BankLoanQuotationDialogState extends State<BankLoanQuotationDialog> {
     super.initState();
     _initFields();
     _loadHistory();
+    CustomerSignatureHelper.ensureCustomerSignatureLoaded(_consumerNo).then((hasSig) {
+      if (hasSig && mounted) {
+        setState(() {
+          _includeCustomerSignature = true;
+          _receiptIncludeCustomerSignature = true;
+          _renderKey++;
+        });
+      }
+    });
   }
 
   Future<void> _pickCustomerSignature() async {

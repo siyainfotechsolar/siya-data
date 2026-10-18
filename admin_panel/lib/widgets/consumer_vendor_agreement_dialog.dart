@@ -61,6 +61,14 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
   void initState() {
     super.initState();
     _initFields();
+    CustomerSignatureHelper.ensureCustomerSignatureLoaded(_consumerNo).then((hasSig) {
+      if (hasSig && mounted) {
+        setState(() {
+          _includeCustomerSignature = true;
+          _renderKey++;
+        });
+      }
+    });
   }
 
   void _initFields() {

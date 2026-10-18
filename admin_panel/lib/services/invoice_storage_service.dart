@@ -133,12 +133,27 @@ class InvoiceStorageService {
       final client = Supabase.instance.client;
       final userId = client.auth.currentUser?.id;
 
+      // Resolve customerId if missing
+      String? customerId = invoice.customerId;
+      if (customerId == null || customerId.isEmpty) {
+        try {
+          final custRes = await client
+              .from('consumer_records')
+              .select('id')
+              .eq('consumer_no', invoice.consumerNo.trim())
+              .limit(1);
+          if (custRes.isNotEmpty) {
+            customerId = custRes.first['id']?.toString();
+          }
+        } catch (_) {}
+      }
+
       await client.from('customer_invoices').upsert({
         'id': invoice.id,
         'invoice_number': invoice.invoiceNumber,
         'ref_invoice_no': invoice.refInvoiceNo,
         'ref_quotation_id': invoice.refQuotationId,
-        'customer_id': invoice.customerId,
+        'customer_id': customerId,
         'consumer_no': invoice.consumerNo.trim(),
         'customer_name': invoice.customerName.trim(),
         'address': invoice.address,
@@ -167,10 +182,10 @@ class InvoiceStorageService {
       });
 
       // Record in customer_documents for cross-visibility
-      if (invoice.customerId != null && invoice.customerId!.isNotEmpty) {
+      if (customerId != null && customerId.isNotEmpty) {
         try {
           await client.from('customer_documents').insert({
-            'customer_id': invoice.customerId,
+            'customer_id': customerId,
             'consumer_no': invoice.consumerNo.trim(),
             'document_type': 'Invoice',
             'document_name': invoice.pdfFileName ?? 'Invoice.pdf',
@@ -186,6 +201,38 @@ class InvoiceStorageService {
             'uploaded_by': userId,
             'created_at': invoice.createdAt.toUtc().toIso8601String(),
           });
+        } catch (_) {}
+
+        // Propagate invoice figures to consumer_records so all modules remain in sync
+        try {
+          final updateMap = <String, dynamic>{
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          };
+          if (invoice.grandTotal > 0) {
+            updateMap['total_amount'] = invoice.grandTotal;
+          }
+          if (invoice.totalPaid > 0) {
+            updateMap['paid_amount'] = invoice.totalPaid;
+          }
+          if (invoice.totalPending >= 0) {
+            updateMap['pending_amount'] = invoice.totalPending;
+          }
+          if (invoice.paymentStatus.isNotEmpty) {
+            updateMap['payment_status'] = invoice.paymentStatus;
+          }
+          if (invoice.customerName.trim().isNotEmpty) {
+            updateMap['name'] = invoice.customerName.trim();
+          }
+          if (invoice.mobileNo != null && invoice.mobileNo!.trim().isNotEmpty) {
+            updateMap['mobile'] = invoice.mobileNo!.trim();
+          }
+          if (invoice.address != null && invoice.address!.trim().isNotEmpty) {
+            updateMap['address'] = invoice.address!.trim();
+          }
+          if (invoice.systemCapacity != null && invoice.systemCapacity!.trim().isNotEmpty) {
+            updateMap['system_capacity'] = invoice.systemCapacity!.trim();
+          }
+          await client.from('consumer_records').update(updateMap).eq('id', customerId);
         } catch (_) {}
       }
     } catch (e) {

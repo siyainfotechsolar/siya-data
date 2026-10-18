@@ -463,12 +463,7 @@ class SyncEngine {
       query = query.order('updated_at', ascending: false).limit(500);
     }
 
-    // Role-based scope
-    final role = user?.userMetadata?['role']?.toString().toLowerCase();
-    if (role == 'staff' && user != null) {
-      query = query.or('assigned_staff_id.eq.${user.id},assigned_staff_id.is.null');
-    }
-
+    // Pull all active company customer records so all staff & admin see the exact same database
     final List<dynamic> recordsData = await query;
     final List<ConsumerRecord> records = recordsData
         .map((json) => ConsumerRecord.fromJson(json as Map<String, dynamic>))
