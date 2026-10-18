@@ -2,6 +2,9 @@ library siya_shared;
 
 // Models
 export 'models/activity_log.dart';
+export 'models/agent_master.dart';
+export 'models/commission_payment.dart';
+export 'models/commission_record.dart';
 export 'models/company_master.dart';
 export 'models/company_bank_account.dart';
 export 'models/company_settings.dart';

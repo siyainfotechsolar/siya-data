@@ -23,6 +23,7 @@ import 'invoices_screen.dart';
 import 'customer_hishob_screen.dart';
 import 'quotations_screen.dart';
 import 'margin_receipts_screen.dart';
+import 'commission_screen.dart';
 import '../models/user_profile.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -55,6 +56,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItem(id: 'hishob', label: 'Customer Hishob', icon: Icons.account_balance_wallet_outlined, selectedIcon: Icons.account_balance_wallet, isMainBottomNav: true, moduleKey: 'payment'),
     _NavItem(id: 'quotations', label: 'Quotations', icon: Icons.request_quote_outlined, selectedIcon: Icons.request_quote, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'margin_receipts', label: 'Margin Receipts', icon: Icons.description_outlined, selectedIcon: Icons.description, isMainBottomNav: false, moduleKey: 'customer'),
+    _NavItem(id: 'commissions', label: 'Commissions', icon: Icons.monetization_on_outlined, selectedIcon: Icons.monetization_on, isMainBottomNav: false, moduleKey: 'commission'),
     _NavItem(id: 'office_tasks', label: 'Office Tasks', icon: Icons.assignment_ind_outlined, selectedIcon: Icons.assignment_ind, isMainBottomNav: false),
     _NavItem(id: 'whatsapp', label: 'WhatsApp', icon: Icons.share_rounded, selectedIcon: Icons.share, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'leads', label: 'Leads', icon: Icons.leaderboard_outlined, selectedIcon: Icons.leaderboard, isMainBottomNav: false, moduleKey: 'customer'),
@@ -591,6 +593,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return const QuotationsScreen();
       case 'margin_receipts':
         return const MarginReceiptsScreen();
+      case 'commissions':
+        return const CommissionScreen();
       case 'office_tasks':
         return const OfficeTasksScreen();
       case 'whatsapp':

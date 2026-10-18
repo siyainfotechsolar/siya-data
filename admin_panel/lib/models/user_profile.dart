@@ -66,6 +66,7 @@ class UserRole {
           'reports': ['view'],
           'user_management': ['view', 'create', 'edit', 'delete'],
           'settings': ['view', 'edit'],
+          'commission': ['view', 'create', 'edit', 'delete', 'approve', 'pay'],
         };
 
       case 'office_staff':
@@ -76,6 +77,7 @@ class UserRole {
           'rts': ['view', 'update'],
           'subsidy': ['view', 'update'],
           'payment': ['view', 'create'],
+          'commission': ['view', 'create'],
           'followup': ['view', 'create', 'complete'],
           'general_issue': ['view', 'create', 'update', 'close'],
           'misc': ['view', 'create', 'complete'],
@@ -113,6 +115,7 @@ class UserRole {
         return {
           'customer': ['view'],
           'payment': ['view', 'create', 'edit'],
+          'commission': ['view', 'create', 'pay'],
           'subsidy': ['view', 'update'],
           'export_excel': ['view'],
           'reports': ['view'],
