@@ -158,20 +158,72 @@ class CommissionService {
   // Agent Master Operations
   // ---------------------------------------------------------------------------
 
-  /// Fetch all active agents from Agent Master
-  static Future<List<AgentMaster>> fetchAgents() async {
+  // ---------------------------------------------------------------------------
+  // Agent Master CRUD Operations
+  // ---------------------------------------------------------------------------
+
+  /// Fetch agents from Agent Master with optional active filter and search query
+  static Future<List<AgentMaster>> fetchAgents({
+    bool? activeOnly,
+    String? searchQuery,
+  }) async {
+    try {
+      var query = SupabaseService.client
+          .from('agents')
+          .select()
+          .eq('deleted', false);
+
+      if (activeOnly != null && activeOnly) {
+        query = query.eq('is_active', true);
+      }
+
+      final res = await query.order('name');
+      final list = (res as List).map((e) => AgentMaster.fromJson(e)).toList();
+      if (list.isNotEmpty) {
+        return _filterAgentsLocally(list, searchQuery);
+      }
+    } catch (e) {
+      debugPrint('[CommissionService] fetchAgents fallback: $e');
+    }
+
+    var list = _fallbackAgents.where((a) => !a.deleted).toList();
+    if (activeOnly != null && activeOnly) {
+      list = list.where((a) => a.isActive).toList();
+    }
+    return _filterAgentsLocally(list, searchQuery);
+  }
+
+  static List<AgentMaster> _filterAgentsLocally(List<AgentMaster> agents, String? searchQuery) {
+    if (searchQuery == null || searchQuery.trim().isEmpty) return agents;
+    final q = searchQuery.trim().toLowerCase();
+    return agents.where((a) {
+      return a.name.toLowerCase().contains(q) ||
+          (a.mobile != null && a.mobile!.toLowerCase().contains(q)) ||
+          (a.agencyName != null && a.agencyName!.toLowerCase().contains(q)) ||
+          (a.address != null && a.address!.toLowerCase().contains(q)) ||
+          (a.bankName != null && a.bankName!.toLowerCase().contains(q));
+    }).toList();
+  }
+
+  /// Get agent by ID
+  static Future<AgentMaster?> getAgentById(String agentId) async {
     try {
       final res = await SupabaseService.client
           .from('agents')
           .select()
+          .eq('id', agentId)
           .eq('deleted', false)
-          .order('name');
-      final list = (res as List).map((e) => AgentMaster.fromJson(e)).toList();
-      if (list.isNotEmpty) return list;
+          .maybeSingle();
+      if (res != null) {
+        return AgentMaster.fromJson(res);
+      }
     } catch (e) {
-      debugPrint('[CommissionService] fetchAgents fallback: $e');
+      debugPrint('[CommissionService] getAgentById fallback: $e');
     }
-    return List.from(_fallbackAgents);
+    return _fallbackAgents.firstWhere(
+      (a) => a.id == agentId && !a.deleted,
+      orElse: () => AgentMaster(id: agentId, name: 'Unknown Agent'),
+    );
   }
 
   /// Create a new agent in Agent Master
@@ -186,6 +238,7 @@ class CommissionService {
     String? accountNumber,
     String? ifscCode,
     String? upiId,
+    bool isActive = true,
   }) async {
     final user = SupabaseService.currentUser;
     final payload = {
@@ -199,7 +252,7 @@ class CommissionService {
       'account_number': accountNumber?.trim(),
       'ifsc_code': ifscCode?.trim(),
       'upi_id': upiId?.trim(),
-      'is_active': true,
+      'is_active': isActive,
       'deleted': false,
       'created_by': user?.id,
     };
@@ -225,11 +278,95 @@ class CommissionService {
         accountNumber: accountNumber,
         ifscCode: ifscCode,
         upiId: upiId,
+        isActive: isActive,
         createdAt: DateTime.now(),
       );
       _fallbackAgents.add(localAgent);
       return localAgent;
     }
+  }
+
+  /// Update an existing agent in Agent Master
+  static Future<bool> updateAgent(AgentMaster agent) async {
+    final user = SupabaseService.currentUser;
+    final payload = {
+      'name': agent.name.trim(),
+      'mobile': agent.mobile?.trim(),
+      'email': agent.email?.trim(),
+      'agency_name': agent.agencyName?.trim(),
+      'address': agent.address?.trim(),
+      'pan_number': agent.panNumber?.trim(),
+      'bank_name': agent.bankName?.trim(),
+      'account_number': agent.accountNumber?.trim(),
+      'ifsc_code': agent.ifscCode?.trim(),
+      'upi_id': agent.upiId?.trim(),
+      'is_active': agent.isActive,
+      'updated_by': user?.id,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    try {
+      await SupabaseService.client
+          .from('agents')
+          .update(payload)
+          .eq('id', agent.id);
+    } catch (e) {
+      debugPrint('[CommissionService] updateAgent error, updating locally: $e');
+    }
+
+    final idx = _fallbackAgents.indexWhere((a) => a.id == agent.id);
+    if (idx != -1) {
+      _fallbackAgents[idx] = agent.copyWith(updatedAt: DateTime.now());
+    } else {
+      _fallbackAgents.add(agent);
+    }
+    return true;
+  }
+
+  /// Soft delete an agent from Agent Master
+  static Future<bool> deleteAgent(String agentId) async {
+    final user = SupabaseService.currentUser;
+    try {
+      await SupabaseService.client
+          .from('agents')
+          .update({
+            'deleted': true,
+            'deleted_at': DateTime.now().toIso8601String(),
+            'deleted_by': user?.id,
+          })
+          .eq('id', agentId);
+    } catch (e) {
+      debugPrint('[CommissionService] deleteAgent error, removing locally: $e');
+    }
+
+    final idx = _fallbackAgents.indexWhere((a) => a.id == agentId);
+    if (idx != -1) {
+      _fallbackAgents[idx] = _fallbackAgents[idx].copyWith(deleted: true);
+    }
+    return true;
+  }
+
+  /// Toggle an agent's active status
+  static Future<bool> toggleAgentActiveStatus(String agentId, bool isActive) async {
+    final user = SupabaseService.currentUser;
+    try {
+      await SupabaseService.client
+          .from('agents')
+          .update({
+            'is_active': isActive,
+            'updated_by': user?.id,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', agentId);
+    } catch (e) {
+      debugPrint('[CommissionService] toggleAgentActiveStatus fallback: $e');
+    }
+
+    final idx = _fallbackAgents.indexWhere((a) => a.id == agentId);
+    if (idx != -1) {
+      _fallbackAgents[idx] = _fallbackAgents[idx].copyWith(isActive: isActive);
+    }
+    return true;
   }
 
   // ---------------------------------------------------------------------------
