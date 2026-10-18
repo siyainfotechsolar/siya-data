@@ -7,6 +7,7 @@ import '../services/commission_service.dart';
 import '../utils/file_download_utils.dart';
 import '../utils/responsive.dart';
 import '../widgets/agent_master_dialog.dart';
+import '../widgets/single_commission_entry_dialog.dart';
 import 'bulk_commission_entry_screen.dart';
 
 /// Commission Agent Module Screen
@@ -683,14 +684,19 @@ class _CommissionScreenState extends State<CommissionScreen> {
                 label: const Text('Export Report'),
                 onPressed: _handleExportReport,
               ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.table_chart_outlined, size: 18),
+                label: const Text('Bulk Add Commission'),
+                onPressed: () => BulkCommissionEntryScreen.show(context, onEntriesSaved: _loadData),
+              ),
               FilledButton.icon(
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFFF57C00),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
-                icon: const Icon(Icons.post_add_rounded, size: 18),
-                label: const Text('Bulk Add Commission', style: TextStyle(fontWeight: FontWeight.bold)),
-                onPressed: () => BulkCommissionEntryScreen.show(context, onEntriesSaved: _loadData),
+                icon: const Icon(Icons.add_circle_outline, size: 18),
+                label: const Text('+ Add Commission (One by One)', style: TextStyle(fontWeight: FontWeight.bold)),
+                onPressed: () => SingleCommissionEntryDialog.show(context, onEntrySaved: _loadData),
               ),
               IconButton(
                 icon: const Icon(Icons.refresh),
@@ -1229,13 +1235,25 @@ class _CommissionScreenState extends State<CommissionScreen> {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           ),
           const SizedBox(height: 6),
-          const Text('Click "Bulk Add Commission" to add entries for agents and customers.'),
+          const Text('Add commission entries one-by-one or in bulk for agents and consumers.'),
           const SizedBox(height: 16),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFF57C00)),
-            icon: const Icon(Icons.post_add_rounded),
-            label: const Text('Bulk Add Commission'),
-            onPressed: () => BulkCommissionEntryScreen.show(context, onEntriesSaved: _loadData),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFF57C00)),
+                icon: const Icon(Icons.add_circle_outline),
+                label: const Text('+ Add Commission (One by One)'),
+                onPressed: () => SingleCommissionEntryDialog.show(context, onEntrySaved: _loadData),
+              ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.table_chart_outlined),
+                label: const Text('Bulk Add Commission'),
+                onPressed: () => BulkCommissionEntryScreen.show(context, onEntriesSaved: _loadData),
+              ),
+            ],
           ),
         ],
       ),

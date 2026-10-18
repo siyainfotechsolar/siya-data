@@ -9,6 +9,7 @@ import '../models/commission_record.dart';
 import '../models/consumer_record.dart';
 import '../services/commission_service.dart';
 import '../widgets/agent_master_dialog.dart';
+import '../widgets/single_commission_entry_dialog.dart';
 import '../utils/file_download_utils.dart';
 import '../utils/responsive.dart';
 
@@ -539,6 +540,19 @@ class _BulkCommissionEntryScreenState extends State<BulkCommissionEntryScreen> {
             label: const Text('Import CSV'),
             onPressed: _handleImportCsv,
           ),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              visualDensity: VisualDensity.compact,
+            ),
+            icon: const Icon(Icons.add_circle_outline, size: 16),
+            label: const Text('One by One Entry', style: TextStyle(fontSize: 12)),
+            onPressed: () {
+              Navigator.pop(context);
+              SingleCommissionEntryDialog.show(context, onEntrySaved: widget.onEntriesSaved);
+            },
+          ),
+          const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.person_add_alt_1),
             tooltip: 'Agent Master',

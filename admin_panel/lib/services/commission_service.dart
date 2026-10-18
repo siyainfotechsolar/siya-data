@@ -332,6 +332,8 @@ class CommissionService {
   // Commission Entry Numbers
   // ---------------------------------------------------------------------------
 
+  static int _entryCounter = 0;
+
   /// Generate a unique entry number: SIYA-COM-YYYY-XXXX
   static Future<String> generateUniqueEntryNumber() async {
     final year = DateTime.now().year;
@@ -342,9 +344,10 @@ class CommissionService {
       }
     } catch (_) {}
 
-    // Fallback generation based on count + random suffix
-    final millis = DateTime.now().millisecondsSinceEpoch % 10000;
-    return 'SIYA-COM-$year-${millis.toString().padLeft(4, '0')}';
+    // Fallback generation based on count + incremental counter
+    _entryCounter++;
+    final count = (_fallbackCommissions.length + _entryCounter).toString().padLeft(4, '0');
+    return 'SIYA-COM-$year-$count';
   }
 
   // ---------------------------------------------------------------------------
@@ -449,6 +452,116 @@ class CommissionService {
       failedItems: failedItems,
       createdRecords: createdRecords,
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Single Commission Entry (One by One)
+  // ---------------------------------------------------------------------------
+
+  /// Save a single commission entry (one by one entry).
+  /// Generates a unique entry number, validates required fields,
+  /// saves to Supabase or fallback list, and returns the created CommissionRecord.
+  static Future<CommissionRecord> saveSingleCommissionEntry({
+    required String agentName,
+    String? agentId,
+    required String customerName,
+    String? customerId,
+    String? consumerNo,
+    double? solarCapacity,
+    DateTime? commissionDate,
+    required double commissionAmount,
+    double? approvedAmount,
+    String status = CommissionStatus.pendingApproval,
+    String? remarks,
+    String? currentUserId,
+  }) async {
+    if (agentName.trim().isEmpty) {
+      throw ArgumentError('Agent name is required');
+    }
+    if (customerName.trim().isEmpty) {
+      throw ArgumentError('Customer name is required');
+    }
+    if (commissionAmount <= 0) {
+      throw ArgumentError('Commission amount must be greater than ₹0');
+    }
+
+    final date = commissionDate ?? DateTime.now();
+    final entryNumber = await generateUniqueEntryNumber();
+    final user = SupabaseService.currentUser;
+    final uid = currentUserId ?? user?.id;
+
+    final payload = {
+      'entry_number': entryNumber,
+      'agent_id': agentId,
+      'agent_name': agentName.trim(),
+      'customer_id': customerId,
+      'customer_name': customerName.trim(),
+      'consumer_no': (consumerNo != null && consumerNo.trim().isNotEmpty) ? consumerNo.trim() : null,
+      'solar_capacity': solarCapacity,
+      'commission_date': date.toIso8601String().split('T').first,
+      'commission_amount': commissionAmount,
+      'approved_amount': approvedAmount,
+      'paid_amount': 0.0,
+      'status': status,
+      'remarks': (remarks != null && remarks.trim().isNotEmpty) ? remarks.trim() : null,
+      'created_by': uid,
+    };
+
+    CommissionRecord record;
+    try {
+      final res = await SupabaseService.client
+          .from('commissions')
+          .insert(payload)
+          .select()
+          .single();
+      record = CommissionRecord.fromJson(res);
+    } catch (dbError) {
+      debugPrint('[CommissionService] Database insert fallback: $dbError');
+      record = CommissionRecord(
+        id: 'comm-${DateTime.now().microsecondsSinceEpoch}',
+        entryNumber: entryNumber,
+        agentId: agentId,
+        agentName: agentName.trim(),
+        customerId: customerId,
+        customerName: customerName.trim(),
+        consumerNo: (consumerNo != null && consumerNo.trim().isNotEmpty) ? consumerNo.trim() : null,
+        solarCapacity: solarCapacity,
+        commissionDate: date,
+        commissionAmount: commissionAmount,
+        approvedAmount: approvedAmount,
+        paidAmount: 0.0,
+        status: status,
+        remarks: (remarks != null && remarks.trim().isNotEmpty) ? remarks.trim() : null,
+        createdAt: DateTime.now(),
+      );
+      _fallbackCommissions.add(record);
+    }
+
+    return record;
+  }
+
+  /// Check whether a single entry might be a duplicate against existing commissions
+  static Future<CommissionDuplicateWarning?> checkSingleDuplicate({
+    required String agentName,
+    required String customerName,
+    String? consumerNo,
+    required DateTime commissionDate,
+  }) async {
+    if (agentName.trim().isEmpty || customerName.trim().isEmpty) return null;
+
+    final drafts = [
+      CommissionDraftItem(
+        localId: 'single-check',
+        agentName: agentName,
+        customerName: customerName,
+        consumerNo: consumerNo ?? '',
+        commissionDate: commissionDate,
+        commissionAmount: 1.0,
+      )
+    ];
+
+    final warnings = await checkBatchDuplicates(drafts);
+    return warnings.isNotEmpty ? warnings.first : null;
   }
 
   // ---------------------------------------------------------------------------
