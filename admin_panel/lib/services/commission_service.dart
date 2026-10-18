@@ -246,8 +246,8 @@ class CommissionService {
           .from('consumer_records')
           .select()
           .eq('deleted', false)
-          .or('name.ilike.%$q%,consumer_no.ilike.%$q%')
-          .limit(10);
+          .or('name.ilike.%$q%,consumer_no.ilike.%$q%,mobile.ilike.%$q%')
+          .limit(15);
       return (res as List).map((e) => ConsumerRecord.fromJson(e)).toList();
     } catch (e) {
       debugPrint('[CommissionService] searchCustomers error: $e');

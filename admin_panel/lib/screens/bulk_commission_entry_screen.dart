@@ -768,7 +768,7 @@ class _BulkCommissionEntryScreenState extends State<BulkCommissionEntryScreen> {
                       ),
                       const SizedBox(width: 8),
 
-                      // 2. Customer Name with Autocomplete
+                      // 2. Customer Name with Autocomplete (Database Lookup)
                       Expanded(
                         flex: 4,
                         child: Autocomplete<ConsumerRecord>(
@@ -782,13 +782,58 @@ class _BulkCommissionEntryScreenState extends State<BulkCommissionEntryScreen> {
                             return results;
                           },
                           displayStringForOption: (c) => c.name,
+                          optionsViewBuilder: (context, onSelected, options) {
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Material(
+                                elevation: 4.0,
+                                borderRadius: BorderRadius.circular(8),
+                                color: Theme.of(context).colorScheme.surface,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxHeight: 260, maxWidth: 380),
+                                  child: ListView.separated(
+                                    padding: EdgeInsets.zero,
+                                    shrinkWrap: true,
+                                    itemCount: options.length,
+                                    separatorBuilder: (_, __) => const Divider(height: 1),
+                                    itemBuilder: (context, index) {
+                                      final customer = options.elementAt(index);
+                                      final capacity = customer.systemCapacity != null ? '${customer.systemCapacity}' : '';
+                                      final consumerNo = customer.consumerNo.isNotEmpty ? customer.consumerNo : 'No Consumer #';
+                                      final mobile = customer.mobile != null && customer.mobile!.isNotEmpty ? ' • ${customer.mobile}' : '';
+                                      return ListTile(
+                                        dense: true,
+                                        leading: const CircleAvatar(
+                                          radius: 14,
+                                          backgroundColor: Color(0xFFFFF3E0),
+                                          child: Icon(Icons.person, size: 16, color: Color(0xFFF57C00)),
+                                        ),
+                                        title: Text(
+                                          customer.name,
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        subtitle: Text(
+                                          '$consumerNo$mobile${capacity.isNotEmpty ? ' • $capacity' : ''}',
+                                          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        onTap: () => onSelected(customer),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                           onSelected: (customer) {
                             setState(() {
                               row.customerName = customer.name;
                               row.customerId = customer.id;
                               if (customer.consumerNo.isNotEmpty) row.consumerNo = customer.consumerNo;
                               if (customer.systemCapacity != null) {
-                                row.solarCapacity = double.tryParse(customer.systemCapacity!);
+                                final cleanCapacity = customer.systemCapacity!.replaceAll(RegExp(r'[^0-9.]'), '');
+                                row.solarCapacity = double.tryParse(cleanCapacity);
                               }
                             });
                           },
@@ -801,8 +846,9 @@ class _BulkCommissionEntryScreenState extends State<BulkCommissionEntryScreen> {
                               decoration: InputDecoration(
                                 isDense: true,
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                hintText: 'Customer name',
+                                hintText: 'Customer name (search)',
                                 errorText: isInvalid && row.customerName.isEmpty ? 'Required' : null,
+                                suffixIcon: const Icon(Icons.search, size: 16, color: Colors.black45),
                               ),
                               onChanged: (v) => row.customerName = v,
                             );
@@ -815,6 +861,7 @@ class _BulkCommissionEntryScreenState extends State<BulkCommissionEntryScreen> {
                       Expanded(
                         flex: 3,
                         child: TextFormField(
+                          key: ValueKey('${row.localId}_consumer_${row.customerId ?? "raw"}_${row.consumerNo}'),
                           initialValue: row.consumerNo,
                           readOnly: row.isSaved,
                           style: const TextStyle(fontSize: 12),
@@ -832,6 +879,7 @@ class _BulkCommissionEntryScreenState extends State<BulkCommissionEntryScreen> {
                       Expanded(
                         flex: 2,
                         child: TextFormField(
+                          key: ValueKey('${row.localId}_capacity_${row.customerId ?? "raw"}_${row.solarCapacity}'),
                           initialValue: row.solarCapacity != null ? row.solarCapacity.toString() : '',
                           readOnly: row.isSaved,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1016,12 +1064,75 @@ class _BulkCommissionEntryScreenState extends State<BulkCommissionEntryScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                // Customer Name
-                TextFormField(
-                  initialValue: row.customerName,
-                  readOnly: row.isSaved,
-                  decoration: const InputDecoration(labelText: 'Customer Name *', isDense: true),
-                  onChanged: (v) => row.customerName = v,
+                // Customer Name with Autocomplete (Database Lookup)
+                Autocomplete<ConsumerRecord>(
+                  initialValue: TextEditingValue(text: row.customerName),
+                  optionsBuilder: (textEditingValue) async {
+                    final q = textEditingValue.text.trim();
+                    if (q.length < 2) return const Iterable<ConsumerRecord>.empty();
+                    if (_customerSearchCache.containsKey(q)) return _customerSearchCache[q]!;
+                    final results = await CommissionService.searchCustomers(q);
+                    _customerSearchCache[q] = results;
+                    return results;
+                  },
+                  displayStringForOption: (c) => c.name,
+                  optionsViewBuilder: (context, onSelected, options) {
+                    return Align(
+                      alignment: Alignment.topLeft,
+                      child: Material(
+                        elevation: 4.0,
+                        borderRadius: BorderRadius.circular(8),
+                        color: Theme.of(context).colorScheme.surface,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 240, maxWidth: 320),
+                          child: ListView.separated(
+                            padding: EdgeInsets.zero,
+                            shrinkWrap: true,
+                            itemCount: options.length,
+                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final customer = options.elementAt(index);
+                              final capacity = customer.systemCapacity != null ? '${customer.systemCapacity}' : '';
+                              final consumerNo = customer.consumerNo.isNotEmpty ? customer.consumerNo : 'No Consumer #';
+                              final mobile = customer.mobile != null && customer.mobile!.isNotEmpty ? ' • ${customer.mobile}' : '';
+                              return ListTile(
+                                dense: true,
+                                title: Text(customer.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                subtitle: Text('$consumerNo$mobile${capacity.isNotEmpty ? ' • $capacity' : ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                                onTap: () => onSelected(customer),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  onSelected: (customer) {
+                    setState(() {
+                      row.customerName = customer.name;
+                      row.customerId = customer.id;
+                      if (customer.consumerNo.isNotEmpty) row.consumerNo = customer.consumerNo;
+                      if (customer.systemCapacity != null) {
+                        final cleanCapacity = customer.systemCapacity!.replaceAll(RegExp(r'[^0-9.]'), '');
+                        row.solarCapacity = double.tryParse(cleanCapacity);
+                      }
+                    });
+                  },
+                  fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                    return TextFormField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      readOnly: row.isSaved,
+                      decoration: InputDecoration(
+                        labelText: 'Customer Name *',
+                        hintText: 'Search customer name/no...',
+                        isDense: true,
+                        errorText: isInvalid && row.customerName.isEmpty ? 'Required' : null,
+                        suffixIcon: const Icon(Icons.search, size: 18),
+                      ),
+                      onChanged: (v) => row.customerName = v,
+                    );
+                  },
                 ),
                 const SizedBox(height: 10),
 
@@ -1031,6 +1142,7 @@ class _BulkCommissionEntryScreenState extends State<BulkCommissionEntryScreen> {
                     Expanded(
                       flex: 3,
                       child: TextFormField(
+                        key: ValueKey('${row.localId}_m_consumer_${row.customerId ?? "raw"}_${row.consumerNo}'),
                         initialValue: row.consumerNo,
                         readOnly: row.isSaved,
                         decoration: const InputDecoration(labelText: 'Consumer No', isDense: true),
@@ -1041,6 +1153,7 @@ class _BulkCommissionEntryScreenState extends State<BulkCommissionEntryScreen> {
                     Expanded(
                       flex: 2,
                       child: TextFormField(
+                        key: ValueKey('${row.localId}_m_capacity_${row.customerId ?? "raw"}_${row.solarCapacity}'),
                         initialValue: row.solarCapacity != null ? row.solarCapacity.toString() : '',
                         readOnly: row.isSaved,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
