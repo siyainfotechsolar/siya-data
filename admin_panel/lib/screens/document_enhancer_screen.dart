@@ -691,6 +691,190 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
     }
   }
 
+  // ── Auto Straighten & Deskew Handlers (वाकडे डॉक्युमेंट सरळ करणे) ──────────────────────────
+
+  Future<void> _autoStraightenItem({required int index, bool autoRegenPdf = true}) async {
+    if (index < 0 || index >= _items.length) return;
+    final item = _items[index];
+
+    setState(() {
+      _isProcessingImage = true;
+      _statusMessage = 'Auto-detecting slant & straightening "${item.name}"...';
+    });
+
+    try {
+      final bounds = DocumentImageProcessor.detectDocumentBounds(item.originalBytes, isIdCard: false);
+      final DocumentEnhanceSettings newSettings;
+      if (bounds.isTilted) {
+        newSettings = item.settings.copyWith(
+          perspectiveCorners: bounds.corners,
+          fineRotationAngle: 0.0,
+          cropLeft: bounds.cropLeft,
+          cropTop: bounds.cropTop,
+          cropRight: bounds.cropRight,
+          cropBottom: bounds.cropBottom,
+        );
+      } else {
+        newSettings = item.settings.copyWith(
+          cropLeft: bounds.cropLeft,
+          cropTop: bounds.cropTop,
+          cropRight: bounds.cropRight,
+          cropBottom: bounds.cropBottom,
+          perspectiveCorners: bounds.corners,
+        );
+      }
+
+      await _applyEnhancementToItem(index: index, settings: newSettings, autoRegenPdf: autoRegenPdf);
+
+      _showSnack(
+        bounds.isTilted
+            ? 'वाकडे डॉक्युमेंट सरळ केले! (${bounds.skewAngle.abs().toStringAsFixed(1)}° Deskew)'
+            : 'डॉक्युमेंट आधीच सरळ आहे. (Document is already level)',
+      );
+    } catch (e) {
+      _showSnack('Straighten error: $e', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingImage = false;
+          _statusMessage = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _autoStraightenAadhaarSlot(int slot) async {
+    final item = slot == 0 ? _aadhaarFrontItem : _aadhaarBackItem;
+    if (item == null) return;
+
+    setState(() {
+      _isProcessingImage = true;
+      _statusMessage = 'Straightening Aadhaar ${slot == 0 ? "Front" : "Back"} card...';
+    });
+
+    try {
+      final bounds = DocumentImageProcessor.detectDocumentBounds(item.originalBytes, isIdCard: true);
+      final DocumentEnhanceSettings newSettings;
+      if (bounds.isTilted) {
+        newSettings = item.settings.copyWith(
+          perspectiveCorners: bounds.corners,
+          fineRotationAngle: 0.0,
+          cropLeft: bounds.cropLeft,
+          cropTop: bounds.cropTop,
+          cropRight: bounds.cropRight,
+          cropBottom: bounds.cropBottom,
+        );
+      } else {
+        newSettings = item.settings.copyWith(
+          cropLeft: bounds.cropLeft,
+          cropTop: bounds.cropTop,
+          cropRight: bounds.cropRight,
+          cropBottom: bounds.cropBottom,
+          perspectiveCorners: bounds.corners,
+        );
+      }
+
+      await _applyEnhancementToAadhaarSlot(slot: slot, settings: newSettings, autoRegenPdf: true);
+
+      _showSnack(
+        bounds.isTilted
+            ? 'वाकडे आधार कार्ड सरळ केले! (${bounds.skewAngle.abs().toStringAsFixed(1)}° Deskew)'
+            : 'आधार कार्ड आधीच सरळ आहे.',
+      );
+    } catch (e) {
+      _showSnack('Straighten error: $e', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingImage = false;
+          _statusMessage = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _autoStraightenBothAadhaar() async {
+    if (_aadhaarFrontItem == null && _aadhaarBackItem == null) return;
+
+    setState(() {
+      _isProcessingImage = true;
+      _statusMessage = 'Auto-straightening both Aadhaar Front & Back cards...';
+    });
+
+    try {
+      if (_aadhaarFrontItem != null) {
+        final bFront = DocumentImageProcessor.detectDocumentBounds(_aadhaarFrontItem!.originalBytes, isIdCard: true);
+        final sFront = _aadhaarFrontItem!.settings.copyWith(
+          perspectiveCorners: bFront.isTilted ? bFront.corners : _aadhaarFrontItem!.settings.perspectiveCorners,
+          fineRotationAngle: bFront.isTilted ? 0.0 : _aadhaarFrontItem!.settings.fineRotationAngle,
+          cropLeft: bFront.cropLeft,
+          cropTop: bFront.cropTop,
+          cropRight: bFront.cropRight,
+          cropBottom: bFront.cropBottom,
+        );
+        await _applyEnhancementToAadhaarSlot(slot: 0, settings: sFront, autoRegenPdf: false);
+      }
+
+      if (_aadhaarBackItem != null) {
+        final bBack = DocumentImageProcessor.detectDocumentBounds(_aadhaarBackItem!.originalBytes, isIdCard: true);
+        final sBack = _aadhaarBackItem!.settings.copyWith(
+          perspectiveCorners: bBack.isTilted ? bBack.corners : _aadhaarBackItem!.settings.perspectiveCorners,
+          fineRotationAngle: bBack.isTilted ? 0.0 : _aadhaarBackItem!.settings.fineRotationAngle,
+          cropLeft: bBack.cropLeft,
+          cropTop: bBack.cropTop,
+          cropRight: bBack.cropRight,
+          cropBottom: bBack.cropBottom,
+        );
+        await _applyEnhancementToAadhaarSlot(slot: 1, settings: sBack, autoRegenPdf: false);
+      }
+
+      _showSnack('दोन्ही आधार कार्ड्स सरळ व क्रॉप केले! (Straightened both cards)');
+      _triggerPdfRegeneration();
+    } catch (e) {
+      _showSnack('Straighten error: $e', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingImage = false;
+          _statusMessage = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _autoStraightenActiveItem() async {
+    if (_documentMode == DocumentMode.aadhaarFrontBack) {
+      await _autoStraightenAadhaarSlot(_aadhaarActiveSlot);
+    } else {
+      await _autoStraightenItem(index: _activeItemIndex);
+    }
+  }
+
+  void _adjustFineRotation(double delta) {
+    final item = _activeItem;
+    if (item == null) return;
+    final currentAngle = item.settings.fineRotationAngle;
+    final newAngle = (currentAngle + delta).clamp(-45.0, 45.0);
+    final updated = item.settings.copyWith(fineRotationAngle: double.parse(newAngle.toStringAsFixed(1)));
+    if (_documentMode == DocumentMode.aadhaarFrontBack) {
+      _applyEnhancementToAadhaarSlot(slot: _aadhaarActiveSlot, settings: updated);
+    } else {
+      _applyEnhancementToItem(index: _activeItemIndex, settings: updated);
+    }
+  }
+
+  void _setFineRotation(double angle) {
+    final item = _activeItem;
+    if (item == null) return;
+    final clamped = angle.clamp(-45.0, 45.0);
+    final updated = item.settings.copyWith(fineRotationAngle: double.parse(clamped.toStringAsFixed(1)));
+    if (_documentMode == DocumentMode.aadhaarFrontBack) {
+      _applyEnhancementToAadhaarSlot(slot: _aadhaarActiveSlot, settings: updated);
+    } else {
+      _applyEnhancementToItem(index: _activeItemIndex, settings: updated);
+    }
+  }
+
   // ── PDF Generation ────────────────────────────────────────────────────────────
 
   Future<void> _triggerPdfRegeneration() async {
@@ -1299,15 +1483,31 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
         ),
         if (_aadhaarFrontItem != null || _aadhaarBackItem != null) ...[
           const SizedBox(height: 10),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.auto_awesome, size: 16),
-            label: const Text('Auto Crop Both Cards (Front & Back)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F2D69),
-              foregroundColor: Colors.white,
-              visualDensity: VisualDensity.compact,
-            ),
-            onPressed: _autoCropBothAadhaar,
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ElevatedButton.icon(
+                icon: const Icon(Icons.auto_awesome, size: 16),
+                label: const Text('Auto Crop Both Cards', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F2D69),
+                  foregroundColor: Colors.white,
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: _autoCropBothAadhaar,
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.straighten, size: 16),
+                label: const Text('Auto Straighten Both (दोन्ही सरळ करा)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal.shade700,
+                  foregroundColor: Colors.white,
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: _autoStraightenBothAadhaar,
+              ),
+            ],
           ),
         ],
         const SizedBox(height: 12),
@@ -1509,6 +1709,17 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   ),
                   onPressed: () => _autoCropAadhaarSlot(slot),
+                ),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.straighten, size: 14),
+                  label: const Text('Straighten (सरळ करा)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: Colors.teal.shade700,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  onPressed: () => _autoStraightenAadhaarSlot(slot),
                 ),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.crop, size: 14),
@@ -1966,6 +2177,16 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                   ),
                   onPressed: _autoCropActiveItem,
                 ),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.straighten, size: 16),
+                  label: const Text('Auto Straighten (सरळ करा)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal.shade700,
+                    foregroundColor: Colors.white,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: _autoStraightenActiveItem,
+                ),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.auto_awesome_motion, size: 16, color: Color(0xFF0F2D69)),
                   label: Text(
@@ -2012,6 +2233,110 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                   onPressed: _openComparisonDialog,
                 ),
               ],
+            ),
+
+            const SizedBox(height: 12),
+            // Dedicated Tilt Straightening Panel (वाकडे कागद सरळ करणे)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cs.primaryContainer.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: cs.primary.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.straighten, size: 16, color: cs.primary),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'वाकडे डॉक्युमेंट सरळ करा (Straighten Tilt):',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: s.fineRotationAngle != 0.0 ? cs.primary : Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${s.fineRotationAngle > 0 ? "+${s.fineRotationAngle.toStringAsFixed(1)}" : s.fineRotationAngle.toStringAsFixed(1)}°',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: s.fineRotationAngle != 0.0 ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Text('-30°', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                      Expanded(
+                        child: Slider(
+                          value: s.fineRotationAngle,
+                          min: -30.0,
+                          max: 30.0,
+                          divisions: 60,
+                          onChanged: (v) => _setFineRotation(v),
+                        ),
+                      ),
+                      const Text('+30°', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    ],
+                  ),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                        onPressed: () => _adjustFineRotation(-5.0),
+                        child: const Text('-5°', style: TextStyle(fontSize: 11)),
+                      ),
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                        onPressed: () => _adjustFineRotation(-1.0),
+                        child: const Text('-1°', style: TextStyle(fontSize: 11)),
+                      ),
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                        onPressed: () => _setFineRotation(0.0),
+                        child: const Text('0° Reset', style: TextStyle(fontSize: 11)),
+                      ),
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                        onPressed: () => _adjustFineRotation(1.0),
+                        child: const Text('+1°', style: TextStyle(fontSize: 11)),
+                      ),
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                        onPressed: () => _adjustFineRotation(5.0),
+                        child: const Text('+5°', style: TextStyle(fontSize: 11)),
+                      ),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.straighten, size: 14),
+                        label: const Text('Auto Straighten (ऑटो सरळ करा)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: cs.primary,
+                          foregroundColor: Colors.white,
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        onPressed: _autoStraightenActiveItem,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 12),

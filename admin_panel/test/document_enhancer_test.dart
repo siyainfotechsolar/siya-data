@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
@@ -187,6 +188,54 @@ void main() {
       expect(bounds.cropTop, lessThan(0.05));
       expect(bounds.cropRight, lessThan(0.05));
       expect(bounds.cropBottom, lessThan(0.05));
+    });
+
+    test('Fine rotation and tilt angle straightening works accurately', () async {
+      final original = createTestDocumentImage(width: 300, height: 400);
+
+      const settings = DocumentEnhanceSettings(
+        fineRotationAngle: 5.5,
+      );
+
+      final enhanced = await DocumentImageProcessor.enhanceDocument(
+        originalBytes: original,
+        settings: settings,
+      );
+
+      final decoded = img.decodeImage(enhanced);
+      expect(decoded, isNotNull);
+      expect(decoded!.width, greaterThan(250));
+      expect(decoded.height, greaterThan(350));
+    });
+
+    test('Auto straighten detects and populates tilt skew angle on tilted document', () {
+      final canvas = img.Image(width: 400, height: 400);
+      for (int y = 0; y < 400; y++) {
+        for (int x = 0; x < 400; x++) {
+          canvas.setPixelRgb(x, y, 30, 30, 30);
+        }
+      }
+
+      const rad = 10.0 * math.pi / 180.0;
+      final cosA = math.cos(rad);
+      final sinA = math.sin(rad);
+
+      for (int dy = -60; dy < 60; dy++) {
+        for (int dx = -100; dx < 100; dx++) {
+          final rotX = (200 + dx * cosA - dy * sinA).round();
+          final rotY = (200 + dx * sinA + dy * cosA).round();
+          if (rotX >= 0 && rotX < 400 && rotY >= 0 && rotY < 400) {
+            canvas.setPixelRgb(rotX, rotY, 230, 230, 230);
+          }
+        }
+      }
+
+      final bytes = Uint8List.fromList(img.encodeJpg(canvas, quality: 90));
+      final bounds = DocumentImageProcessor.detectDocumentBounds(bytes);
+
+      expect(bounds.skewAngle.abs(), greaterThanOrEqualTo(1.0));
+      expect(bounds.isTilted, isTrue);
+      expect(bounds.corners.length, equals(4));
     });
   });
 

@@ -239,11 +239,80 @@ class DocumentImageProcessor {
     if (cRight < 0.015) cRight = 0.0;
     if (cBottom < 0.015) cBottom = 0.0;
 
-    // Corner refinement
-    final tl = Point2D(cLeft, cTop);
-    final tr = Point2D(1.0 - cRight, cTop);
-    final br = Point2D(1.0 - cRight, 1.0 - cBottom);
-    final bl = Point2D(cLeft, 1.0 - cBottom);
+    // Collect document extrema points to detect tilt / skew angle (वाकडे डॉक्युमेंट ओळखणे)
+    int tlX = sampleW, tlY = sampleH, minSum = 999999;
+    int trX = 0, trY = sampleH, maxDiff = -999999;
+    int brX = 0, brY = 0, maxSum = -999999;
+    int blX = sampleW, blY = 0, minDiff = 999999;
+
+    int docPointsCount = 0;
+    final marginX = math.max(1, (sampleW * 0.02).round());
+    final marginY = math.max(1, (sampleH * 0.02).round());
+
+    for (int y = marginY; y < sampleH - marginY; y++) {
+      for (int x = marginX; x < sampleW - marginX; x++) {
+        final lum = gray.getPixel(x, y).luminance;
+        final isDoc = docIsBrighter ? (lum - bgLuminance > minDelta) : (bgLuminance - lum > minDelta);
+        if (isDoc) {
+          docPointsCount++;
+          final sum = x + y;
+          final diff = x - y;
+          if (sum < minSum) {
+            minSum = sum;
+            tlX = x;
+            tlY = y;
+          }
+          if (diff > maxDiff) {
+            maxDiff = diff;
+            trX = x;
+            trY = y;
+          }
+          if (sum > maxSum) {
+            maxSum = sum;
+            brX = x;
+            brY = y;
+          }
+          if (diff < minDiff) {
+            minDiff = diff;
+            blX = x;
+            blY = y;
+          }
+        }
+      }
+    }
+
+    double detectedSkewAngle = 0.0;
+    if (docPointsCount > 100 && trX > tlX && brX > blX) {
+      final double scaleX = src.width / sampleW;
+      final double scaleY = src.height / sampleH;
+
+      final double dxTop = (trX - tlX) * scaleX;
+      final double dyTop = (trY - tlY) * scaleY;
+      final double angleTop = math.atan2(dyTop, dxTop) * 180.0 / math.pi;
+
+      final double dxBot = (brX - blX) * scaleX;
+      final double dyBot = (brY - blY) * scaleY;
+      final double angleBot = math.atan2(dyBot, dxBot) * 180.0 / math.pi;
+
+      final double avgAngle = (angleTop + angleBot) / 2.0;
+      if (avgAngle.abs() >= 0.75 && avgAngle.abs() <= 45.0) {
+        detectedSkewAngle = double.parse(avgAngle.toStringAsFixed(1));
+      }
+    }
+
+    // Corner points: if tilted, return true quadrilateral corners for perspective deskew
+    Point2D tl, tr, br, bl;
+    if (detectedSkewAngle.abs() >= 0.75) {
+      tl = Point2D((tlX / sampleW).clamp(0.0, 0.45), (tlY / sampleH).clamp(0.0, 0.45));
+      tr = Point2D((trX / sampleW).clamp(0.55, 1.0), (trY / sampleH).clamp(0.0, 0.45));
+      br = Point2D((brX / sampleW).clamp(0.55, 1.0), (brY / sampleH).clamp(0.55, 1.0));
+      bl = Point2D((blX / sampleW).clamp(0.0, 0.45), (blY / sampleH).clamp(0.55, 1.0));
+    } else {
+      tl = Point2D(cLeft, cTop);
+      tr = Point2D(1.0 - cRight, cTop);
+      br = Point2D(1.0 - cRight, 1.0 - cBottom);
+      bl = Point2D(cLeft, 1.0 - cBottom);
+    }
 
     return DocumentCropBounds(
       cropLeft: cLeft,
@@ -252,6 +321,7 @@ class DocumentImageProcessor {
       cropBottom: cBottom,
       corners: [tl, tr, br, bl],
       confidence: contrastDiff >= 20.0 ? 0.95 : 0.70,
+      skewAngle: detectedSkewAngle,
     );
   }
 
@@ -282,9 +352,10 @@ class DocumentImageProcessor {
       throw Exception('Failed to decode image data.');
     }
 
-    // 1. Rotation (0, 90, 180, 270)
-    if (settings.rotationAngle != 0) {
-      current = img.copyRotate(current, angle: settings.rotationAngle);
+    // 1. Rotation (0, 90, 180, 270) + Fine Rotation / Tilt Straightening (-45.0 to +45.0)
+    final totalRotation = (settings.rotationAngle + settings.fineRotationAngle);
+    if (totalRotation != 0.0) {
+      current = img.copyRotate(current, angle: totalRotation);
     }
 
     // 2. Perspective Transform / Deskew (if corners specified)

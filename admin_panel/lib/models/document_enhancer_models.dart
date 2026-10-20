@@ -26,6 +26,7 @@ class DocumentCropBounds {
   final double cropBottom; // 0.0 to 0.45
   final List<Point2D> corners; // 4 corners: TL, TR, BR, BL
   final double confidence; // 0.0 to 1.0
+  final double skewAngle; // Detected tilt/skew angle in degrees (-45.0 to 45.0)
 
   const DocumentCropBounds({
     this.cropLeft = 0.0,
@@ -39,9 +40,11 @@ class DocumentCropBounds {
       Point2D(0.0, 1.0),
     ],
     this.confidence = 1.0,
+    this.skewAngle = 0.0,
   });
 
   bool get hasCrop => cropLeft > 0 || cropTop > 0 || cropRight > 0 || cropBottom > 0;
+  bool get isTilted => skewAngle.abs() >= 0.75;
 }
 
 /// Enhancement presets / strength levels
@@ -63,6 +66,7 @@ class DocumentEnhanceSettings {
   final bool backgroundCleanup; // Illumination flattening / shadow removal
   final EnhancementStrength strength;
   final int rotationAngle; // 0, 90, 180, 270
+  final double fineRotationAngle; // -45.0 to +45.0 degrees for straightening tilted/crooked documents
   final double cropLeft; // 0.0 to 0.45
   final double cropTop; // 0.0 to 0.45
   final double cropRight; // 0.0 to 0.45
@@ -80,6 +84,7 @@ class DocumentEnhanceSettings {
     this.backgroundCleanup = false,
     this.strength = EnhancementStrength.medium,
     this.rotationAngle = 0,
+    this.fineRotationAngle = 0.0,
     this.cropLeft = 0.0,
     this.cropTop = 0.0,
     this.cropRight = 0.0,
@@ -97,6 +102,7 @@ class DocumentEnhanceSettings {
       blackAndWhite ||
       backgroundCleanup ||
       rotationAngle != 0 ||
+      fineRotationAngle != 0.0 ||
       cropLeft > 0 ||
       cropTop > 0 ||
       cropRight > 0 ||
@@ -114,6 +120,7 @@ class DocumentEnhanceSettings {
     bool? backgroundCleanup,
     EnhancementStrength? strength,
     int? rotationAngle,
+    double? fineRotationAngle,
     double? cropLeft,
     double? cropTop,
     double? cropRight,
@@ -131,6 +138,7 @@ class DocumentEnhanceSettings {
       backgroundCleanup: backgroundCleanup ?? this.backgroundCleanup,
       strength: strength ?? this.strength,
       rotationAngle: rotationAngle ?? this.rotationAngle,
+      fineRotationAngle: fineRotationAngle ?? this.fineRotationAngle,
       cropLeft: cropLeft ?? this.cropLeft,
       cropTop: cropTop ?? this.cropTop,
       cropRight: cropRight ?? this.cropRight,

@@ -82,7 +82,8 @@ class _DocPerspectiveCropDialogState extends State<DocPerspectiveCropDialog> {
     try {
       final bounds = DocumentImageProcessor.detectDocumentBounds(_renderedImageBytes);
       setState(() {
-        if (_usePerspective) {
+        if (bounds.isTilted || _usePerspective) {
+          _usePerspective = true;
           _corners = bounds.corners;
         } else {
           _cropLeft = bounds.cropLeft;
@@ -95,10 +96,12 @@ class _DocPerspectiveCropDialogState extends State<DocPerspectiveCropDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(bounds.hasCrop
-                ? 'Document boundaries auto-detected! (L:${(bounds.cropLeft * 100).round()}% T:${(bounds.cropTop * 100).round()}% R:${(bounds.cropRight * 100).round()}% B:${(bounds.cropBottom * 100).round()}%)'
-                : 'Document already fills the entire image.'),
-            duration: const Duration(seconds: 2),
+            content: Text(bounds.isTilted
+                ? 'वाकडे डॉक्युमेंट ओळखले! (${bounds.skewAngle.abs().toStringAsFixed(1)}° Deskew corners set) Click "Apply Crop" to straighten.'
+                : (bounds.hasCrop
+                    ? 'Document boundaries auto-detected! (L:${(bounds.cropLeft * 100).round()}% T:${(bounds.cropTop * 100).round()}% R:${(bounds.cropRight * 100).round()}% B:${(bounds.cropBottom * 100).round()}%)'
+                    : 'Document already fills the entire image.')),
+            duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
           ),
         );
