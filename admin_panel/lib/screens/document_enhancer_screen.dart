@@ -509,6 +509,188 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
     _applyEnhancementToItem(index: _activeItemIndex, settings: updated);
   }
 
+  // ── Auto Crop Handlers ────────────────────────────────────────────────────────
+
+  Future<void> _autoCropItem({required int index, bool autoRegenPdf = true}) async {
+    if (index < 0 || index >= _items.length) return;
+    final item = _items[index];
+
+    setState(() {
+      _isProcessingImage = true;
+      _statusMessage = 'Auto-detecting document boundaries for ${item.name}...';
+    });
+
+    try {
+      final bounds = DocumentImageProcessor.detectDocumentBounds(item.originalBytes, isIdCard: false);
+      final newSettings = item.settings.copyWith(
+        cropLeft: bounds.cropLeft,
+        cropTop: bounds.cropTop,
+        cropRight: bounds.cropRight,
+        cropBottom: bounds.cropBottom,
+        perspectiveCorners: bounds.corners,
+      );
+
+      await _applyEnhancementToItem(index: index, settings: newSettings, autoRegenPdf: autoRegenPdf);
+
+      _showSnack(
+        bounds.hasCrop
+            ? 'Auto-cropped "${item.name}" (L:${(bounds.cropLeft * 100).round()}% T:${(bounds.cropTop * 100).round()}% R:${(bounds.cropRight * 100).round()}% B:${(bounds.cropBottom * 100).round()}%)'
+            : '"${item.name}" already fills the full frame.',
+      );
+    } catch (e) {
+      _showSnack('Auto crop error: $e', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingImage = false;
+          _statusMessage = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _autoCropAadhaarSlot(int slot) async {
+    final item = slot == 0 ? _aadhaarFrontItem : _aadhaarBackItem;
+    if (item == null) return;
+
+    setState(() {
+      _isProcessingImage = true;
+      _statusMessage = 'Auto-detecting Aadhaar ${slot == 0 ? "Front" : "Back"} boundaries...';
+    });
+
+    try {
+      final bounds = DocumentImageProcessor.detectDocumentBounds(item.originalBytes, isIdCard: true);
+      final newSettings = item.settings.copyWith(
+        cropLeft: bounds.cropLeft,
+        cropTop: bounds.cropTop,
+        cropRight: bounds.cropRight,
+        cropBottom: bounds.cropBottom,
+        perspectiveCorners: bounds.corners,
+      );
+
+      await _applyEnhancementToAadhaarSlot(slot: slot, settings: newSettings, autoRegenPdf: true);
+
+      _showSnack(
+        bounds.hasCrop
+            ? 'Auto-cropped Aadhaar ${slot == 0 ? "Front" : "Back"} card (L:${(bounds.cropLeft * 100).round()}% T:${(bounds.cropTop * 100).round()}% R:${(bounds.cropRight * 100).round()}% B:${(bounds.cropBottom * 100).round()}%)'
+            : 'Aadhaar ${slot == 0 ? "Front" : "Back"} already fills the full frame.',
+      );
+    } catch (e) {
+      _showSnack('Auto crop error: $e', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingImage = false;
+          _statusMessage = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _autoCropBothAadhaar() async {
+    if (_aadhaarFrontItem == null && _aadhaarBackItem == null) return;
+
+    setState(() {
+      _isProcessingImage = true;
+      _statusMessage = 'Auto-cropping both Aadhaar Front & Back cards...';
+    });
+
+    try {
+      if (_aadhaarFrontItem != null) {
+        final bFront = DocumentImageProcessor.detectDocumentBounds(_aadhaarFrontItem!.originalBytes, isIdCard: true);
+        final sFront = _aadhaarFrontItem!.settings.copyWith(
+          cropLeft: bFront.cropLeft,
+          cropTop: bFront.cropTop,
+          cropRight: bFront.cropRight,
+          cropBottom: bFront.cropBottom,
+          perspectiveCorners: bFront.corners,
+        );
+        await _applyEnhancementToAadhaarSlot(slot: 0, settings: sFront, autoRegenPdf: false);
+      }
+
+      if (_aadhaarBackItem != null) {
+        final bBack = DocumentImageProcessor.detectDocumentBounds(_aadhaarBackItem!.originalBytes, isIdCard: true);
+        final sBack = _aadhaarBackItem!.settings.copyWith(
+          cropLeft: bBack.cropLeft,
+          cropTop: bBack.cropTop,
+          cropRight: bBack.cropRight,
+          cropBottom: bBack.cropBottom,
+          perspectiveCorners: bBack.corners,
+        );
+        await _applyEnhancementToAadhaarSlot(slot: 1, settings: sBack, autoRegenPdf: false);
+      }
+
+      _showSnack('Auto-cropped both Aadhaar Front & Back cards successfully!');
+      _triggerPdfRegeneration();
+    } catch (e) {
+      _showSnack('Auto crop error: $e', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingImage = false;
+          _statusMessage = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _autoCropActiveItem() async {
+    if (_documentMode == DocumentMode.aadhaarFrontBack) {
+      await _autoCropAadhaarSlot(_aadhaarActiveSlot);
+    } else {
+      await _autoCropItem(index: _activeItemIndex);
+    }
+  }
+
+  Future<void> _autoCropAllSelected() async {
+    if (_documentMode == DocumentMode.aadhaarFrontBack) {
+      await _autoCropBothAadhaar();
+      return;
+    }
+
+    final selectedIndices = <int>[];
+    for (int i = 0; i < _items.length; i++) {
+      if (_items[i].isSelected) selectedIndices.add(i);
+    }
+
+    if (selectedIndices.isEmpty) {
+      _showSnack('No documents selected.', isError: true);
+      return;
+    }
+
+    setState(() {
+      _isProcessingImage = true;
+      _statusMessage = 'Auto-cropping ${selectedIndices.length} document(s)...';
+    });
+
+    try {
+      for (final idx in selectedIndices) {
+        final item = _items[idx];
+        final bounds = DocumentImageProcessor.detectDocumentBounds(item.originalBytes, isIdCard: false);
+        final newSettings = item.settings.copyWith(
+          cropLeft: bounds.cropLeft,
+          cropTop: bounds.cropTop,
+          cropRight: bounds.cropRight,
+          cropBottom: bounds.cropBottom,
+          perspectiveCorners: bounds.corners,
+        );
+        await _applyEnhancementToItem(index: idx, settings: newSettings, autoRegenPdf: false);
+      }
+
+      _showSnack('Auto-cropped all ${selectedIndices.length} document(s) successfully!');
+      _triggerPdfRegeneration();
+    } catch (e) {
+      _showSnack('Auto crop error: $e', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingImage = false;
+          _statusMessage = null;
+        });
+      }
+    }
+  }
+
   // ── PDF Generation ────────────────────────────────────────────────────────────
 
   Future<void> _triggerPdfRegeneration() async {
@@ -1115,6 +1297,19 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
             ],
           ),
         ),
+        if (_aadhaarFrontItem != null || _aadhaarBackItem != null) ...[
+          const SizedBox(height: 10),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.auto_awesome, size: 16),
+            label: const Text('Auto Crop Both Cards (Front & Back)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F2D69),
+              foregroundColor: Colors.white,
+              visualDensity: VisualDensity.compact,
+            ),
+            onPressed: _autoCropBothAadhaar,
+          ),
+        ],
         const SizedBox(height: 12),
         _buildAadhaarCardSlot(cs, 0),
         const SizedBox(height: 12),
@@ -1305,12 +1500,21 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
               runSpacing: 6,
               children: [
                 ElevatedButton.icon(
-                  icon: const Icon(Icons.crop, size: 14),
-                  label: const Text('Crop (कापा)', style: TextStyle(fontSize: 11)),
+                  icon: const Icon(Icons.auto_awesome, size: 14),
+                  label: const Text('Auto Crop', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
                     visualDensity: VisualDensity.compact,
-                    backgroundColor: cs.primary,
+                    backgroundColor: const Color(0xFF0F2D69),
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  onPressed: () => _autoCropAadhaarSlot(slot),
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.crop, size: 14),
+                  label: const Text('Crop (कापा)', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   ),
                   onPressed: () {
@@ -1463,6 +1667,20 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                                 ),
                               ),
                             ],
+                            if (item.settings.cropLeft > 0 || item.settings.cropTop > 0 || item.settings.cropRight > 0 || item.settings.cropBottom > 0) ...[
+                              const SizedBox(width: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Cropped',
+                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                         if (item.qualityWarning != null) ...[
@@ -1485,7 +1703,13 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                       ],
                     ),
                   ),
-                  // Controls: Move up/down, rotate, delete
+                  // Controls: Auto crop, move up/down, delete
+                  IconButton(
+                    icon: const Icon(Icons.auto_awesome, size: 16, color: Color(0xFF0F2D69)),
+                    tooltip: 'Auto Crop Document (ऑटो क्रॉप)',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _autoCropItem(index: i),
+                  ),
                   IconButton(
                     icon: const Icon(Icons.arrow_upward, size: 16),
                     tooltip: 'Move Up',
@@ -1733,8 +1957,28 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
               runSpacing: 8,
               children: [
                 ElevatedButton.icon(
+                  icon: const Icon(Icons.auto_awesome, size: 16),
+                  label: const Text('Auto Crop (ऑटो क्रॉप)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F2D69),
+                    foregroundColor: Colors.white,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: _autoCropActiveItem,
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.auto_awesome_motion, size: 16, color: Color(0xFF0F2D69)),
+                  label: Text(
+                    _documentMode == DocumentMode.aadhaarFrontBack
+                        ? 'Auto Crop Both (Front & Back)'
+                        : 'Auto Crop All Files',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                  onPressed: _autoCropAllSelected,
+                ),
+                ElevatedButton.icon(
                   icon: const Icon(Icons.crop, size: 16),
-                  label: const Text('Crop Document (कापा)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  label: const Text('Manual Crop (कापा)', style: TextStyle(fontSize: 12)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: cs.primary,
                     foregroundColor: Colors.white,

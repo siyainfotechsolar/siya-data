@@ -18,6 +18,32 @@ class Point2D {
   String toString() => 'Point2D(${x.toStringAsFixed(3)}, ${y.toStringAsFixed(3)})';
 }
 
+/// Result of automated document boundary detection
+class DocumentCropBounds {
+  final double cropLeft; // 0.0 to 0.45
+  final double cropTop; // 0.0 to 0.45
+  final double cropRight; // 0.0 to 0.45
+  final double cropBottom; // 0.0 to 0.45
+  final List<Point2D> corners; // 4 corners: TL, TR, BR, BL
+  final double confidence; // 0.0 to 1.0
+
+  const DocumentCropBounds({
+    this.cropLeft = 0.0,
+    this.cropTop = 0.0,
+    this.cropRight = 0.0,
+    this.cropBottom = 0.0,
+    this.corners = const [
+      Point2D(0.0, 0.0),
+      Point2D(1.0, 0.0),
+      Point2D(1.0, 1.0),
+      Point2D(0.0, 1.0),
+    ],
+    this.confidence = 1.0,
+  });
+
+  bool get hasCrop => cropLeft > 0 || cropTop > 0 || cropRight > 0 || cropBottom > 0;
+}
+
 /// Enhancement presets / strength levels
 enum EnhancementStrength {
   low,

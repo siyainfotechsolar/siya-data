@@ -145,6 +145,12 @@ void main() {
     await tester.tap(switchFinder);
     await tester.pumpAndSettle();
 
+    // Auto Crop button in dialog
+    final autoCropBtn = find.textContaining('Auto Crop');
+    expect(autoCropBtn, findsOneWidget);
+    await tester.tap(autoCropBtn);
+    await tester.pumpAndSettle();
+
     // Click Apply Crop
     final applyBtn = find.widgetWithText(ElevatedButton, 'Apply Crop');
     expect(applyBtn, findsOneWidget);

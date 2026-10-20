@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
@@ -81,24 +80,29 @@ class _DocPerspectiveCropDialogState extends State<DocPerspectiveCropDialog> {
   void _autoDetectCorners() {
     setState(() => _isAutoDetecting = true);
     try {
-      final detected = DocumentImageProcessor.detectDocumentCorners(_renderedImageBytes);
+      final bounds = DocumentImageProcessor.detectDocumentBounds(_renderedImageBytes);
       setState(() {
         if (_usePerspective) {
-          _corners = detected;
+          _corners = bounds.corners;
         } else {
-          // Snap crop box to detected bounds
-          final minX = detected.map((p) => p.x).reduce(math.min);
-          final maxX = detected.map((p) => p.x).reduce(math.max);
-          final minY = detected.map((p) => p.y).reduce(math.min);
-          final maxY = detected.map((p) => p.y).reduce(math.max);
-
-          _cropLeft = minX.clamp(0.0, 0.45);
-          _cropTop = minY.clamp(0.0, 0.45);
-          _cropRight = (1.0 - maxX).clamp(0.0, 0.45);
-          _cropBottom = (1.0 - maxY).clamp(0.0, 0.45);
+          _cropLeft = bounds.cropLeft;
+          _cropTop = bounds.cropTop;
+          _cropRight = bounds.cropRight;
+          _cropBottom = bounds.cropBottom;
         }
         _isAutoDetecting = false;
       });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(bounds.hasCrop
+                ? 'Document boundaries auto-detected! (L:${(bounds.cropLeft * 100).round()}% T:${(bounds.cropTop * 100).round()}% R:${(bounds.cropRight * 100).round()}% B:${(bounds.cropBottom * 100).round()}%)'
+                : 'Document already fills the entire image.'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (_) {
       setState(() => _isAutoDetecting = false);
     }
@@ -676,8 +680,8 @@ class _DocPerspectiveCropDialogState extends State<DocPerspectiveCropDialog> {
               ElevatedButton.icon(
                 icon: _isAutoDetecting
                     ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.auto_fix_high, size: 14),
-                label: Text(_isAutoDetecting ? 'Detecting...' : 'Auto Detect', style: const TextStyle(fontSize: 11)),
+                    : const Icon(Icons.auto_awesome, size: 14),
+                label: Text(_isAutoDetecting ? 'Detecting...' : 'Auto Crop (स्मार्ट क्रॉप)', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: cs.primary,
                   foregroundColor: Colors.white,

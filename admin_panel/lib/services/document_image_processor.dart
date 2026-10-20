@@ -86,88 +86,178 @@ class DocumentImageProcessor {
     return variance;
   }
 
-  /// Automatically detects document boundary corners (Deskew / Perspective detection)
-  static List<Point2D> detectDocumentCorners(Uint8List bytes) {
+  /// Automatically detects document boundary crop margins and perspective corners.
+  /// Robustly identifies documents, receipts, and Aadhaar cards against tables, bedsheets,
+  /// dark shadows, or WhatsApp camera borders.
+  static DocumentCropBounds detectDocumentBounds(Uint8List bytes, {bool isIdCard = false}) {
     final src = img.decodeImage(bytes);
     if (src == null) {
-      return const [
-        Point2D(0.05, 0.05),
-        Point2D(0.95, 0.05),
-        Point2D(0.95, 0.95),
-        Point2D(0.05, 0.95),
-      ];
+      return const DocumentCropBounds();
     }
 
-    // Downsample for fast edge gradient scanning
-    const targetW = 200;
-    final targetH = (src.height * targetW / src.width).round();
-    final small = img.copyResize(src, width: targetW, height: targetH);
+    // Downsample for ultra-fast and noise-free edge detection (max 260px on long dimension)
+    const int maxDim = 260;
+    final int sampleW;
+    final int sampleH;
+    if (src.width >= src.height) {
+      sampleW = math.min(src.width, maxDim);
+      sampleH = (src.height * sampleW / src.width).round().clamp(30, maxDim);
+    } else {
+      sampleH = math.min(src.height, maxDim);
+      sampleW = (src.width * sampleH / src.height).round().clamp(30, maxDim);
+    }
+
+    final small = img.copyResize(src, width: sampleW, height: sampleH);
     final gray = img.grayscale(small);
 
-    // Look for paper edge transitions from outside borders inwards
-    int tlX = 5, tlY = 5;
-    int trX = targetW - 6, trY = 5;
-    int brX = targetW - 6, brY = targetH - 6;
-    int blX = 5, blY = targetH - 6;
+    // 1. Sample perimeter border luminance (outer 3% or outer 2-4 pixels)
+    // This accurately identifies the background surface (table, desk, scanner bed, WhatsApp black border)
+    double borderSum = 0;
+    int borderCount = 0;
+    final borderInset = math.max(1, (math.min(sampleW, sampleH) * 0.03).round());
 
-    // Scan top-left
-    outerTL:
-    for (int d = 2; d < targetW ~/ 4; d++) {
-      for (int x = d; x < d + 3; x++) {
-        final lum = gray.getPixel(x, d).luminance;
-        if (lum > 110) {
-          tlX = x;
-          tlY = d;
-          break outerTL;
-        }
+    for (int x = 0; x < sampleW; x++) {
+      for (int y = 0; y < borderInset; y++) {
+        borderSum += gray.getPixel(x, y).luminance;
+        borderCount++;
+      }
+      for (int y = sampleH - borderInset; y < sampleH; y++) {
+        borderSum += gray.getPixel(x, y).luminance;
+        borderCount++;
+      }
+    }
+    for (int y = borderInset; y < sampleH - borderInset; y++) {
+      for (int x = 0; x < borderInset; x++) {
+        borderSum += gray.getPixel(x, y).luminance;
+        borderCount++;
+      }
+      for (int x = sampleW - borderInset; x < sampleW; x++) {
+        borderSum += gray.getPixel(x, y).luminance;
+        borderCount++;
       }
     }
 
-    // Scan top-right
-    outerTR:
-    for (int d = 2; d < targetW ~/ 4; d++) {
-      for (int x = targetW - 1 - d; x > targetW - 4 - d; x--) {
-        final lum = gray.getPixel(x, d).luminance;
-        if (lum > 110) {
-          trX = x;
-          trY = d;
-          break outerTR;
-        }
+    final double bgLuminance = borderCount > 0 ? (borderSum / borderCount) : 128.0;
+
+    // Sample central region luminance to assess document paper/card brightness
+    double centerSum = 0;
+    int centerCount = 0;
+    for (int y = sampleH ~/ 4; y < sampleH * 3 ~/ 4; y++) {
+      for (int x = sampleW ~/ 4; x < sampleW * 3 ~/ 4; x++) {
+        centerSum += gray.getPixel(x, y).luminance;
+        centerCount++;
+      }
+    }
+    final double centerLuminance = centerCount > 0 ? (centerSum / centerCount) : bgLuminance;
+    final double contrastDiff = (centerLuminance - bgLuminance).abs();
+    final bool docIsBrighter = centerLuminance >= bgLuminance;
+
+    // Scan inward up to 40% of dimensions
+    final maxScanX = (sampleW * 0.40).round();
+    final maxScanY = (sampleH * 0.40).round();
+
+    int topIndex = 0;
+    int bottomIndex = sampleH - 1;
+    int leftIndex = 0;
+    int rightIndex = sampleW - 1;
+
+    final double minDelta = contrastDiff >= 20.0 ? math.min(contrastDiff * 0.40, 32.0) : 18.0;
+
+    // Scan Top
+    for (int y = 0; y < maxScanY; y++) {
+      int docPixels = 0;
+      int testedPixels = 0;
+      for (int x = sampleW ~/ 5; x < sampleW * 4 ~/ 5; x++) {
+        final lum = gray.getPixel(x, y).luminance;
+        final isDoc = docIsBrighter ? (lum - bgLuminance > minDelta) : (bgLuminance - lum > minDelta);
+        if (isDoc) docPixels++;
+        testedPixels++;
+      }
+      if (testedPixels > 0 && (docPixels / testedPixels) >= 0.45) {
+        topIndex = y;
+        break;
       }
     }
 
-    // Scan bottom-right
-    outerBR:
-    for (int d = 2; d < targetW ~/ 4; d++) {
-      for (int x = targetW - 1 - d; x > targetW - 4 - d; x--) {
-        final lum = gray.getPixel(x, targetH - 1 - d).luminance;
-        if (lum > 110) {
-          brX = x;
-          brY = targetH - 1 - d;
-          break outerBR;
-        }
+    // Scan Bottom
+    for (int y = sampleH - 1; y > sampleH - 1 - maxScanY; y--) {
+      int docPixels = 0;
+      int testedPixels = 0;
+      for (int x = sampleW ~/ 5; x < sampleW * 4 ~/ 5; x++) {
+        final lum = gray.getPixel(x, y).luminance;
+        final isDoc = docIsBrighter ? (lum - bgLuminance > minDelta) : (bgLuminance - lum > minDelta);
+        if (isDoc) docPixels++;
+        testedPixels++;
+      }
+      if (testedPixels > 0 && (docPixels / testedPixels) >= 0.45) {
+        bottomIndex = y;
+        break;
       }
     }
 
-    // Scan bottom-left
-    outerBL:
-    for (int d = 2; d < targetW ~/ 4; d++) {
-      for (int x = d; x < d + 3; x++) {
-        final lum = gray.getPixel(x, targetH - 1 - d).luminance;
-        if (lum > 110) {
-          blX = x;
-          blY = targetH - 1 - d;
-          break outerBL;
-        }
+    // Scan Left
+    for (int x = 0; x < maxScanX; x++) {
+      int docPixels = 0;
+      int testedPixels = 0;
+      for (int y = sampleH ~/ 5; y < sampleH * 4 ~/ 5; y++) {
+        final lum = gray.getPixel(x, y).luminance;
+        final isDoc = docIsBrighter ? (lum - bgLuminance > minDelta) : (bgLuminance - lum > minDelta);
+        if (isDoc) docPixels++;
+        testedPixels++;
+      }
+      if (testedPixels > 0 && (docPixels / testedPixels) >= 0.45) {
+        leftIndex = x;
+        break;
       }
     }
 
-    return [
-      Point2D(tlX / targetW, tlY / targetH),
-      Point2D(trX / targetW, trY / targetH),
-      Point2D(brX / targetW, brY / targetH),
-      Point2D(blX / targetW, blY / targetH),
-    ];
+    // Scan Right
+    for (int x = sampleW - 1; x > sampleW - 1 - maxScanX; x--) {
+      int docPixels = 0;
+      int testedPixels = 0;
+      for (int y = sampleH ~/ 5; y < sampleH * 4 ~/ 5; y++) {
+        final lum = gray.getPixel(x, y).luminance;
+        final isDoc = docIsBrighter ? (lum - bgLuminance > minDelta) : (bgLuminance - lum > minDelta);
+        if (isDoc) docPixels++;
+        testedPixels++;
+      }
+      if (testedPixels > 0 && (docPixels / testedPixels) >= 0.45) {
+        rightIndex = x;
+        break;
+      }
+    }
+
+    // Compute normalized margins
+    double cLeft = (leftIndex / sampleW).clamp(0.0, 0.40);
+    double cTop = (topIndex / sampleH).clamp(0.0, 0.40);
+    double cRight = ((sampleW - 1 - rightIndex) / sampleW).clamp(0.0, 0.40);
+    double cBottom = ((sampleH - 1 - bottomIndex) / sampleH).clamp(0.0, 0.40);
+
+    // If edges are very close to 0 (< 1.5%), keep 0.0 to avoid shaving off legitimate text
+    if (cLeft < 0.015) cLeft = 0.0;
+    if (cTop < 0.015) cTop = 0.0;
+    if (cRight < 0.015) cRight = 0.0;
+    if (cBottom < 0.015) cBottom = 0.0;
+
+    // Corner refinement
+    final tl = Point2D(cLeft, cTop);
+    final tr = Point2D(1.0 - cRight, cTop);
+    final br = Point2D(1.0 - cRight, 1.0 - cBottom);
+    final bl = Point2D(cLeft, 1.0 - cBottom);
+
+    return DocumentCropBounds(
+      cropLeft: cLeft,
+      cropTop: cTop,
+      cropRight: cRight,
+      cropBottom: cBottom,
+      corners: [tl, tr, br, bl],
+      confidence: contrastDiff >= 20.0 ? 0.95 : 0.70,
+    );
+  }
+
+  /// Automatically detects document boundary corners (Deskew / Perspective detection)
+  static List<Point2D> detectDocumentCorners(Uint8List bytes) {
+    return detectDocumentBounds(bytes).corners;
   }
 
   /// Main enhancement pipeline

@@ -146,6 +146,48 @@ void main() {
       expect(decoded!.width, greaterThan(200));
       expect(decoded.height, greaterThan(200));
     });
+
+    test('Auto crop detects borders of document photographed on dark background', () {
+      // Create an image with dark table background (lum ~40) and white document in center (lum ~230)
+      final image = img.Image(width: 400, height: 400);
+      for (int y = 0; y < 400; y++) {
+        for (int x = 0; x < 400; x++) {
+          image.setPixelRgb(x, y, 40, 40, 40); // Dark table
+        }
+      }
+      // White document occupying center (inset 40px = 10% on each side)
+      for (int y = 40; y < 360; y++) {
+        for (int x = 40; x < 360; x++) {
+          image.setPixelRgb(x, y, 230, 230, 230); // White paper
+        }
+      }
+      final bytes = Uint8List.fromList(img.encodeJpg(image, quality: 90));
+
+      final bounds = DocumentImageProcessor.detectDocumentBounds(bytes);
+      expect(bounds.cropLeft, greaterThanOrEqualTo(0.05));
+      expect(bounds.cropTop, greaterThanOrEqualTo(0.05));
+      expect(bounds.cropRight, greaterThanOrEqualTo(0.05));
+      expect(bounds.cropBottom, greaterThanOrEqualTo(0.05));
+      expect(bounds.hasCrop, isTrue);
+      expect(bounds.corners.length, equals(4));
+    });
+
+    test('Auto crop gracefully handles edge-to-edge document without excessive trimming', () {
+      // Pure edge-to-edge document
+      final image = img.Image(width: 300, height: 400);
+      for (int y = 0; y < 400; y++) {
+        for (int x = 0; x < 300; x++) {
+          image.setPixelRgb(x, y, 235, 235, 230);
+        }
+      }
+      final bytes = Uint8List.fromList(img.encodeJpg(image, quality: 90));
+
+      final bounds = DocumentImageProcessor.detectDocumentBounds(bytes);
+      expect(bounds.cropLeft, lessThan(0.05));
+      expect(bounds.cropTop, lessThan(0.05));
+      expect(bounds.cropRight, lessThan(0.05));
+      expect(bounds.cropBottom, lessThan(0.05));
+    });
   });
 
   group('DocumentA4PdfService Tests', () {
