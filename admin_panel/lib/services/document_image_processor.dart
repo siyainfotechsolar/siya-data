@@ -192,23 +192,23 @@ class DocumentImageProcessor {
       throw Exception('Failed to decode image data.');
     }
 
-    // 1. Perspective Transform / Deskew (if corners specified)
+    // 1. Rotation (0, 90, 180, 270)
+    if (settings.rotationAngle != 0) {
+      current = img.copyRotate(current, angle: settings.rotationAngle);
+    }
+
+    // 2. Perspective Transform / Deskew (if corners specified)
     if (settings.perspectiveCorners != null && settings.perspectiveCorners!.length == 4) {
       current = _applyPerspectiveWarp(current, settings.perspectiveCorners!);
     }
 
-    // 2. Crop margins (if non-zero)
+    // 3. Crop margins (if non-zero)
     if (settings.cropLeft > 0 || settings.cropTop > 0 || settings.cropRight > 0 || settings.cropBottom > 0) {
       final cropX = (current.width * settings.cropLeft).round().clamp(0, current.width - 10);
       final cropY = (current.height * settings.cropTop).round().clamp(0, current.height - 10);
       final cropW = (current.width * (1.0 - settings.cropLeft - settings.cropRight)).round().clamp(10, current.width - cropX);
       final cropH = (current.height * (1.0 - settings.cropTop - settings.cropBottom)).round().clamp(10, current.height - cropY);
       current = img.copyCrop(current, x: cropX, y: cropY, width: cropW, height: cropH);
-    }
-
-    // 3. Rotation (0, 90, 180, 270)
-    if (settings.rotationAngle != 0) {
-      current = img.copyRotate(current, angle: settings.rotationAngle);
     }
 
     // 4. Background Illumination Cleanup (Removes camera shadows & uneven gradients)

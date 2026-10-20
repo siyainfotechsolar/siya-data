@@ -105,7 +105,7 @@ void main() {
   });
 
   testWidgets('DocPerspectiveCropDialog opens and adjusts sliders and deskew toggle', (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.physicalSize = const Size(1280, 960);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
@@ -135,21 +135,21 @@ void main() {
     await tester.tap(find.text('Open Crop'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Crop Borders & Perspective Deskew'), findsOneWidget);
-    expect(find.textContaining('Border Crop Margins'), findsOneWidget);
-    expect(find.text('Perspective Deskew:'), findsOneWidget);
+    expect(find.textContaining('Crop Document & Straighten'), findsOneWidget);
+    expect(find.text('Perspective Deskew'), findsOneWidget);
 
     // Toggle perspective deskew switch
     final switchFinder = find.byType(Switch);
     expect(switchFinder, findsOneWidget);
+    await tester.ensureVisible(switchFinder);
     await tester.tap(switchFinder);
     await tester.pumpAndSettle();
 
-    expect(find.text('Auto-Detect Document Edges'), findsOneWidget);
-
-    // Click Apply Changes
-    await tester.tap(find.text('Apply Changes'));
+    // Click Apply Crop
+    final applyBtn = find.widgetWithText(ElevatedButton, 'Apply Crop');
+    expect(applyBtn, findsOneWidget);
+    await tester.tap(applyBtn);
     await tester.pumpAndSettle();
-    expect(find.text('Crop Borders & Perspective Deskew'), findsNothing);
+    expect(find.textContaining('Crop Document & Straighten'), findsNothing);
   });
 }

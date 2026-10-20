@@ -1076,11 +1076,43 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
             ),
 
             const Divider(height: 16),
-            // Transformation & Comparison buttons
+            // Transformation & Crop buttons
+            const Text('Crop & Rotate (कापा आणि फिरवा):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.crop, size: 16),
+                  label: const Text('Crop Document (कापा)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: cs.primary,
+                    foregroundColor: Colors.white,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: _openPerspectiveCropDialog,
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.crop_square, size: 16),
+                  label: const Text('Trim 5%', style: TextStyle(fontSize: 11)),
+                  onPressed: () {
+                    _applyEnhancementToItem(
+                      index: _activeItemIndex,
+                      settings: s.copyWith(cropLeft: 0.05, cropTop: 0.05, cropRight: 0.05, cropBottom: 0.05),
+                    );
+                  },
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.crop_square, size: 16),
+                  label: const Text('Trim 10%', style: TextStyle(fontSize: 11)),
+                  onPressed: () {
+                    _applyEnhancementToItem(
+                      index: _activeItemIndex,
+                      settings: s.copyWith(cropLeft: 0.10, cropTop: 0.10, cropRight: 0.10, cropBottom: 0.10),
+                    );
+                  },
+                ),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.rotate_left, size: 16),
                   label: const Text('Rotate 90° L', style: TextStyle(fontSize: 11)),
@@ -1090,11 +1122,6 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                   icon: const Icon(Icons.rotate_right, size: 16),
                   label: const Text('Rotate 90° R', style: TextStyle(fontSize: 11)),
                   onPressed: () => _rotateActiveItem(90),
-                ),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.crop_rotate, size: 16),
-                  label: const Text('Crop & Deskew', style: TextStyle(fontSize: 11)),
-                  onPressed: _openPerspectiveCropDialog,
                 ),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.compare_arrows, size: 16),
