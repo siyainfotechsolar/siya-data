@@ -24,6 +24,7 @@ import 'customer_hishob_screen.dart';
 import 'quotations_screen.dart';
 import 'margin_receipts_screen.dart';
 import 'commission_screen.dart';
+import 'document_enhancer_screen.dart';
 import '../models/user_profile.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -62,6 +63,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItem(id: 'leads', label: 'Leads', icon: Icons.leaderboard_outlined, selectedIcon: Icons.leaderboard, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'import', label: 'Import', icon: Icons.upload_file_outlined, selectedIcon: Icons.upload_file, isMainBottomNav: false, moduleKey: 'import'),
     _NavItem(id: 'reports', label: 'Reports', icon: Icons.bar_chart_outlined, selectedIcon: Icons.bar_chart, isMainBottomNav: false, moduleKey: 'reports'),
+    _NavItem(id: 'doc_enhancer', label: 'Document Clear & A4 Print', icon: Icons.document_scanner_outlined, selectedIcon: Icons.document_scanner, isMainBottomNav: false, category: 'Tools'),
     _NavItem(id: 'history', label: 'History', icon: Icons.history_outlined, selectedIcon: Icons.history, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'audit', label: 'Audit', icon: Icons.shield_outlined, selectedIcon: Icons.shield, isMainBottomNav: false, moduleKey: 'settings'),
     _NavItem(id: 'duplicates', label: 'Duplicates', icon: Icons.find_in_page_outlined, selectedIcon: Icons.find_in_page, isMainBottomNav: false, moduleKey: 'customer'),
@@ -231,6 +233,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               color: isSelected ? theme.colorScheme.primary : null,
                             ),
                           ),
+                          subtitle: item.category != null
+                              ? Text(
+                                  '${item.category} → ${item.label}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isSelected ? theme.colorScheme.primary : Colors.grey.shade600,
+                                  ),
+                                )
+                              : null,
                           onTap: () {
                             Navigator.of(ctx).pop();
                             setState(() {
@@ -605,6 +616,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return _buildImportView();
       case 'reports':
         return const ReportsScreen();
+      case 'doc_enhancer':
+        return const DocumentEnhancerScreen();
       case 'history':
         return const HistoryScreen();
       case 'audit':
@@ -976,6 +989,78 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 14),
+                // ── Quick Tools: Document Clear & A4 Print ──────────────────
+                InkWell(
+                  onTap: () {
+                    final idx = _visibleNavItems.indexWhere((it) => it.id == 'doc_enhancer');
+                    if (idx >= 0) setState(() => _selectedIndex = idx);
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0F2D69), Color(0xFF1E3A8A)],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F2D69).withValues(alpha: 0.2),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.document_scanner_rounded, color: Colors.white, size: 22),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF57C00),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'TOOLS',
+                                      style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Document Clear, Enhance & A4 Print',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Process WhatsApp photos, remove phone shadows, sharpen text, and generate clean printable A4 PDFs.',
+                                style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 14),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 28),
 
@@ -1681,6 +1766,7 @@ class _NavItem {
   final bool isMainBottomNav;
   final String? moduleKey;
   final bool adminOnly;
+  final String? category;
 
   const _NavItem({
     required this.id,
@@ -1690,5 +1776,6 @@ class _NavItem {
     this.isMainBottomNav = false,
     this.moduleKey,
     this.adminOnly = false,
+    this.category,
   });
 }
