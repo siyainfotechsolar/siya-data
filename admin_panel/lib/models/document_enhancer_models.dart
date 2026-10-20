@@ -199,6 +199,92 @@ class A4PageSettings {
   }
 }
 
+/// Active Mode of the Document Clear & A4 Print Tool
+enum DocumentMode {
+  general,
+  aadhaarFrontBack,
+}
+
+/// Sizing scale for Aadhaar Card on A4 Sheet
+enum AadhaarCardScale {
+  actualIdSize, // 85.6 mm × 54 mm (~242 × 153 pt) — Real pocket card size
+  mediumScale, // ~115 mm width (~326 pt) — Recommended balanced readability
+  largeScale, // ~140 mm width (~397 pt) — Large clear print
+  fitWidth, // Full width within margins (~90% printable width)
+}
+
+/// Vertical spacing between Front and Back Aadhaar cards
+enum AadhaarSpacing {
+  compact, // 10 mm
+  normal, // 20 mm
+  spacious, // 35 mm
+}
+
+/// Dedicated A4 Layout Settings for Aadhaar Card Front & Back Mode
+class AadhaarPageSettings {
+  final AadhaarCardScale scale;
+  final AadhaarSpacing spacing;
+  final double customSpacingMm;
+  final A4MarginPreset marginPreset;
+  final bool showCutLine;
+  final bool showHeader;
+  final A4ColorMode colorMode;
+
+  const AadhaarPageSettings({
+    this.scale = AadhaarCardScale.mediumScale,
+    this.spacing = AadhaarSpacing.normal,
+    this.customSpacingMm = 20.0,
+    this.marginPreset = A4MarginPreset.small,
+    this.showCutLine = true,
+    this.showHeader = false,
+    this.colorMode = A4ColorMode.color,
+  });
+
+  double get spacingPoints {
+    switch (spacing) {
+      case AadhaarSpacing.compact:
+        return 28.35; // 10 mm
+      case AadhaarSpacing.normal:
+        return 56.70; // 20 mm
+      case AadhaarSpacing.spacious:
+        return 99.21; // 35 mm
+    }
+  }
+
+  double get marginPoints {
+    switch (marginPreset) {
+      case A4MarginPreset.none:
+        return 0.0;
+      case A4MarginPreset.small:
+        return 14.17; // 5 mm
+      case A4MarginPreset.normal:
+        return 28.35; // 10 mm
+      case A4MarginPreset.custom:
+        return 42.52; // 15 mm
+    }
+  }
+
+  AadhaarPageSettings copyWith({
+    AadhaarCardScale? scale,
+    AadhaarSpacing? spacing,
+    double? customSpacingMm,
+    A4MarginPreset? marginPreset,
+    bool? showCutLine,
+    bool? showHeader,
+    A4ColorMode? colorMode,
+  }) {
+    return AadhaarPageSettings(
+      scale: scale ?? this.scale,
+      spacing: spacing ?? this.spacing,
+      customSpacingMm: customSpacingMm ?? this.customSpacingMm,
+      marginPreset: marginPreset ?? this.marginPreset,
+      showCutLine: showCutLine ?? this.showCutLine,
+      showHeader: showHeader ?? this.showHeader,
+      colorMode: colorMode ?? this.colorMode,
+    );
+  }
+}
+
 /// Status of an uploaded document item
 enum DocumentProcessingStatus { idle, processing, done, error }
 

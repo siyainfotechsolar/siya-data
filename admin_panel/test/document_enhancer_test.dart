@@ -235,5 +235,66 @@ void main() {
       expect(pdfBytes, isNotEmpty);
       expect(pdfBytes.length, greaterThan(3000));
     });
+
+    test('Generates Aadhaar Front & Back on 1 A4 page correctly', () async {
+      final frontBytes = createTestDocumentImage(width: 856, height: 540);
+      final backBytes = createTestDocumentImage(width: 856, height: 540);
+
+      final frontItem = DocumentToolItem(
+        id: 'aadhaar_front',
+        name: 'Aadhaar_Front.jpg',
+        fileSize: frontBytes.length,
+        mimeType: 'image/jpeg',
+        originalBytes: frontBytes,
+        width: 856,
+        height: 540,
+      );
+
+      final backItem = DocumentToolItem(
+        id: 'aadhaar_back',
+        name: 'Aadhaar_Back.jpg',
+        fileSize: backBytes.length,
+        mimeType: 'image/jpeg',
+        originalBytes: backBytes,
+        width: 856,
+        height: 540,
+      );
+
+      final pdfBytes = await DocumentA4PdfService.generateAadhaarA4Pdf(
+        frontItem: frontItem,
+        backItem: backItem,
+        settings: const AadhaarPageSettings(
+          scale: AadhaarCardScale.mediumScale,
+          spacing: AadhaarSpacing.normal,
+          showCutLine: true,
+          showHeader: true,
+        ),
+      );
+
+      expect(pdfBytes, isNotEmpty);
+      expect(pdfBytes.length, greaterThan(2000));
+    });
+
+    test('Generates Aadhaar PDF when only front side is uploaded', () async {
+      final frontBytes = createTestDocumentImage(width: 856, height: 540);
+      final frontItem = DocumentToolItem(
+        id: 'aadhaar_front',
+        name: 'Aadhaar_Front.jpg',
+        fileSize: frontBytes.length,
+        mimeType: 'image/jpeg',
+        originalBytes: frontBytes,
+        width: 856,
+        height: 540,
+      );
+
+      final pdfBytes = await DocumentA4PdfService.generateAadhaarA4Pdf(
+        frontItem: frontItem,
+        backItem: null,
+        settings: const AadhaarPageSettings(),
+      );
+
+      expect(pdfBytes, isNotEmpty);
+      expect(pdfBytes.length, greaterThan(1500));
+    });
   });
 }

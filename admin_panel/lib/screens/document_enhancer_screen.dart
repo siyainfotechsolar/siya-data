@@ -18,8 +18,17 @@ class DocumentEnhancerScreen extends StatefulWidget {
 }
 
 class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with SingleTickerProviderStateMixin {
+  DocumentMode _documentMode = DocumentMode.general;
+
+  // General Document Items
   final List<DocumentToolItem> _items = [];
   int _activeItemIndex = 0;
+
+  // Dedicated Aadhaar Front & Back Items
+  DocumentToolItem? _aadhaarFrontItem;
+  DocumentToolItem? _aadhaarBackItem;
+  AadhaarPageSettings _aadhaarSettings = const AadhaarPageSettings();
+  int _aadhaarActiveSlot = 0; // 0 = Front, 1 = Back
 
   // Settings
   A4PageSettings _a4Settings = const A4PageSettings();
@@ -46,7 +55,18 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
     super.dispose();
   }
 
+  bool get _hasAnyDocuments =>
+      _documentMode == DocumentMode.general
+          ? _items.isNotEmpty
+          : (_aadhaarFrontItem != null || _aadhaarBackItem != null);
+
+  DocumentToolItem? get _activeAadhaarItem =>
+      _aadhaarActiveSlot == 0 ? _aadhaarFrontItem : _aadhaarBackItem;
+
   DocumentToolItem? get _activeItem {
+    if (_documentMode == DocumentMode.aadhaarFrontBack) {
+      return _activeAadhaarItem;
+    }
     if (_items.isEmpty) return null;
     if (_activeItemIndex >= 0 && _activeItemIndex < _items.length) {
       return _items[_activeItemIndex];
@@ -153,7 +173,7 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
   }
 
   void _clearAllFiles() {
-    if (_items.isEmpty) return;
+    if (!_hasAnyDocuments) return;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -166,8 +186,14 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
             onPressed: () {
               Navigator.of(ctx).pop();
               setState(() {
-                _items.clear();
-                _activeItemIndex = 0;
+                if (_documentMode == DocumentMode.aadhaarFrontBack) {
+                  _aadhaarFrontItem = null;
+                  _aadhaarBackItem = null;
+                  _aadhaarActiveSlot = 0;
+                } else {
+                  _items.clear();
+                  _activeItemIndex = 0;
+                }
                 _generatedPdfBytes = null;
               });
               _showSnack('All files cleared.');
@@ -177,6 +203,192 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
         ],
       ),
     );
+  }
+
+  Future<void> _pickAadhaarSlot(int slot) async {
+    setState(() {
+      _errorMessage = null;
+      _statusMessage = 'Selecting Aadhaar ${slot == 0 ? "Front" : "Back"} file...';
+    });
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: false,
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) {
+        setState(() => _statusMessage = null);
+        return;
+      }
+
+      final file = result.files.first;
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) return;
+
+      final ext = (file.extension ?? '').toLowerCase();
+      final isPdf = ext == 'pdf';
+
+      Uint8List imageBytes;
+      int width = 0;
+      int height = 0;
+      Uint8List? thumb;
+      String? warning;
+
+      if (isPdf) {
+        setState(() => _statusMessage = 'Extracting page from PDF...');
+        final pdfPages = await DocumentA4PdfService.extractPagesFromPdf(
+          fileId: 'aadhaar_${slot == 0 ? "front" : "back"}_${DateTime.now().millisecondsSinceEpoch}',
+          fileName: file.name,
+          pdfBytes: bytes,
+        );
+        if (pdfPages.isEmpty) throw Exception('No readable pages found in PDF');
+
+        // Smart multi-page check: If 2-page PDF is uploaded in Front slot and Back is empty, place both!
+        if (slot == 0 && pdfPages.length >= 2 && _aadhaarBackItem == null) {
+          final frontPage = pdfPages[0];
+          final backPage = pdfPages[1];
+          setState(() {
+            _aadhaarFrontItem = frontPage;
+            _aadhaarBackItem = backPage;
+            _aadhaarActiveSlot = 0;
+            _statusMessage = null;
+          });
+          _showSnack('Loaded Page 1 as Front and Page 2 as Back side!');
+          _triggerPdfRegeneration();
+          return;
+        }
+
+        final page = pdfPages.first;
+        imageBytes = page.originalBytes;
+        width = page.width;
+        height = page.height;
+        thumb = page.thumbnailBytes;
+        warning = page.qualityWarning;
+      } else {
+        imageBytes = bytes;
+        final meta = DocumentImageProcessor.analyzeImage(bytes);
+        width = meta['width'] ?? 0;
+        height = meta['height'] ?? 0;
+        thumb = meta['thumbnail'];
+        warning = meta['warning'];
+      }
+
+      final item = DocumentToolItem(
+        id: 'aadhaar_${slot == 0 ? "front" : "back"}_${DateTime.now().millisecondsSinceEpoch}',
+        name: '${slot == 0 ? "Aadhaar Front" : "Aadhaar Back"} (${file.name})',
+        fileSize: imageBytes.length,
+        mimeType: isPdf ? 'image/png' : 'image/$ext',
+        originalBytes: imageBytes,
+        thumbnailBytes: thumb,
+        width: width,
+        height: height,
+        qualityWarning: warning,
+      );
+
+      setState(() {
+        if (slot == 0) {
+          _aadhaarFrontItem = item;
+          _aadhaarActiveSlot = 0;
+        } else {
+          _aadhaarBackItem = item;
+          _aadhaarActiveSlot = 1;
+        }
+        _statusMessage = null;
+      });
+
+      _showSnack('${slot == 0 ? "Front" : "Back"} side uploaded successfully!');
+      _triggerPdfRegeneration();
+    } catch (e) {
+      setState(() {
+        _statusMessage = null;
+        _errorMessage = 'Error loading Aadhaar file: $e';
+      });
+    }
+  }
+
+  void _removeAadhaarSlot(int slot) {
+    setState(() {
+      if (slot == 0) {
+        _aadhaarFrontItem = null;
+      } else {
+        _aadhaarBackItem = null;
+      }
+    });
+    _showSnack('${slot == 0 ? "Front" : "Back"} side removed.');
+    _triggerPdfRegeneration();
+  }
+
+  void _resetAadhaarSlotToOriginal(int slot) {
+    final item = slot == 0 ? _aadhaarFrontItem : _aadhaarBackItem;
+    if (item == null) return;
+    setState(() {
+      item.settings = const DocumentEnhanceSettings();
+      item.processedBytes = null;
+      final meta = DocumentImageProcessor.analyzeImage(item.originalBytes);
+      item.thumbnailBytes = meta['thumbnail'];
+      item.width = meta['width'] ?? item.width;
+      item.height = meta['height'] ?? item.height;
+      item.status = DocumentProcessingStatus.idle;
+    });
+    _showSnack('${slot == 0 ? "Front" : "Back"} reset to original.');
+    _triggerPdfRegeneration();
+  }
+
+  Future<void> _applyEnhancementToAadhaarSlot({
+    required int slot,
+    required DocumentEnhanceSettings settings,
+    bool autoRegenPdf = true,
+  }) async {
+    final item = slot == 0 ? _aadhaarFrontItem : _aadhaarBackItem;
+    if (item == null) return;
+
+    setState(() {
+      item.status = DocumentProcessingStatus.processing;
+      _isProcessingImage = true;
+    });
+
+    try {
+      final enhanced = await DocumentImageProcessor.enhanceDocument(
+        originalBytes: item.originalBytes,
+        settings: settings,
+      );
+      final meta = DocumentImageProcessor.analyzeImage(enhanced);
+
+      setState(() {
+        item.settings = settings;
+        item.processedBytes = enhanced;
+        item.thumbnailBytes = meta['thumbnail'];
+        item.width = meta['width'] ?? item.width;
+        item.height = meta['height'] ?? item.height;
+        item.status = DocumentProcessingStatus.done;
+        _isProcessingImage = false;
+      });
+
+      if (autoRegenPdf) {
+        _triggerPdfRegeneration();
+      }
+    } catch (e) {
+      setState(() {
+        item.status = DocumentProcessingStatus.error;
+        item.errorMessage = e.toString();
+        _isProcessingImage = false;
+      });
+      _showSnack('Enhancement failed: $e', isError: true);
+    }
+  }
+
+  Future<void> _applyAadhaarSettingsToBoth(DocumentEnhanceSettings settings) async {
+    if (_aadhaarFrontItem != null) {
+      await _applyEnhancementToAadhaarSlot(slot: 0, settings: settings, autoRegenPdf: false);
+    }
+    if (_aadhaarBackItem != null) {
+      await _applyEnhancementToAadhaarSlot(slot: 1, settings: settings, autoRegenPdf: false);
+    }
+    _showSnack('Applied enhancement settings to both Front & Back.');
+    _triggerPdfRegeneration();
   }
 
   void _moveItem(int index, int delta) {
@@ -266,6 +478,10 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
   }
 
   void _resetActiveItem() {
+    if (_documentMode == DocumentMode.aadhaarFrontBack) {
+      _resetAadhaarSlotToOriginal(_aadhaarActiveSlot);
+      return;
+    }
     final item = _activeItem;
     if (item == null) return;
     setState(() {
@@ -278,16 +494,59 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
   }
 
   void _rotateActiveItem(int deltaAngle) {
+    if (_documentMode == DocumentMode.aadhaarFrontBack) {
+      final item = _activeAadhaarItem;
+      if (item == null) return;
+      final newAngle = (item.settings.rotationAngle + deltaAngle) % 360;
+      final updated = item.settings.copyWith(rotationAngle: newAngle >= 0 ? newAngle : newAngle + 360);
+      _applyEnhancementToAadhaarSlot(slot: _aadhaarActiveSlot, settings: updated);
+      return;
+    }
     final item = _activeItem;
     if (item == null) return;
     final newAngle = (item.settings.rotationAngle + deltaAngle) % 360;
-    final updated = item.settings.copyWith(rotationAngle: newAngle);
+    final updated = item.settings.copyWith(rotationAngle: newAngle >= 0 ? newAngle : newAngle + 360);
     _applyEnhancementToItem(index: _activeItemIndex, settings: updated);
   }
 
   // ── PDF Generation ────────────────────────────────────────────────────────────
 
   Future<void> _triggerPdfRegeneration() async {
+    if (_documentMode == DocumentMode.aadhaarFrontBack) {
+      if (_aadhaarFrontItem == null && _aadhaarBackItem == null) {
+        setState(() {
+          _generatedPdfBytes = null;
+          _isGeneratingPdf = false;
+        });
+        return;
+      }
+
+      setState(() => _isGeneratingPdf = true);
+
+      try {
+        final pdfBytes = await DocumentA4PdfService.generateAadhaarA4Pdf(
+          frontItem: _aadhaarFrontItem,
+          backItem: _aadhaarBackItem,
+          settings: _aadhaarSettings,
+        );
+
+        if (mounted) {
+          setState(() {
+            _generatedPdfBytes = pdfBytes;
+            _isGeneratingPdf = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isGeneratingPdf = false;
+            _errorMessage = 'Aadhaar PDF Generation error: $e';
+          });
+        }
+      }
+      return;
+    }
+
     final selected = _items.where((it) => it.isSelected).toList();
     if (selected.isEmpty) {
       setState(() => _generatedPdfBytes = null);
@@ -352,7 +611,9 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
       context: context,
       builder: (_) => SaveDocToCustomerDialog(
         pdfBytes: _generatedPdfBytes!,
-        defaultDocName: _activeItem?.name.replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '') ?? 'Enhanced_Document',
+        defaultDocName: _documentMode == DocumentMode.aadhaarFrontBack
+            ? 'Aadhaar_Card_Front_Back'
+            : (_activeItem?.name.replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '') ?? 'Enhanced_Document'),
       ),
     ).then((saved) {
       if (saved == true && mounted) {
@@ -388,7 +649,11 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
     );
 
     if (result != null) {
-      _applyEnhancementToItem(index: _activeItemIndex, settings: result);
+      if (_documentMode == DocumentMode.aadhaarFrontBack) {
+        _applyEnhancementToAadhaarSlot(slot: _aadhaarActiveSlot, settings: result);
+      } else {
+        _applyEnhancementToItem(index: _activeItemIndex, settings: result);
+      }
     }
   }
 
@@ -429,7 +694,7 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
           ],
         ),
         actions: [
-          if (_items.isNotEmpty) ...[
+          if (_hasAnyDocuments) ...[
             TextButton.icon(
               icon: const Icon(Icons.clear_all, size: 18),
               label: const Text('Clear All'),
@@ -479,7 +744,7 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
               children: [
                 _buildSectionAUpload(cs),
                 const SizedBox(height: 16),
-                if (_items.isNotEmpty) ...[
+                if (_hasAnyDocuments) ...[
                   _buildSectionBClarityEnhancement(cs),
                   const SizedBox(height: 16),
                   _buildSectionCA4Settings(cs),
@@ -515,14 +780,14 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
             children: [
               _buildSectionAUpload(cs),
               const SizedBox(height: 16),
-              if (_items.isNotEmpty) _buildPrinterTipBanner(cs),
+              if (_hasAnyDocuments) _buildPrinterTipBanner(cs),
             ],
           ),
         ),
         // Tab 2: Enhance & A4
         SingleChildScrollView(
           padding: const EdgeInsets.all(16),
-          child: _items.isEmpty
+          child: !_hasAnyDocuments
               ? _buildEmptyUploadPrompt(cs)
               : Column(
                   children: [
@@ -535,7 +800,7 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
         // Tab 3: Preview & Print
         Padding(
           padding: const EdgeInsets.all(16),
-          child: _items.isEmpty ? _buildEmptyUploadPrompt(cs) : _buildSectionEPreviewAndExport(cs),
+          child: !_hasAnyDocuments ? _buildEmptyUploadPrompt(cs) : _buildSectionEPreviewAndExport(cs),
         ),
       ],
     );
@@ -555,6 +820,9 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // 1. Document Mode Selector (General vs Aadhaar Front & Back)
+            _buildDocumentModeSelector(cs),
+
             if (_errorMessage != null) ...[
               Container(
                 padding: const EdgeInsets.all(10),
@@ -580,135 +848,531 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
               ),
               const SizedBox(height: 12),
             ],
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: cs.primaryContainer,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(Icons.file_upload_outlined, color: cs.primary, size: 20),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'Section A: Upload Documents',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                ),
-                if (_items.isNotEmpty)
-                  Text(
-                    '${_items.length} items',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: cs.primary),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
 
-            // Drop zone area
-            InkWell(
-              onTap: _pickFiles,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: cs.primaryContainer.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: cs.primary.withValues(alpha: 0.5),
-                    style: BorderStyle.solid,
-                    width: 1.5,
+            if (_documentMode == DocumentMode.aadhaarFrontBack) ...[
+              _buildAadhaarUploadPanels(cs),
+            ] else ...[
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: cs.primaryContainer,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(Icons.file_upload_outlined, color: cs.primary, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Section A: Upload Documents',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                  ),
+                  if (_items.isNotEmpty)
+                    Text(
+                      '${_items.length} items',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: cs.primary),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Drop zone area
+              InkWell(
+                onTap: _pickFiles,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: cs.primary.withValues(alpha: 0.5),
+                      style: BorderStyle.solid,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(Icons.cloud_upload_rounded, color: cs.primary, size: 40),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Drag & drop WhatsApp photos or PDF files here',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Supports JPG, PNG, WEBP, and multi-page PDF documents',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.folder_open, size: 16),
+                        label: const Text('Browse Files / Photos'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: cs.primary,
+                          foregroundColor: Colors.white,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: _pickFiles,
+                      ),
+                    ],
                   ),
                 ),
-                child: Column(
+              ),
+
+              if (_statusMessage != null) ...[
+                const SizedBox(height: 12),
+                Row(
                   children: [
-                    Icon(Icons.cloud_upload_rounded, color: cs.primary, size: 40),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Drag & drop WhatsApp photos or PDF files here',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Supports JPG, PNG, WEBP, and multi-page PDF documents',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.folder_open, size: 16),
-                      label: const Text('Browse Files / Photos'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: cs.primary,
-                        foregroundColor: Colors.white,
-                        visualDensity: VisualDensity.compact,
+                    const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _statusMessage!,
+                        style: TextStyle(fontSize: 12, color: cs.primary, fontWeight: FontWeight.w500),
                       ),
-                      onPressed: _pickFiles,
+                    ),
+                  ],
+                ),
+              ],
+
+              if (_items.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Document Queue:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                    Row(
+                      children: [
+                        TextButton(
+                          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                          onPressed: () {
+                            setState(() {
+                              for (final it in _items) {
+                                it.isSelected = true;
+                              }
+                            });
+                            _triggerPdfRegeneration();
+                          },
+                          child: const Text('Select All', style: TextStyle(fontSize: 11)),
+                        ),
+                        TextButton(
+                          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                          onPressed: () {
+                            setState(() {
+                              for (final it in _items) {
+                                it.isSelected = false;
+                              }
+                            });
+                            _triggerPdfRegeneration();
+                          },
+                          child: const Text('Deselect All', style: TextStyle(fontSize: 11)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _buildDocumentList(cs),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDocumentModeSelector(ColorScheme cs) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                if (_documentMode != DocumentMode.general) {
+                  setState(() => _documentMode = DocumentMode.general);
+                  _triggerPdfRegeneration();
+                }
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: _documentMode == DocumentMode.general ? cs.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: _documentMode == DocumentMode.general
+                      ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 1))]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.description_outlined,
+                      size: 16,
+                      color: _documentMode == DocumentMode.general ? Colors.white : cs.onSurface,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'General Document',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: _documentMode == DocumentMode.general ? Colors.white : cs.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                if (_documentMode != DocumentMode.aadhaarFrontBack) {
+                  setState(() => _documentMode = DocumentMode.aadhaarFrontBack);
+                  _triggerPdfRegeneration();
+                }
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: _documentMode == DocumentMode.aadhaarFrontBack ? cs.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: _documentMode == DocumentMode.aadhaarFrontBack
+                      ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 1))]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.badge_outlined,
+                      size: 16,
+                      color: _documentMode == DocumentMode.aadhaarFrontBack ? Colors.white : cs.onSurface,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'Aadhaar Card — Front & Back',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: _documentMode == DocumentMode.aadhaarFrontBack ? Colors.white : cs.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-            if (_statusMessage != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _statusMessage!,
-                      style: TextStyle(fontSize: 12, color: cs.primary, fontWeight: FontWeight.w500),
+  Widget _buildAadhaarUploadPanels(ColorScheme cs) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue.shade800, size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Upload Aadhaar Front & Back separately. Both will automatically be centered on 1 A4 page with optimal card dimensions.',
+                  style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildAadhaarCardSlot(cs, 0),
+        const SizedBox(height: 12),
+        _buildAadhaarCardSlot(cs, 1),
+      ],
+    );
+  }
+
+  Widget _buildAadhaarCardSlot(ColorScheme cs, int slot) {
+    final isFront = slot == 0;
+    final item = isFront ? _aadhaarFrontItem : _aadhaarBackItem;
+    final isSelected = _aadhaarActiveSlot == slot;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isSelected
+            ? cs.primaryContainer.withValues(alpha: 0.25)
+            : cs.surfaceContainerHighest.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isSelected ? cs.primary : Colors.grey.shade300,
+          width: isSelected ? 2.0 : 1.0,
+        ),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header Row
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isFront ? Colors.teal.shade50 : Colors.indigo.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  isFront ? Icons.badge : Icons.qr_code_2,
+                  size: 18,
+                  color: isFront ? Colors.teal.shade700 : Colors.indigo.shade700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isFront
+                          ? 'Aadhaar Front Side (समोरील बाजू)'
+                          : 'Aadhaar Back Side (मागील बाजू)',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    Text(
+                      isFront
+                          ? 'Photo, Name, Aadhaar Number, DOB, Gender'
+                          : 'Address, Father/Husband Name, QR Code',
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+              if (item != null)
+                TextButton(
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: isSelected ? cs.primary : Colors.grey.shade700,
+                  ),
+                  onPressed: () => setState(() => _aadhaarActiveSlot = slot),
+                  child: Text(
+                    isSelected ? '● Editing' : 'Select to Edit',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
-                ],
-              ),
+                ),
             ],
+          ),
+          const SizedBox(height: 10),
 
-            if (_items.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Document Queue:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
-                  Row(
-                    children: [
-                      TextButton(
-                        style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                        onPressed: () {
-                          setState(() {
-                            for (final it in _items) {
-                              it.isSelected = true;
-                            }
-                          });
-                          _triggerPdfRegeneration();
-                        },
-                        child: const Text('Select All', style: TextStyle(fontSize: 11)),
-                      ),
-                      TextButton(
-                        style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                        onPressed: () {
-                          setState(() {
-                            for (final it in _items) {
-                              it.isSelected = false;
-                            }
-                          });
-                          _triggerPdfRegeneration();
-                        },
-                        child: const Text('Deselect All', style: TextStyle(fontSize: 11)),
-                      ),
-                    ],
-                  ),
-                ],
+          // Slot Body
+          if (item == null)
+            InkWell(
+              onTap: () => _pickAadhaarSlot(slot),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.add_photo_alternate_outlined, size: 32, color: cs.primary),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Click to Upload ${isFront ? "Front" : "Back"} Side',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: cs.primary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Supports JPG, PNG, WEBP, or PDF',
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              _buildDocumentList(cs),
-            ],
+            )
+          else ...[
+            // Thumbnail & Info Row
+            InkWell(
+              onTap: () => setState(() => _aadhaarActiveSlot = slot),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        width: 72,
+                        height: 52,
+                        color: Colors.grey.shade100,
+                        child: item.displayBytes.isNotEmpty
+                            ? Image.memory(item.displayBytes, fit: BoxFit.cover)
+                            : const Icon(Icons.image, size: 24, color: Colors.grey),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${item.fileSizeFormatted} • ${item.width}x${item.height} px',
+                            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                          ),
+                          if (item.qualityWarning != null) ...[
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.shade50,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.amber.shade300),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, size: 12, color: Colors.amber.shade900),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    item.qualityWarning!,
+                                    style: TextStyle(fontSize: 9.5, color: Colors.amber.shade900, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Quick Toolbar for slot
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.crop, size: 14),
+                  label: const Text('Crop (कापा)', style: TextStyle(fontSize: 11)),
+                  style: ElevatedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: cs.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  onPressed: () {
+                    setState(() => _aadhaarActiveSlot = slot);
+                    _openPerspectiveCropDialog();
+                  },
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.rotate_right, size: 14),
+                  label: const Text('Rotate 90°', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  onPressed: () {
+                    setState(() => _aadhaarActiveSlot = slot);
+                    _rotateActiveItem(90);
+                  },
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.bolt, size: 14, color: Colors.blue),
+                  label: const Text('Magic Enhance', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  onPressed: () => _applyEnhancementToAadhaarSlot(
+                    slot: slot,
+                    settings: DocumentEnhanceSettings.presetMedium(),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.compare_arrows, size: 14),
+                  label: const Text('Compare', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  onPressed: () {
+                    setState(() => _aadhaarActiveSlot = slot);
+                    _openComparisonDialog();
+                  },
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.refresh, size: 14),
+                  label: const Text('Replace', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  onPressed: () => _pickAadhaarSlot(slot),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                  tooltip: 'Remove',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => _removeAadhaarSlot(slot),
+                ),
+              ],
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -857,6 +1521,14 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
 
     final s = item.settings;
 
+    void apply(DocumentEnhanceSettings newSettings) {
+      if (_documentMode == DocumentMode.aadhaarFrontBack) {
+        _applyEnhancementToAadhaarSlot(slot: _aadhaarActiveSlot, settings: newSettings);
+      } else {
+        _applyEnhancementToItem(index: _activeItemIndex, settings: newSettings);
+      }
+    }
+
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -902,6 +1574,32 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
             ),
             const SizedBox(height: 12),
 
+            // Aadhaar Active Slot Selector Switch
+            if (_documentMode == DocumentMode.aadhaarFrontBack) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: ChoiceChip(
+                      avatar: const Icon(Icons.badge, size: 14),
+                      label: Text('Front Side ${_aadhaarFrontItem != null ? "✓" : "(Empty)"}'),
+                      selected: _aadhaarActiveSlot == 0,
+                      onSelected: (_) => setState(() => _aadhaarActiveSlot = 0),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ChoiceChip(
+                      avatar: const Icon(Icons.qr_code_2, size: 14),
+                      label: Text('Back Side ${_aadhaarBackItem != null ? "✓" : "(Empty)"}'),
+                      selected: _aadhaarActiveSlot == 1,
+                      onSelected: (_) => setState(() => _aadhaarActiveSlot = 1),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+
             // Presets
             const Text('Clarity Presets:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
             const SizedBox(height: 6),
@@ -917,26 +1615,17 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                 ActionChip(
                   avatar: const Icon(Icons.bolt, size: 14, color: Colors.blue),
                   label: const Text('Quick Fix (Low)', style: TextStyle(fontSize: 11)),
-                  onPressed: () => _applyEnhancementToItem(
-                    index: _activeItemIndex,
-                    settings: DocumentEnhanceSettings.presetLow(),
-                  ),
+                  onPressed: () => apply(DocumentEnhanceSettings.presetLow()),
                 ),
                 ActionChip(
                   avatar: const Icon(Icons.check_circle_outline, size: 14, color: Colors.teal),
                   label: const Text('Balanced (Medium)', style: TextStyle(fontSize: 11)),
-                  onPressed: () => _applyEnhancementToItem(
-                    index: _activeItemIndex,
-                    settings: DocumentEnhanceSettings.presetMedium(),
-                  ),
+                  onPressed: () => apply(DocumentEnhanceSettings.presetMedium()),
                 ),
                 ActionChip(
                   avatar: const Icon(Icons.document_scanner, size: 14, color: Colors.deepOrange),
                   label: const Text('Crisp Document (High)', style: TextStyle(fontSize: 11)),
-                  onPressed: () => _applyEnhancementToItem(
-                    index: _activeItemIndex,
-                    settings: DocumentEnhanceSettings.presetHigh(),
-                  ),
+                  onPressed: () => apply(DocumentEnhanceSettings.presetHigh()),
                 ),
               ],
             ),
@@ -949,12 +1638,7 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
               title: const Text('Background Cleanup & Shadow Removal', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               subtitle: const Text('Flattens camera phone lighting and removes dark corner shadows', style: TextStyle(fontSize: 10.5)),
               value: s.backgroundCleanup,
-              onChanged: (val) {
-                _applyEnhancementToItem(
-                  index: _activeItemIndex,
-                  settings: s.copyWith(backgroundCleanup: val),
-                );
-              },
+              onChanged: (val) => apply(s.copyWith(backgroundCleanup: val)),
             ),
             SwitchListTile(
               dense: true,
@@ -962,12 +1646,7 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
               title: const Text('Crisp B&W Document Mode (Adaptive Threshold)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               subtitle: const Text('Converts paper to clean white and text/stamps to crisp black ink', style: TextStyle(fontSize: 10.5)),
               value: s.blackAndWhite,
-              onChanged: (val) {
-                _applyEnhancementToItem(
-                  index: _activeItemIndex,
-                  settings: s.copyWith(blackAndWhite: val),
-                );
-              },
+              onChanged: (val) => apply(s.copyWith(blackAndWhite: val)),
             ),
             SwitchListTile(
               dense: true,
@@ -975,12 +1654,7 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
               title: const Text('Auto Contrast & Levels', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               subtitle: const Text('Dynamically stretches faded text and whitens paper', style: TextStyle(fontSize: 10.5)),
               value: s.autoLevels,
-              onChanged: (val) {
-                _applyEnhancementToItem(
-                  index: _activeItemIndex,
-                  settings: s.copyWith(autoLevels: val),
-                );
-              },
+              onChanged: (val) => apply(s.copyWith(autoLevels: val)),
             ),
             SwitchListTile(
               dense: true,
@@ -988,12 +1662,7 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
               title: const Text('Sharpen Text & Borders', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               subtitle: const Text('Brings back crisp pen strokes and character edges', style: TextStyle(fontSize: 10.5)),
               value: s.sharpen,
-              onChanged: (val) {
-                _applyEnhancementToItem(
-                  index: _activeItemIndex,
-                  settings: s.copyWith(sharpen: val),
-                );
-              },
+              onChanged: (val) => apply(s.copyWith(sharpen: val)),
             ),
             SwitchListTile(
               dense: true,
@@ -1001,12 +1670,7 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
               title: const Text('Denoise Image', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               subtitle: const Text('Reduces camera grain and JPEG compression artifacts', style: TextStyle(fontSize: 10.5)),
               value: s.denoise,
-              onChanged: (val) {
-                _applyEnhancementToItem(
-                  index: _activeItemIndex,
-                  settings: s.copyWith(denoise: val),
-                );
-              },
+              onChanged: (val) => apply(s.copyWith(denoise: val)),
             ),
             SwitchListTile(
               dense: true,
@@ -1014,12 +1678,7 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
               title: const Text('Grayscale Conversion', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               subtitle: const Text('Eliminates background color casts', style: TextStyle(fontSize: 10.5)),
               value: s.grayscale,
-              onChanged: (val) {
-                _applyEnhancementToItem(
-                  index: _activeItemIndex,
-                  settings: s.copyWith(grayscale: val),
-                );
-              },
+              onChanged: (val) => apply(s.copyWith(grayscale: val)),
             ),
 
             const Divider(height: 16),
@@ -1039,12 +1698,7 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                     min: -0.5,
                     max: 0.5,
                     divisions: 20,
-                    onChanged: (v) {
-                      _applyEnhancementToItem(
-                        index: _activeItemIndex,
-                        settings: s.copyWith(brightness: v),
-                      );
-                    },
+                    onChanged: (v) => apply(s.copyWith(brightness: v)),
                   ),
                 ),
               ],
@@ -1064,12 +1718,7 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                     min: 0.5,
                     max: 2.0,
                     divisions: 15,
-                    onChanged: (v) {
-                      _applyEnhancementToItem(
-                        index: _activeItemIndex,
-                        settings: s.copyWith(contrast: v),
-                      );
-                    },
+                    onChanged: (v) => apply(s.copyWith(contrast: v)),
                   ),
                 ),
               ],
@@ -1096,22 +1745,12 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                 OutlinedButton.icon(
                   icon: const Icon(Icons.crop_square, size: 16),
                   label: const Text('Trim 5%', style: TextStyle(fontSize: 11)),
-                  onPressed: () {
-                    _applyEnhancementToItem(
-                      index: _activeItemIndex,
-                      settings: s.copyWith(cropLeft: 0.05, cropTop: 0.05, cropRight: 0.05, cropBottom: 0.05),
-                    );
-                  },
+                  onPressed: () => apply(s.copyWith(cropLeft: 0.05, cropTop: 0.05, cropRight: 0.05, cropBottom: 0.05)),
                 ),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.crop_square, size: 16),
                   label: const Text('Trim 10%', style: TextStyle(fontSize: 11)),
-                  onPressed: () {
-                    _applyEnhancementToItem(
-                      index: _activeItemIndex,
-                      settings: s.copyWith(cropLeft: 0.10, cropTop: 0.10, cropRight: 0.10, cropBottom: 0.10),
-                    );
-                  },
+                  onPressed: () => apply(s.copyWith(cropLeft: 0.10, cropTop: 0.10, cropRight: 0.10, cropBottom: 0.10)),
                 ),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.rotate_left, size: 16),
@@ -1134,13 +1773,21 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
             const SizedBox(height: 12),
             ElevatedButton.icon(
               icon: const Icon(Icons.copy_all, size: 16),
-              label: const Text('Apply Current Settings to All Selected Files'),
+              label: Text(_documentMode == DocumentMode.aadhaarFrontBack
+                  ? 'Apply Current Settings to Both Front & Back'
+                  : 'Apply Current Settings to All Selected Files'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: cs.secondaryContainer,
                 foregroundColor: cs.onSecondaryContainer,
                 visualDensity: VisualDensity.compact,
               ),
-              onPressed: () => _applyToAllSelected(s),
+              onPressed: () {
+                if (_documentMode == DocumentMode.aadhaarFrontBack) {
+                  _applyAadhaarSettingsToBoth(s);
+                } else {
+                  _applyToAllSelected(s);
+                }
+              },
             ),
           ],
         ),
@@ -1173,96 +1820,214 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                   child: Icon(Icons.settings_outlined, color: cs.primary, size: 20),
                 ),
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Section C: A4 Page Formatting Settings',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    _documentMode == DocumentMode.aadhaarFrontBack
+                        ? 'Section C: Aadhaar A4 Layout & Card Sizing'
+                        : 'Section C: A4 Page Formatting Settings',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 14),
 
-            // Orientation
-            const Text('Orientation:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
-            const SizedBox(height: 6),
-            SegmentedButton<A4Orientation>(
-              segments: const [
-                ButtonSegment(value: A4Orientation.auto, label: Text('Auto Detect', style: TextStyle(fontSize: 11))),
-                ButtonSegment(value: A4Orientation.portrait, label: Text('Portrait (210×297)', style: TextStyle(fontSize: 11))),
-                ButtonSegment(value: A4Orientation.landscape, label: Text('Landscape (297×210)', style: TextStyle(fontSize: 11))),
-              ],
-              selected: {_a4Settings.orientation},
-              onSelectionChanged: (set) {
-                setState(() => _a4Settings = _a4Settings.copyWith(orientation: set.first));
-                _triggerPdfRegeneration();
-              },
-            ),
-            const SizedBox(height: 12),
+            if (_documentMode == DocumentMode.aadhaarFrontBack)
+              _buildAadhaarA4Settings(cs)
+            else ...[
+              // Orientation
+              const Text('Orientation:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+              const SizedBox(height: 6),
+              SegmentedButton<A4Orientation>(
+                segments: const [
+                  ButtonSegment(value: A4Orientation.auto, label: Text('Auto Detect', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(value: A4Orientation.portrait, label: Text('Portrait (210×297)', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(value: A4Orientation.landscape, label: Text('Landscape (297×210)', style: TextStyle(fontSize: 11))),
+                ],
+                selected: {_a4Settings.orientation},
+                onSelectionChanged: (set) {
+                  setState(() => _a4Settings = _a4Settings.copyWith(orientation: set.first));
+                  _triggerPdfRegeneration();
+                },
+              ),
+              const SizedBox(height: 12),
 
-            // Layout
-            const Text('Multi-Photo Layout:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
-            const SizedBox(height: 6),
-            SegmentedButton<A4Layout>(
-              segments: const [
-                ButtonSegment(value: A4Layout.onePerPage, label: Text('1 Photo / Page', style: TextStyle(fontSize: 11))),
-                ButtonSegment(value: A4Layout.twoPerPage, label: Text('2 Photos / Page', style: TextStyle(fontSize: 11))),
-                ButtonSegment(value: A4Layout.fourPerPage, label: Text('4 Photos / Page', style: TextStyle(fontSize: 11))),
-              ],
-              selected: {_a4Settings.layout},
-              onSelectionChanged: (set) {
-                setState(() => _a4Settings = _a4Settings.copyWith(layout: set.first));
-                _triggerPdfRegeneration();
-              },
-            ),
-            const SizedBox(height: 12),
+              // Layout
+              const Text('Multi-Photo Layout:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+              const SizedBox(height: 6),
+              SegmentedButton<A4Layout>(
+                segments: const [
+                  ButtonSegment(value: A4Layout.onePerPage, label: Text('1 Photo / Page', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(value: A4Layout.twoPerPage, label: Text('2 Photos / Page', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(value: A4Layout.fourPerPage, label: Text('4 Photos / Page', style: TextStyle(fontSize: 11))),
+                ],
+                selected: {_a4Settings.layout},
+                onSelectionChanged: (set) {
+                  setState(() => _a4Settings = _a4Settings.copyWith(layout: set.first));
+                  _triggerPdfRegeneration();
+                },
+              ),
+              const SizedBox(height: 12),
 
-            // Margins
-            const Text('Margins:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
-            const SizedBox(height: 6),
-            SegmentedButton<A4MarginPreset>(
-              segments: const [
-                ButtonSegment(value: A4MarginPreset.none, label: Text('None (0mm)', style: TextStyle(fontSize: 11))),
-                ButtonSegment(value: A4MarginPreset.small, label: Text('Small (5mm)', style: TextStyle(fontSize: 11))),
-                ButtonSegment(value: A4MarginPreset.normal, label: Text('Normal (10mm)', style: TextStyle(fontSize: 11))),
-              ],
-              selected: {_a4Settings.marginPreset},
-              onSelectionChanged: (set) {
-                setState(() => _a4Settings = _a4Settings.copyWith(marginPreset: set.first));
-                _triggerPdfRegeneration();
-              },
-            ),
-            const SizedBox(height: 12),
+              // Margins
+              const Text('Margins:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+              const SizedBox(height: 6),
+              SegmentedButton<A4MarginPreset>(
+                segments: const [
+                  ButtonSegment(value: A4MarginPreset.none, label: Text('None (0mm)', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(value: A4MarginPreset.small, label: Text('Small (5mm)', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(value: A4MarginPreset.normal, label: Text('Normal (10mm)', style: TextStyle(fontSize: 11))),
+                ],
+                selected: {_a4Settings.marginPreset},
+                onSelectionChanged: (set) {
+                  setState(() => _a4Settings = _a4Settings.copyWith(marginPreset: set.first));
+                  _triggerPdfRegeneration();
+                },
+              ),
+              const SizedBox(height: 12),
 
-            // Fit Mode
-            const Text('Fit Mode:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
-            const SizedBox(height: 6),
-            SegmentedButton<A4FitMode>(
-              segments: const [
-                ButtonSegment(value: A4FitMode.fit, label: Text('Fit (Preserve Ratio)', style: TextStyle(fontSize: 11))),
-                ButtonSegment(value: A4FitMode.fill, label: Text('Fill Page', style: TextStyle(fontSize: 11))),
-                ButtonSegment(value: A4FitMode.actual, label: Text('Actual Size', style: TextStyle(fontSize: 11))),
-              ],
-              selected: {_a4Settings.fitMode},
-              onSelectionChanged: (set) {
-                setState(() => _a4Settings = _a4Settings.copyWith(fitMode: set.first));
-                _triggerPdfRegeneration();
-              },
-            ),
+              // Fit Mode
+              const Text('Fit Mode:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+              const SizedBox(height: 6),
+              SegmentedButton<A4FitMode>(
+                segments: const [
+                  ButtonSegment(value: A4FitMode.fit, label: Text('Fit (Preserve Ratio)', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(value: A4FitMode.fill, label: Text('Fill Page', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(value: A4FitMode.actual, label: Text('Actual Size', style: TextStyle(fontSize: 11))),
+                ],
+                selected: {_a4Settings.fitMode},
+                onSelectionChanged: (set) {
+                  setState(() => _a4Settings = _a4Settings.copyWith(fitMode: set.first));
+                  _triggerPdfRegeneration();
+                },
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
+  Widget _buildAadhaarA4Settings(ColorScheme cs) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Card Scale / Size
+        const Text('Aadhaar Card Print Size:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+        const SizedBox(height: 6),
+        SegmentedButton<AadhaarCardScale>(
+          segments: const [
+            ButtonSegment(
+              value: AadhaarCardScale.actualIdSize,
+              label: Text('Pocket ID (85x54mm)', style: TextStyle(fontSize: 10.5)),
+            ),
+            ButtonSegment(
+              value: AadhaarCardScale.mediumScale,
+              label: Text('Medium (~115mm)', style: TextStyle(fontSize: 10.5)),
+            ),
+            ButtonSegment(
+              value: AadhaarCardScale.largeScale,
+              label: Text('Large (~140mm)', style: TextStyle(fontSize: 10.5)),
+            ),
+            ButtonSegment(
+              value: AadhaarCardScale.fitWidth,
+              label: Text('Full Width', style: TextStyle(fontSize: 10.5)),
+            ),
+          ],
+          selected: {_aadhaarSettings.scale},
+          onSelectionChanged: (set) {
+            setState(() => _aadhaarSettings = _aadhaarSettings.copyWith(scale: set.first));
+            _triggerPdfRegeneration();
+          },
+        ),
+        const SizedBox(height: 12),
+
+        // Spacing Between Front and Back
+        const Text('Vertical Spacing Between Cards:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+        const SizedBox(height: 6),
+        SegmentedButton<AadhaarSpacing>(
+          segments: const [
+            ButtonSegment(value: AadhaarSpacing.compact, label: Text('Compact (10mm)', style: TextStyle(fontSize: 11))),
+            ButtonSegment(value: AadhaarSpacing.normal, label: Text('Normal (20mm)', style: TextStyle(fontSize: 11))),
+            ButtonSegment(value: AadhaarSpacing.spacious, label: Text('Spacious (35mm)', style: TextStyle(fontSize: 11))),
+          ],
+          selected: {_aadhaarSettings.spacing},
+          onSelectionChanged: (set) {
+            setState(() => _aadhaarSettings = _aadhaarSettings.copyWith(spacing: set.first));
+            _triggerPdfRegeneration();
+          },
+        ),
+        const SizedBox(height: 12),
+
+        // Margins
+        const Text('A4 Page Margins:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+        const SizedBox(height: 6),
+        SegmentedButton<A4MarginPreset>(
+          segments: const [
+            ButtonSegment(value: A4MarginPreset.none, label: Text('None (0mm)', style: TextStyle(fontSize: 11))),
+            ButtonSegment(value: A4MarginPreset.small, label: Text('Small (5mm)', style: TextStyle(fontSize: 11))),
+            ButtonSegment(value: A4MarginPreset.normal, label: Text('Normal (10mm)', style: TextStyle(fontSize: 11))),
+          ],
+          selected: {_aadhaarSettings.marginPreset},
+          onSelectionChanged: (set) {
+            setState(() => _aadhaarSettings = _aadhaarSettings.copyWith(marginPreset: set.first));
+            _triggerPdfRegeneration();
+          },
+        ),
+        const SizedBox(height: 12),
+
+        // Dotted Cut Line Switch
+        SwitchListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Dotted Cut Guide (✂️ Cut Here)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          subtitle: const Text('Draws a clean dashed guide between front and back cards for easy scissor cutting', style: TextStyle(fontSize: 10.5)),
+          value: _aadhaarSettings.showCutLine,
+          onChanged: (val) {
+            setState(() => _aadhaarSettings = _aadhaarSettings.copyWith(showCutLine: val));
+            _triggerPdfRegeneration();
+          },
+        ),
+
+        // Header Title Switch
+        SwitchListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Header Title (UIDAI — AADHAAR CARD)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          subtitle: const Text('Include official header title at the top of the A4 page', style: TextStyle(fontSize: 10.5)),
+          value: _aadhaarSettings.showHeader,
+          onChanged: (val) {
+            setState(() => _aadhaarSettings = _aadhaarSettings.copyWith(showHeader: val));
+            _triggerPdfRegeneration();
+          },
+        ),
+
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.refresh, size: 16),
+          label: const Text('Reset Layout to Default', style: TextStyle(fontSize: 11)),
+          onPressed: () {
+            setState(() => _aadhaarSettings = const AadhaarPageSettings());
+            _triggerPdfRegeneration();
+          },
+        ),
+      ],
+    );
+  }
+
   // ── Section E: Preview & Export ───────────────────────────────────────────────
 
   Widget _buildSectionEPreviewAndExport(ColorScheme cs) {
-    final selectedCount = _items.where((it) => it.isSelected).length;
+    final isAadhaar = _documentMode == DocumentMode.aadhaarFrontBack;
+    final selectedCount = isAadhaar
+        ? [if (_aadhaarFrontItem != null) 1, if (_aadhaarBackItem != null) 1].length
+        : _items.where((it) => it.isSelected).length;
 
     // Estimate output pages based on layout
     final int estimatedPages;
-    if (_a4Settings.layout == A4Layout.twoPerPage) {
+    if (isAadhaar) {
+      estimatedPages = 1;
+    } else if (_a4Settings.layout == A4Layout.twoPerPage) {
       estimatedPages = (selectedCount / 2).ceil();
     } else if (_a4Settings.layout == A4Layout.fourPerPage) {
       estimatedPages = (selectedCount / 4).ceil();
@@ -1290,10 +2055,16 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.picture_as_pdf, color: cs.primary, size: 22),
+                  Icon(
+                    isAadhaar ? Icons.badge : Icons.picture_as_pdf,
+                    color: cs.primary,
+                    size: 22,
+                  ),
                   const SizedBox(width: 8),
                   Text(
-                    'Final A4 Output Preview ($selectedCount items • ~$estimatedPages A4 page${estimatedPages == 1 ? '' : 's'})',
+                    isAadhaar
+                        ? 'Aadhaar A4 Output Preview (Front & Back on 1 Page)'
+                        : 'Final A4 Output Preview ($selectedCount items • ~$estimatedPages A4 page${estimatedPages == 1 ? '' : 's'})',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                   const SizedBox(width: 4),
@@ -1372,22 +2143,36 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
       );
     }
 
-    if (_generatedPdfBytes == null || _items.where((it) => it.isSelected).isEmpty) {
+    final bool hasContent = _documentMode == DocumentMode.aadhaarFrontBack
+        ? (_aadhaarFrontItem != null || _aadhaarBackItem != null)
+        : _items.where((it) => it.isSelected).isNotEmpty;
+
+    if (_generatedPdfBytes == null || !hasContent) {
       return Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.picture_as_pdf_outlined, size: 56, color: Colors.grey.shade400),
+              Icon(
+                _documentMode == DocumentMode.aadhaarFrontBack
+                    ? Icons.badge_outlined
+                    : Icons.picture_as_pdf_outlined,
+                size: 56,
+                color: Colors.grey.shade400,
+              ),
               const SizedBox(height: 12),
               Text(
-                'No documents selected for A4 conversion.',
+                _documentMode == DocumentMode.aadhaarFrontBack
+                    ? 'No Aadhaar sides uploaded for A4 conversion.'
+                    : 'No documents selected for A4 conversion.',
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 6),
               Text(
-                'Upload photos or documents on the left and select items to preview.',
+                _documentMode == DocumentMode.aadhaarFrontBack
+                    ? 'Upload Front and/or Back side on the left to generate the A4 sheet.'
+                    : 'Upload photos or documents on the left and select items to preview.',
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
               ),
             ],
@@ -1405,7 +2190,9 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
         canDebug: false,
         allowSharing: true,
         allowPrinting: true,
-        pdfFileName: 'Siya_Document_A4_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        pdfFileName: _documentMode == DocumentMode.aadhaarFrontBack
+            ? 'Aadhaar_Card_Front_Back_${DateTime.now().millisecondsSinceEpoch}.pdf'
+            : 'Siya_Document_A4_${DateTime.now().millisecondsSinceEpoch}.pdf',
       ),
     );
   }

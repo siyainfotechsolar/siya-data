@@ -152,4 +152,39 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Crop Document & Straighten'), findsNothing);
   });
+
+  testWidgets('DocumentEnhancerScreen toggles between General and Aadhaar Card mode', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: DocumentEnhancerScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Initially in General Document mode
+    expect(find.text('General Document'), findsOneWidget);
+    expect(find.text('Aadhaar Card — Front & Back'), findsOneWidget);
+    expect(find.text('Section A: Upload Documents'), findsOneWidget);
+
+    // Switch to Aadhaar Card mode
+    await tester.tap(find.text('Aadhaar Card — Front & Back'));
+    await tester.pumpAndSettle();
+
+    // In Aadhaar Card mode
+    expect(find.textContaining('Aadhaar Front Side'), findsOneWidget);
+    expect(find.textContaining('Aadhaar Back Side'), findsOneWidget);
+    expect(find.text('Click to Upload Front Side'), findsOneWidget);
+    expect(find.text('Click to Upload Back Side'), findsOneWidget);
+
+    // Switch back to General Document mode
+    await tester.tap(find.text('General Document'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Section A: Upload Documents'), findsOneWidget);
+    expect(find.text('Browse Files / Photos'), findsOneWidget);
+  });
 }
