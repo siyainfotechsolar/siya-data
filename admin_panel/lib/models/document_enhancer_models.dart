@@ -27,6 +27,8 @@ class DocumentCropBounds {
   final List<Point2D> corners; // 4 corners: TL, TR, BR, BL
   final double confidence; // 0.0 to 1.0
   final double skewAngle; // Detected tilt/skew angle in degrees (-45.0 to 45.0)
+  final bool hasPerspectiveDistortion; // True if trapezoid/keystone perspective slant detected
+  final bool needsManualAdjustment; // True if confidence is low and user should fine-tune corners
 
   const DocumentCropBounds({
     this.cropLeft = 0.0,
@@ -41,10 +43,13 @@ class DocumentCropBounds {
     ],
     this.confidence = 1.0,
     this.skewAngle = 0.0,
+    this.hasPerspectiveDistortion = false,
+    this.needsManualAdjustment = false,
   });
 
   bool get hasCrop => cropLeft > 0 || cropTop > 0 || cropRight > 0 || cropBottom > 0;
   bool get isTilted => skewAngle.abs() >= 0.75;
+  bool get isTrapezoid => hasPerspectiveDistortion;
 }
 
 /// Enhancement presets / strength levels

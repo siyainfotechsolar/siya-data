@@ -14,11 +14,13 @@ enum CropAspectRatio {
 class DocPerspectiveCropDialog extends StatefulWidget {
   final Uint8List imageBytes;
   final DocumentEnhanceSettings initialSettings;
+  final bool startInPerspectiveMode;
 
   const DocPerspectiveCropDialog({
     super.key,
     required this.imageBytes,
     required this.initialSettings,
+    this.startInPerspectiveMode = false,
   });
 
   @override
@@ -53,7 +55,16 @@ class _DocPerspectiveCropDialogState extends State<DocPerspectiveCropDialog> {
     _corners = widget.initialSettings.perspectiveCorners != null
         ? List.from(widget.initialSettings.perspectiveCorners!)
         : null;
-    _usePerspective = _corners != null && _corners!.length == 4;
+    _usePerspective = widget.startInPerspectiveMode || (_corners != null && _corners!.length == 4);
+
+    if (_usePerspective && (_corners == null || _corners!.length != 4)) {
+      _corners = [
+        Point2D(_cropLeft, _cropTop),
+        Point2D(1.0 - _cropRight, _cropTop),
+        Point2D(1.0 - _cropRight, 1.0 - _cropBottom),
+        Point2D(_cropLeft, 1.0 - _cropBottom),
+      ];
+    }
 
     // Prepare upright image if rotation is present
     _prepareImage();
@@ -82,7 +93,7 @@ class _DocPerspectiveCropDialogState extends State<DocPerspectiveCropDialog> {
     try {
       final bounds = DocumentImageProcessor.detectDocumentBounds(_renderedImageBytes);
       setState(() {
-        if (bounds.isTilted || _usePerspective) {
+        if (bounds.isTilted || bounds.isTrapezoid || _usePerspective) {
           _usePerspective = true;
           _corners = bounds.corners;
         } else {
@@ -94,13 +105,22 @@ class _DocPerspectiveCropDialogState extends State<DocPerspectiveCropDialog> {
         _isAutoDetecting = false;
       });
       if (mounted) {
+        final String message;
+        if (bounds.needsManualAdjustment) {
+          message = 'कागदपत्राचे कोपरे अस्पष्ट आहेत, कृपया कोपरे हाताने जुळवून घ्या (Adjust corners manually).';
+        } else if (bounds.isTrapezoid) {
+          message = 'कोनातून काढलेला फोटो ओळखला! (Perspective quad detected) Click "Apply Crop" to rectify.';
+        } else if (bounds.isTilted) {
+          message = 'वाकडे डॉक्युमेंट ओळखले! (${bounds.skewAngle.abs().toStringAsFixed(1)}° Deskew corners set) Click "Apply Crop" to straighten.';
+        } else if (bounds.hasCrop) {
+          message = 'Document boundaries auto-detected! (L:${(bounds.cropLeft * 100).round()}% T:${(bounds.cropTop * 100).round()}%)';
+        } else {
+          message = 'Document already fills the entire image.';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(bounds.isTilted
-                ? 'वाकडे डॉक्युमेंट ओळखले! (${bounds.skewAngle.abs().toStringAsFixed(1)}° Deskew corners set) Click "Apply Crop" to straighten.'
-                : (bounds.hasCrop
-                    ? 'Document boundaries auto-detected! (L:${(bounds.cropLeft * 100).round()}% T:${(bounds.cropTop * 100).round()}% R:${(bounds.cropRight * 100).round()}% B:${(bounds.cropBottom * 100).round()}%)'
-                    : 'Document already fills the entire image.')),
+            content: Text(message),
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
           ),

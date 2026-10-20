@@ -314,14 +314,33 @@ class DocumentImageProcessor {
       bl = Point2D(cLeft, 1.0 - cBottom);
     }
 
+    bool hasPerspective = false;
+    if (docPointsCount > 100 && trX > tlX && brX > blX) {
+      final topW = trX - tlX;
+      final botW = brX - blX;
+      final leftH = blY - tlY;
+      final rightH = brY - trY;
+
+      final widthDiffRatio = (topW - botW).abs() / math.max(topW, botW);
+      final heightDiffRatio = (leftH - rightH).abs() / math.max(leftH, rightH);
+
+      if (widthDiffRatio >= 0.08 || heightDiffRatio >= 0.08 || detectedSkewAngle.abs() >= 1.5) {
+        hasPerspective = true;
+      }
+    }
+
+    final bool needsManual = contrastDiff < 18.0 || docPointsCount < 80;
+
     return DocumentCropBounds(
       cropLeft: cLeft,
       cropTop: cTop,
       cropRight: cRight,
       cropBottom: cBottom,
       corners: [tl, tr, br, bl],
-      confidence: contrastDiff >= 20.0 ? 0.95 : 0.70,
+      confidence: needsManual ? 0.45 : (contrastDiff >= 20.0 ? 0.95 : 0.70),
       skewAngle: detectedSkewAngle,
+      hasPerspectiveDistortion: hasPerspective,
+      needsManualAdjustment: needsManual,
     );
   }
 
@@ -601,6 +620,7 @@ class DocumentImageProcessor {
   }
 
   /// Perspective Warp: Maps 4 quadrilateral corner points to a rectified rectangle
+  /// Uses Projective Homography Transform with Bilinear Pixel Sampling (OpenCV-compatible)
   static img.Image _applyPerspectiveWarp(img.Image src, List<Point2D> corners) {
     final p0 = corners[0]; // TL
     final p1 = corners[1]; // TR
@@ -616,41 +636,87 @@ class DocumentImageProcessor {
     final x3 = p3.x * src.width;
     final y3 = p3.y * src.height;
 
-    // Estimate output rectangle dimensions
+    // Estimate output rectangle dimensions from Euclidean distances
     final topWidth = math.sqrt(math.pow(x1 - x0, 2) + math.pow(y1 - y0, 2));
     final bottomWidth = math.sqrt(math.pow(x2 - x3, 2) + math.pow(y2 - y3, 2));
     final leftHeight = math.sqrt(math.pow(x3 - x0, 2) + math.pow(y3 - y0, 2));
     final rightHeight = math.sqrt(math.pow(x2 - x1, 2) + math.pow(y2 - y1, 2));
 
-    final outW = math.max(100, math.max(topWidth, bottomWidth).round());
-    final outH = math.max(100, math.max(leftHeight, rightHeight).round());
+    final outW = math.max(100, math.max(topWidth, bottomWidth).round()).clamp(100, src.width * 2);
+    final outH = math.max(100, math.max(leftHeight, rightHeight).round()).clamp(100, src.height * 2);
+
+    // Compute Projective Homography from Unit Square [0, 1]^2 to Quad (x0, y0), (x1, y1), (x2, y2), (x3, y3)
+    final dx1 = x1 - x2;
+    final dx2 = x3 - x2;
+    final sx = x0 - x1 + x2 - x3;
+    final dy1 = y1 - y2;
+    final dy2 = y3 - y2;
+    final sy = y0 - y1 + y2 - y3;
+
+    final den = (dx1 * dy2) - (dx2 * dy1);
+
+    final double g, h, a, b, c, d, e, f;
+    if (den.abs() < 1e-7) {
+      // Affine fallback
+      g = 0.0;
+      h = 0.0;
+      a = x1 - x0;
+      b = x3 - x0;
+      c = x0;
+      d = y1 - y0;
+      e = y3 - y0;
+      f = y0;
+    } else {
+      g = (sx * dy2 - sy * dx2) / den;
+      h = (dx1 * sy - dy1 * sx) / den;
+      a = x1 - x0 + g * x1;
+      b = x3 - x0 + h * x3;
+      c = x0;
+      d = y1 - y0 + g * y1;
+      e = y3 - y0 + h * y3;
+      f = y0;
+    }
 
     final out = img.Image(width: outW, height: outH);
 
-    // Bilinear interpolation warp
+    // Projective Warp with Bilinear Pixel Sampling for crisp text
     for (int y = 0; y < outH; y++) {
       final v = y / outH;
       for (int x = 0; x < outW; x++) {
         final u = x / outW;
 
-        // Bilinear interpolation between the 4 corners:
-        // P(u,v) = (1-u)(1-v)*P0 + u(1-v)*P1 + u*v*P2 + (1-u)*v*P3
-        final srcX = ((1.0 - u) * (1.0 - v) * x0 +
-                u * (1.0 - v) * x1 +
-                u * v * x2 +
-                (1.0 - u) * v * x3)
-            .round()
-            .clamp(0, src.width - 1);
+        double w = g * u + h * v + 1.0;
+        if (w.abs() < 1e-7) w = 1e-7;
 
-        final srcY = ((1.0 - u) * (1.0 - v) * y0 +
-                u * (1.0 - v) * y1 +
-                u * v * y2 +
-                (1.0 - u) * v * y3)
-            .round()
-            .clamp(0, src.height - 1);
+        final srcX = (a * u + b * v + c) / w;
+        final srcY = (d * u + e * v + f) / w;
 
-        final p = src.getPixel(srcX, srcY);
-        out.setPixelRgb(x, y, p.r.toInt(), p.g.toInt(), p.b.toInt());
+        // Bilinear interpolation
+        int xFloor = srcX.floor();
+        int yFloor = srcY.floor();
+        if (xFloor < 0) xFloor = 0;
+        if (yFloor < 0) yFloor = 0;
+        if (xFloor >= src.width - 1) xFloor = math.max(0, src.width - 2);
+        if (yFloor >= src.height - 1) yFloor = math.max(0, src.height - 2);
+
+        final fx = (srcX - xFloor).clamp(0.0, 1.0);
+        final fy = (srcY - yFloor).clamp(0.0, 1.0);
+
+        final p00 = src.getPixel(xFloor, yFloor);
+        final p10 = src.getPixel(xFloor + 1, yFloor);
+        final p01 = src.getPixel(xFloor, yFloor + 1);
+        final p11 = src.getPixel(xFloor + 1, yFloor + 1);
+
+        final w00 = (1.0 - fx) * (1.0 - fy);
+        final w10 = fx * (1.0 - fy);
+        final w01 = (1.0 - fx) * fy;
+        final w11 = fx * fy;
+
+        final r = (p00.r * w00 + p10.r * w10 + p01.r * w01 + p11.r * w11).round().clamp(0, 255);
+        final gPix = (p00.g * w00 + p10.g * w10 + p01.g * w01 + p11.g * w11).round().clamp(0, 255);
+        final bPix = (p00.b * w00 + p10.b * w10 + p01.b * w01 + p11.b * w11).round().clamp(0, 255);
+
+        out.setPixelRgb(x, y, r, gPix, bPix);
       }
     }
 

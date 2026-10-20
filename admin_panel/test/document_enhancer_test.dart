@@ -237,6 +237,80 @@ void main() {
       expect(bounds.isTilted, isTrue);
       expect(bounds.corners.length, equals(4));
     });
+
+    test('Trapezoid perspective distortion is detected and marked in DocumentCropBounds', () {
+      // Create a keystone / trapezoid document on dark table: narrow at top (width ~140), wide at bottom (width ~260)
+      final canvas = img.Image(width: 400, height: 400);
+      for (int y = 0; y < 400; y++) {
+        for (int x = 0; x < 400; x++) {
+          canvas.setPixelRgb(x, y, 30, 30, 30);
+        }
+      }
+
+      for (int y = 60; y < 340; y++) {
+        final progress = (y - 60) / 280.0;
+        final halfW = (70 + progress * 60).round();
+        for (int x = 200 - halfW; x <= 200 + halfW; x++) {
+          if (x >= 0 && x < 400) {
+            canvas.setPixelRgb(x, y, 230, 230, 230);
+          }
+        }
+      }
+
+      final bytes = Uint8List.fromList(img.encodeJpg(canvas, quality: 90));
+      final bounds = DocumentImageProcessor.detectDocumentBounds(bytes);
+
+      expect(bounds.hasPerspectiveDistortion, isTrue);
+      expect(bounds.isTrapezoid, isTrue);
+      expect(bounds.corners.length, equals(4));
+    });
+
+    test('Projective Homography Transform rectifies trapezoid perspective quad into clean rectangle', () async {
+      final original = createTestDocumentImage(width: 400, height: 500);
+
+      // Skewed quad corners (keystone photographed at angle)
+      final settings = DocumentEnhanceSettings(
+        perspectiveCorners: [
+          const Point2D(0.15, 0.08), // TL
+          const Point2D(0.85, 0.12), // TR
+          const Point2D(0.95, 0.92), // BR
+          const Point2D(0.05, 0.88), // BL
+        ],
+      );
+
+      final enhanced = await DocumentImageProcessor.enhanceDocument(
+        originalBytes: original,
+        settings: settings,
+      );
+
+      expect(enhanced, isNotEmpty);
+      final decoded = img.decodeImage(enhanced);
+      expect(decoded, isNotNull);
+      expect(decoded!.width, greaterThanOrEqualTo(200));
+      expect(decoded.height, greaterThanOrEqualTo(200));
+    });
+
+    test('Low contrast / blurry document flags needsManualAdjustment', () {
+      // White document on pale near-white table (contrastDiff < 18)
+      final canvas = img.Image(width: 300, height: 300);
+      for (int y = 0; y < 300; y++) {
+        for (int x = 0; x < 300; x++) {
+          canvas.setPixelRgb(x, y, 220, 220, 220); // Border bg
+        }
+      }
+      // Inner document almost identical color
+      for (int y = 50; y < 250; y++) {
+        for (int x = 50; x < 250; x++) {
+          canvas.setPixelRgb(x, y, 228, 228, 228);
+        }
+      }
+
+      final bytes = Uint8List.fromList(img.encodeJpg(canvas, quality: 90));
+      final bounds = DocumentImageProcessor.detectDocumentBounds(bytes);
+
+      expect(bounds.needsManualAdjustment, isTrue);
+      expect(bounds.confidence, lessThan(0.6));
+    });
   });
 
   group('DocumentA4PdfService Tests', () {

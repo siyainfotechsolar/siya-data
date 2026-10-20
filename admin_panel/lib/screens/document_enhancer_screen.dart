@@ -119,9 +119,29 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
           }
         } else {
           // Process Image
-          setState(() => _statusMessage = 'Analyzing ${file.name}...');
+          setState(() => _statusMessage = 'Analyzing & detecting orientation for ${file.name}...');
           try {
             final meta = DocumentImageProcessor.analyzeImage(bytes);
+            final bounds = DocumentImageProcessor.detectDocumentBounds(bytes, isIdCard: false);
+            final bool shouldAutoStraighten = bounds.isTilted || bounds.hasPerspectiveDistortion;
+
+            DocumentEnhanceSettings initSettings = const DocumentEnhanceSettings();
+            if (shouldAutoStraighten) {
+              initSettings = initSettings.copyWith(
+                perspectiveCorners: bounds.corners,
+                cropLeft: bounds.cropLeft,
+                cropTop: bounds.cropTop,
+                cropRight: bounds.cropRight,
+                cropBottom: bounds.cropBottom,
+              );
+            }
+
+            String? warning = meta['warning'];
+            if (bounds.needsManualAdjustment) {
+              const warnManual = 'कागदपत्राचे कोपरे अस्पष्ट आहेत, कृपया "Adjust Corners" द्वारे तपासा.';
+              warning = warning != null ? '$warning\n$warnManual' : warnManual;
+            }
+
             final item = DocumentToolItem(
               id: 'img_${DateTime.now().millisecondsSinceEpoch}_${_items.length}',
               name: file.name,
@@ -131,8 +151,26 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
               thumbnailBytes: meta['thumbnail'],
               width: meta['width'] ?? 0,
               height: meta['height'] ?? 0,
-              qualityWarning: meta['warning'],
+              qualityWarning: warning,
+              settings: initSettings,
             );
+
+            // Automatically straighten if tilted or perspective skewed
+            if (shouldAutoStraighten) {
+              try {
+                final rectified = await DocumentImageProcessor.enhanceDocument(
+                  originalBytes: bytes,
+                  settings: initSettings,
+                );
+                final rectifiedMeta = DocumentImageProcessor.analyzeImage(rectified);
+                item.processedBytes = rectified;
+                item.thumbnailBytes = rectifiedMeta['thumbnail'];
+                item.width = rectifiedMeta['width'] ?? item.width;
+                item.height = rectifiedMeta['height'] ?? item.height;
+                item.status = DocumentProcessingStatus.done;
+              } catch (_) {}
+            }
+
             _items.add(item);
             addedCount++;
           } catch (e) {
@@ -276,6 +314,25 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
         warning = meta['warning'];
       }
 
+      final bounds = DocumentImageProcessor.detectDocumentBounds(imageBytes, isIdCard: true);
+      final bool shouldAutoStraighten = bounds.isTilted || bounds.hasPerspectiveDistortion;
+
+      DocumentEnhanceSettings initSettings = const DocumentEnhanceSettings();
+      if (shouldAutoStraighten) {
+        initSettings = initSettings.copyWith(
+          perspectiveCorners: bounds.corners,
+          cropLeft: bounds.cropLeft,
+          cropTop: bounds.cropTop,
+          cropRight: bounds.cropRight,
+          cropBottom: bounds.cropBottom,
+        );
+      }
+
+      if (bounds.needsManualAdjustment) {
+        const warnManual = 'कागदपत्राचे कोपरे अस्पष्ट आहेत, कृपया "Adjust Corners" द्वारे तपासा.';
+        warning = warning != null ? '$warning\n$warnManual' : warnManual;
+      }
+
       final item = DocumentToolItem(
         id: 'aadhaar_${slot == 0 ? "front" : "back"}_${DateTime.now().millisecondsSinceEpoch}',
         name: '${slot == 0 ? "Aadhaar Front" : "Aadhaar Back"} (${file.name})',
@@ -286,7 +343,23 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
         width: width,
         height: height,
         qualityWarning: warning,
+        settings: initSettings,
       );
+
+      if (shouldAutoStraighten) {
+        try {
+          final rectified = await DocumentImageProcessor.enhanceDocument(
+            originalBytes: imageBytes,
+            settings: initSettings,
+          );
+          final rectifiedMeta = DocumentImageProcessor.analyzeImage(rectified);
+          item.processedBytes = rectified;
+          item.thumbnailBytes = rectifiedMeta['thumbnail'];
+          item.width = rectifiedMeta['width'] ?? item.width;
+          item.height = rectifiedMeta['height'] ?? item.height;
+          item.status = DocumentProcessingStatus.done;
+        } catch (_) {}
+      }
 
       setState(() {
         if (slot == 0) {
@@ -1002,15 +1075,76 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
     );
   }
 
-  Future<void> _openPerspectiveCropDialog() async {
+  Future<void> _autoPerspectiveCorrectionActiveItem() async {
     final item = _activeItem;
     if (item == null) return;
+
+    setState(() {
+      _isProcessingImage = true;
+      _statusMessage = 'Detecting 4 corners & perspective transformation for ${item.name}...';
+    });
+
+    try {
+      final isId = _documentMode == DocumentMode.aadhaarFrontBack;
+      final bounds = DocumentImageProcessor.detectDocumentBounds(item.originalBytes, isIdCard: isId);
+
+      if (bounds.needsManualAdjustment) {
+        _showSnack('कागदपत्राचे कोपरे अस्पष्ट आहेत, कृपया "Adjust Corners" द्वारे सेट करा.');
+        await _openPerspectiveCropDialog(forcePerspectiveMode: true);
+        return;
+      }
+
+      final newSettings = item.settings.copyWith(
+        perspectiveCorners: bounds.corners,
+        cropLeft: bounds.cropLeft,
+        cropTop: bounds.cropTop,
+        cropRight: bounds.cropRight,
+        cropBottom: bounds.cropBottom,
+        fineRotationAngle: 0.0,
+      );
+
+      if (_documentMode == DocumentMode.aadhaarFrontBack) {
+        await _applyEnhancementToAadhaarSlot(slot: _aadhaarActiveSlot, settings: newSettings, autoRegenPdf: true);
+      } else {
+        await _applyEnhancementToItem(index: _activeItemIndex, settings: newSettings, autoRegenPdf: true);
+      }
+
+      _showSnack(
+        bounds.hasPerspectiveDistortion
+            ? 'कोनातून काढलेला फोटो सरळ केला! (Perspective Corrected & Rectified)'
+            : (bounds.isTilted
+                ? 'वाकडे डॉक्युमेंट सरळ केले! (${bounds.skewAngle.abs().toStringAsFixed(1)}° Deskew)'
+                : 'डॉक्युमेंट आधीच सरळ आहे. (Perspective already level)'),
+      );
+    } catch (e) {
+      _showSnack('Perspective correction error: $e', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingImage = false;
+          _statusMessage = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _openPerspectiveCropDialog({bool forcePerspectiveMode = false}) async {
+    final item = _activeItem;
+    if (item == null) return;
+
+    DocumentEnhanceSettings initial = item.settings;
+    if (forcePerspectiveMode && (initial.perspectiveCorners == null || initial.perspectiveCorners!.isEmpty)) {
+      final isId = _documentMode == DocumentMode.aadhaarFrontBack;
+      final bounds = DocumentImageProcessor.detectDocumentBounds(item.originalBytes, isIdCard: isId);
+      initial = initial.copyWith(perspectiveCorners: bounds.corners);
+    }
 
     final result = await showDialog<DocumentEnhanceSettings>(
       context: context,
       builder: (_) => DocPerspectiveCropDialog(
         imageBytes: item.originalBytes,
-        initialSettings: item.settings,
+        initialSettings: initial,
+        startInPerspectiveMode: forcePerspectiveMode,
       ),
     );
 
@@ -1022,6 +1156,8 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
       }
     }
   }
+
+  Future<void> _openAdjustCornersDialog() => _openPerspectiveCropDialog(forcePerspectiveMode: true);
 
   void _showSnack(String msg, {bool isError = false}) {
     if (!mounted) return;
@@ -1734,6 +1870,18 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                   },
                 ),
                 OutlinedButton.icon(
+                  icon: const Icon(Icons.crop_free, size: 14, color: Colors.deepPurple),
+                  label: const Text('Adjust Corners (कोपरे जुळवा)', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  onPressed: () {
+                    setState(() => _aadhaarActiveSlot = slot);
+                    _openAdjustCornersDialog();
+                  },
+                ),
+                OutlinedButton.icon(
                   icon: const Icon(Icons.rotate_right, size: 14),
                   label: const Text('Rotate 90°', style: TextStyle(fontSize: 11)),
                   style: OutlinedButton.styleFrom(
@@ -2009,6 +2157,43 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
             ),
             const SizedBox(height: 12),
 
+            if (item.qualityWarning != null) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.shade300),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.amber.shade900, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.qualityWarning!,
+                        style: TextStyle(fontSize: 11, color: Colors.brown.shade900, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.crop_free, size: 13),
+                      label: const Text('Adjust Corners', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: Colors.amber.shade800,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      ),
+                      onPressed: _openAdjustCornersDialog,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             // Aadhaar Active Slot Selector Switch
             if (_documentMode == DocumentMode.aadhaarFrontBack) ...[
               Row(
@@ -2168,16 +2353,6 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
               runSpacing: 8,
               children: [
                 ElevatedButton.icon(
-                  icon: const Icon(Icons.auto_awesome, size: 16),
-                  label: const Text('Auto Crop (ऑटो क्रॉप)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F2D69),
-                    foregroundColor: Colors.white,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  onPressed: _autoCropActiveItem,
-                ),
-                ElevatedButton.icon(
                   icon: const Icon(Icons.straighten, size: 16),
                   label: const Text('Auto Straighten (सरळ करा)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
@@ -2186,6 +2361,35 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                     visualDensity: VisualDensity.compact,
                   ),
                   onPressed: _autoStraightenActiveItem,
+                ),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.transform, size: 16),
+                  label: const Text('Auto Perspective (कोनातून सरळ करा)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F2D69),
+                    foregroundColor: Colors.white,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: _autoPerspectiveCorrectionActiveItem,
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.crop_free, size: 16, color: Colors.deepPurple),
+                  label: const Text('Adjust Corners (कोपरे जुळवा)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: Colors.deepPurple,
+                  ),
+                  onPressed: _openAdjustCornersDialog,
+                ),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.auto_awesome, size: 16),
+                  label: const Text('Auto Crop (ऑटो क्रॉप)', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueGrey.shade700,
+                    foregroundColor: Colors.white,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: _autoCropActiveItem,
                 ),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.auto_awesome_motion, size: 16, color: Color(0xFF0F2D69)),
@@ -2197,25 +2401,13 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                   ),
                   onPressed: _autoCropAllSelected,
                 ),
-                ElevatedButton.icon(
+                OutlinedButton.icon(
                   icon: const Icon(Icons.crop, size: 16),
                   label: const Text('Manual Crop (कापा)', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: cs.primary,
-                    foregroundColor: Colors.white,
+                  style: OutlinedButton.styleFrom(
                     visualDensity: VisualDensity.compact,
                   ),
                   onPressed: _openPerspectiveCropDialog,
-                ),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.crop_square, size: 16),
-                  label: const Text('Trim 5%', style: TextStyle(fontSize: 11)),
-                  onPressed: () => apply(s.copyWith(cropLeft: 0.05, cropTop: 0.05, cropRight: 0.05, cropBottom: 0.05)),
-                ),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.crop_square, size: 16),
-                  label: const Text('Trim 10%', style: TextStyle(fontSize: 11)),
-                  onPressed: () => apply(s.copyWith(cropLeft: 0.10, cropTop: 0.10, cropRight: 0.10, cropBottom: 0.10)),
                 ),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.rotate_left, size: 16),
@@ -2229,8 +2421,13 @@ class _DocumentEnhancerScreenState extends State<DocumentEnhancerScreen> with Si
                 ),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.compare_arrows, size: 16),
-                  label: const Text('Before / After', style: TextStyle(fontSize: 11)),
+                  label: const Text('Before / After (तुलना)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                   onPressed: _openComparisonDialog,
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.history, size: 16, color: Colors.red),
+                  label: const Text('Reset (मूळ प्रत)', style: TextStyle(fontSize: 11, color: Colors.red)),
+                  onPressed: _resetActiveItem,
                 ),
               ],
             ),
