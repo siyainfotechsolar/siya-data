@@ -751,42 +751,46 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                 // Stamp Paper Background Mode (Virtual Image vs Physical Blank Top for direct printing)
                 if (_includeStampPaper)
                   if (_stampPaperBackground)
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF0F2D69),
-                        side: const BorderSide(color: Color(0xFF93C5FD)),
-                        backgroundColor: const Color(0xFFEFF6FF),
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                        visualDensity: VisualDensity.compact,
+                    Tooltip(
+                      message: 'Stamp paper image is drawn as background (for digital copy/portal upload). Click to switch to Physical Print Blank mode.',
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF0F2D69),
+                          side: const BorderSide(color: Color(0xFF93C5FD)),
+                          backgroundColor: const Color(0xFFEFF6FF),
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _stampPaperBackground = false;
+                            _renderKey++;
+                          });
+                        },
+                        icon: const Icon(Icons.image_outlined, size: 13, color: Color(0xFF0F2D69)),
+                        label: const Text('Stamp Bg: ON', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
                       ),
-                      tooltip: 'Stamp paper image is drawn as background (for digital copy/portal upload). Click to switch to Physical Print Blank mode.',
-                      onPressed: () {
-                        setState(() {
-                          _stampPaperBackground = false;
-                          _renderKey++;
-                        });
-                      },
-                      icon: const Icon(Icons.image_outlined, size: 13, color: Color(0xFF0F2D69)),
-                      label: const Text('Stamp Bg: ON', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
                     )
                   else
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFB45309),
-                        side: const BorderSide(color: Color(0xFFFCD34D)),
-                        backgroundColor: const Color(0xFFFFFBEB),
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                        visualDensity: VisualDensity.compact,
+                    Tooltip(
+                      message: 'Top 480pt left blank so you can feed a real physical Rs. 100 Stamp Paper into printer. Click to restore stamp background.',
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFB45309),
+                          side: const BorderSide(color: Color(0xFFFCD34D)),
+                          backgroundColor: const Color(0xFFFFFBEB),
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _stampPaperBackground = true;
+                            _renderKey++;
+                          });
+                        },
+                        icon: const Icon(Icons.print_outlined, size: 13, color: Color(0xFFB45309)),
+                        label: const Text('Physical Blank (Print)', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
                       ),
-                      tooltip: 'Top 480pt left blank so you can feed a real physical Rs. 100 Stamp Paper into printer. Click to restore stamp background.',
-                      onPressed: () {
-                        setState(() {
-                          _stampPaperBackground = true;
-                          _renderKey++;
-                        });
-                      },
-                      icon: const Icon(Icons.print_outlined, size: 13, color: Color(0xFFB45309)),
-                      label: const Text('Physical Blank (Print)', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
                     ),
 
                 if (_includeStampAndSignature)
