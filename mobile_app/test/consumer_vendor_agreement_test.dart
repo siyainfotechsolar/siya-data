@@ -159,5 +159,99 @@ void main() {
 
       loadedDoc.dispose();
     });
+
+    test('5. Generates 4-page A4 Annexure 2 Agreement with Stamp Paper Mode', () async {
+      final agreement = ConsumerVendorAgreement.create(
+        customerId: testCustomer.id,
+        consumerNo: testCustomer.consumerNo,
+        customerName: testCustomer.name,
+        address: testCustomer.address,
+        villageCity: 'Pimprad',
+        district: 'Dhule',
+        mobileNo: testCustomer.mobile ?? '',
+        agreementNo: 'SIYA-AGR-2026-1608',
+        systemCapacity: '3 kW',
+        totalProjectCost: 160000.0,
+        cfaSubsidyAmount: 78000.0,
+        netCustomerPayable: 82000.0,
+      );
+
+      final file = await ConsumerVendorAgreementPdfService.generateAgreementPdf(
+        agreement: agreement,
+        includeStampPaper: true,
+        stampPaperBackground: true,
+        includeStampAndSignature: true,
+      );
+      final bytes = await file.readAsBytes();
+      try {
+        File('c:/ide/siya data/sample_mobile_agreement_stamp_paper_e_stamp.pdf').writeAsBytesSync(bytes);
+      } catch (_) {}
+      final loadedDoc = PdfDocument(inputBytes: bytes);
+      expect(loadedDoc.pages.count, equals(4));
+
+      final extractor = PdfTextExtractor(loadedDoc);
+
+      // Page 1 assertions (Stamp Paper)
+      final p1Text = extractor.extractText(startPageIndex: 0, endPageIndex: 0);
+      expect(p1Text, contains('Model Draft Agreement'));
+      expect(p1Text, contains('Between'));
+      expect(p1Text, contains('SHRI NAMDEO DAGA MALI'));
+      expect(p1Text, contains('SIYA INFOTECH & DIGITAL SOLUTIONS'));
+      expect(p1Text, contains('Page 1 of 4'));
+
+      // Page 2 assertions (First Party + Second Party 1-8)
+      final p2Text = extractor.extractText(startPageIndex: 1, endPageIndex: 1);
+      expect(p2Text, contains('The First Party hereby undertakes to perform the following activities:'));
+      expect(p2Text, contains('The Second Party hereby undertakes to perform the following activities:'));
+      expect(p2Text, contains('Standards & Scheme Compliance'));
+      expect(p2Text, contains('Page 2 of 4'));
+
+      // Page 3 assertions (Second Party 9-18)
+      final p3Text = extractor.extractText(startPageIndex: 2, endPageIndex: 2);
+      expect(p3Text, contains('The Second Party hereby undertakes to perform the following activities (Continued):'));
+      expect(p3Text, contains('Warranty'));
+      expect(p3Text, contains('Performance of Plant'));
+      expect(p3Text, contains('Page 3 of 4'));
+
+      // Page 4 assertions (Payment & Signatures)
+      final p4Text = extractor.extractText(startPageIndex: 3, endPageIndex: 3);
+      expect(p4Text, contains('19. Mutually Agreed Terms of Payment'));
+      expect(p4Text, contains('First Party (Consumer)'));
+      expect(p4Text, contains('Second Party (Vendor)'));
+      expect(p4Text, contains('Authorized Signatory'));
+      expect(p4Text, contains('Disclaimer'));
+      expect(p4Text, contains('Page 4 of 4'));
+
+      loadedDoc.dispose();
+    });
+
+    test('6. Generates 4-page A4 Agreement with Stamp Paper Physical Print Mode (blank top)', () async {
+      final agreement = ConsumerVendorAgreement.create(
+        customerId: testCustomer.id,
+        consumerNo: testCustomer.consumerNo,
+        customerName: testCustomer.name,
+        address: testCustomer.address,
+        villageCity: 'Pimprad',
+        district: 'Dhule',
+        mobileNo: testCustomer.mobile ?? '',
+        agreementNo: 'SIYA-AGR-2026-1608',
+        systemCapacity: '3 kW',
+        totalProjectCost: 160000.0,
+      );
+
+      final file = await ConsumerVendorAgreementPdfService.generateAgreementPdf(
+        agreement: agreement,
+        includeStampPaper: true,
+        stampPaperBackground: false, // Physical Print Mode
+        includeStampAndSignature: true,
+      );
+      final bytes = await file.readAsBytes();
+      try {
+        File('c:/ide/siya data/sample_mobile_agreement_stamp_paper_physical_print.pdf').writeAsBytesSync(bytes);
+      } catch (_) {}
+      final loadedDoc = PdfDocument(inputBytes: bytes);
+      expect(loadedDoc.pages.count, equals(4));
+      loadedDoc.dispose();
+    });
   });
 }

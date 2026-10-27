@@ -51,6 +51,42 @@ class CompanyStampHelper {
     return null;
   }
 
+  /// Robustly loads Rs. 100 Stamp Paper image bytes with multi-stage fallback
+  static Future<Uint8List?> loadStampPaperBytes({Uint8List? customBytes}) async {
+    if (customBytes != null && customBytes.isNotEmpty) {
+      return customBytes;
+    }
+
+    // 1. Try primary rootBundle
+    try {
+      final ByteData data = await rootBundle.load('assets/images/stamp_paper_100.jpg');
+      final bytes = data.buffer.asUint8List();
+      if (bytes.isNotEmpty) return bytes;
+    } catch (_) {}
+
+    // 2. Try direct filesystem read (for desktop, tests, command line)
+    if (!kIsWeb) {
+      final candidates = [
+        'assets/images/stamp_paper_100.jpg',
+        'mobile_app/assets/images/stamp_paper_100.jpg',
+        '../assets/images/stamp_paper_100.jpg',
+        'admin_panel/assets/images/stamp_paper_100.jpg',
+        'build/unit_test_assets/assets/images/stamp_paper_100.jpg',
+      ];
+      for (final p in candidates) {
+        try {
+          final f = File(p);
+          if (f.existsSync()) {
+            final bytes = f.readAsBytesSync();
+            if (bytes.isNotEmpty) return bytes;
+          }
+        } catch (_) {}
+      }
+    }
+
+    return null;
+  }
+
   /// Draws official stamp and signature onto Syncfusion PdfGraphics
   /// If bitmap is available, renders the bitmap image.
   /// If bitmap is null but inclusion is requested, renders a crisp official vector seal.

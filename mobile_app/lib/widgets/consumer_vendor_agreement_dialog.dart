@@ -108,6 +108,8 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
   }
 
   bool _includeStampAndSignature = false;
+  bool _includeStampPaper = true;
+  bool _stampPaperBackground = true;
 
   Future<void> _loadHistory() async {
     final history = await AgreementStorageService.getAgreementsForCustomer(_consumerNo);
@@ -160,6 +162,8 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
       final file = await ConsumerVendorAgreementPdfService.generateAgreementPdf(
         agreement: agreement,
         includeStampAndSignature: _includeStampAndSignature,
+        includeStampPaper: _includeStampPaper,
+        stampPaperBackground: _stampPaperBackground,
       );
 
       final updatedAgreement = agreement.copyWith(pdfFilePath: file.path);
@@ -588,11 +592,91 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
               ),
               const SizedBox(height: 10),
 
-              // Option: [ Remove Stamp & Signature ] / [ Include Stamp & Signature ]
+              // Options Toolbar: Stamp Paper, Background Mode, Stamp & Signature
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
+                    // Option 1: Rs. 100 Stamp Paper (ON / OFF)
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          _includeStampPaper = !_includeStampPaper;
+                          _generatedFile = null;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _includeStampPaper ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: _includeStampPaper ? const Color(0xFF93C5FD) : const Color(0xFFCBD5E1)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _includeStampPaper ? Icons.note_alt_rounded : Icons.note_alt_outlined,
+                              size: 14,
+                              color: _includeStampPaper ? const Color(0xFF1D4ED8) : const Color(0xFF64748B),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _includeStampPaper ? 'Rs. 100 Stamp: ON (4 pgs)' : 'Rs. 100 Stamp: OFF (3 pgs)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: _includeStampPaper ? const Color(0xFF1D4ED8) : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Option 2: Stamp Background (e-Stamp vs Physical Blank)
+                    if (_includeStampPaper)
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _stampPaperBackground = !_stampPaperBackground;
+                            _generatedFile = null;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: _stampPaperBackground ? const Color(0xFFF0FDF4) : const Color(0xFFFFFBEB),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: _stampPaperBackground ? const Color(0xFF86EFAC) : const Color(0xFFFDE68A)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _stampPaperBackground ? Icons.image_outlined : Icons.print_outlined,
+                                size: 14,
+                                color: _stampPaperBackground ? const Color(0xFF16A34A) : const Color(0xFFD97706),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _stampPaperBackground ? 'Stamp Bg: ON' : 'Blank (Physical Print)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: _stampPaperBackground ? const Color(0xFF16A34A) : const Color(0xFFD97706),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                    // Option 3: [ Remove Stamp & Signature ] / [ Include Stamp & Signature ]
                     if (_includeStampAndSignature)
                       InkWell(
                         onTap: () {

@@ -110,6 +110,8 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
 
   bool _includeStampAndSignature = false;
   bool _includeCustomerSignature = false;
+  bool _includeStampPaper = true;
+  bool _stampPaperBackground = true;
 
   ConsumerVendorAgreement _buildAgreement() {
     return ConsumerVendorAgreement(
@@ -656,6 +658,8 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                             includeStampAndSignature: _includeStampAndSignature,
                             includeCustomerSignature: _includeCustomerSignature,
                             customCustomerSignatureBytes: custSigBytes,
+                            includeStampPaper: _includeStampPaper,
+                            stampPaperBackground: _stampPaperBackground,
                           ),
                           name: 'Agreement_${agreement.consumerNo}.pdf',
                         );
@@ -676,6 +680,8 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                         includeStampAndSignature: _includeStampAndSignature,
                         includeCustomerSignature: _includeCustomerSignature,
                         customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_consumerNo),
+                        includeStampPaper: _includeStampPaper,
+                        stampPaperBackground: _stampPaperBackground,
                       ),
                       icon: const Icon(Icons.download_rounded, size: 15),
                       label: const Text('Download PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
@@ -703,6 +709,85 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                   icon: const Icon(Icons.edit_document, size: 14),
                   label: const Text('Edit Payment Table', style: TextStyle(fontSize: 11.5)),
                 ),
+
+                // Rs. 100 Stamp Paper Toggle
+                if (_includeStampPaper)
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF047857),
+                      side: const BorderSide(color: Color(0xFFA7F3D0)),
+                      backgroundColor: const Color(0xFFECFDF5),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _includeStampPaper = false;
+                        _renderKey++;
+                      });
+                    },
+                    icon: const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF047857)),
+                    label: const Text('Rs. 100 Stamp: ON', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                  )
+                else
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      foregroundColor: const Color(0xFF64748B),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _includeStampPaper = true;
+                        _renderKey++;
+                      });
+                    },
+                    icon: const Icon(Icons.note_alt_outlined, size: 14, color: Color(0xFF64748B)),
+                    label: const Text('Rs. 100 Stamp: OFF', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11.5)),
+                  ),
+
+                // Stamp Paper Background Mode (Virtual Image vs Physical Blank Top for direct printing)
+                if (_includeStampPaper)
+                  if (_stampPaperBackground)
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0F2D69),
+                        side: const BorderSide(color: Color(0xFF93C5FD)),
+                        backgroundColor: const Color(0xFFEFF6FF),
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      tooltip: 'Stamp paper image is drawn as background (for digital copy/portal upload). Click to switch to Physical Print Blank mode.',
+                      onPressed: () {
+                        setState(() {
+                          _stampPaperBackground = false;
+                          _renderKey++;
+                        });
+                      },
+                      icon: const Icon(Icons.image_outlined, size: 13, color: Color(0xFF0F2D69)),
+                      label: const Text('Stamp Bg: ON', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    )
+                  else
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFB45309),
+                        side: const BorderSide(color: Color(0xFFFCD34D)),
+                        backgroundColor: const Color(0xFFFFFBEB),
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      tooltip: 'Top 480pt left blank so you can feed a real physical Rs. 100 Stamp Paper into printer. Click to restore stamp background.',
+                      onPressed: () {
+                        setState(() {
+                          _stampPaperBackground = true;
+                          _renderKey++;
+                        });
+                      },
+                      icon: const Icon(Icons.print_outlined, size: 13, color: Color(0xFFB45309)),
+                      label: const Text('Physical Blank (Print)', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                    ),
 
                 if (_includeStampAndSignature)
                   OutlinedButton.icon(
@@ -847,7 +932,7 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: PdfPreview(
-                    key: ValueKey('agreement_preview_${_renderKey}_${_includeStampAndSignature}_${_includeCustomerSignature}_${CustomerSignatureHelper.hasCustomerSignature(_consumerNo)}'),
+                    key: ValueKey('agreement_preview_${_renderKey}_${_includeStampPaper}_${_stampPaperBackground}_${_includeStampAndSignature}_${_includeCustomerSignature}_${CustomerSignatureHelper.hasCustomerSignature(_consumerNo)}'),
                     build: (PdfPageFormat format) async {
                       // Save to local storage on render to link to profile
                       await AgreementStorageService.saveAgreement(agreement);
@@ -856,6 +941,8 @@ class _ConsumerVendorAgreementDialogState extends State<ConsumerVendorAgreementD
                         includeStampAndSignature: _includeStampAndSignature,
                         includeCustomerSignature: _includeCustomerSignature,
                         customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_consumerNo),
+                        includeStampPaper: _includeStampPaper,
+                        stampPaperBackground: _stampPaperBackground,
                       );
                     },
                     canChangeOrientation: false,

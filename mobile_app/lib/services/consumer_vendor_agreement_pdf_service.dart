@@ -22,12 +22,17 @@ import 'company_stamp_helper.dart';
 /// - Page 2: Uniform 10.5pt clause gaps filling the page down to Clause 18.
 /// - Page 3: Expanded financial card, tall payment table, and a 270pt Table-Based Signature & Stamp block.
 class ConsumerVendorAgreementPdfService {
-  /// Generate official 3-page A4 Annexure 2 Agreement PDF with balanced full-page distribution
+  /// Generate official A4 Annexure 2 Agreement PDF
+  /// - Standard: Exact 3-Page A4 PDF
+  /// - With Stamp Paper: 4-Page A4 PDF with Page 1 formatted on Rs. 100 Stamp Paper
   static Future<File> generateAgreementPdf({
     required ConsumerVendorAgreement agreement,
     Directory? outputDirectory,
     bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
+    bool includeStampPaper = false,
+    Uint8List? customStampPaperBytes,
+    bool stampPaperBackground = true,
   }) async {
     final PdfDocument document = PdfDocument();
     document.pageSettings.size = PdfPageSize.a4;
@@ -55,7 +60,7 @@ class ConsumerVendorAgreementPdfService {
     final PdfFont tableCellFont = PdfStandardFont(PdfFontFamily.helvetica, 7.6);
     final PdfFont tableCellBold = PdfStandardFont(PdfFontFamily.helvetica, 7.6, style: PdfFontStyle.bold);
 
-    // Load Company Stamp & Authorized Signature (DEFAULT: automatically included)
+    // Load Company Stamp & Authorized Signature
     PdfBitmap? stampAndSigBitmap;
     if (includeStampAndSignature) {
       final stampBytes = await CompanyStampHelper.loadStampAndSignatureBytes(
@@ -69,6 +74,23 @@ class ConsumerVendorAgreementPdfService {
         }
       }
     }
+
+    // Load Stamp Paper Image (if enabled and background requested)
+    PdfBitmap? stampPaperBitmap;
+    if (includeStampPaper && stampPaperBackground) {
+      final spBytes = await CompanyStampHelper.loadStampPaperBytes(
+        customBytes: customStampPaperBytes,
+      );
+      if (spBytes != null && spBytes.isNotEmpty) {
+        try {
+          stampPaperBitmap = PdfBitmap(spBytes);
+        } catch (e) {
+          debugPrint('Stamp paper bitmap error in agreement service: $e');
+        }
+      }
+    }
+
+    final int totalPages = includeStampPaper ? 4 : 3;
 
     final PdfFont footerFont = PdfStandardFont(PdfFontFamily.helvetica, 7.4);
     final PdfFont footerBoldFont = PdfStandardFont(PdfFontFamily.helvetica, 7.4, style: PdfFontStyle.bold);
@@ -169,349 +191,506 @@ class ConsumerVendorAgreementPdfService {
       return curY + h + gap;
     }
 
-    // =========================================================================
-    // PAGE 1: Original Title, Preamble, Parties (Centered), Recitals (Centered), First Party (1 to 6)
-    // Vertically distributed with comfortable gaps to cover the entire page
-    // =========================================================================
-    final PdfPage page1 = document.pages.add();
-    final PdfGraphics g1 = page1.graphics;
-    drawRunningHeader(g1);
+    void drawPaymentAndSignaturesPage(PdfPage targetPage, int pageNum, int totalPageCount) {
+      final PdfGraphics g = targetPage.graphics;
+      drawRunningHeader(g);
 
-    double y = 56;
-
-    // Document Title
-    g1.drawString(
-      'Model Draft Agreement',
-      docMainTitleFont,
-      brush: darkTextBrush,
-      format: PdfStringFormat(alignment: PdfTextAlignment.center),
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 20),
-    );
-    y += 24;
-
-    g1.drawString(
-      'between Consumer & Vendor for installation of grid connected rooftop solar (RTS) project under PM - Surya Ghar: Muft Bijli Yojana',
-      docSubTitleFont,
-      brush: darkTextBrush,
-      format: PdfStringFormat(alignment: PdfTextAlignment.center),
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 26),
-    );
-    y += 34;
-
-    // Preamble
-    final String preambleText =
-        'This agreement is executed on ${agreement.executionDay} day of ${agreement.executionMonth}, ${agreement.executionYear} '
-        'for design, supply, installation, commissioning and 5-year comprehensive maintenance of RTS project/system along with warranty '
-        'under PM Surya Ghar: Muft Bijli Yojana.';
-    y = drawDynamicText(g1, y, preambleText, bodyFont, darkTextBrush, gap: 18);
-
-    // Parties: Between (CENTERED) & And (CENTERED)
-    g1.drawString('Between', centeredHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 14));
-    y += 18;
-    final String consumerText =
-        '${agreement.customerName} (Consumer No: ${agreement.consumerNo}, Mobile: ${agreement.customerMobile.isNotEmpty ? agreement.customerMobile : "N/A"}) '
-        'having address at ${agreement.customerAddress.isNotEmpty ? agreement.customerAddress : "Betawad, Tal. Shindkheda, Dist. Dhule"} '
-        '(hereinafter referred to as first Party i.e. /consumer/purchaser /owner of system).';
-    y = drawDynamicText(g1, y, consumerText, bodyFont, slateBodyBrush, gap: 18);
-
-    g1.drawString('And', centeredHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 14));
-    y += 18;
-    const String vendorText =
-        'SIYA INFOTECH & DIGITAL SOLUTIONS (GSTIN: 27CVTPK6358P1ZD, Mobile: 7972143798, Email: siyainfodigital@gmail.com) '
-        'having registered office at 21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule - 425403 '
-        '(hereinafter referred to as second Party i.e. Vendor/ contractor/ System Integrator).';
-    y = drawDynamicText(g1, y, vendorText, bodyFont, slateBodyBrush, gap: 18);
-
-    // Recitals: Whereas (CENTERED) & And whereas (CENTERED)
-    g1.drawString('Whereas', centeredHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 14));
-    y += 18;
-    final String whereas1 =
-        'First Party wishes to install a Grid Connected Rooftop Solar Plant of ${agreement.systemCapacity} on the rooftop of the residential building '
-        'of the Consumer under PM Surya Ghar: Muft Bijli Yojana.';
-    y = drawDynamicText(g1, y, whereas1, bodyFont, slateBodyBrush, gap: 16);
-
-    g1.drawString('And whereas', centeredHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 14));
-    y += 18;
-    const String whereas2 =
-        'Second Party has verified availability of appropriate roof and found it feasible to install a Grid Connected Roof Top Solar plant and that '
-        'the second party is willing to design, supply, install, test, commission and carry out Operation & Maintenance of the Rooftop Solar plant for 5 year period.';
-    y = drawDynamicText(g1, y, whereas2, bodyFont, slateBodyBrush, gap: 18);
-
-    g1.drawString(
-      'On this day, the First Party and Second Party agree to the following:',
-      bodyBoldFont,
-      brush: darkTextBrush,
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 14),
-    );
-    y += 18;
-
-    // First Party Undertakings (1 to 6)
-    g1.drawString(
-      'The First Party hereby undertakes to perform the following activities:',
-      sectionHeaderFont,
-      brush: darkTextBrush,
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 15),
-    );
-    y += 20;
-
-    const double p1Gap = 21.0;
-    y = drawClauseItem(g1, y, '1.', null, 'Submission of online application at National Portal for installation of RTS project/system, Submission of application for net-metering and system inspection and upload of the relevant documents on the National Portal of the scheme.', bodyFont, bodyBoldFont, gap: p1Gap);
-    y = drawClauseItem(g1, y, '2.', null, 'Provide secure storage of the material of the RTS plant delivered at the premises till handover of the system.', bodyFont, bodyBoldFont, gap: p1Gap);
-    y = drawClauseItem(g1, y, '3.', null, 'Provide access to the Roof Top during installation of the plant, operation & maintenance, testing of the plant and equipment and for meter reading from solar meter, inverter etc.', bodyFont, bodyBoldFont, gap: p1Gap);
-    y = drawClauseItem(g1, y, '4.', null, 'Provide electricity during plant installation and water for cleaning of the panels.', bodyFont, bodyBoldFont, gap: p1Gap);
-    y = drawClauseItem(g1, y, '5.', null, 'Report any malfunctioning of the plant to the Vendor during the warranty period.', bodyFont, bodyBoldFont, gap: p1Gap);
-    y = drawClauseItem(g1, y, '6.', null, 'Pay the amount as per the payment schedule as mutually agreed with the vendor, including any additional amount to the second party for any additional work /customization required depending upon the building condition.', bodyFont, bodyBoldFont, gap: 8.0);
-
-    // Draw footer at the end of page 1
-    drawRunningFooter(g1, 1, 3);
-
-    // =========================================================================
-    // PAGE 2: Second Party Undertakings (ALL 18 Clauses, perfectly aligned with no cutoff)
-    // Distributed with comfortable gaps to cover the page gracefully down to Clause 18
-    // =========================================================================
-    final PdfPage page2 = document.pages.add();
-    final PdfGraphics g2 = page2.graphics;
-    drawRunningHeader(g2);
-
-    y = 56;
-    g2.drawString(
-      'The Second Party hereby undertakes to perform the following activities:',
-      sectionHeaderFont,
-      brush: darkTextBrush,
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 15),
-    );
-    y += 20;
-
-    const double p2Gap = 12.0;
-    y = drawClauseItem(g2, y, '1.', 'Standards & Scheme Compliance', 'The Vendor must follow all the standards and safety guidelines prescribed under state regulations and technical standards prescribed by MNRE for RTS projects, failing which the vendor is liable for blacklisting from participation in the govt. project/ scheme and other penal actions in accordance with the law. The responsibility of supply, installation and commissioning of the rooftop solar project/system in complete compliance with MNRE scheme guidelines lies with the Vendor.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '2.', 'Site Survey', 'Site visit, survey and development of detailed project report for installation of RTS system. This also includes feasibility study of roof, strength of roof and shadow free area. If any additional work or customization is involved for the plant installation as per site condition and requirement of the consumer building, the Vendor shall prepare an estimate and can raise separate invoice including GST in addition to the amount towards standard plant cost. The consumer shall pay the amount for such additional work directly to the Vendor.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '3.', 'Design & Engineering', 'Design of plant along with drawings and selection of components as per standard provided by the DISCOM/SERC/MNRE for best performance and safety of the plant.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '4.', 'Module and Inverter', 'The solar modules, including the solar cells, should be manufactured in India. Both the solar modules and inverters shall conform to the relevant standards and specifications prescribed by MNRE. Any other requirement, viz. star labelling (solar modules), quality control orders and standards & labelling (inverters) etc., shall also be complied.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '5.', 'Procurement & Supply', 'Procurement of complete system as per BIS/IS/IEC standard (whatever applicable) & safety guidelines for installation of rooftop solar plants. The supplied materials should comply with all MNRE standards for release of subsidy.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '6.', 'Installation & Civil work', 'Complete civil work, structure work and electrical work (including drawings) following all the safety and relevant BIS standards.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '7.', 'Documentation', 'Technical Catalogues/Warranty Certificates/BIS certificates/other test reports etc.: All such documents shall be provided to the consumer for online uploading and submission of technical specifications, IEC/BIS report, Sr. Nos, Warranty card of Solar Panel & Inverter, Layout & Electrical SLD, Structure Design and Drawing, Cable and other detailed documents.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '8.', 'Project completion report (PCR)', 'Assisting the consumer in filling and uploading of signed documents (Consumer & Vendor) on the national portal.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '9.', 'Warranty', 'System warranty certificates should be provided to the consumer. The complete system should be warranted for 5 years from the date of commissioning by DISCOM. Individual component warranty documents provided by the manufacturer shall be provided to the consumer and all possible assistance should be extended to the consumer for claiming the warranty from the manufacturer.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '10.', 'NET meter & Grid Connectivity', 'Net meter supply/procurement, testing and approvals shall be in the scope of vendor. Grid connection of the plant shall be in the scope of the vendor.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '11.', 'Testing and Commissioning', 'The vendor shall be present at the time of testing and commissioning by the DISCOM.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '12.', 'Operation & Maintenance', 'Five (5) years Comprehensive Operation and Maintenance including overhauling, wear and tear and regular checking of healthiness of system at proper interval shall be in the scope of vendor. The vendor shall also educate the consumer on best practices for cleaning of the modules and system maintenance.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '13.', 'Insurance', 'Any insurance cost pertaining to material transfer/storage before commissioning of the system shall be in the scope of the vendor.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '14.', 'Applicable Standard', 'The system must meet the technical standards and specifications notified by MNRE. The vendor is solely responsible to supply component and service which meets the technical standards and specification prescribed by MNRE and State DISCOMs.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '15.', 'Project/system cost & payment terms', 'The cost of the plant and payment schedule should be mutually discussed and decided between the vendor and consumer. The consumer may opt for milestone-based payment to the vendor and the same shall be included in the agreement.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '16.', 'Dispute', 'In case of any dispute between consumer and vendor (in supply/installation/maintenance of system or payment terms), both parties must settle the same mutually or as per law. MNRE/DISCOM shall not be liable for, and would not be a party to any dispute arising between vendor and consumer.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '17.', 'Subsidy / Project Related Documents', 'Vendor must provide all the documents to consumer and help in uploading the same to National Portal for smooth release of subsidy.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
-    y = drawClauseItem(g2, y, '18.', 'Performance of Plant', 'The Performance Ratio (PR) of Plant must be >= 75% at the time of commissioning of the project by DISCOM or its authorised agency. Vendor must provide (returnable basis) radiation sensor with valid calibration certificate of any NABL / International laboratory at the time of commissioning / testing of the plant. Vendor must maintain the PR of the plant till warranty of project i.e. 5 years from the date of commissioning.', p2ClauseFont, p2ClauseBoldFont, gap: 8.0);
-
-    // Draw footer at the end of page 2
-    drawRunningFooter(g2, 2, 3);
-
-    // =========================================================================
-    // PAGE 3: Clause 19, Financial Card, Milestone Table, Table-Based Signatures, Disclaimer
-    // First Party & Second Party Table anchored directly to base, zero dead white space
-    // =========================================================================
-    final PdfPage page3 = document.pages.add();
-    final PdfGraphics g3 = page3.graphics;
-    drawRunningHeader(g3);
-
-    y = 56;
-    // Clause 19: Mutually Agreed Terms of Payment
-    g3.drawString(
-      '19. Mutually Agreed Terms of Payment',
-      docSubTitleFont,
-      brush: darkTextBrush,
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 16),
-    );
-    y += 24;
-
-    // Financial Overview Card (4 Columns with generous vertical padding)
-    const double sumBoxH = 52;
-    g3.drawRectangle(brush: headerBgBrush, pen: borderPen, bounds: Rect.fromLTWH(contentLeft, y, contentWidth, sumBoxH));
-
-    final double colW = contentWidth / 4;
-    void drawSummaryMetric(String title, String value, double xPos) {
-      g3.drawString(title, footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(xPos, y + 8, colW - 6, 12));
-      g3.drawString(value, bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(xPos, y + 26, colW - 6, 16));
-    }
-
-    drawSummaryMetric('Solar Capacity', agreement.systemCapacity, contentLeft + 12);
-    drawSummaryMetric('Total Project Cost', agreement.totalProjectCost > 0 ? currencyFormatter.format(agreement.totalProjectCost) : 'Rs. ____________', contentLeft + colW + 8);
-    drawSummaryMetric('Govt. CFA Subsidy', currencyFormatter.format(agreement.cfaSubsidyAmount), contentLeft + (colW * 2) + 8);
-    drawSummaryMetric('Net Payable', agreement.netCustomerPayable > 0 ? currencyFormatter.format(agreement.netCustomerPayable) : 'Rs. ____________', contentLeft + (colW * 3) + 8);
-    y += sumBoxH + 18;
-
-    // Milestone Table with Comfortable Cell Padding & Proper Column Widths
-    final PdfGrid grid = PdfGrid();
-    grid.columns.add(count: 5);
-    grid.columns[0].width = 30;
-    grid.columns[1].width = 125;
-    grid.columns[2].width = 55;
-    grid.columns[3].width = 95;
-    grid.columns[4].width = contentWidth - (30 + 125 + 55 + 95);
-
-    grid.headers.add(1);
-    final PdfGridRow headerRow = grid.headers[0];
-    headerRow.cells[0].value = 'Sr.';
-    headerRow.cells[1].value = 'Milestone Stage';
-    headerRow.cells[2].value = 'Share %';
-    headerRow.cells[3].value = 'Amount (Rs.)';
-    headerRow.cells[4].value = 'Payment Due Condition';
-
-    headerRow.style.backgroundBrush = headerBgBrush;
-    headerRow.style.textBrush = darkTextBrush;
-    headerRow.style.font = tableHeaderFont;
-
-    for (final m in agreement.paymentMilestones) {
-      final row = grid.rows.add();
-      row.cells[0].value = '${m.sr}.';
-      row.cells[1].value = m.stage;
-      row.cells[2].value = '${m.percentage.toStringAsFixed(0)}%';
-      row.cells[3].value = m.amount > 0 ? currencyFormatter.format(m.amount) : 'Rs. ____________';
-      row.cells[4].value = m.description;
-
-      row.cells[0].style.font = tableCellFont;
-      row.cells[1].style.font = tableCellBold;
-      row.cells[2].style.font = tableCellFont;
-      row.cells[3].style.font = tableCellBold;
-      row.cells[4].style.font = tableCellFont;
-
-      row.cells[0].stringFormat = PdfStringFormat(alignment: PdfTextAlignment.center);
-      row.cells[2].stringFormat = PdfStringFormat(alignment: PdfTextAlignment.center);
-      row.cells[3].stringFormat = PdfStringFormat(alignment: PdfTextAlignment.right);
-    }
-
-    // Add total row
-    final totalRow = grid.rows.add();
-    totalRow.cells[0].value = '';
-    totalRow.cells[1].value = 'Total Agreed Cost';
-    totalRow.cells[2].value = '100%';
-    totalRow.cells[3].value = agreement.totalProjectCost > 0 ? currencyFormatter.format(agreement.totalProjectCost) : 'Rs. ____________';
-    totalRow.cells[4].value = '100% of Total Agreed Project';
-    totalRow.style.backgroundBrush = headerBgBrush;
-    for (int i = 0; i < 5; i++) {
-      totalRow.cells[i].style.font = tableHeaderFont;
-    }
-    totalRow.cells[2].stringFormat = PdfStringFormat(alignment: PdfTextAlignment.center);
-    totalRow.cells[3].stringFormat = PdfStringFormat(alignment: PdfTextAlignment.right);
-
-    // Generous cell padding to give rows executive height
-    grid.style.cellPadding = PdfPaddings(left: 6, top: 8, right: 6, bottom: 8);
-    final PdfLayoutResult gridResult = grid.draw(
-      page: page3,
-      bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 0),
-    )!;
-
-    y = gridResult.bounds.bottom + 18;
-
-    // Anchor Disclaimer right above the footer line (y = 758 to 786)
-    const double disclaimerY = 758;
-    const double discH = 28;
-
-    // Anchor Signature Box to extend from current y all the way down to disclaimer!
-    final double signBoxBottom = disclaimerY - 12; // y = 746
-    final double signBoxH = signBoxBottom - y;
-
-    // ===================================================================
-    // FIRST PARTY & SECOND PARTY TABLE-BASED SIGNATURE & STAMP BLOCK
-    // Anchored directly to base with full vertical coverage & noble signing space
-    // ===================================================================
-    g3.drawRectangle(pen: borderPen, bounds: Rect.fromLTWH(contentLeft, y, contentWidth, signBoxH));
-
-    const double dividerXRatio = 0.48;
-    final double colDividerX = contentLeft + (contentWidth * dividerXRatio);
-    g3.drawLine(borderPen, Offset(colDividerX, y), Offset(colDividerX, y + signBoxH));
-
-    final double p1Width = (contentWidth * dividerXRatio) - 20;
-    final double p2Left = colDividerX + 12;
-    final double p2Width = (contentWidth * (1 - dividerXRatio)) - 22;
-
-    // Row 1: Header Bar with light gray background
-    const double headerBarH = 26;
-    g3.drawRectangle(brush: headerBgBrush, bounds: Rect.fromLTWH(contentLeft, y, contentWidth, headerBarH));
-    g3.drawLine(thinDividerPen, Offset(contentLeft, y + headerBarH), Offset(contentRight, y + headerBarH));
-    g3.drawLine(borderPen, Offset(colDividerX, y), Offset(colDividerX, y + headerBarH));
-
-    g3.drawString('First Party (Consumer)', sectionHeaderFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft + 12, y + 6, p1Width, 16));
-    g3.drawString('Second Party (Vendor)', sectionHeaderFont, brush: darkTextBrush, bounds: Rect.fromLTWH(p2Left, y + 6, p2Width, 16));
-
-    // Row 2: Details Section
-    double p1Y = y + headerBarH + 10;
-    g3.drawString('Name: ${agreement.customerName}', bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft + 12, p1Y, p1Width, 14));
-    p1Y += 18;
-    g3.drawString('Address: ${agreement.customerAddress.isNotEmpty ? agreement.customerAddress : "As per record"}', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 12, p1Y, p1Width, 13));
-    p1Y += 16;
-    g3.drawString('Consumer No: ${agreement.consumerNo}', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 12, p1Y, p1Width, 13));
-    p1Y += 16;
-    g3.drawString('Mobile: ${agreement.customerMobile.isNotEmpty ? agreement.customerMobile : "N/A"}', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 12, p1Y, p1Width, 13));
-    p1Y += 16;
-    g3.drawString('System Capacity: ${agreement.systemCapacity} Grid Connected RTS', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 12, p1Y, p1Width, 13));
-
-    double p2Y = y + headerBarH + 10;
-    g3.drawString('Name: SIYA INFOTECH & DIGITAL SOLUTIONS', bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 14));
-    p2Y += 18;
-    g3.drawString('Address: 21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 13));
-    p2Y += 16;
-    g3.drawString('GSTIN: 27CVTPK6358P1ZD | Mobile: 7972143798', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 13));
-    p2Y += 16;
-    g3.drawString('Email: siyainfodigital@gmail.com', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 13));
-    p2Y += 16;
-    g3.drawString('Role: Vendor / Contractor / System Integrator', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 13));
-
-    // Horizontal divider separating details row from base signature row
-    const double detailsH = 100;
-    final double baseRowY = y + headerBarH + detailsH;
-    g3.drawLine(thinDividerPen, Offset(contentLeft, baseRowY), Offset(contentRight, baseRowY));
-
-    // Row 3: Base Signature & Dedicated Stamp Row
-    final double baseRowH = signBoxBottom - baseRowY;
-
-    // First Party (Consumer) Signature Base
-    g3.drawString('Signature / Thumb Impression of First Party:', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft + 12, baseRowY + 10, p1Width, 12));
-
-    final double cSignY = baseRowY + (baseRowH * 0.62);
-    g3.drawLine(thinDividerPen, Offset(contentLeft + 12, cSignY), Offset(contentLeft + 12 + p1Width, cSignY));
-    g3.drawString('Signature of First Party (Consumer)', bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft + 12, cSignY + 5, p1Width, 14));
-    g3.drawString('Name: ${agreement.customerName}', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 12, cSignY + 20, p1Width, 13));
-    g3.drawString('Date: ${agreement.formattedExecutionDate}   |   Place: Shindkheda', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft + 12, cSignY + 35, p1Width, 13));
-
-    // Second Party (Vendor) Signature & Stamp Base
-    final double vSignY = cSignY;
-
-    // Vendor Signature with aligned baseline drawn FIRST
-    g3.drawLine(thinDividerPen, Offset(p2Left, vSignY), Offset(p2Left + p2Width, vSignY));
-
-    // Draw Company Stamp & Authorized Signature ON TOP OF the line ("reshcya var")
-    // Stamp size: 38mm x 38mm (108pt x 108pt) round stamp
-    // Composite artwork width: 146pt, height: 108pt
-    if (includeStampAndSignature) {
-      const double pairW = 146;
-      const double pairH = 108;
-      final double stampX = p2Left + (p2Width - pairW) / 2;
-      final double stampY = vSignY - 84;
-      CompanyStampHelper.drawStampAndSignature(
-        graphics: g3,
-        bounds: Rect.fromLTWH(stampX, stampY, pairW, pairH),
-        bitmap: stampAndSigBitmap,
-        include: includeStampAndSignature,
+      double curY = 56;
+      // Clause 19: Mutually Agreed Terms of Payment
+      g.drawString(
+        '19. Mutually Agreed Terms of Payment',
+        docSubTitleFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(contentLeft, curY, contentWidth, 16),
       );
+      curY += 24;
+
+      // Financial Overview Card (4 Columns with generous vertical padding)
+      const double sumBoxH = 52;
+      g.drawRectangle(brush: headerBgBrush, pen: borderPen, bounds: Rect.fromLTWH(contentLeft, curY, contentWidth, sumBoxH));
+
+      final double colW = contentWidth / 4;
+      void drawSummaryMetric(String title, String value, double xPos) {
+        g.drawString(title, footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(xPos, curY + 8, colW - 6, 12));
+        g.drawString(value, bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(xPos, curY + 26, colW - 6, 16));
+      }
+
+      drawSummaryMetric('Solar Capacity', agreement.systemCapacity, contentLeft + 12);
+      drawSummaryMetric('Total Project Cost', agreement.totalProjectCost > 0 ? currencyFormatter.format(agreement.totalProjectCost) : 'Rs. ____________', contentLeft + colW + 8);
+      drawSummaryMetric('Govt. CFA Subsidy', currencyFormatter.format(agreement.cfaSubsidyAmount), contentLeft + (colW * 2) + 8);
+      drawSummaryMetric('Net Payable', agreement.netCustomerPayable > 0 ? currencyFormatter.format(agreement.netCustomerPayable) : 'Rs. ____________', contentLeft + (colW * 3) + 8);
+      curY += sumBoxH + 18;
+
+      // Milestone Table with Comfortable Cell Padding & Proper Column Widths
+      final PdfGrid grid = PdfGrid();
+      grid.columns.add(count: 5);
+      grid.columns[0].width = 30;
+      grid.columns[1].width = 125;
+      grid.columns[2].width = 55;
+      grid.columns[3].width = 95;
+      grid.columns[4].width = contentWidth - (30 + 125 + 55 + 95);
+
+      grid.headers.add(1);
+      final PdfGridRow headerRow = grid.headers[0];
+      headerRow.cells[0].value = 'Sr.';
+      headerRow.cells[1].value = 'Milestone Stage';
+      headerRow.cells[2].value = 'Share %';
+      headerRow.cells[3].value = 'Amount (Rs.)';
+      headerRow.cells[4].value = 'Payment Due Condition';
+
+      headerRow.style.backgroundBrush = headerBgBrush;
+      headerRow.style.textBrush = darkTextBrush;
+      headerRow.style.font = tableHeaderFont;
+
+      for (final m in agreement.paymentMilestones) {
+        final row = grid.rows.add();
+        row.cells[0].value = '${m.sr}.';
+        row.cells[1].value = m.stage;
+        row.cells[2].value = '${m.percentage.toStringAsFixed(0)}%';
+        row.cells[3].value = m.amount > 0 ? currencyFormatter.format(m.amount) : 'Rs. ____________';
+        row.cells[4].value = m.description;
+
+        row.cells[0].style.font = tableCellFont;
+        row.cells[1].style.font = tableCellBold;
+        row.cells[2].style.font = tableCellFont;
+        row.cells[3].style.font = tableCellBold;
+        row.cells[4].style.font = tableCellFont;
+
+        row.cells[0].stringFormat = PdfStringFormat(alignment: PdfTextAlignment.center);
+        row.cells[2].stringFormat = PdfStringFormat(alignment: PdfTextAlignment.center);
+        row.cells[3].stringFormat = PdfStringFormat(alignment: PdfTextAlignment.right);
+      }
+
+      // Add total row
+      final totalRow = grid.rows.add();
+      totalRow.cells[0].value = '';
+      totalRow.cells[1].value = 'Total Agreed Cost';
+      totalRow.cells[2].value = '100%';
+      totalRow.cells[3].value = agreement.totalProjectCost > 0 ? currencyFormatter.format(agreement.totalProjectCost) : 'Rs. ____________';
+      totalRow.cells[4].value = '100% of Total Agreed Project';
+      totalRow.style.backgroundBrush = headerBgBrush;
+      for (int i = 0; i < 5; i++) {
+        totalRow.cells[i].style.font = tableHeaderFont;
+      }
+      totalRow.cells[2].stringFormat = PdfStringFormat(alignment: PdfTextAlignment.center);
+      totalRow.cells[3].stringFormat = PdfStringFormat(alignment: PdfTextAlignment.right);
+
+      // Generous cell padding to give rows executive height
+      grid.style.cellPadding = PdfPaddings(left: 6, top: 8, right: 6, bottom: 8);
+      final PdfLayoutResult gridResult = grid.draw(
+        page: targetPage,
+        bounds: Rect.fromLTWH(contentLeft, curY, contentWidth, 0),
+      )!;
+
+      curY = gridResult.bounds.bottom + 18;
+
+      // Anchor Disclaimer right above the footer line (y = 758 to 786)
+      const double disclaimerY = 758;
+      const double discH = 28;
+
+      // Anchor Signature Box to extend from current curY all the way down to disclaimer!
+      final double signBoxBottom = disclaimerY - 12; // y = 746
+      final double signBoxH = signBoxBottom - curY;
+
+      // FIRST PARTY & SECOND PARTY TABLE-BASED SIGNATURE & STAMP BLOCK
+      g.drawRectangle(pen: borderPen, bounds: Rect.fromLTWH(contentLeft, curY, contentWidth, signBoxH));
+
+      const double dividerXRatio = 0.48;
+      final double colDividerX = contentLeft + (contentWidth * dividerXRatio);
+      g.drawLine(borderPen, Offset(colDividerX, curY), Offset(colDividerX, curY + signBoxH));
+
+      final double p1Width = (contentWidth * dividerXRatio) - 20;
+      final double p2Left = colDividerX + 12;
+      final double p2Width = (contentWidth * (1 - dividerXRatio)) - 22;
+
+      // Row 1: Header Bar with light gray background
+      const double headerBarH = 26;
+      g.drawRectangle(brush: headerBgBrush, bounds: Rect.fromLTWH(contentLeft, curY, contentWidth, headerBarH));
+      g.drawLine(thinDividerPen, Offset(contentLeft, curY + headerBarH), Offset(contentRight, curY + headerBarH));
+      g.drawLine(borderPen, Offset(colDividerX, curY), Offset(colDividerX, curY + headerBarH));
+
+      g.drawString('First Party (Consumer)', sectionHeaderFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft + 12, curY + 6, p1Width, 16));
+      g.drawString('Second Party (Vendor)', sectionHeaderFont, brush: darkTextBrush, bounds: Rect.fromLTWH(p2Left, curY + 6, p2Width, 16));
+
+      // Row 2: Details Section
+      double p1Y = curY + headerBarH + 10;
+      g.drawString('Name: ${agreement.customerName}', bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft + 12, p1Y, p1Width, 14));
+      p1Y += 18;
+      g.drawString('Address: ${agreement.customerAddress.isNotEmpty ? agreement.customerAddress : "As per record"}', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 12, p1Y, p1Width, 13));
+      p1Y += 16;
+      g.drawString('Consumer No: ${agreement.consumerNo}', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 12, p1Y, p1Width, 13));
+      p1Y += 16;
+      g.drawString('Mobile: ${agreement.customerMobile.isNotEmpty ? agreement.customerMobile : "N/A"}', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 12, p1Y, p1Width, 13));
+      p1Y += 16;
+      g.drawString('System Capacity: ${agreement.systemCapacity} Grid Connected RTS', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 12, p1Y, p1Width, 13));
+
+      double p2Y = curY + headerBarH + 10;
+      g.drawString('Name: SIYA INFOTECH & DIGITAL SOLUTIONS', bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 14));
+      p2Y += 18;
+      g.drawString('Address: 21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 13));
+      p2Y += 16;
+      g.drawString('GSTIN: 27CVTPK6358P1ZD | Mobile: 7972143798', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 13));
+      p2Y += 16;
+      g.drawString('Email: siyainfodigital@gmail.com', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 13));
+      p2Y += 16;
+      g.drawString('Role: Vendor / Contractor / System Integrator', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(p2Left, p2Y, p2Width, 13));
+
+      // Horizontal divider separating details row from base signature row
+      const double detailsH = 100;
+      final double baseRowY = curY + headerBarH + detailsH;
+      g.drawLine(thinDividerPen, Offset(contentLeft, baseRowY), Offset(contentRight, baseRowY));
+
+      // Row 3: Base Signature & Dedicated Stamp Row
+      final double baseRowH = signBoxBottom - baseRowY;
+
+      // First Party (Consumer) Signature Base
+      g.drawString('Signature / Thumb Impression of First Party:', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft + 12, baseRowY + 10, p1Width, 12));
+
+      final double cSignY = baseRowY + (baseRowH * 0.62);
+      g.drawLine(thinDividerPen, Offset(contentLeft + 12, cSignY), Offset(contentLeft + 12 + p1Width, cSignY));
+      g.drawString('Signature of First Party (Consumer)', bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(contentLeft + 12, cSignY + 5, p1Width, 14));
+      g.drawString('Name: ${agreement.customerName}', bodyFont, brush: slateBodyBrush, bounds: Rect.fromLTWH(contentLeft + 12, cSignY + 20, p1Width, 13));
+      g.drawString('Date: ${agreement.formattedExecutionDate}   |   Place: Shindkheda', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(contentLeft + 12, cSignY + 35, p1Width, 13));
+
+      // Second Party (Vendor) Signature & Stamp Base
+      final double vSignY = cSignY;
+
+      // Vendor Signature with aligned baseline drawn FIRST
+      g.drawLine(thinDividerPen, Offset(p2Left, vSignY), Offset(p2Left + p2Width, vSignY));
+
+      if (includeStampAndSignature) {
+        const double pairW = 146;
+        const double pairH = 108;
+        final double stampX = p2Left + (p2Width - pairW) / 2;
+        final double stampY = vSignY - 84;
+        CompanyStampHelper.drawStampAndSignature(
+          graphics: g,
+          bounds: Rect.fromLTWH(stampX, stampY, pairW, pairH),
+          bitmap: stampAndSigBitmap,
+          include: includeStampAndSignature,
+        );
+      }
+      g.drawString('Authorized Signatory', bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(p2Left, vSignY + 5, p2Width, 14));
+      g.drawString('SIYA INFOTECH & DIGITAL SOLUTIONS', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(p2Left, vSignY + 20, p2Width, 13));
+      g.drawString('Date: ${agreement.formattedExecutionDate}   |   Place: Shindkheda', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(p2Left, vSignY + 35, p2Width, 13));
+
+      // Official PM Surya Ghar Disclaimer
+      g.drawRectangle(brush: headerBgBrush, pen: thinDividerPen, bounds: Rect.fromLTWH(contentLeft, disclaimerY, contentWidth, discH));
+      const String disclaimer =
+          'Disclaimer: This agreement is between vendor and consumer and any dispute related to the same shall not involve any third party including MNRE and Distribution Utilities.';
+      g.drawString(
+        disclaimer,
+        runningHeaderFont,
+        brush: slateMutedBrush,
+        format: PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.middle),
+        bounds: Rect.fromLTWH(contentLeft + 8, disclaimerY, contentWidth - 16, discH),
+      );
+
+      // Draw footer at the end of the page
+      drawRunningFooter(g, pageNum, totalPageCount);
     }
-    g3.drawString('Authorized Signatory', bodyBoldFont, brush: darkTextBrush, bounds: Rect.fromLTWH(p2Left, vSignY + 5, p2Width, 14));
-    g3.drawString('SIYA INFOTECH & DIGITAL SOLUTIONS', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(p2Left, vSignY + 20, p2Width, 13));
-    g3.drawString('Date: ${agreement.formattedExecutionDate}   |   Place: Shindkheda', footerFont, brush: slateMutedBrush, bounds: Rect.fromLTWH(p2Left, vSignY + 35, p2Width, 13));
 
-    // Official PM Surya Ghar Disclaimer
-    g3.drawRectangle(brush: headerBgBrush, pen: thinDividerPen, bounds: Rect.fromLTWH(contentLeft, disclaimerY, contentWidth, discH));
-    const String disclaimer =
-        'Disclaimer: This agreement is between vendor and consumer and any dispute related to the same shall not involve any third party including MNRE and Distribution Utilities.';
-    g3.drawString(
-      disclaimer,
-      runningHeaderFont,
-      brush: slateMutedBrush,
-      format: PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.middle),
-      bounds: Rect.fromLTWH(contentLeft + 8, disclaimerY, contentWidth - 16, discH),
-    );
+    if (includeStampPaper) {
+      // =========================================================================
+      // STAMP PAPER MODE: 4 PAGES A4
+      // Page 1: Rs. 100 Non-Judicial Maharashtra Stamp Paper (Text below header Y >= 480)
+      // Page 2: First Party (1 to 6) + Second Party (1 to 8)
+      // Page 3: Second Party Continued (9 to 18)
+      // Page 4: Mutually Agreed Terms, Milestone Table & Dual Signatures
+      // =========================================================================
 
-    // Draw footer at the end of page 3
-    drawRunningFooter(g3, 3, 3);
+      // --- PAGE 1: Rs. 100 Stamp Paper ---
+      final PdfPage page1 = document.pages.add();
+      final PdfGraphics g1 = page1.graphics;
+
+      if (stampPaperBitmap != null && stampPaperBackground) {
+        g1.drawImage(stampPaperBitmap, Rect.fromLTWH(0, 0, pageWidth, pageHeight));
+      }
+
+      double y = 480;
+
+      // Header & Title Section
+      g1.drawString(
+        'Annexure 2 | Model Draft Agreement',
+        sectionHeaderFont,
+        brush: darkTextBrush,
+        format: PdfStringFormat(alignment: PdfTextAlignment.center),
+        bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 14),
+      );
+      y += 14;
+
+      g1.drawString(
+        'between Consumer & Vendor under PM - Surya Ghar: Muft Bijli Yojana',
+        bodyBoldFont,
+        brush: darkTextBrush,
+        format: PdfStringFormat(alignment: PdfTextAlignment.center),
+        bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 13),
+      );
+      y += 16;
+
+      // Preamble
+      final String preambleText =
+          'This agreement is executed on ${agreement.executionDay} day of ${agreement.executionMonth}, ${agreement.executionYear} '
+          'for design, supply, installation, commissioning and 5-year comprehensive maintenance of RTS project/system along with warranty '
+          'under PM Surya Ghar: Muft Bijli Yojana.';
+      y = drawDynamicText(g1, y, preambleText, p2ClauseFont, darkTextBrush, gap: 7);
+
+      // Parties: Between & And
+      g1.drawString('Between', bodyBoldFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 12));
+      y += 12;
+
+      final String consumerText =
+          '${agreement.customerName} (Consumer No: ${agreement.consumerNo}, Mobile: ${agreement.customerMobile.isNotEmpty ? agreement.customerMobile : "N/A"}) '
+          'having address at ${agreement.customerAddress.isNotEmpty ? agreement.customerAddress : "Betawad, Tal. Shindkheda, Dist. Dhule"} '
+          '(hereinafter referred to as first Party i.e. /consumer/purchaser /owner of system).';
+      y = drawDynamicText(g1, y, consumerText, p2ClauseFont, slateBodyBrush, gap: 7);
+
+      g1.drawString('And', bodyBoldFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 12));
+      y += 12;
+
+      const String vendorText =
+          'SIYA INFOTECH & DIGITAL SOLUTIONS (GSTIN: 27CVTPK6358P1ZD, Mobile: 7972143798, Email: siyainfodigital@gmail.com) '
+          'having registered office at 21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule - 425403 '
+          '(hereinafter referred to as second Party i.e. Vendor/ contractor/ System Integrator).';
+      y = drawDynamicText(g1, y, vendorText, p2ClauseFont, slateBodyBrush, gap: 7);
+
+      // Recitals: Whereas & And whereas
+      g1.drawString('Whereas', bodyBoldFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 12));
+      y += 12;
+
+      final String whereas1 =
+          'First Party wishes to install a Grid Connected Rooftop Solar Plant of ${agreement.systemCapacity} on the rooftop of the residential building of the Consumer under PM Surya Ghar: Muft Bijli Yojana.';
+      y = drawDynamicText(g1, y, whereas1, p2ClauseFont, slateBodyBrush, gap: 6);
+
+      g1.drawString('And whereas', bodyBoldFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 12));
+      y += 12;
+
+      const String whereas2 =
+          'Second Party has verified availability of appropriate roof and found it feasible to install a Grid Connected Roof Top Solar plant and that the second party is willing to design, supply, install, test, commission and carry out Operation & Maintenance of the Rooftop Solar plant for 5 year period.';
+      y = drawDynamicText(g1, y, whereas2, p2ClauseFont, slateBodyBrush, gap: 7);
+
+      g1.drawString(
+        'On this day, the First Party and Second Party agree to the following:',
+        bodyBoldFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 12),
+      );
+
+      drawRunningFooter(g1, 1, 4);
+
+      // --- PAGE 2: First Party (1 to 6) + Second Party (1 to 8) ---
+      final PdfPage page2 = document.pages.add();
+      final PdfGraphics g2 = page2.graphics;
+      drawRunningHeader(g2);
+
+      y = 56;
+      g2.drawString(
+        'The First Party hereby undertakes to perform the following activities:',
+        sectionHeaderFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 15),
+      );
+      y += 18;
+
+      const double p2Gap = 6.0;
+      y = drawClauseItem(g2, y, '1.', null, 'Submission of online application at National Portal for installation of RTS project/system, Submission of application for net-metering and system inspection and upload of the relevant documents on the National Portal of the scheme.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '2.', null, 'Provide secure storage of the material of the RTS plant delivered at the premises till handover of the system.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '3.', null, 'Provide access to the Roof Top during installation of the plant, operation & maintenance, testing of the plant and equipment and for meter reading from solar meter, inverter etc.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '4.', null, 'Provide electricity during plant installation and water for cleaning of the panels.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '5.', null, 'Report any malfunctioning of the plant to the Vendor during the warranty period.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '6.', null, 'Pay the amount as per the payment schedule as mutually agreed with the vendor, including any additional amount to the second party for any additional work /customization required depending upon the building condition.', p2ClauseFont, p2ClauseBoldFont, gap: 10.0);
+
+      g2.drawLine(thinDividerPen, Offset(contentLeft, y), Offset(contentRight, y));
+      y += 10;
+
+      g2.drawString(
+        'The Second Party hereby undertakes to perform the following activities:',
+        sectionHeaderFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 15),
+      );
+      y += 18;
+
+      y = drawClauseItem(g2, y, '1.', 'Standards & Scheme Compliance', 'The Vendor must follow all the standards and safety guidelines prescribed under state regulations and technical standards prescribed by MNRE for RTS projects, failing which the vendor is liable for blacklisting from participation in the govt. project/ scheme and other penal actions in accordance with the law.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '2.', 'Site Survey', 'Site visit, survey and development of detailed project report for installation of RTS system. This also includes feasibility study of roof, strength of roof and shadow free area.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '3.', 'Design & Engineering', 'Design of plant along with drawings and selection of components as per standard provided by the DISCOM/SERC/MNRE for best performance and safety of the plant.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '4.', 'Module and Inverter', 'The solar modules, including the solar cells, should be manufactured in India. Both the solar modules and inverters shall conform to the relevant standards and specifications prescribed by MNRE.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '5.', 'Procurement & Supply', 'Procurement of complete system as per BIS/IS/IEC standard & safety guidelines for installation of rooftop solar plants. The supplied materials should comply with all MNRE standards.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '6.', 'Installation & Civil work', 'Complete civil work, structure work and electrical work (including drawings) following all the safety and relevant BIS standards.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '7.', 'Documentation', 'Technical Catalogues/Warranty Certificates/BIS certificates/other test reports etc.: All such documents shall be provided to the consumer for online uploading and submission of technical specifications.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '8.', 'Project completion report (PCR)', 'Assisting the consumer in filling and uploading of signed documents (Consumer & Vendor) on the national portal.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+
+      drawRunningFooter(g2, 2, 4);
+
+      // --- PAGE 3: Second Party Continued (9 to 18) ---
+      final PdfPage page3 = document.pages.add();
+      final PdfGraphics g3 = page3.graphics;
+      drawRunningHeader(g3);
+
+      y = 56;
+      g3.drawString(
+        'The Second Party hereby undertakes to perform the following activities (Continued):',
+        sectionHeaderFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 15),
+      );
+      y += 18;
+
+      const double p3Gap = 9.0;
+      y = drawClauseItem(g3, y, '9.', 'Warranty', 'System warranty certificates should be provided to the consumer. The complete system should be warranted for 5 years from the date of commissioning by DISCOM. Individual component warranty documents provided by the manufacturer shall be provided to the consumer.', p2ClauseFont, p2ClauseBoldFont, gap: p3Gap);
+      y = drawClauseItem(g3, y, '10.', 'NET meter & Grid Connectivity', 'Net meter supply/procurement, testing and approvals shall be in the scope of vendor. Grid connection of the plant shall be in the scope of the vendor.', p2ClauseFont, p2ClauseBoldFont, gap: p3Gap);
+      y = drawClauseItem(g3, y, '11.', 'Testing and Commissioning', 'The vendor shall be present at the time of testing and commissioning by the DISCOM.', p2ClauseFont, p2ClauseBoldFont, gap: p3Gap);
+      y = drawClauseItem(g3, y, '12.', 'Operation & Maintenance', 'Five (5) years Comprehensive Operation and Maintenance including overhauling, wear and tear and regular checking of healthiness of system at proper interval shall be in the scope of vendor.', p2ClauseFont, p2ClauseBoldFont, gap: p3Gap);
+      y = drawClauseItem(g3, y, '13.', 'Insurance', 'Any insurance cost pertaining to material transfer/storage before commissioning of the system shall be in the scope of the vendor.', p2ClauseFont, p2ClauseBoldFont, gap: p3Gap);
+      y = drawClauseItem(g3, y, '14.', 'Applicable Standard', 'The system must meet the technical standards and specifications notified by MNRE. The vendor is solely responsible to supply component and service which meets the technical standards and specification prescribed by MNRE and State DISCOMs.', p2ClauseFont, p2ClauseBoldFont, gap: p3Gap);
+      y = drawClauseItem(g3, y, '15.', 'Project/system cost & payment terms', 'The cost of the plant and payment schedule should be mutually discussed and decided between the vendor and consumer. The consumer may opt for milestone-based payment to the vendor and the same shall be included in the agreement.', p2ClauseFont, p2ClauseBoldFont, gap: p3Gap);
+      y = drawClauseItem(g3, y, '16.', 'Dispute', 'In case of any dispute between consumer and vendor (in supply/installation/maintenance of system or payment terms), both parties must settle the same mutually or as per law. MNRE/DISCOM shall not be liable for, and would not be a party to any dispute arising between vendor and consumer.', p2ClauseFont, p2ClauseBoldFont, gap: p3Gap);
+      y = drawClauseItem(g3, y, '17.', 'Subsidy / Project Related Documents', 'Vendor must provide all the documents to consumer and help in uploading the same to National Portal for smooth release of subsidy.', p2ClauseFont, p2ClauseBoldFont, gap: p3Gap);
+      y = drawClauseItem(g3, y, '18.', 'Performance of Plant', 'The Performance Ratio (PR) of Plant must be >= 75% at the time of commissioning of the project by DISCOM or its authorised agency. Vendor must provide radiation sensor with valid calibration certificate at the time of commissioning and maintain PR for 5 years.', p2ClauseFont, p2ClauseBoldFont, gap: p3Gap);
+
+      drawRunningFooter(g3, 3, 4);
+
+      // --- PAGE 4: Mutually Agreed Terms, Milestone Table & Dual Signatures ---
+      final PdfPage page4 = document.pages.add();
+      drawPaymentAndSignaturesPage(page4, 4, 4);
+    } else {
+      // =========================================================================
+      // STANDARD MODE: EXACT 3 PAGES A4
+      // Page 1: Title, Preamble, Parties (Centered), Recitals (Centered), First Party (1 to 6)
+      // Page 2: Second Party Undertakings (ALL 18 Clauses)
+      // Page 3: Clause 19, Milestone Table, Table-Based Signatures & Disclaimer
+      // =========================================================================
+      final PdfPage page1 = document.pages.add();
+      final PdfGraphics g1 = page1.graphics;
+      drawRunningHeader(g1);
+
+      double y = 56;
+
+      // Document Title
+      g1.drawString(
+        'Model Draft Agreement',
+        docMainTitleFont,
+        brush: darkTextBrush,
+        format: PdfStringFormat(alignment: PdfTextAlignment.center),
+        bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 20),
+      );
+      y += 24;
+
+      g1.drawString(
+        'between Consumer & Vendor for installation of grid connected rooftop solar (RTS) project under PM - Surya Ghar: Muft Bijli Yojana',
+        docSubTitleFont,
+        brush: darkTextBrush,
+        format: PdfStringFormat(alignment: PdfTextAlignment.center),
+        bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 26),
+      );
+      y += 34;
+
+      // Preamble
+      final String preambleText =
+          'This agreement is executed on ${agreement.executionDay} day of ${agreement.executionMonth}, ${agreement.executionYear} '
+          'for design, supply, installation, commissioning and 5-year comprehensive maintenance of RTS project/system along with warranty '
+          'under PM Surya Ghar: Muft Bijli Yojana.';
+      y = drawDynamicText(g1, y, preambleText, bodyFont, darkTextBrush, gap: 18);
+
+      // Parties: Between (CENTERED) & And (CENTERED)
+      g1.drawString('Between', centeredHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 14));
+      y += 18;
+      final String consumerText =
+          '${agreement.customerName} (Consumer No: ${agreement.consumerNo}, Mobile: ${agreement.customerMobile.isNotEmpty ? agreement.customerMobile : "N/A"}) '
+          'having address at ${agreement.customerAddress.isNotEmpty ? agreement.customerAddress : "Betawad, Tal. Shindkheda, Dist. Dhule"} '
+          '(hereinafter referred to as first Party i.e. /consumer/purchaser /owner of system).';
+      y = drawDynamicText(g1, y, consumerText, bodyFont, slateBodyBrush, gap: 18);
+
+      g1.drawString('And', centeredHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 14));
+      y += 18;
+      const String vendorText =
+          'SIYA INFOTECH & DIGITAL SOLUTIONS (GSTIN: 27CVTPK6358P1ZD, Mobile: 7972143798, Email: siyainfodigital@gmail.com) '
+          'having registered office at 21, Mudavad Road, Betawad, Tal. Shindkheda, Dist. Dhule - 425403 '
+          '(hereinafter referred to as second Party i.e. Vendor/ contractor/ System Integrator).';
+      y = drawDynamicText(g1, y, vendorText, bodyFont, slateBodyBrush, gap: 18);
+
+      // Recitals: Whereas (CENTERED) & And whereas (CENTERED)
+      g1.drawString('Whereas', centeredHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 14));
+      y += 18;
+      final String whereas1 =
+          'First Party wishes to install a Grid Connected Rooftop Solar Plant of ${agreement.systemCapacity} on the rooftop of the residential building '
+          'of the Consumer under PM Surya Ghar: Muft Bijli Yojana.';
+      y = drawDynamicText(g1, y, whereas1, bodyFont, slateBodyBrush, gap: 16);
+
+      g1.drawString('And whereas', centeredHeaderFont, brush: darkTextBrush, format: PdfStringFormat(alignment: PdfTextAlignment.center), bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 14));
+      y += 18;
+      const String whereas2 =
+          'Second Party has verified availability of appropriate roof and found it feasible to install a Grid Connected Roof Top Solar plant and that '
+          'the second party is willing to design, supply, install, test, commission and carry out Operation & Maintenance of the Rooftop Solar plant for 5 year period.';
+      y = drawDynamicText(g1, y, whereas2, bodyFont, slateBodyBrush, gap: 18);
+
+      g1.drawString(
+        'On this day, the First Party and Second Party agree to the following:',
+        bodyBoldFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 14),
+      );
+      y += 18;
+
+      // First Party Undertakings (1 to 6)
+      g1.drawString(
+        'The First Party hereby undertakes to perform the following activities:',
+        sectionHeaderFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 15),
+      );
+      y += 20;
+
+      const double p1Gap = 21.0;
+      y = drawClauseItem(g1, y, '1.', null, 'Submission of online application at National Portal for installation of RTS project/system, Submission of application for net-metering and system inspection and upload of the relevant documents on the National Portal of the scheme.', bodyFont, bodyBoldFont, gap: p1Gap);
+      y = drawClauseItem(g1, y, '2.', null, 'Provide secure storage of the material of the RTS plant delivered at the premises till handover of the system.', bodyFont, bodyBoldFont, gap: p1Gap);
+      y = drawClauseItem(g1, y, '3.', null, 'Provide access to the Roof Top during installation of the plant, operation & maintenance, testing of the plant and equipment and for meter reading from solar meter, inverter etc.', bodyFont, bodyBoldFont, gap: p1Gap);
+      y = drawClauseItem(g1, y, '4.', null, 'Provide electricity during plant installation and water for cleaning of the panels.', bodyFont, bodyBoldFont, gap: p1Gap);
+      y = drawClauseItem(g1, y, '5.', null, 'Report any malfunctioning of the plant to the Vendor during the warranty period.', bodyFont, bodyBoldFont, gap: p1Gap);
+      y = drawClauseItem(g1, y, '6.', null, 'Pay the amount as per the payment schedule as mutually agreed with the vendor, including any additional amount to the second party for any additional work /customization required depending upon the building condition.', bodyFont, bodyBoldFont, gap: 8.0);
+
+      drawRunningFooter(g1, 1, 3);
+
+      // --- PAGE 2: Second Party Undertakings (ALL 18 Clauses) ---
+      final PdfPage page2 = document.pages.add();
+      final PdfGraphics g2 = page2.graphics;
+      drawRunningHeader(g2);
+
+      y = 56;
+      g2.drawString(
+        'The Second Party hereby undertakes to perform the following activities:',
+        sectionHeaderFont,
+        brush: darkTextBrush,
+        bounds: Rect.fromLTWH(contentLeft, y, contentWidth, 15),
+      );
+      y += 20;
+
+      const double p2Gap = 12.0;
+      y = drawClauseItem(g2, y, '1.', 'Standards & Scheme Compliance', 'The Vendor must follow all the standards and safety guidelines prescribed under state regulations and technical standards prescribed by MNRE for RTS projects, failing which the vendor is liable for blacklisting from participation in the govt. project/ scheme and other penal actions in accordance with the law. The responsibility of supply, installation and commissioning of the rooftop solar project/system in complete compliance with MNRE scheme guidelines lies with the Vendor.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '2.', 'Site Survey', 'Site visit, survey and development of detailed project report for installation of RTS system. This also includes feasibility study of roof, strength of roof and shadow free area. If any additional work or customization is involved for the plant installation as per site condition and requirement of the consumer building, the Vendor shall prepare an estimate and can raise separate invoice including GST in addition to the amount towards standard plant cost. The consumer shall pay the amount for such additional work directly to the Vendor.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '3.', 'Design & Engineering', 'Design of plant along with drawings and selection of components as per standard provided by the DISCOM/SERC/MNRE for best performance and safety of the plant.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '4.', 'Module and Inverter', 'The solar modules, including the solar cells, should be manufactured in India. Both the solar modules and inverters shall conform to the relevant standards and specifications prescribed by MNRE. Any other requirement, viz. star labelling (solar modules), quality control orders and standards & labelling (inverters) etc., shall also be complied.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '5.', 'Procurement & Supply', 'Procurement of complete system as per BIS/IS/IEC standard (whatever applicable) & safety guidelines for installation of rooftop solar plants. The supplied materials should comply with all MNRE standards for release of subsidy.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '6.', 'Installation & Civil work', 'Complete civil work, structure work and electrical work (including drawings) following all the safety and relevant BIS standards.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '7.', 'Documentation', 'Technical Catalogues/Warranty Certificates/BIS certificates/other test reports etc.: All such documents shall be provided to the consumer for online uploading and submission of technical specifications, IEC/BIS report, Sr. Nos, Warranty card of Solar Panel & Inverter, Layout & Electrical SLD, Structure Design and Drawing, Cable and other detailed documents.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '8.', 'Project completion report (PCR)', 'Assisting the consumer in filling and uploading of signed documents (Consumer & Vendor) on the national portal.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '9.', 'Warranty', 'System warranty certificates should be provided to the consumer. The complete system should be warranted for 5 years from the date of commissioning by DISCOM. Individual component warranty documents provided by the manufacturer shall be provided to the consumer and all possible assistance should be extended to the consumer for claiming the warranty from the manufacturer.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '10.', 'NET meter & Grid Connectivity', 'Net meter supply/procurement, testing and approvals shall be in the scope of vendor. Grid connection of the plant shall be in the scope of the vendor.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '11.', 'Testing and Commissioning', 'The vendor shall be present at the time of testing and commissioning by the DISCOM.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '12.', 'Operation & Maintenance', 'Five (5) years Comprehensive Operation and Maintenance including overhauling, wear and tear and regular checking of healthiness of system at proper interval shall be in the scope of vendor. The vendor shall also educate the consumer on best practices for cleaning of the modules and system maintenance.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '13.', 'Insurance', 'Any insurance cost pertaining to material transfer/storage before commissioning of the system shall be in the scope of the vendor.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '14.', 'Applicable Standard', 'The system must meet the technical standards and specifications notified by MNRE. The vendor is solely responsible to supply component and service which meets the technical standards and specification prescribed by MNRE and State DISCOMs.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '15.', 'Project/system cost & payment terms', 'The cost of the plant and payment schedule should be mutually discussed and decided between the vendor and consumer. The consumer may opt for milestone-based payment to the vendor and the same shall be included in the agreement.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '16.', 'Dispute', 'In case of any dispute between consumer and vendor (in supply/installation/maintenance of system or payment terms), both parties must settle the same mutually or as per law. MNRE/DISCOM shall not be liable for, and would not be a party to any dispute arising between vendor and consumer.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '17.', 'Subsidy / Project Related Documents', 'Vendor must provide all the documents to consumer and help in uploading the same to National Portal for smooth release of subsidy.', p2ClauseFont, p2ClauseBoldFont, gap: p2Gap);
+      y = drawClauseItem(g2, y, '18.', 'Performance of Plant', 'The Performance Ratio (PR) of Plant must be >= 75% at the time of commissioning of the project by DISCOM or its authorised agency. Vendor must provide (returnable basis) radiation sensor with valid calibration certificate of any NABL / International laboratory at the time of commissioning / testing of the plant. Vendor must maintain the PR of the plant till warranty of project i.e. 5 years from the date of commissioning.', p2ClauseFont, p2ClauseBoldFont, gap: 8.0);
+
+      drawRunningFooter(g2, 2, 3);
+
+      // --- PAGE 3: Clause 19, Financial Card, Milestone Table, Table-Based Signatures, Disclaimer ---
+      final PdfPage page3 = document.pages.add();
+      drawPaymentAndSignaturesPage(page3, 3, 3);
+    }
 
     // Save and return
     final List<int> bytes = await document.save();
@@ -545,8 +724,18 @@ class ConsumerVendorAgreementPdfService {
   }
 
   /// Open/View agreement PDF
-  static Future<void> printAgreement(ConsumerVendorAgreement agreement) async {
-    final file = await generateAgreementPdf(agreement: agreement);
+  static Future<void> printAgreement(
+    ConsumerVendorAgreement agreement, {
+    bool includeStampPaper = false,
+    bool stampPaperBackground = true,
+    bool includeStampAndSignature = false,
+  }) async {
+    final file = await generateAgreementPdf(
+      agreement: agreement,
+      includeStampPaper: includeStampPaper,
+      stampPaperBackground: stampPaperBackground,
+      includeStampAndSignature: includeStampAndSignature,
+    );
     await OpenFilex.open(file.path);
   }
 
