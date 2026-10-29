@@ -193,36 +193,42 @@ class SolarQuotation {
       {
         'sr': '1',
         'item': 'Solar PV Modules',
+        'make': 'Waaree / Adani / Goldi (DCR TopCon)',
         'spec': 'Mono / TOPCon DCR - $capStr (25 Years Performance Warranty)',
         'qty': capStr,
       },
       {
         'sr': '2',
         'item': 'Grid-Tied Inverter',
+        'make': 'Sungrow / Growatt / Solis / Polycab',
         'spec': '$capStr ${isThreePhase ? '3-Phase' : '1-Phase'} Grid-Tied Inverter (IP65)',
         'qty': '1 No.',
       },
       {
         'sr': '3',
         'item': 'Mounting Structure',
+        'make': 'Hot Dip Galvanized Iron (GI)',
         'spec': 'Hot Dip GI Elevated Structure (Wind resistance up to 150 km/h)',
         'qty': '1 Set',
       },
       {
         'sr': '4',
         'item': 'DC Cable',
+        'make': 'Polycab / Havells / Siechem (Solar Grade)',
         'spec': 'Solar UV Protected 4 sq.mm Copper Cable',
         'qty': 'As Required',
       },
       {
         'sr': '5',
         'item': 'AC Cable',
+        'make': 'Polycab / KEI / Finolex',
         'spec': '${isThreePhase ? '4-Core ' : '2-Core '}Armoured AC Cable',
         'qty': 'As Required',
       },
       {
         'sr': '6',
         'item': 'ACDB & DCDB',
+        'make': 'Hensel / Elmex / Schneider Protection Box',
         'spec': isThreePhase
             ? '3-Phase Protection Distribution Box with SPD & MCB'
             : 'Protection Distribution Box with SPD & MCB',
@@ -231,6 +237,7 @@ class SolarQuotation {
       {
         'sr': '7',
         'item': 'Earthing Electrodes',
+        'make': 'True Power / Ashlok Chemical GI',
         'spec': isThreePhase
             ? 'Chemical GI Earthing Electrodes (AC, DC, Body, LA)'
             : 'Chemical GI Earthing Electrodes & Lightning Arrester',
@@ -239,12 +246,14 @@ class SolarQuotation {
       {
         'sr': '8',
         'item': 'Installation & Commissioning',
+        'make': 'Siya Infotech Certified Engineering Team',
         'spec': 'Civil, Mechanical & Electrical Engineering Work',
         'qty': '1 Job',
       },
       {
         'sr': '9',
         'item': 'Net Metering Assistance',
+        'make': 'MSEDCL / Discom Approved Bi-directional Meter',
         'spec': 'MSEDCL Portal Registration, Testing & Net Meter Coordination',
         'qty': '1 Job',
       },

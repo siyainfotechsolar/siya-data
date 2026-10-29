@@ -375,19 +375,30 @@ class BankLoanQuotationService {
                             padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2.2),
                             child: pw.Row(
                               children: [
-                                pw.SizedBox(width: 28, child: pw.Text('Sr.', style: pw.TextStyle(fontSize: 7.8, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
-                                pw.Container(width: 0.8, height: 11, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 4)),
+                                pw.SizedBox(width: 22, child: pw.Text('Sr.', style: pw.TextStyle(fontSize: 7.8, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
+                                pw.Container(width: 0.8, height: 11, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 3)),
                                 pw.Expanded(flex: 3, child: pw.Text('Component / Description', style: pw.TextStyle(fontSize: 7.8, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
-                                pw.Container(width: 0.8, height: 11, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 4)),
-                                pw.Expanded(flex: 5, child: pw.Text('Technical Specification / Standard', style: pw.TextStyle(fontSize: 7.8, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
-                                pw.Container(width: 0.8, height: 11, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 4)),
-                                pw.SizedBox(width: 70, child: pw.Text('Quantity', textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 7.8, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
+                                pw.Container(width: 0.8, height: 11, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 3)),
+                                pw.Expanded(flex: 3, child: pw.Text('Company / Make (Brand)', style: pw.TextStyle(fontSize: 7.8, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
+                                pw.Container(width: 0.8, height: 11, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 3)),
+                                pw.Expanded(flex: 4, child: pw.Text('Technical Specification / Standard', style: pw.TextStyle(fontSize: 7.8, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
+                                pw.Container(width: 0.8, height: 11, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 3)),
+                                pw.SizedBox(width: 60, child: pw.Text('Quantity', textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 7.8, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
                               ],
                             ),
                           ),
                           ...quotation.items.asMap().entries.map((entry) {
                             final i = entry.key;
                             final item = entry.value;
+                            final String make = (item['make'] != null && item['make']!.isNotEmpty)
+                                ? item['make']!
+                                : (item['company'] != null && item['company']!.isNotEmpty)
+                                    ? item['company']!
+                                    : (i == 0
+                                        ? quotation.panelBrand
+                                        : (i == 1
+                                            ? quotation.inverterBrand
+                                            : (i == 2 ? quotation.mountingStructure : 'Standard Grade')));
                             return pw.Container(
                               padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 1.8),
                               decoration: pw.BoxDecoration(
@@ -396,13 +407,15 @@ class BankLoanQuotationService {
                               ),
                               child: pw.Row(
                                 children: [
-                                  pw.SizedBox(width: 28, child: pw.Text(item['sr'] ?? '${i + 1}', style: const pw.TextStyle(fontSize: 7.5, color: slateMutedColor))),
-                                  pw.Container(width: 0.8, height: 10, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 4)),
-                                  pw.Expanded(flex: 3, child: pw.Text(item['item'] ?? '', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
-                                  pw.Container(width: 0.8, height: 10, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 4)),
-                                  pw.Expanded(flex: 5, child: pw.Text(item['spec'] ?? '', style: const pw.TextStyle(fontSize: 7.5, color: slateBodyColor))),
-                                  pw.Container(width: 0.8, height: 10, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 4)),
-                                  pw.SizedBox(width: 70, child: pw.Text(item['qty'] ?? '', textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
+                                  pw.SizedBox(width: 22, child: pw.Text(item['sr'] ?? '${i + 1}', style: const pw.TextStyle(fontSize: 7.5, color: slateMutedColor))),
+                                  pw.Container(width: 0.8, height: 10, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 3)),
+                                  pw.Expanded(flex: 3, child: pw.Text(item['item'] ?? '', style: pw.TextStyle(fontSize: 7.4, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
+                                  pw.Container(width: 0.8, height: 10, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 3)),
+                                  pw.Expanded(flex: 3, child: pw.Text(make, style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold, color: navyColor))),
+                                  pw.Container(width: 0.8, height: 10, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 3)),
+                                  pw.Expanded(flex: 4, child: pw.Text(item['spec'] ?? '', style: const pw.TextStyle(fontSize: 7.1, color: slateBodyColor))),
+                                  pw.Container(width: 0.8, height: 10, color: borderDarkColor, margin: const pw.EdgeInsets.symmetric(horizontal: 3)),
+                                  pw.SizedBox(width: 60, child: pw.Text(item['qty'] ?? '', textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 7.4, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
                                 ],
                               ),
                             );

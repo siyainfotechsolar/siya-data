@@ -431,10 +431,11 @@ class BankLoanQuotationService {
     y += sectionHeaderH;
 
     // Column widths for system table (sum = contentWidth = 539.28)
-    const double colSrW = 32;
-    const double colItemW = 145;
-    const double colQtyW = 75;
-    final double colSpecW = contentWidth - colSrW - colItemW - colQtyW; // ~287.28
+    const double colSrW = 28;
+    const double colItemW = 120;
+    const double colMakeW = 105;
+    const double colQtyW = 65;
+    final double colSpecW = contentWidth - colSrW - colItemW - colMakeW - colQtyW; // ~221.28
 
     // Table sub-header row
     const double tblHeaderH = 18;
@@ -446,18 +447,21 @@ class BankLoanQuotationService {
     // Vertical grid lines in header
     graphics.drawLine(tableGridPen, Offset(contentLeft + colSrW, y), Offset(contentLeft + colSrW, y + tblHeaderH));
     graphics.drawLine(tableGridPen, Offset(contentLeft + colSrW + colItemW, y), Offset(contentLeft + colSrW + colItemW, y + tblHeaderH));
-    graphics.drawLine(tableGridPen, Offset(contentLeft + colSrW + colItemW + colSpecW, y), Offset(contentLeft + colSrW + colItemW + colSpecW, y + tblHeaderH));
+    graphics.drawLine(tableGridPen, Offset(contentLeft + colSrW + colItemW + colMakeW, y), Offset(contentLeft + colSrW + colItemW + colMakeW, y + tblHeaderH));
+    graphics.drawLine(tableGridPen, Offset(contentLeft + colSrW + colItemW + colMakeW + colSpecW, y), Offset(contentLeft + colSrW + colItemW + colMakeW + colSpecW, y + tblHeaderH));
 
     graphics.drawString('Sr.', tableHeaderFont, brush: darkTextBrush,
       format: PdfStringFormat(alignment: PdfTextAlignment.center),
       bounds: Rect.fromLTWH(contentLeft, y + cellPadY, colSrW, tblHeaderH));
     graphics.drawString('Component / Description', tableHeaderFont, brush: darkTextBrush,
-      bounds: Rect.fromLTWH(contentLeft + colSrW + 8, y + cellPadY, colItemW - 14, tblHeaderH));
+      bounds: Rect.fromLTWH(contentLeft + colSrW + 6, y + cellPadY, colItemW - 10, tblHeaderH));
+    graphics.drawString('Company / Make (Brand)', tableHeaderFont, brush: darkTextBrush,
+      bounds: Rect.fromLTWH(contentLeft + colSrW + colItemW + 6, y + cellPadY, colMakeW - 10, tblHeaderH));
     graphics.drawString('Technical Specification / Standard', tableHeaderFont, brush: darkTextBrush,
-      bounds: Rect.fromLTWH(contentLeft + colSrW + colItemW + 8, y + cellPadY, colSpecW - 14, tblHeaderH));
+      bounds: Rect.fromLTWH(contentLeft + colSrW + colItemW + colMakeW + 6, y + cellPadY, colSpecW - 10, tblHeaderH));
     graphics.drawString('Quantity', tableHeaderFont, brush: darkTextBrush,
       format: PdfStringFormat(alignment: PdfTextAlignment.center),
-      bounds: Rect.fromLTWH(contentLeft + colSrW + colItemW + colSpecW, y + cellPadY, colQtyW, tblHeaderH));
+      bounds: Rect.fromLTWH(contentLeft + colSrW + colItemW + colMakeW + colSpecW, y + cellPadY, colQtyW, tblHeaderH));
 
     y += tblHeaderH;
 
@@ -465,6 +469,15 @@ class BankLoanQuotationService {
     for (int i = 0; i < quotation.items.length; i++) {
       final item = quotation.items[i];
       final isZebra = i % 2 == 1;
+      final String make = (item['make'] != null && item['make']!.isNotEmpty)
+          ? item['make']!
+          : (item['company'] != null && item['company']!.isNotEmpty)
+              ? item['company']!
+              : (i == 0
+                  ? quotation.panelBrand
+                  : (i == 1
+                      ? quotation.inverterBrand
+                      : (i == 2 ? quotation.mountingStructure : 'Standard Grade')));
 
       if (isZebra) {
         graphics.drawRectangle(
@@ -480,21 +493,25 @@ class BankLoanQuotationService {
       // Vertical grid lines
       graphics.drawLine(tableGridPen, Offset(contentLeft + colSrW, y), Offset(contentLeft + colSrW, y + sysRowH));
       graphics.drawLine(tableGridPen, Offset(contentLeft + colSrW + colItemW, y), Offset(contentLeft + colSrW + colItemW, y + sysRowH));
-      graphics.drawLine(tableGridPen, Offset(contentLeft + colSrW + colItemW + colSpecW, y), Offset(contentLeft + colSrW + colItemW + colSpecW, y + sysRowH));
+      graphics.drawLine(tableGridPen, Offset(contentLeft + colSrW + colItemW + colMakeW, y), Offset(contentLeft + colSrW + colItemW + colMakeW, y + sysRowH));
+      graphics.drawLine(tableGridPen, Offset(contentLeft + colSrW + colItemW + colMakeW + colSpecW, y), Offset(contentLeft + colSrW + colItemW + colMakeW + colSpecW, y + sysRowH));
 
       graphics.drawString(item['sr'] ?? '${i + 1}', valueFont, brush: darkTextBrush,
         format: PdfStringFormat(alignment: PdfTextAlignment.center),
         bounds: Rect.fromLTWH(contentLeft, y + cellPadY, colSrW, sysRowH));
 
       graphics.drawString(item['item'] ?? '', valueBoldFont, brush: darkTextBrush,
-        bounds: Rect.fromLTWH(contentLeft + colSrW + 8, y + cellPadY, colItemW - 14, sysRowH));
+        bounds: Rect.fromLTWH(contentLeft + colSrW + 6, y + cellPadY, colItemW - 10, sysRowH));
+
+      graphics.drawString(make, valueBoldFont, brush: navyBrush,
+        bounds: Rect.fromLTWH(contentLeft + colSrW + colItemW + 6, y + cellPadY, colMakeW - 10, sysRowH));
 
       graphics.drawString(item['spec'] ?? '', valueFont, brush: slateBodyBrush,
-        bounds: Rect.fromLTWH(contentLeft + colSrW + colItemW + 8, y + cellPadY, colSpecW - 14, sysRowH));
+        bounds: Rect.fromLTWH(contentLeft + colSrW + colItemW + colMakeW + 6, y + cellPadY, colSpecW - 10, sysRowH));
 
       graphics.drawString(item['qty'] ?? '', valueBoldFont, brush: darkTextBrush,
         format: PdfStringFormat(alignment: PdfTextAlignment.center),
-        bounds: Rect.fromLTWH(contentLeft + colSrW + colItemW + colSpecW, y + cellPadY, colQtyW, sysRowH));
+        bounds: Rect.fromLTWH(contentLeft + colSrW + colItemW + colMakeW + colSpecW, y + cellPadY, colQtyW, sysRowH));
 
       y += sysRowH;
     }

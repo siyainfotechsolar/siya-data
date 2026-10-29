@@ -675,6 +675,15 @@ class SolarQuotationService {
                       ...quotation.items.asMap().entries.map((entry) {
                         final idx = entry.key;
                         final it = entry.value;
+                        final String make = (it['make'] != null && it['make']!.isNotEmpty)
+                            ? it['make']!
+                            : (it['company'] != null && it['company']!.isNotEmpty)
+                                ? it['company']!
+                                : (idx == 0
+                                    ? quotation.panelBrand
+                                    : (idx == 1
+                                        ? quotation.inverterBrand
+                                        : (idx == 2 ? quotation.mountingStructure : 'Standard Grade')));
                         final String warranty = it['warranty']?.isNotEmpty == true
                             ? it['warranty']!
                             : (idx == 0
@@ -685,6 +694,7 @@ class SolarQuotationService {
                         return _buildBoqItemRow(
                           '${idx + 1}',
                           it['item'] ?? '',
+                          make,
                           it['spec'] ?? '',
                           it['qty'] ?? '1 Set',
                           warranty,
@@ -695,6 +705,7 @@ class SolarQuotationService {
                       _buildBoqItemRow(
                         '1',
                         'Solar PV Modules',
+                        quotation.panelBrand.isNotEmpty ? quotation.panelBrand : 'Waaree / Adani / Goldi (DCR TopCon)',
                         quotation.panelWattage.isNotEmpty ? quotation.panelWattage : '550 Wp TopCon Bifacial / Mono PERC DCR Grade Modules',
                         quotation.systemCapacity,
                         '25 Years Linear Performance Warranty',
@@ -703,7 +714,8 @@ class SolarQuotationService {
                       _buildBoqItemRow(
                         '2',
                         'Grid-Tied Inverter',
-                        '${quotation.inverterBrand.isNotEmpty ? quotation.inverterBrand : "Growatt / Solis / Polycab"} (${quotation.inverterCapacity.isNotEmpty ? quotation.inverterCapacity : "3.3 kW"}) High Efficiency MPPT Inverter with WiFi',
+                        quotation.inverterBrand.isNotEmpty ? quotation.inverterBrand : 'Growatt / Solis / Polycab',
+                        '(${quotation.inverterCapacity.isNotEmpty ? quotation.inverterCapacity : "3.3 kW"}) High Efficiency MPPT Inverter with WiFi',
                         '1 Set',
                         '5 Years Standard Replacement Warranty',
                         isZebra: true,
@@ -711,7 +723,8 @@ class SolarQuotationService {
                       _buildBoqItemRow(
                         '3',
                         'Mounting Structure',
-                        quotation.mountingStructure.isNotEmpty ? quotation.mountingStructure : 'Hot Dip Galvanized Iron (GI) Elevated Structure engineered for 150 km/h wind resilience',
+                        'Hot Dip Galvanized Iron (GI)',
+                        quotation.mountingStructure.isNotEmpty ? quotation.mountingStructure : 'Elevated Structure engineered for 150 km/h wind resilience',
                         'Complete Roof Set',
                         '10 Years Structural Integrity Warranty',
                         isZebra: false,
@@ -719,6 +732,7 @@ class SolarQuotationService {
                       _buildBoqItemRow(
                         '4',
                         'DC Distribution Box',
+                        'Hensel / Elmex / Schneider',
                         'IP65 Weatherproof Enclosure with 1000V DC Fuses and Type-II Surge Protection Devices (SPD)',
                         '1 Set',
                         '2 Years Equipment Warranty',
@@ -727,6 +741,7 @@ class SolarQuotationService {
                       _buildBoqItemRow(
                         '5',
                         'AC Distribution Box',
+                        'Hensel / Elmex / Schneider',
                         'IP65 Weatherproof Enclosure with Heavy-Duty MCB / Isolator and AC Surge Protection Devices',
                         '1 Set',
                         '2 Years Equipment Warranty',
@@ -735,6 +750,7 @@ class SolarQuotationService {
                       _buildBoqItemRow(
                         '6',
                         'Solar DC & AC Cables',
+                        'Polycab / Havells / KEI',
                         '4 sq.mm / 6 sq.mm UV-resistant, Flame Retardant (FRLS) Cu/Al Cables enclosed in UV conduit pipes',
                         'As per site layout',
                         '5 Years Manufacturer Warranty',
@@ -743,6 +759,7 @@ class SolarQuotationService {
                       _buildBoqItemRow(
                         '7',
                         'Earthing & Lightning Kit',
+                        'True Power / Ashlok',
                         'Chemical Gel Earthing Electrodes (Inverter, Structure & LA) + Early Streamer Lightning Arrester',
                         '3 Pits + 1 Arrester',
                         '5 Years Functional Warranty',
@@ -751,7 +768,8 @@ class SolarQuotationService {
                       _buildBoqItemRow(
                         '8',
                         'Bi-Directional Net Meter',
-                        'MSEDCL / Discom Approved Dual-Register Import/Export Smart Energy Meter',
+                        'MSEDCL / Discom Approved',
+                        'MSEDCL Approved Dual-Register Import/Export Smart Energy Meter',
                         '1 Unit',
                         'Standard Utility Warranty',
                         isZebra: true,
@@ -1601,17 +1619,26 @@ class SolarQuotationService {
       ),
       child: pw.Row(
         children: [
-          pw.SizedBox(width: 22, child: pw.Text('#', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
-          pw.SizedBox(width: 105, child: pw.Text('Item Component', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
-          pw.Expanded(child: pw.Text('Technical Specification & Make', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
-          pw.SizedBox(width: 75, child: pw.Text('Quantity / Rating', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
-          pw.SizedBox(width: 110, child: pw.Text('Warranty Term', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
+          pw.SizedBox(width: 20, child: pw.Text('#', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
+          pw.SizedBox(width: 95, child: pw.Text('Item Component', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
+          pw.SizedBox(width: 105, child: pw.Text('Company / Make (Brand)', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
+          pw.Expanded(child: pw.Text('Technical Specification & Standard', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
+          pw.SizedBox(width: 65, child: pw.Text('Quantity', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
+          pw.SizedBox(width: 95, child: pw.Text('Warranty Term', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
         ],
       ),
     );
   }
 
-  static pw.Widget _buildBoqItemRow(String no, String item, String spec, String qty, String warranty, {bool isZebra = false}) {
+  static pw.Widget _buildBoqItemRow(
+    String no,
+    String item,
+    String make,
+    String spec,
+    String qty,
+    String warranty, {
+    bool isZebra = false,
+  }) {
     return pw.Container(
       padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
       decoration: pw.BoxDecoration(
@@ -1620,11 +1647,12 @@ class SolarQuotationService {
       ),
       child: pw.Row(
         children: [
-          pw.SizedBox(width: 22, child: pw.Text(no, style: const pw.TextStyle(fontSize: 7.2, color: slateMutedColor))),
-          pw.SizedBox(width: 105, child: pw.Text(item, style: pw.TextStyle(fontSize: 7.4, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
-          pw.Expanded(child: pw.Text(spec, style: const pw.TextStyle(fontSize: 7.2, color: slateBodyColor))),
-          pw.SizedBox(width: 75, child: pw.Text(qty, style: const pw.TextStyle(fontSize: 7.2, color: darkTextColor))),
-          pw.SizedBox(width: 110, child: pw.Text(warranty, style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold, color: emeraldColor))),
+          pw.SizedBox(width: 20, child: pw.Text(no, style: const pw.TextStyle(fontSize: 7.2, color: slateMutedColor))),
+          pw.SizedBox(width: 95, child: pw.Text(item, style: pw.TextStyle(fontSize: 7.4, fontWeight: pw.FontWeight.bold, color: darkTextColor))),
+          pw.SizedBox(width: 105, child: pw.Text(make, style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold, color: navyColor))),
+          pw.Expanded(child: pw.Text(spec, style: const pw.TextStyle(fontSize: 7.1, color: slateBodyColor))),
+          pw.SizedBox(width: 65, child: pw.Text(qty, style: const pw.TextStyle(fontSize: 7.2, color: darkTextColor))),
+          pw.SizedBox(width: 95, child: pw.Text(warranty, style: pw.TextStyle(fontSize: 7.1, fontWeight: pw.FontWeight.bold, color: emeraldColor))),
         ],
       ),
     );

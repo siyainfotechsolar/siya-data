@@ -1375,6 +1375,7 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                 ..._items.asMap().entries.map((entry) {
                   final idx = entry.key;
                   final item = entry.value;
+                  final make = item['make'] ?? item['company'] ?? '';
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     margin: const EdgeInsets.only(bottom: 6),
@@ -1394,7 +1395,27 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(item['item'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              Row(
+                                children: [
+                                  Text(item['item'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  if (make.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFEFF6FF),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                                      ),
+                                      child: Text(
+                                        'Make: $make',
+                                        style: const TextStyle(color: Color(0xFF1D4ED8), fontSize: 10.5, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 2),
                               Text(item['spec'] ?? '', style: const TextStyle(color: Color(0xFF64748B), fontSize: 11)),
                             ],
                           ),
@@ -1405,7 +1426,7 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                         ),
                         IconButton(
                           icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF0284C7)),
-                          tooltip: 'Edit Component',
+                          tooltip: 'Edit Component & Make',
                           onPressed: () => _openEditItemDialog(idx),
                         ),
                         IconButton(
@@ -2432,6 +2453,7 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
   // ── ADD / EDIT LINE ITEMS ──────────────────────────────────────────────────
   void _openAddCustomItemDialog() {
     final itemCtrl = TextEditingController();
+    final makeCtrl = TextEditingController();
     final specCtrl = TextEditingController();
     final qtyCtrl = TextEditingController(text: '1 Set');
 
@@ -2442,7 +2464,9 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: itemCtrl, decoration: const InputDecoration(labelText: 'Item / Component Name')),
+            TextField(controller: itemCtrl, decoration: const InputDecoration(labelText: 'Item / Component Name *')),
+            const SizedBox(height: 10),
+            TextField(controller: makeCtrl, decoration: const InputDecoration(labelText: 'Company / Make / Brand (e.g. Waaree, Polycab, Sungrow)')),
             const SizedBox(height: 10),
             TextField(controller: specCtrl, decoration: const InputDecoration(labelText: 'Technical Specification')),
             const SizedBox(height: 10),
@@ -2458,6 +2482,7 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                   _items.add({
                     'sr': '${_items.length + 1}',
                     'item': itemCtrl.text.trim(),
+                    'make': makeCtrl.text.trim(),
                     'spec': specCtrl.text.trim(),
                     'qty': qtyCtrl.text.trim(),
                   });
@@ -2476,6 +2501,7 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
   void _openEditItemDialog(int index) {
     final cur = _items[index];
     final itemCtrl = TextEditingController(text: cur['item']);
+    final makeCtrl = TextEditingController(text: cur['make'] ?? cur['company'] ?? '');
     final specCtrl = TextEditingController(text: cur['spec']);
     final qtyCtrl = TextEditingController(text: cur['qty']);
 
@@ -2486,7 +2512,9 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: itemCtrl, decoration: const InputDecoration(labelText: 'Item / Component Name')),
+            TextField(controller: itemCtrl, decoration: const InputDecoration(labelText: 'Item / Component Name *')),
+            const SizedBox(height: 10),
+            TextField(controller: makeCtrl, decoration: const InputDecoration(labelText: 'Company / Make / Brand (e.g. Waaree, Polycab, Sungrow)')),
             const SizedBox(height: 10),
             TextField(controller: specCtrl, decoration: const InputDecoration(labelText: 'Technical Specification')),
             const SizedBox(height: 10),
@@ -2501,6 +2529,7 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                 _items[index] = {
                   'sr': cur['sr'] ?? '${index + 1}',
                   'item': itemCtrl.text.trim(),
+                  'make': makeCtrl.text.trim(),
                   'spec': specCtrl.text.trim(),
                   'qty': qtyCtrl.text.trim(),
                 };
