@@ -30,4 +30,5 @@ export 'services/workflow_engine.dart';
 // Utils
 export 'utils/consumer_no_utils.dart';
 export 'utils/number_to_words_utils.dart';
+export 'utils/solar_quotation_calculations.dart';
 

@@ -11,8 +11,10 @@ import '../services/bank_loan_quotation_service.dart';
 import '../services/invoice_storage_service.dart';
 import '../services/quotation_storage_service.dart';
 import '../services/record_service.dart';
+import '../services/solar_quotation_service.dart';
 import '../widgets/bank_loan_quotation_dialog.dart';
 import '../widgets/invoice_details_dialog.dart';
+import '../widgets/solar_quotation_generator_dialog.dart';
 
 /// Quotation Management Screen — Maintains all solar quotations across customers.
 /// Features:
@@ -145,6 +147,13 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
     );
   }
 
+  bool _isComprehensiveSolarQuotation(SolarQuotation q) {
+    return q.solarPackageName.isNotEmpty ||
+        q.items.length > 5 ||
+        q.quotationNo.startsWith('SIYA-Q') ||
+        q.quotationType.isNotEmpty;
+  }
+
   Future<void> _viewQuotation(SolarQuotation quotation) async {
     final customer = await _resolveCustomer(quotation);
     if (!mounted) return;
@@ -155,12 +164,21 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
       return;
     }
 
-    await BankLoanQuotationDialog.show(
-      context,
-      customer,
-      initialQuotation: quotation,
-      initialTab: 0,
-    );
+    if (_isComprehensiveSolarQuotation(quotation)) {
+      await SolarQuotationGeneratorDialog.show(
+        context,
+        customer: customer,
+        initialQuotation: quotation,
+        initialTab: 0,
+      );
+    } else {
+      await BankLoanQuotationDialog.show(
+        context,
+        customer,
+        initialQuotation: quotation,
+        initialTab: 0,
+      );
+    }
     _loadQuotations();
   }
 
@@ -204,21 +222,38 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
       return;
     }
 
-    await BankLoanQuotationDialog.show(
-      context,
-      customer,
-      initialQuotation: quotation,
-      initialTab: 0,
-    );
+    if (_isComprehensiveSolarQuotation(quotation)) {
+      await SolarQuotationGeneratorDialog.show(
+        context,
+        customer: customer,
+        initialQuotation: quotation,
+        initialTab: 0,
+      );
+    } else {
+      await BankLoanQuotationDialog.show(
+        context,
+        customer,
+        initialQuotation: quotation,
+        initialTab: 0,
+      );
+    }
     _loadQuotations();
   }
 
   Future<void> _downloadOrPrintPdf(SolarQuotation quotation) async {
     try {
-      final pdfBytes = await BankLoanQuotationService.generateQuotationPdfBytes(
-        quotation,
-        includeStampAndSignature: true,
-      );
+      final Uint8List pdfBytes;
+      if (_isComprehensiveSolarQuotation(quotation)) {
+        pdfBytes = await SolarQuotationService.generateQuotationPdfBytes(
+          quotation,
+          includeStampAndSignature: true,
+        );
+      } else {
+        pdfBytes = await BankLoanQuotationService.generateQuotationPdfBytes(
+          quotation,
+          includeStampAndSignature: true,
+        );
+      }
       await Printing.layoutPdf(
         onLayout: (_) => pdfBytes,
         name: quotation.pdfFileName,
@@ -256,10 +291,18 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
     } catch (_) {
       // Fallback: share PDF bytes
       try {
-        final pdfBytes = await BankLoanQuotationService.generateQuotationPdfBytes(
-          quotation,
-          includeStampAndSignature: true,
-        );
+        final Uint8List pdfBytes;
+        if (_isComprehensiveSolarQuotation(quotation)) {
+          pdfBytes = await SolarQuotationService.generateQuotationPdfBytes(
+            quotation,
+            includeStampAndSignature: true,
+          );
+        } else {
+          pdfBytes = await BankLoanQuotationService.generateQuotationPdfBytes(
+            quotation,
+            includeStampAndSignature: true,
+          );
+        }
         await Printing.sharePdf(bytes: pdfBytes, filename: quotation.pdfFileName);
       } catch (err) {
         if (mounted) {
@@ -644,6 +687,18 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                 ],
               ),
               const Spacer(),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF047857),
+                  side: const BorderSide(color: Color(0xFF047857), width: 1.2),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => SolarQuotationGeneratorDialog.show(context).then((_) => _loadQuotations()),
+                icon: const Icon(Icons.solar_power_rounded, size: 18, color: Color(0xFF047857)),
+                label: const Text('Solar Quotation Generator', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ),
+              const SizedBox(width: 8),
               FilledButton.icon(
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF1D4ED8),
@@ -652,8 +707,8 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: _openCreateQuotationPicker,
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Create Quotation', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                icon: const Icon(Icons.account_balance_rounded, size: 18),
+                label: const Text('Bank Loan Quotation', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               ),
               const SizedBox(width: 8),
               IconButton.outlined(
