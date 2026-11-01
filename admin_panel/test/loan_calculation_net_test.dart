@@ -22,17 +22,17 @@ void main() {
     // 2. Net amount after subsidy must be ₹1,22,000
     expect(quotation.payableAfterSubsidy, equals(122000.0));
 
-    // 3. Bank Loan Amount must default to 90% of Net Amount (₹1,09,800)
-    expect(quotation.bankLoanAmount, equals(109800.0));
+    // 3. Bank Loan Amount must default to 100% of Net Amount (₹1,22,000) with 0 Down Payment
+    expect(quotation.bankLoanAmount, equals(122000.0));
 
-    // 4. Customer Margin must default to 10% of Net Amount (₹12,200)
-    expect(quotation.customerContribution, equals(12200.0));
+    // 4. Customer Margin must default to 0% of Net Amount (₹0)
+    expect(quotation.customerContribution, equals(0.0));
 
-    // 5. Total financing base: Loan (109,800) + Margin (12,200) = Net Amount (122,000)
+    // 5. Total financing base: Loan (122,000) + Margin (0) = Net Amount (122,000)
     expect(quotation.bankLoanAmount + quotation.customerContribution, equals(122000.0));
 
-    // 6. Monthly EMI for ₹1,09,800 @ 7.5% for 60 months
-    expect(quotation.monthlyEmi, closeTo(2201.0, 1.0));
+    // 6. Monthly EMI for ₹1,22,000 @ 7.5% for 60 months
+    expect(quotation.monthlyEmi, closeTo(2445.0, 1.0));
 
     // 7. Verify Proposal 7-page PDF generation
     final proposalPdfBytes = await SolarQuotationService.generateQuotationPdfBytes(

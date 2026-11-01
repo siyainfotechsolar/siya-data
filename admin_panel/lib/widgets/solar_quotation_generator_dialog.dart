@@ -65,10 +65,13 @@ class SolarQuotationGeneratorDialog extends StatefulWidget {
   }
 
   @override
-  State<SolarQuotationGeneratorDialog> createState() => _SolarQuotationGeneratorDialogState();
+  State<SolarQuotationGeneratorDialog> createState() =>
+      _SolarQuotationGeneratorDialogState();
 }
 
-class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorDialog> with SingleTickerProviderStateMixin {
+class _SolarQuotationGeneratorDialogState
+    extends State<SolarQuotationGeneratorDialog>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   // Language & Quotation Type
@@ -91,18 +94,28 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
   final _quotationNoCtrl = TextEditingController();
   late DateTime _quotationDate;
   String _status = 'Issued';
-  final _connectionTypeCtrl = TextEditingController(text: 'LT Residential 1-Phase (230V)');
+  final _connectionTypeCtrl = TextEditingController(
+    text: 'LT Residential 1-Phase (230V)',
+  );
 
   // Solar System Configuration
   String _capacity = '3 kW';
   String _systemType = 'On-Grid Solar System';
-  final _packageNameCtrl = TextEditingController(text: 'PM Surya Ghar Standard Package');
-  final _panelBrandCtrl = TextEditingController(text: 'Waaree / Adani / Goldi (DCR TopCon)');
-  final _panelWattageCtrl = TextEditingController(text: '540 Wp / 550 Wp');
+  final _packageNameCtrl = TextEditingController(
+    text: 'PM Surya Ghar Standard Package',
+  );
+  final _panelBrandCtrl = TextEditingController(
+    text: 'Waaree / Adani / Goldi (DCR TopCon)',
+  );
+  final _panelWattageCtrl = TextEditingController(text: '540 Wp');
   final _panelCountCtrl = TextEditingController(text: '6');
-  final _inverterBrandCtrl = TextEditingController(text: 'Sungrow / Growatt / Solis');
+  final _inverterBrandCtrl = TextEditingController(
+    text: 'Sungrow / Growatt / Solis',
+  );
   final _inverterCapacityCtrl = TextEditingController(text: '3.3 kW Grid-Tie');
-  final _mountingStructureCtrl = TextEditingController(text: 'Hot Dip GI Elevated Rooftop Structure');
+  final _mountingStructureCtrl = TextEditingController(
+    text: 'Hot Dip GI Elevated Rooftop Structure',
+  );
 
   // Pricing & GST
   double _totalCost = 200000.0;
@@ -122,21 +135,26 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
   double _payableAfterSubsidy = 122000.0;
 
   // Payment Mode & Bank Loan EMI
-  String _paymentMode = 'Bank Loan'; // 'Cash', 'Bank Loan', 'Part Payment + Bank Loan'
+  String _paymentMode =
+      'Bank Loan'; // 'Cash', 'Bank Loan', 'Part Payment + Bank Loan'
   final _loanBankNameCtrl = TextEditingController(text: 'STATE BANK OF INDIA');
-  double _downPayment = 12200.0;
-  double _bankLoan = 109800.0;
-  final _loanAmountCtrl = TextEditingController(text: '109800');
-  final _downPaymentCtrl = TextEditingController(text: '12200');
+  double _downPayment = 0.0;
+  double _bankLoan = 122000.0;
+  final _loanAmountCtrl = TextEditingController(text: '122000');
+  final _downPaymentCtrl = TextEditingController(text: '0');
   double _annualInterestRate = 7.5;
   final _interestRateCtrl = TextEditingController(text: '7.5');
   int _loanTenureMonths = 60;
-  double _monthlyEmi = 2201.0;
+  double _monthlyEmi = 2445.0;
   double _processingFees = 0.0;
 
   // Company Bank Account (for RTGS / NEFT / Disbursement)
-  final _companyAccountNameCtrl = TextEditingController(text: 'SIYA INFOTECH & SOLAR ENERGY');
-  final _companyBankNameCtrl = TextEditingController(text: 'STATE BANK OF INDIA');
+  final _companyAccountNameCtrl = TextEditingController(
+    text: 'SIYA INFOTECH & SOLAR ENERGY',
+  );
+  final _companyBankNameCtrl = TextEditingController(
+    text: 'STATE BANK OF INDIA',
+  );
   final _branchCtrl = TextEditingController(text: 'Betawad');
   final _accountNoCtrl = TextEditingController(text: '40662252403');
   final _ifscCodeCtrl = TextEditingController(text: 'SBIN0004798');
@@ -148,7 +166,9 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
 
   // Signatory & Authorization
   final _signatoryNameCtrl = TextEditingController(text: 'Manoj Kshirsagar');
-  final _signatoryDesignationCtrl = TextEditingController(text: 'Proprietor / Authorized Signatory');
+  final _signatoryDesignationCtrl = TextEditingController(
+    text: 'Proprietor / Authorized Signatory',
+  );
 
   // Solar Generation, ROI & Payback
   double _electricityTariff = 8.0;
@@ -173,21 +193,34 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
   final _receiptNoCtrl = TextEditingController();
   late DateTime _receiptDate;
   String _receiptPaymentMode = 'Cash';
-  final _receiptTransactionRefCtrl = TextEditingController(text: 'Paid in Cash');
+  final _receiptTransactionRefCtrl = TextEditingController(
+    text: 'Paid in Cash',
+  );
   DateTime _receiptPaymentDate = DateTime.now();
   double _receiptMarginAmount = 20000.0;
   final _receiptMarginAmountCtrl = TextEditingController(text: '20000');
-  final _receiptNotesCtrl = TextEditingController(text: 'Received 10% Customer Margin Contribution in Cash towards PM Surya Ghar Bank Solar Loan installation.');
+  final _receiptNotesCtrl = TextEditingController(
+    text:
+        'Received 10% Customer Margin Contribution in Cash towards PM Surya Ghar Bank Solar Loan installation.',
+  );
 
   // Formatters
-  final _inrFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹ ', decimalDigits: 0);
+  final _inrFormat = NumberFormat.currency(
+    locale: 'en_IN',
+    symbol: '₹ ',
+    decimalDigits: 0,
+  );
   final _dateFormat = DateFormat('dd/MM/yyyy');
   int _renderKey = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this, initialIndex: widget.initialTab);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTab,
+    );
     _initValues();
     _checkCustomerSignature();
   }
@@ -250,18 +283,25 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
     _mobileNoCtrl.text = q?.mobileNo ?? c?.mobile?.trim() ?? '';
     final addr = q?.address ?? (c?.address?.trim() ?? '');
     _addressCtrl.text = addr.isNotEmpty ? addr : 'Betawad';
-    _villageCityCtrl.text = q?.villageCity ?? (c?.village ?? (addr.isNotEmpty ? addr : 'Betawad'));
+    _villageCityCtrl.text =
+        q?.villageCity ?? (c?.village ?? (addr.isNotEmpty ? addr : 'Betawad'));
     _districtCtrl.text = q?.district ?? 'Dhule';
     _emailCtrl.text = q?.email ?? '';
 
     _quotationDate = q?.quotationDate ?? DateTime.now();
     final suffix = _consumerNoCtrl.text.length > 4
         ? _consumerNoCtrl.text.substring(_consumerNoCtrl.text.length - 4)
-        : (_consumerNoCtrl.text.isNotEmpty ? _consumerNoCtrl.text : '${DateTime.now().millisecondsSinceEpoch % 10000}'.padLeft(4, '0'));
+        : (_consumerNoCtrl.text.isNotEmpty
+              ? _consumerNoCtrl.text
+              : '${DateTime.now().millisecondsSinceEpoch % 10000}'.padLeft(
+                  4,
+                  '0',
+                ));
     _quotationNo = q?.quotationNo ?? 'SIYA-Q-${_quotationDate.year}-$suffix';
     _quotationNoCtrl.text = _quotationNo;
     _status = q?.status ?? 'Issued';
-    _connectionTypeCtrl.text = q?.connectionType ?? 'LT Residential 1-Phase (230V)';
+    _connectionTypeCtrl.text =
+        q?.connectionType ?? 'LT Residential 1-Phase (230V)';
 
     if (q != null) {
       _language = q.language;
@@ -278,7 +318,9 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
       _includeSubsidyInPricing = q.includeSubsidyInPricing;
       _payableAfterSubsidy = q.payableAfterSubsidy;
       _paymentMode = q.paymentMode;
-      _loanBankNameCtrl.text = q.bankName.isNotEmpty ? q.bankName : 'STATE BANK OF INDIA';
+      _loanBankNameCtrl.text = q.bankName.isNotEmpty
+          ? q.bankName
+          : 'STATE BANK OF INDIA';
       _bankLoan = q.bankLoanAmount;
       _loanAmountCtrl.text = _bankLoan.toStringAsFixed(0);
       _downPayment = q.downPayment;
@@ -290,7 +332,9 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
       _electricityTariff = q.electricityTariff;
       _tariffCtrl.text = _electricityTariff.toStringAsFixed(1);
       _annualGenerationUnits = q.annualGenerationUnits;
-      _annualGenerationUnitsCtrl.text = _annualGenerationUnits.toStringAsFixed(0);
+      _annualGenerationUnitsCtrl.text = _annualGenerationUnits.toStringAsFixed(
+        0,
+      );
       _annualSavings = q.annualSavings;
       _paybackYears = q.paybackYears;
       _packageNameCtrl.text = q.solarPackageName;
@@ -300,20 +344,34 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
       _inverterBrandCtrl.text = q.inverterBrand;
       _inverterCapacityCtrl.text = q.inverterCapacity;
       _mountingStructureCtrl.text = q.mountingStructure;
-      
-      _companyBankNameCtrl.text = q.bankName.isNotEmpty ? q.bankName : CompanyMaster.current.bankName;
+
+      _companyBankNameCtrl.text = q.bankName.isNotEmpty
+          ? q.bankName
+          : CompanyMaster.current.bankName;
       _companyAccountNameCtrl.text = CompanyMaster.current.companyName;
-      _branchCtrl.text = q.branch.isNotEmpty ? q.branch : CompanyMaster.current.branch;
-      _accountNoCtrl.text = q.accountNo.isNotEmpty ? q.accountNo : CompanyMaster.current.accountNo;
-      _ifscCodeCtrl.text = q.ifscCode.isNotEmpty ? q.ifscCode : CompanyMaster.current.ifscCode;
-      _upiIdCtrl.text = q.upiId.isNotEmpty ? q.upiId : CompanyMaster.current.upiId;
+      _branchCtrl.text = q.branch.isNotEmpty
+          ? q.branch
+          : CompanyMaster.current.branch;
+      _accountNoCtrl.text = q.accountNo.isNotEmpty
+          ? q.accountNo
+          : CompanyMaster.current.accountNo;
+      _ifscCodeCtrl.text = q.ifscCode.isNotEmpty
+          ? q.ifscCode
+          : CompanyMaster.current.ifscCode;
+      _upiIdCtrl.text = q.upiId.isNotEmpty
+          ? q.upiId
+          : CompanyMaster.current.upiId;
 
       _termsCtrl.text = q.termsAndConditions.isNotEmpty
           ? q.termsAndConditions.join('\n')
           : SolarQuotation.defaultImportantNotes.join('\n');
       _notesCtrl.text = q.notes ?? '';
-      _signatoryNameCtrl.text = q.signatoryName.isNotEmpty ? q.signatoryName : CompanyMaster.current.signatoryName;
-      _signatoryDesignationCtrl.text = q.signatoryDesignation.isNotEmpty ? q.signatoryDesignation : CompanyMaster.current.signatoryDesignation;
+      _signatoryNameCtrl.text = q.signatoryName.isNotEmpty
+          ? q.signatoryName
+          : CompanyMaster.current.signatoryName;
+      _signatoryDesignationCtrl.text = q.signatoryDesignation.isNotEmpty
+          ? q.signatoryDesignation
+          : CompanyMaster.current.signatoryDesignation;
 
       _includeDiagram = q.includeDiagram;
       _includeGenerationTable = q.includeGenerationTable;
@@ -321,12 +379,38 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
       _items = List.from(q.items);
     } else {
       // New quotation defaults
-      if (c != null && c.systemCapacity != null && c.systemCapacity!.trim().isNotEmpty) {
+      if (c != null &&
+          c.systemCapacity != null &&
+          c.systemCapacity!.trim().isNotEmpty) {
         _capacity = c.systemCapacity!.trim();
       }
+      final double initCapKw = SolarQuotationCalculations.parseCapacity(
+        _capacity,
+      );
+      final double initWattage = SolarQuotationCalculations.extractWattage(
+        _panelWattageCtrl.text,
+      );
+      final int initCount =
+          SolarQuotationCalculations.calculatePanelCountFromCapacity(
+            capacityKw: initCapKw,
+            panelWattageWp: initWattage,
+          );
+      _panelCountCtrl.text = initCount.toString();
+      final double actualKw =
+          SolarQuotationCalculations.calculateCapacityKwFromPanels(
+            panelWattageWp: initWattage,
+            panelCount: initCount,
+          );
+      _capacity = SolarQuotationCalculations.formatCapacity(actualKw);
+      _inverterCapacityCtrl.text =
+          '$_capacity ${actualKw > 6.0 ? '3-Phase Grid-Tie' : 'Grid-Tie'}';
       _items = SolarQuotation.defaultItems(_capacity);
+      _syncItemsWithPanelSpecs(actualKw, initWattage, initCount);
       _termsCtrl.text = SolarQuotation.defaultImportantNotes.join('\n');
-      _recalculateAll(recalculateSubsidyFromFormula: true, recalculateGenFromFormula: true);
+      _recalculateAll(
+        recalculateSubsidyFromFormula: true,
+        recalculateGenFromFormula: true,
+      );
     }
 
     // Margin Receipt initialization
@@ -334,76 +418,179 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
     _receiptNo = 'SIYA-MMR-${_receiptDate.year}-$suffix';
     _receiptNoCtrl.text = _receiptNo;
     _receiptPaymentDate = _receiptDate;
-    _receiptMarginAmount = _downPayment > 0 ? _downPayment : 12200.0;
+    _receiptMarginAmount = _downPayment;
     _receiptMarginAmountCtrl.text = _receiptMarginAmount.toStringAsFixed(0);
-    _receiptTransactionRefCtrl.text = 'Paid in Cash';
-    _receiptNotesCtrl.text = 'Received 10% Customer Margin Contribution in Cash towards PM Surya Ghar Bank Solar Loan installation.';
+    _receiptTransactionRefCtrl.text = _downPayment == 0
+        ? '0 Down Payment'
+        : 'Paid in Cash';
+    _receiptNotesCtrl.text = _downPayment == 0
+        ? '100% Solar Loan Sanctioned on Net Cost After Subsidy with 0 Customer Down Payment.'
+        : 'Received Customer Margin Contribution towards PM Surya Ghar Bank Solar Loan installation.';
   }
 
   Future<void> _checkCustomerSignature() async {
     final consNo = _consumerNoCtrl.text.trim();
     if (consNo.isNotEmpty) {
-      final hasSig = await CustomerSignatureHelper.ensureCustomerSignatureLoaded(consNo);
+      final hasSig =
+          await CustomerSignatureHelper.ensureCustomerSignatureLoaded(consNo);
       if (hasSig && mounted) {
         setState(() => _includeCustomerSignature = true);
       }
     }
   }
 
-  void _recalculateAll({
-    bool recalculateSubsidyFromFormula = false,
-    bool recalculateGenFromFormula = false,
-  }) {
-    final capKw = SolarQuotationCalculations.parseCapacity(_capacity);
+  void _syncItemsWithPanelSpecs(double capKw, double wattage, int count) {
+    final capStr = _capacity;
+    final bool isThreePhase = capKw > 6.0;
 
-    // Subsidy calculation
-    if (recalculateSubsidyFromFormula || _subsidyAmountCtrl.text.trim().isEmpty) {
-      _subsidyAmount = SolarQuotationCalculations.calculatePmSuryaGharSubsidy(
-        capacityKw: capKw,
-        quotationType: _quotationType,
-      );
-      _subsidyAmountCtrl.text = _subsidyAmount.toStringAsFixed(0);
-    } else {
-      _subsidyAmount = double.tryParse(_subsidyAmountCtrl.text.trim()) ??
-          SolarQuotationCalculations.calculatePmSuryaGharSubsidy(
-            capacityKw: capKw,
-            quotationType: _quotationType,
-          );
+    if (_items.isEmpty) {
+      _items = SolarQuotation.defaultItems(_capacity);
     }
 
+    for (int i = 0; i < _items.length; i++) {
+      final itm = Map<String, String>.from(_items[i]);
+      final name = itm['item']?.toLowerCase() ?? '';
+      if (name.contains('module') || name.contains('panel')) {
+        itm['spec'] =
+            'Mono / TOPCon DCR - $capStr ($count Nos × ${wattage.toInt()} Wp, 25 Yrs Warranty)';
+        itm['qty'] = '$capStr ($count Nos)';
+        if (_panelBrandCtrl.text.trim().isNotEmpty) {
+          itm['make'] = _panelBrandCtrl.text.trim();
+        }
+        _items[i] = itm;
+      } else if (name.contains('inverter')) {
+        itm['spec'] =
+            '$capStr ${isThreePhase ? '3-Phase' : '1-Phase'} Grid-Tied Inverter (IP65)';
+        if (_inverterBrandCtrl.text.trim().isNotEmpty) {
+          itm['make'] = _inverterBrandCtrl.text.trim();
+        }
+        _items[i] = itm;
+      }
+    }
+  }
+
+  void _syncAllFromPanelSpecs({
+    bool recalculateGen = true,
+    bool updatePanelCount = false,
+    double? targetCapacityKw,
+  }) {
+    final wattage = SolarQuotationCalculations.extractWattage(
+      _panelWattageCtrl.text,
+    );
+    if (wattage < 150) return; // Ignore incomplete input while typing
+
+    int count = int.tryParse(_panelCountCtrl.text.trim()) ?? 0;
+
+    if (updatePanelCount && targetCapacityKw != null && targetCapacityKw > 0) {
+      count = SolarQuotationCalculations.calculatePanelCountFromCapacity(
+        capacityKw: targetCapacityKw,
+        panelWattageWp: wattage,
+      );
+      _panelCountCtrl.text = count.toString();
+    } else if (count <= 0) {
+      final currentCapKw = SolarQuotationCalculations.parseCapacity(_capacity);
+      count = SolarQuotationCalculations.calculatePanelCountFromCapacity(
+        capacityKw: currentCapKw,
+        panelWattageWp: wattage,
+      );
+      if (count <= 0) count = 6;
+      _panelCountCtrl.text = count.toString();
+    }
+
+    final double actualKw =
+        SolarQuotationCalculations.calculateCapacityKwFromPanels(
+          panelWattageWp: wattage,
+          panelCount: count,
+        );
+    _capacity = SolarQuotationCalculations.formatCapacity(actualKw);
+
+    // Inverter Capacity recommendation
+    final bool isThreePhase = actualKw > 6.0;
+    _inverterCapacityCtrl.text =
+        '$_capacity ${isThreePhase ? '3-Phase Grid-Tie' : 'Grid-Tie'}';
+
+    // Recalculate PM Surya Ghar Subsidy
+    _subsidyAmount = SolarQuotationCalculations.calculatePmSuryaGharSubsidy(
+      capacityKw: actualKw,
+      quotationType: _quotationType,
+    );
+    _subsidyAmountCtrl.text = _subsidyAmount.toStringAsFixed(0);
+
+    // Recalculate Generation Units
+    if (recalculateGen) {
+      _annualGenerationUnits =
+          SolarQuotationCalculations.calculateAnnualGenerationUnits(actualKw);
+      _annualGenerationUnitsCtrl.text = _annualGenerationUnits.toStringAsFixed(
+        0,
+      );
+    } else {
+      _annualGenerationUnits =
+          double.tryParse(_annualGenerationUnitsCtrl.text.trim()) ??
+          SolarQuotationCalculations.calculateAnnualGenerationUnits(actualKw);
+    }
+    _annualSavings = (_annualGenerationUnits * _electricityTariff)
+        .roundToDouble();
+
+    // Sync BOQ Items with exact panel specs
+    _syncItemsWithPanelSpecs(actualKw, wattage, count);
+
+    // Recalculate financial breakdown, loan & EMI, ROI
+    _recalculateFinancialsAndRoi(actualKw);
+
+    setState(() {
+      _renderKey++;
+    });
+  }
+
+  void _recalculateFinancialsAndRoi(double capKw) {
     // Grand total
-    final enteredGrand = double.tryParse(_grandTotalCtrl.text.trim()) ?? 200000.0;
+    final enteredGrand =
+        double.tryParse(_grandTotalCtrl.text.trim()) ?? 200000.0;
     _discount = double.tryParse(_discountCtrl.text.trim()) ?? 0.0;
     _grandTotal = (enteredGrand - _discount).clamp(0.0, double.infinity);
     _totalCost = _grandTotal;
 
     // Payable after subsidy
-    _payableAfterSubsidy = (_grandTotal - (_includeSubsidyInPricing && _quotationType != 'Commercial' ? _subsidyAmount : 0.0))
-        .clamp(0.0, double.infinity);
+    _payableAfterSubsidy =
+        (_grandTotal -
+                (_includeSubsidyInPricing && _quotationType != 'Commercial'
+                    ? _subsidyAmount
+                    : 0.0))
+            .clamp(0.0, double.infinity);
 
-    final double netFinancingBase = (_quotationType != 'Commercial' && _subsidyAmount > 0)
+    final double netFinancingBase =
+        (_quotationType != 'Commercial' && _subsidyAmount > 0)
         ? _payableAfterSubsidy
         : _grandTotal;
 
     // Loan & EMI (Calculated on Net Amount After Subsidy)
     if (_paymentMode.toLowerCase().contains('loan')) {
       if (_paymentMode == 'Part Payment + Bank Loan') {
-        _downPayment = double.tryParse(_downPaymentCtrl.text.trim()) ?? (netFinancingBase * 0.10).roundToDouble();
-        _bankLoan = (netFinancingBase - _downPayment).clamp(0.0, double.infinity);
+        _downPayment = double.tryParse(_downPaymentCtrl.text.trim()) ?? 0.0;
+        _bankLoan = (netFinancingBase - _downPayment).clamp(
+          0.0,
+          double.infinity,
+        );
         _loanAmountCtrl.text = _bankLoan.toStringAsFixed(0);
       } else {
         final enteredLoan = double.tryParse(_loanAmountCtrl.text.trim());
-        // Default loan is 90% of Net Amount After Subsidy
-        if (enteredLoan == null || enteredLoan == 0.0 || enteredLoan > netFinancingBase) {
-          _bankLoan = (netFinancingBase * 0.90).roundToDouble();
+        // Default loan is 100% of Net Amount After Subsidy (0 Down Payment)
+        if (enteredLoan == null ||
+            enteredLoan == 0.0 ||
+            enteredLoan > netFinancingBase) {
+          _bankLoan = netFinancingBase.roundToDouble();
           _loanAmountCtrl.text = _bankLoan.toStringAsFixed(0);
         } else {
           _bankLoan = enteredLoan;
         }
-        _downPayment = (netFinancingBase - _bankLoan).clamp(0.0, double.infinity);
+        _downPayment = (netFinancingBase - _bankLoan).clamp(
+          0.0,
+          double.infinity,
+        );
         _downPaymentCtrl.text = _downPayment.toStringAsFixed(0);
       }
-      _annualInterestRate = double.tryParse(_interestRateCtrl.text.trim()) ?? 7.5;
+      _annualInterestRate =
+          double.tryParse(_interestRateCtrl.text.trim()) ?? 7.5;
       _monthlyEmi = SolarQuotationCalculations.calculateMonthlyEmi(
         principal: _bankLoan,
         annualInterestRate: _annualInterestRate,
@@ -417,45 +604,93 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
 
     // Solar generation & ROI
     _electricityTariff = double.tryParse(_tariffCtrl.text.trim()) ?? 8.0;
-    _annualMaintenance = double.tryParse(_maintenanceCtrl.text.trim()) ?? 1500.0;
-    
-    if (recalculateGenFromFormula || _annualGenerationUnitsCtrl.text.trim().isEmpty) {
-      _annualGenerationUnits = SolarQuotationCalculations.calculateAnnualGenerationUnits(capKw);
-      _annualGenerationUnitsCtrl.text = _annualGenerationUnits.toStringAsFixed(0);
-    } else {
-      _annualGenerationUnits = double.tryParse(_annualGenerationUnitsCtrl.text.trim()) ??
-          SolarQuotationCalculations.calculateAnnualGenerationUnits(capKw);
-    }
-
-    _annualSavings = (_annualGenerationUnits * _electricityTariff).roundToDouble();
+    _annualMaintenance =
+        double.tryParse(_maintenanceCtrl.text.trim()) ?? 1500.0;
 
     final roiData = SolarQuotationCalculations.calculateRoiAndPayback(
       totalSystemCost: _grandTotal,
       eligibleSubsidy: _subsidyAmount,
-      deductSubsidyFromNetInvestment: _includeSubsidyInPricing && _quotationType != 'Commercial',
+      deductSubsidyFromNetInvestment:
+          _includeSubsidyInPricing && _quotationType != 'Commercial',
       annualGenerationUnits: _annualGenerationUnits,
       electricityTariff: _electricityTariff,
       annualMaintenanceCost: _annualMaintenance,
     );
     _paybackYears = (roiData['paybackYears'] as num).toDouble();
 
-    // Update margin receipt default amount if down payment changed
-    if (_downPayment > 0) {
-      _receiptMarginAmount = _downPayment;
-      _receiptMarginAmountCtrl.text = _receiptMarginAmount.toStringAsFixed(0);
+    // Update margin receipt default amount
+    _receiptMarginAmount = _downPayment;
+    _receiptMarginAmountCtrl.text = _receiptMarginAmount.toStringAsFixed(0);
+  }
+
+  void _recalculateAll({
+    bool recalculateSubsidyFromFormula = false,
+    bool recalculateGenFromFormula = false,
+  }) {
+    final capKw = SolarQuotationCalculations.parseCapacity(_capacity);
+
+    // Subsidy calculation
+    if (recalculateSubsidyFromFormula ||
+        _subsidyAmountCtrl.text.trim().isEmpty) {
+      _subsidyAmount = SolarQuotationCalculations.calculatePmSuryaGharSubsidy(
+        capacityKw: capKw,
+        quotationType: _quotationType,
+      );
+      _subsidyAmountCtrl.text = _subsidyAmount.toStringAsFixed(0);
+    } else {
+      _subsidyAmount =
+          double.tryParse(_subsidyAmountCtrl.text.trim()) ??
+          SolarQuotationCalculations.calculatePmSuryaGharSubsidy(
+            capacityKw: capKw,
+            quotationType: _quotationType,
+          );
     }
 
-    // Panel count suggestion
-    final wattage = double.tryParse(RegExp(r'\d+').firstMatch(_panelWattageCtrl.text)?.group(0) ?? '540') ?? 540.0;
-    _panelCountCtrl.text = ((capKw * 1000) / wattage).ceil().toString();
+    // Solar generation & ROI
+    _electricityTariff = double.tryParse(_tariffCtrl.text.trim()) ?? 8.0;
+    _annualMaintenance =
+        double.tryParse(_maintenanceCtrl.text.trim()) ?? 1500.0;
+
+    if (recalculateGenFromFormula ||
+        _annualGenerationUnitsCtrl.text.trim().isEmpty) {
+      _annualGenerationUnits =
+          SolarQuotationCalculations.calculateAnnualGenerationUnits(capKw);
+      _annualGenerationUnitsCtrl.text = _annualGenerationUnits.toStringAsFixed(
+        0,
+      );
+    } else {
+      _annualGenerationUnits =
+          double.tryParse(_annualGenerationUnitsCtrl.text.trim()) ??
+          SolarQuotationCalculations.calculateAnnualGenerationUnits(capKw);
+    }
+
+    _annualSavings = (_annualGenerationUnits * _electricityTariff)
+        .roundToDouble();
+
+    _recalculateFinancialsAndRoi(capKw);
+
+    final wattage = SolarQuotationCalculations.extractWattage(
+      _panelWattageCtrl.text,
+    );
+    final count =
+        int.tryParse(_panelCountCtrl.text.trim()) ??
+        SolarQuotationCalculations.calculatePanelCountFromCapacity(
+          capacityKw: capKw,
+          panelWattageWp: wattage,
+        );
+    _syncItemsWithPanelSpecs(capKw, wattage, count);
 
     _renderKey++;
   }
 
   SolarQuotation _buildQuotationObject() {
     final capKw = SolarQuotationCalculations.parseCapacity(_capacity);
-    final count = int.tryParse(_panelCountCtrl.text.trim()) ?? ((capKw * 1000) / 540).ceil();
-    final effectiveQuotationNo = _quotationNoCtrl.text.trim().isNotEmpty ? _quotationNoCtrl.text.trim() : _quotationNo;
+    final count =
+        int.tryParse(_panelCountCtrl.text.trim()) ??
+        ((capKw * 1000) / 540).ceil();
+    final effectiveQuotationNo = _quotationNoCtrl.text.trim().isNotEmpty
+        ? _quotationNoCtrl.text.trim()
+        : _quotationNo;
 
     final parsedTerms = _termsCtrl.text
         .split('\n')
@@ -467,7 +702,9 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
       id: widget.initialQuotation?.id,
       customerId: _customerId,
       consumerNo: _consumerNoCtrl.text.trim(),
-      customerName: _customerNameCtrl.text.trim().isNotEmpty ? _customerNameCtrl.text.trim() : 'Valued Customer',
+      customerName: _customerNameCtrl.text.trim().isNotEmpty
+          ? _customerNameCtrl.text.trim()
+          : 'Valued Customer',
       address: _addressCtrl.text.trim(),
       villageCity: _villageCityCtrl.text.trim(),
       district: _districtCtrl.text.trim(),
@@ -515,10 +752,14 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
       includeDiagram: _includeDiagram,
       includeGenerationTable: _includeGenerationTable,
       includeRoi: _includeRoi,
-      termsAndConditions: parsedTerms.isNotEmpty ? parsedTerms : SolarQuotation.defaultImportantNotes,
+      termsAndConditions: parsedTerms.isNotEmpty
+          ? parsedTerms
+          : SolarQuotation.defaultImportantNotes,
       notes: _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
       email: _emailCtrl.text.trim().isNotEmpty ? _emailCtrl.text.trim() : null,
-      connectionType: _connectionTypeCtrl.text.trim().isNotEmpty ? _connectionTypeCtrl.text.trim() : 'LT Residential 1-Phase (230V)',
+      connectionType: _connectionTypeCtrl.text.trim().isNotEmpty
+          ? _connectionTypeCtrl.text.trim()
+          : 'LT Residential 1-Phase (230V)',
       discount: _discount,
     );
   }
@@ -530,7 +771,9 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Quotation ${quotation.quotationNo} saved successfully!'),
+            content: Text(
+              'Quotation ${quotation.quotationNo} saved successfully!',
+            ),
             backgroundColor: const Color(0xFF047857),
           ),
         );
@@ -538,7 +781,10 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save quotation: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Failed to save quotation: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -550,7 +796,9 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
     if (name.isEmpty || mobile.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Customer Name and Mobile Number are required to save to Customer Master.'),
+          content: Text(
+            'Customer Name and Mobile Number are required to save to Customer Master.',
+          ),
           backgroundColor: Colors.orange,
         ),
       );
@@ -567,9 +815,14 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
           style: const TextStyle(fontSize: 13),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF047857)),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF047857),
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Save Customer'),
           ),
@@ -614,7 +867,10 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error creating customer record: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error creating customer record: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -636,7 +892,10 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
             }
             setDlgState(() => isSearching = true);
             try {
-              final res = await RecordService.fetchRecords(searchQuery: query.trim(), pageSize: 15);
+              final res = await RecordService.fetchRecords(
+                searchQuery: query.trim(),
+                pageSize: 15,
+              );
               setDlgState(() {
                 searchResults = res.items;
                 isSearching = false;
@@ -647,7 +906,9 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
           }
 
           return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             title: Row(
               children: [
                 Container(
@@ -656,14 +917,27 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                     color: const Color(0xFFEFF6FF),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.person_search_rounded, color: Color(0xFF1D4ED8), size: 22),
+                  child: const Icon(
+                    Icons.person_search_rounded,
+                    color: Color(0xFF1D4ED8),
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Select Customer from Master', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    Text('Search by Customer Name, Consumer No., or Mobile', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(
+                      'Select Customer from Master',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Search by Customer Name, Consumer No., or Mobile',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
                   ],
                 ),
               ],
@@ -681,8 +955,13 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                       hintText: 'Type Name, Consumer No., or Mobile...',
                       prefixIcon: const Icon(Icons.search_rounded),
                       isDense: true,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -694,13 +973,19 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                   else if (searchResults.isEmpty && searchCtrl.text.isNotEmpty)
                     const Expanded(
                       child: Center(
-                        child: Text('No customers found.', style: TextStyle(color: Colors.grey)),
+                        child: Text(
+                          'No customers found.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
                       ),
                     )
                   else if (searchResults.isEmpty)
                     const Expanded(
                       child: Center(
-                        child: Text('Type to search Customer Master...', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        child: Text(
+                          'Type to search Customer Master...',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
                       ),
                     )
                   else
@@ -711,9 +996,22 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                         itemBuilder: (ctx, idx) {
                           final c = searchResults[idx];
                           return ListTile(
-                            title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
-                            subtitle: Text('Consumer No: ${c.consumerNo} • ${c.village ?? c.address ?? ''} • ${c.systemCapacity ?? '3 kW'}', style: const TextStyle(fontSize: 12)),
-                            trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
+                            title: Text(
+                              c.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Consumer No: ${c.consumerNo} • ${c.village ?? c.address ?? ''} • ${c.systemCapacity ?? '3 kW'}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            trailing: const Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 14,
+                              color: Colors.grey,
+                            ),
                             onTap: () {
                               Navigator.pop(ctx);
                               setState(() {
@@ -723,12 +1021,19 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                                 _consumerNoCtrl.text = c.consumerNo.trim();
                                 _mobileNoCtrl.text = c.mobile?.trim() ?? '';
                                 final addr = c.address?.trim() ?? '';
-                                _addressCtrl.text = addr.isNotEmpty ? addr : 'Betawad';
-                                _villageCityCtrl.text = addr.isNotEmpty ? addr : 'Betawad';
+                                _addressCtrl.text = addr.isNotEmpty
+                                    ? addr
+                                    : 'Betawad';
+                                _villageCityCtrl.text = addr.isNotEmpty
+                                    ? addr
+                                    : 'Betawad';
                                 _districtCtrl.text = 'Dhule';
-                                if (c.systemCapacity != null && c.systemCapacity!.trim().isNotEmpty) {
+                                if (c.systemCapacity != null &&
+                                    c.systemCapacity!.trim().isNotEmpty) {
                                   _capacity = c.systemCapacity!.trim();
-                                  _items = SolarQuotation.defaultItems(_capacity);
+                                  _items = SolarQuotation.defaultItems(
+                                    _capacity,
+                                  );
                                 }
                                 _recalculateAll();
                                 _checkCustomerSignature();
@@ -766,7 +1071,10 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
           includeCustomerSignature: _includeCustomerSignature,
           customCustomerSignatureBytes: _customCustomerSignatureBytes,
         );
-        await Printing.sharePdf(bytes: pdfBytes, filename: quotation.pdfFileName);
+        await Printing.sharePdf(
+          bytes: pdfBytes,
+          filename: quotation.pdfFileName,
+        );
       } catch (_) {}
     }
 
@@ -786,18 +1094,28 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
         foregroundColor: Colors.white,
         title: Row(
           children: [
-            const Icon(Icons.solar_power_rounded, color: Color(0xFFF59E0B), size: 24),
+            const Icon(
+              Icons.solar_power_rounded,
+              color: Color(0xFFF59E0B),
+              size: 24,
+            ),
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   t.quotationTitle,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 Text(
                   'SIYA INFOTECH & SOLAR ENERGY • Quotation: $_quotationNo',
-                  style: const TextStyle(fontSize: 11, color: Color(0xFF93C5FD)),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF93C5FD),
+                  ),
                 ),
               ],
             ),
@@ -809,11 +1127,17 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
             FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF047857),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
               ),
               onPressed: _handleSaveCustomerToMaster,
               icon: const Icon(Icons.person_add_rounded, size: 16),
-              label: const Text('Save Customer to Master', style: TextStyle(fontSize: 12)),
+              label: const Text(
+                'Save Customer to Master',
+                style: TextStyle(fontSize: 12),
+              ),
             ),
             const SizedBox(width: 8),
           ],
@@ -834,7 +1158,10 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
             ),
             onPressed: _handleWhatsAppShare,
             icon: const Icon(Icons.share_rounded, size: 16),
-            label: const Text('WhatsApp Share', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            label: const Text(
+              'WhatsApp Share',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
           ),
           const SizedBox(width: 12),
           IconButton(
@@ -850,8 +1177,14 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
           indicatorColor: const Color(0xFFF59E0B),
           indicatorWeight: 3,
           tabs: const [
-            Tab(icon: Icon(Icons.receipt_long_rounded, size: 18), text: 'Solar Project Proposal Generator'),
-            Tab(icon: Icon(Icons.description_outlined, size: 18), text: 'Customer Margin Money Receipt (10%)'),
+            Tab(
+              icon: Icon(Icons.receipt_long_rounded, size: 18),
+              text: 'Solar Project Proposal Generator',
+            ),
+            Tab(
+              icon: Icon(Icons.description_outlined, size: 18),
+              text: 'Customer Margin Money Receipt (10%)',
+            ),
           ],
         ),
       ),
@@ -867,16 +1200,15 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                       flex: 5,
                       child: Container(
                         decoration: const BoxDecoration(
-                          border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
+                          border: Border(
+                            right: BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
                         ),
                         child: _buildFormView(t),
                       ),
                     ),
                     // Right: Live A4 PDF Preview
-                    Expanded(
-                      flex: 5,
-                      child: _buildPdfPreviewPane(),
-                    ),
+                    Expanded(flex: 5, child: _buildPdfPreviewPane()),
                   ],
                 )
               : _buildMobileTabs(t),
@@ -903,10 +1235,7 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
           ),
           Expanded(
             child: TabBarView(
-              children: [
-                _buildFormView(t),
-                _buildPdfPreviewPane(),
-              ],
+              children: [_buildFormView(t), _buildPdfPreviewPane()],
             ),
           ),
         ],
@@ -969,9 +1298,18 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                             labelText: 'Quotation Date *',
                             isDense: true,
                             border: OutlineInputBorder(),
-                            suffixIcon: Icon(Icons.calendar_today_rounded, size: 18),
+                            suffixIcon: Icon(
+                              Icons.calendar_today_rounded,
+                              size: 18,
+                            ),
                           ),
-                          child: Text(_dateFormat.format(_quotationDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          child: Text(
+                            _dateFormat.format(_quotationDate),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -985,9 +1323,21 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                           isDense: true,
                           border: OutlineInputBorder(),
                         ),
-                        items: ['Issued', 'Draft', 'Approved', 'Invoiced', 'Cancelled']
-                            .map((st) => DropdownMenuItem(value: st, child: Text(st)))
-                            .toList(),
+                        items:
+                            [
+                                  'Issued',
+                                  'Draft',
+                                  'Approved',
+                                  'Invoiced',
+                                  'Cancelled',
+                                ]
+                                .map(
+                                  (st) => DropdownMenuItem(
+                                    value: st,
+                                    child: Text(st),
+                                  ),
+                                )
+                                .toList(),
                         onChanged: (val) {
                           if (val != null) {
                             setState(() {
@@ -1008,12 +1358,24 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Project Category:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          const Text(
+                            'Project Category:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
                           const SizedBox(height: 4),
                           SegmentedButton<String>(
                             segments: const [
-                              ButtonSegment(value: 'Residential', label: Text('Residential (PM Surya Ghar)')),
-                              ButtonSegment(value: 'Commercial', label: Text('Commercial & Industrial')),
+                              ButtonSegment(
+                                value: 'Residential',
+                                label: Text('Residential (PM Surya Ghar)'),
+                              ),
+                              ButtonSegment(
+                                value: 'Commercial',
+                                label: Text('Commercial & Industrial'),
+                              ),
                             ],
                             selected: {_quotationType},
                             onSelectionChanged: (val) {
@@ -1055,9 +1417,23 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
             iconColor: const Color(0xFF047857),
             trailing: _isSavedCustomer
                 ? Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFA7F3D0))),
-                    child: const Text('Master Customer Linked', style: TextStyle(color: Color(0xFF047857), fontSize: 11, fontWeight: FontWeight.bold)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFA7F3D0)),
+                    ),
+                    child: const Text(
+                      'Master Customer Linked',
+                      style: TextStyle(
+                        color: Color(0xFF047857),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   )
                 : Wrap(
                     spacing: 4,
@@ -1065,13 +1441,35 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                     children: [
                       TextButton.icon(
                         onPressed: _openSearchMasterCustomer,
-                        icon: const Icon(Icons.person_search_rounded, size: 15, color: Color(0xFF1D4ED8)),
-                        label: const Text('Pick from Master', style: TextStyle(fontSize: 12, color: Color(0xFF1D4ED8), fontWeight: FontWeight.bold)),
+                        icon: const Icon(
+                          Icons.person_search_rounded,
+                          size: 15,
+                          color: Color(0xFF1D4ED8),
+                        ),
+                        label: const Text(
+                          'Pick from Master',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF1D4ED8),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                       TextButton.icon(
                         onPressed: _handleSaveCustomerToMaster,
-                        icon: const Icon(Icons.person_add_alt_1, size: 15, color: Color(0xFF047857)),
-                        label: const Text('Save to Master', style: TextStyle(fontSize: 12, color: Color(0xFF047857), fontWeight: FontWeight.bold)),
+                        icon: const Icon(
+                          Icons.person_add_alt_1,
+                          size: 15,
+                          color: Color(0xFF047857),
+                        ),
+                        label: const Text(
+                          'Save to Master',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF047857),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -1199,24 +1597,80 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                   children: [
                     Expanded(
                       flex: 4,
-                      child: DropdownButtonFormField<String>(
-                        value: ['1 kW', '2 kW', '3 kW', '3.5 kW', '4 kW', '5 kW', '6 kW', '8 kW', '10 kW'].contains(_capacity) ? _capacity : '3 kW',
-                        decoration: InputDecoration(
-                          labelText: '${t.systemCapacity} *',
-                          isDense: true,
-                          border: const OutlineInputBorder(),
-                        ),
-                        items: ['1 kW', '2 kW', '3 kW', '3.5 kW', '4 kW', '5 kW', '6 kW', '8 kW', '10 kW']
-                            .map((cap) => DropdownMenuItem(value: cap, child: Text(cap, style: const TextStyle(fontWeight: FontWeight.bold))))
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              _capacity = val;
-                              _items = SolarQuotation.defaultItems(_capacity);
-                              _recalculateAll(recalculateSubsidyFromFormula: true, recalculateGenFromFormula: true);
-                            });
-                          }
+                      child: Builder(
+                        builder: (context) {
+                          const standardCapacities = [
+                            '1 kW',
+                            '2 kW',
+                            '2.2 kW',
+                            '3 kW',
+                            '3.24 kW',
+                            '3.3 kW',
+                            '3.5 kW',
+                            '4 kW',
+                            '4.4 kW',
+                            '5 kW',
+                            '5.4 kW',
+                            '5.5 kW',
+                            '6 kW',
+                            '6.6 kW',
+                            '7.7 kW',
+                            '8 kW',
+                            '10 kW',
+                          ];
+                          final availableCapacities =
+                              <String>{
+                                ...standardCapacities,
+                                _capacity,
+                              }.toList()..sort(
+                                (a, b) =>
+                                    SolarQuotationCalculations.parseCapacity(
+                                      a,
+                                    ).compareTo(
+                                      SolarQuotationCalculations.parseCapacity(
+                                        b,
+                                      ),
+                                    ),
+                              );
+                          final selectedVal =
+                              availableCapacities.contains(_capacity)
+                              ? _capacity
+                              : availableCapacities.first;
+
+                          return DropdownButtonFormField<String>(
+                            value: selectedVal,
+                            decoration: InputDecoration(
+                              labelText: '${t.systemCapacity} *',
+                              isDense: true,
+                              border: const OutlineInputBorder(),
+                            ),
+                            items: availableCapacities
+                                .map(
+                                  (cap) => DropdownMenuItem(
+                                    value: cap,
+                                    child: Text(
+                                      cap,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                final targetKw =
+                                    SolarQuotationCalculations.parseCapacity(
+                                      val,
+                                    );
+                                _syncAllFromPanelSpecs(
+                                  recalculateGen: true,
+                                  updatePanelCount: true,
+                                  targetCapacityKw: targetKw,
+                                );
+                              }
+                            },
+                          );
                         },
                       ),
                     ),
@@ -1230,14 +1684,26 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                           isDense: true,
                           border: const OutlineInputBorder(),
                         ),
-                        items: ['On-Grid Solar System', 'Off-Grid Solar System', 'Hybrid Solar System']
-                            .map((st) => DropdownMenuItem(value: st, child: Text(st)))
-                            .toList(),
+                        items:
+                            [
+                                  'On-Grid Solar System',
+                                  'Off-Grid Solar System',
+                                  'Hybrid Solar System',
+                                ]
+                                .map(
+                                  (st) => DropdownMenuItem(
+                                    value: st,
+                                    child: Text(st),
+                                  ),
+                                )
+                                .toList(),
                         onChanged: (val) {
                           if (val != null) {
                             setState(() {
                               _systemType = val;
-                              _includeDiagram = val.toLowerCase().contains('on-grid');
+                              _includeDiagram = val.toLowerCase().contains(
+                                'on-grid',
+                              );
                               _recalculateAll();
                             });
                           }
@@ -1271,7 +1737,20 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                           isDense: true,
                           border: const OutlineInputBorder(),
                         ),
-                        onChanged: (_) => setState(() => _renderKey++),
+                        onChanged: (_) {
+                          final capKw =
+                              SolarQuotationCalculations.parseCapacity(
+                                _capacity,
+                              );
+                          final wattage =
+                              SolarQuotationCalculations.extractWattage(
+                                _panelWattageCtrl.text,
+                              );
+                          final count =
+                              int.tryParse(_panelCountCtrl.text.trim()) ?? 6;
+                          _syncItemsWithPanelSpecs(capKw, wattage, count);
+                          setState(() => _renderKey++);
+                        },
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1281,10 +1760,12 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                         controller: _panelWattageCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Panel Wattage (Wp)',
+                          hintText: 'e.g. 540 Wp, 550 Wp',
                           isDense: true,
                           border: OutlineInputBorder(),
                         ),
-                        onChanged: (_) => _recalculateAll(),
+                        onChanged: (_) =>
+                            _syncAllFromPanelSpecs(recalculateGen: true),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1298,10 +1779,85 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                           isDense: true,
                           border: OutlineInputBorder(),
                         ),
-                        onChanged: (_) => setState(() => _renderKey++),
+                        onChanged: (_) =>
+                            _syncAllFromPanelSpecs(recalculateGen: true),
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 10),
+                // Real-Time System & Generation Updates Banner
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFEFF6FF), Color(0xFFF0FDF4)],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF93C5FD)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.solar_power_rounded,
+                        color: Color(0xFF1D4ED8),
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'System Size: $_capacity',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF0F172A),
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFDBEAFE),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '${_panelCountCtrl.text.trim().isNotEmpty ? _panelCountCtrl.text.trim() : '6'} Panels × ${SolarQuotationCalculations.extractWattage(_panelWattageCtrl.text).toInt()} Wp',
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF1E40AF),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '⚡ Daily Avg: ~${(_annualGenerationUnits / 365).toStringAsFixed(1)} Units/Day  •  '
+                              '📅 Monthly Avg: ~${(_annualGenerationUnits / 12).toStringAsFixed(0)} Units/Month  •  '
+                              '☀️ Annual Total: ${_annualGenerationUnits.toStringAsFixed(0)} Units/Year',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF334155),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Row(
@@ -1360,8 +1916,15 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
               children: [
                 TextButton.icon(
                   onPressed: _resetToDefaultBoq,
-                  icon: const Icon(Icons.restart_alt_rounded, size: 16, color: Color(0xFF64748B)),
-                  label: const Text('Reset Standard BOQ', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                  icon: const Icon(
+                    Icons.restart_alt_rounded,
+                    size: 16,
+                    color: Color(0xFF64748B),
+                  ),
+                  label: const Text(
+                    'Reset Standard BOQ',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: _openAddCustomItemDialog,
@@ -1377,10 +1940,15 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                   final item = entry.value;
                   final make = item['make'] ?? item['company'] ?? '';
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
                     margin: const EdgeInsets.only(bottom: 6),
                     decoration: BoxDecoration(
-                      color: idx % 2 == 1 ? const Color(0xFFF8FAFC) : Colors.white,
+                      color: idx % 2 == 1
+                          ? const Color(0xFFF8FAFC)
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
@@ -1388,7 +1956,13 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                       children: [
                         SizedBox(
                           width: 28,
-                          child: Text('${idx + 1}.', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          child: Text(
+                            '${idx + 1}.',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
                         Expanded(
                           flex: 3,
@@ -1397,40 +1971,76 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                             children: [
                               Row(
                                 children: [
-                                  Text(item['item'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  Text(
+                                    item['item'] ?? '',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
                                   if (make.isNotEmpty) ...[
                                     const SizedBox(width: 8),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 1.5,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFEFF6FF),
                                         borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                                        border: Border.all(
+                                          color: const Color(0xFFBFDBFE),
+                                        ),
                                       ),
                                       child: Text(
                                         'Make: $make',
-                                        style: const TextStyle(color: Color(0xFF1D4ED8), fontSize: 10.5, fontWeight: FontWeight.bold),
+                                        style: const TextStyle(
+                                          color: Color(0xFF1D4ED8),
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ],
                               ),
                               const SizedBox(height: 2),
-                              Text(item['spec'] ?? '', style: const TextStyle(color: Color(0xFF64748B), fontSize: 11)),
+                              Text(
+                                item['spec'] ?? '',
+                                style: const TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontSize: 11,
+                                ),
+                              ),
                             ],
                           ),
                         ),
                         SizedBox(
                           width: 90,
-                          child: Text(item['qty'] ?? '', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                          child: Text(
+                            item['qty'] ?? '',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF0284C7)),
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            size: 18,
+                            color: Color(0xFF0284C7),
+                          ),
                           tooltip: 'Edit Component & Make',
                           onPressed: () => _openEditItemDialog(idx),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            size: 18,
+                            color: Colors.red,
+                          ),
                           tooltip: 'Remove',
                           onPressed: () {
                             setState(() {
@@ -1502,7 +2112,11 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                   ),
                   child: Text(
                     '${t.amountInWords}: ${NumberToWordsUtils.convertToBilingualRupees(_grandTotal, language: _language)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF854D0E)),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11.5,
+                      color: Color(0xFF854D0E),
+                    ),
                   ),
                 ),
               ],
@@ -1522,7 +2136,8 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                 children: [
                   Checkbox(
                     value: _includeDiagram,
-                    onChanged: (val) => setState(() => _includeDiagram = val ?? true),
+                    onChanged: (val) =>
+                        setState(() => _includeDiagram = val ?? true),
                   ),
                   const Text('Include in PDF', style: TextStyle(fontSize: 12)),
                 ],
@@ -1542,7 +2157,8 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
               children: [
                 Checkbox(
                   value: _includeGenerationTable,
-                  onChanged: (val) => setState(() => _includeGenerationTable = val ?? true),
+                  onChanged: (val) =>
+                      setState(() => _includeGenerationTable = val ?? true),
                 ),
                 const Text('Include in PDF', style: TextStyle(fontSize: 12)),
               ],
@@ -1595,7 +2211,10 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                         Expanded(
                           child: Text(
                             'Commercial Connection: PM Surya Ghar Residential Central Subsidy is not applicable to commercial/industrial electricity meters.',
-                            style: TextStyle(fontSize: 12, color: Color(0xFF334155)),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF334155),
+                            ),
                           ),
                         ),
                       ],
@@ -1611,15 +2230,23 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
                             labelText: 'Central Government Subsidy (₹) *',
-                            helperText: 'Editable — Automatically updates Loan & Margin',
+                            helperText:
+                                'Editable — Automatically updates Loan & Margin',
                             isDense: true,
                             border: const OutlineInputBorder(),
                             suffixIcon: IconButton(
-                              icon: const Icon(Icons.auto_fix_high_rounded, color: Color(0xFF047857), size: 20),
-                              tooltip: 'Recalculate Standard PM Surya Ghar Subsidy for $_capacity',
+                              icon: const Icon(
+                                Icons.auto_fix_high_rounded,
+                                color: Color(0xFF047857),
+                                size: 20,
+                              ),
+                              tooltip:
+                                  'Recalculate Standard PM Surya Ghar Subsidy for $_capacity',
                               onPressed: () {
                                 setState(() {
-                                  _recalculateAll(recalculateSubsidyFromFormula: true);
+                                  _recalculateAll(
+                                    recalculateSubsidyFromFormula: true,
+                                  );
                                 });
                               },
                             ),
@@ -1634,7 +2261,11 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                       const SizedBox(width: 10),
                       Expanded(
                         flex: 6,
-                        child: _buildSummaryBox('Net Payable After Subsidy', _inrFormat.format(_payableAfterSubsidy), const Color(0xFF0D2B6F)),
+                        child: _buildSummaryBox(
+                          'Net Payable After Subsidy',
+                          _inrFormat.format(_payableAfterSubsidy),
+                          const Color(0xFF0D2B6F),
+                        ),
                       ),
                     ],
                   ),
@@ -1642,22 +2273,38 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                   Row(
                     children: [
                       Expanded(
-                        child: _buildSummaryBox('System Capacity', _capacity, const Color(0xFF1D4ED8)),
+                        child: _buildSummaryBox(
+                          'System Capacity',
+                          _capacity,
+                          const Color(0xFF1D4ED8),
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: _buildSummaryBox('Eligible Subsidy', _inrFormat.format(_subsidyAmount), const Color(0xFF047857)),
+                        child: _buildSummaryBox(
+                          'Eligible Subsidy',
+                          _inrFormat.format(_subsidyAmount),
+                          const Color(0xFF047857),
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: _buildSummaryBox('Customer Contribution', _inrFormat.format(_downPayment), const Color(0xFFD97706)),
+                        child: _buildSummaryBox(
+                          'Customer Contribution',
+                          _inrFormat.format(_downPayment),
+                          const Color(0xFFD97706),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Text(
                     t.subsidyDisclaimer,
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontStyle: FontStyle.italic),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF64748B),
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ],
               ],
@@ -1676,9 +2323,18 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
               children: [
                 SegmentedButton<String>(
                   segments: const [
-                    ButtonSegment(value: 'Cash', label: Text('Cash / Self-Funded')),
-                    ButtonSegment(value: 'Bank Loan', label: Text('Bank Loan (Full)')),
-                    ButtonSegment(value: 'Part Payment + Bank Loan', label: Text('Part Payment + Loan')),
+                    ButtonSegment(
+                      value: 'Cash',
+                      label: Text('Cash / Self-Funded'),
+                    ),
+                    ButtonSegment(
+                      value: 'Bank Loan',
+                      label: Text('Bank Loan (100% / 0 Down)'),
+                    ),
+                    ButtonSegment(
+                      value: 'Part Payment + Bank Loan',
+                      label: Text('Part Payment + Loan'),
+                    ),
                   ],
                   selected: {_paymentMode},
                   onSelectionChanged: (val) {
@@ -1692,7 +2348,10 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                 if (_paymentMode.toLowerCase().contains('loan')) ...[
                   Container(
                     margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 7,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFECFDF5),
                       borderRadius: BorderRadius.circular(6),
@@ -1700,12 +2359,20 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF047857)),
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          size: 16,
+                          color: Color(0xFF047857),
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Bank Loan is calculated on Net Amount After Subsidy: ${_inrFormat.format((_quotationType != 'Commercial' && _subsidyAmount > 0) ? _payableAfterSubsidy : _grandTotal)} (Turnkey ${_inrFormat.format(_grandTotal)} - Subsidy ${_inrFormat.format(_subsidyAmount)}). 10% Margin = ₹${(((_quotationType != 'Commercial' && _subsidyAmount > 0) ? _payableAfterSubsidy : _grandTotal) * 0.10).round()}.',
-                            style: const TextStyle(fontSize: 11.5, color: Color(0xFF065F46), fontWeight: FontWeight.w600),
+                            '100% Bank Solar Loan with 0 Down Payment: Financed on Net Cost After Subsidy ${_inrFormat.format((_quotationType != 'Commercial' && _subsidyAmount > 0) ? _payableAfterSubsidy : _grandTotal)} (Turnkey ${_inrFormat.format(_grandTotal)} - Subsidy ${_inrFormat.format(_subsidyAmount)}). Down Payment = ₹0.',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: Color(0xFF065F46),
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
@@ -1717,7 +2384,11 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                         flex: 6,
                         child: TextField(
                           controller: _loanBankNameCtrl,
-                          decoration: const InputDecoration(labelText: 'Financing Bank Name', isDense: true, border: OutlineInputBorder()),
+                          decoration: const InputDecoration(
+                            labelText: 'Financing Bank Name',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
                           onChanged: (_) => setState(() => _renderKey++),
                         ),
                       ),
@@ -1729,8 +2400,13 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
                             labelText: 'Proposed Loan Amount (₹) *',
-                            helperText: 'Calculated on Net Cost after ₹${_subsidyAmount.round()} subsidy',
-                            helperStyle: const TextStyle(fontSize: 10, color: Color(0xFF047857), fontWeight: FontWeight.bold),
+                            helperText:
+                                '100% Loan on Net Cost after ₹${_subsidyAmount.round()} subsidy',
+                            helperStyle: const TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF047857),
+                              fontWeight: FontWeight.bold,
+                            ),
                             isDense: true,
                             border: const OutlineInputBorder(),
                           ),
@@ -1749,8 +2425,11 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
                             labelText: 'Down Payment (₹)',
-                            helperText: '10% Margin on Net',
-                            helperStyle: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                            helperText: '0 Down Payment (100% Loan)',
+                            helperStyle: TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF64748B),
+                            ),
                             isDense: true,
                             border: OutlineInputBorder(),
                           ),
@@ -1763,7 +2442,11 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                         child: TextField(
                           controller: _interestRateCtrl,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: 'Interest Rate (% p.a.)', isDense: true, border: OutlineInputBorder()),
+                          decoration: const InputDecoration(
+                            labelText: 'Interest Rate (% p.a.)',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
                           onChanged: (_) => setState(() => _recalculateAll()),
                         ),
                       ),
@@ -1772,9 +2455,20 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                         flex: 4,
                         child: DropdownButtonFormField<int>(
                           value: _loanTenureMonths,
-                          decoration: const InputDecoration(labelText: 'Tenure (Months)', isDense: true, border: OutlineInputBorder()),
+                          decoration: const InputDecoration(
+                            labelText: 'Tenure (Months)',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
                           items: [12, 24, 36, 48, 60, 84, 120]
-                              .map((m) => DropdownMenuItem(value: m, child: Text('$m Months (${(m / 12).toStringAsFixed(1)} Yrs)')))
+                              .map(
+                                (m) => DropdownMenuItem(
+                                  value: m,
+                                  child: Text(
+                                    '$m Months (${(m / 12).toStringAsFixed(1)} Yrs)',
+                                  ),
+                                ),
+                              )
                               .toList(),
                           onChanged: (val) {
                             if (val != null) {
@@ -1799,9 +2493,28 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Monthly EMI: ${_inrFormat.format(_monthlyEmi)} / month', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1D4ED8))),
-                        Text('Total Repayment: ${_inrFormat.format(_monthlyEmi * _loanTenureMonths)}', style: const TextStyle(fontSize: 12, color: Color(0xFF1E293B))),
-                        Text('Total Interest: ${_inrFormat.format((_monthlyEmi * _loanTenureMonths) - _bankLoan)}', style: const TextStyle(fontSize: 12, color: Color(0xFF047857))),
+                        Text(
+                          'Monthly EMI: ${_inrFormat.format(_monthlyEmi)} / month',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Color(0xFF1D4ED8),
+                          ),
+                        ),
+                        Text(
+                          'Total Repayment: ${_inrFormat.format(_monthlyEmi * _loanTenureMonths)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                        Text(
+                          'Total Interest: ${_inrFormat.format((_monthlyEmi * _loanTenureMonths) - _bankLoan)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF047857),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1815,7 +2528,13 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                         padding: const EdgeInsets.symmetric(vertical: 9),
                       ),
                       icon: const Icon(Icons.calculate_rounded, size: 18),
-                      label: const Text('Download Bank Loan EMI Calculation Sheet (PDF)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      label: const Text(
+                        'Download Bank Loan EMI Calculation Sheet (PDF)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
                       onPressed: () {
                         final quotation = _buildQuotationObject();
                         SolarQuotationService.downloadBankLoanEmiSheetPdf(
@@ -1836,8 +2555,20 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Total Payable: ${_inrFormat.format(_grandTotal)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        const Text('Self-funded direct payment (no EMI)', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+                        Text(
+                          'Total Payable: ${_inrFormat.format(_grandTotal)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const Text(
+                          'Self-funded direct payment (no EMI)',
+                          style: TextStyle(
+                            color: Color(0xFF64748B),
+                            fontSize: 12,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1850,7 +2581,8 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
 
           // ── SECTION 11: COMPANY BANK ACCOUNT (FOR DISBURSEMENT) ───────────
           _buildCard(
-            title: '11. Vendor Company Bank Details (For RTGS, NEFT & Loan Disbursement)',
+            title:
+                '11. Vendor Company Bank Details (For RTGS, NEFT & Loan Disbursement)',
             icon: Icons.account_balance_wallet_rounded,
             iconColor: const Color(0xFF0284C7),
             child: Column(
@@ -1962,7 +2694,8 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                   maxLines: 5,
                   decoration: const InputDecoration(
                     labelText: 'Commercial Terms & Conditions (One per line)',
-                    helperText: 'Displayed in official quotation proposal and client acceptance page',
+                    helperText:
+                        'Displayed in official quotation proposal and client acceptance page',
                     isDense: true,
                     border: OutlineInputBorder(),
                   ),
@@ -1973,8 +2706,10 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                   controller: _notesCtrl,
                   maxLines: 3,
                   decoration: const InputDecoration(
-                    labelText: 'Special Site Remarks / Project Notes (Optional)',
-                    helperText: 'Printed on proposal overview and client remarks',
+                    labelText:
+                        'Special Site Remarks / Project Notes (Optional)',
+                    helperText:
+                        'Printed on proposal overview and client remarks',
                     isDense: true,
                     border: OutlineInputBorder(),
                   ),
@@ -2027,18 +2762,40 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                   children: [
                     Expanded(
                       child: CheckboxListTile(
-                        title: const Text('Company Stamp & Signature', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                        subtitle: const Text('Official Vendor Seal on Proposal', style: TextStyle(fontSize: 11)),
+                        title: const Text(
+                          'Company Stamp & Signature',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: const Text(
+                          'Official Vendor Seal on Proposal',
+                          style: TextStyle(fontSize: 11),
+                        ),
                         value: _includeStampAndSignature,
-                        onChanged: (val) => setState(() => _includeStampAndSignature = val ?? true),
+                        onChanged: (val) => setState(
+                          () => _includeStampAndSignature = val ?? true,
+                        ),
                       ),
                     ),
                     Expanded(
                       child: CheckboxListTile(
-                        title: const Text('Customer Signature', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                        subtitle: const Text('Customer Acceptance Sign-off', style: TextStyle(fontSize: 11)),
+                        title: const Text(
+                          'Customer Signature',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: const Text(
+                          'Customer Acceptance Sign-off',
+                          style: TextStyle(fontSize: 11),
+                        ),
                         value: _includeCustomerSignature,
-                        onChanged: (val) => setState(() => _includeCustomerSignature = val ?? true),
+                        onChanged: (val) => setState(
+                          () => _includeCustomerSignature = val ?? true,
+                        ),
                       ),
                     ),
                   ],
@@ -2067,9 +2824,20 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
             color: const Color(0xFF323639),
             child: Row(
               children: [
-                const Icon(Icons.picture_as_pdf_rounded, color: Colors.redAccent, size: 20),
+                const Icon(
+                  Icons.picture_as_pdf_rounded,
+                  color: Colors.redAccent,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
-                const Text('Live A4 Quotation PDF Preview', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                const Text(
+                  'Live A4 Quotation PDF Preview',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.refresh_rounded, color: Colors.white),
@@ -2077,13 +2845,17 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                   onPressed: () => setState(() => _renderKey++),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.calculate_rounded, color: Colors.amberAccent),
-                  tooltip: 'Download Bank Loan EMI Calculation Sheet',
-                  onPressed: () => SolarQuotationService.downloadBankLoanEmiSheetPdf(
-                    context,
-                    quotation,
-                    includeStampAndSignature: _includeStampAndSignature,
+                  icon: const Icon(
+                    Icons.calculate_rounded,
+                    color: Colors.amberAccent,
                   ),
+                  tooltip: 'Download Bank Loan EMI Calculation Sheet',
+                  onPressed: () =>
+                      SolarQuotationService.downloadBankLoanEmiSheetPdf(
+                        context,
+                        quotation,
+                        includeStampAndSignature: _includeStampAndSignature,
+                      ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.download_rounded, color: Colors.white),
@@ -2112,12 +2884,13 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
           Expanded(
             child: PdfPreview(
               key: ValueKey('preview-$_renderKey-$_language-$_quotationType'),
-              build: (format) => SolarQuotationService.generateQuotationPdfBytes(
-                quotation,
-                includeStampAndSignature: _includeStampAndSignature,
-                includeCustomerSignature: _includeCustomerSignature,
-                customCustomerSignatureBytes: _customCustomerSignatureBytes,
-              ),
+              build: (format) =>
+                  SolarQuotationService.generateQuotationPdfBytes(
+                    quotation,
+                    includeStampAndSignature: _includeStampAndSignature,
+                    includeCustomerSignature: _includeCustomerSignature,
+                    customCustomerSignatureBytes: _customCustomerSignatureBytes,
+                  ),
               canChangeOrientation: false,
               canChangePageFormat: false,
               canDebug: false,
@@ -2145,24 +2918,66 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildUiSchematicNode('☀️ Rooftop Panels', 'Solar PV Modules', 'Waaree / Adani TopCon', const Color(0xFFE0F2FE), const Color(0xFF0284C7)),
+              _buildUiSchematicNode(
+                '☀️ Rooftop Panels',
+                'Solar PV Modules',
+                'Waaree / Adani TopCon',
+                const Color(0xFFE0F2FE),
+                const Color(0xFF0284C7),
+              ),
               const Icon(Icons.arrow_forward_rounded, color: Color(0xFFEA580C)),
-              _buildUiSchematicNode('⚡ DCDB Box', 'DC Protection', 'Surge Protection & Fuse', const Color(0xFFFEF3C7), const Color(0xFFD97706)),
+              _buildUiSchematicNode(
+                '⚡ DCDB Box',
+                'DC Protection',
+                'Surge Protection & Fuse',
+                const Color(0xFFFEF3C7),
+                const Color(0xFFD97706),
+              ),
               const Icon(Icons.arrow_forward_rounded, color: Color(0xFFEA580C)),
-              _buildUiSchematicNode('🔄 Grid Inverter', 'Grid-Tied MPPT', 'High Efficiency IP65', const Color(0xFFD1FAE5), const Color(0xFF047857)),
+              _buildUiSchematicNode(
+                '🔄 Grid Inverter',
+                'Grid-Tied MPPT',
+                'High Efficiency IP65',
+                const Color(0xFFD1FAE5),
+                const Color(0xFF047857),
+              ),
               const Icon(Icons.arrow_forward_rounded, color: Color(0xFF047857)),
-              _buildUiSchematicNode('⚡ ACDB Box', 'AC Protection', 'MCB & AC SPD', const Color(0xFFEDE9FE), const Color(0xFF7C3AED)),
+              _buildUiSchematicNode(
+                '⚡ ACDB Box',
+                'AC Protection',
+                'MCB & AC SPD',
+                const Color(0xFFEDE9FE),
+                const Color(0xFF7C3AED),
+              ),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildUiSchematicNode('🏠 Building Load', 'Self-Consumption', 'Lights, Fan, AC, Machine', const Color(0xFFF1F5F9), const Color(0xFF475569)),
+              _buildUiSchematicNode(
+                '🏠 Building Load',
+                'Self-Consumption',
+                'Lights, Fan, AC, Machine',
+                const Color(0xFFF1F5F9),
+                const Color(0xFF475569),
+              ),
               const Icon(Icons.swap_horiz_rounded, color: Color(0xFF0D2B6F)),
-              _buildUiSchematicNode('⇄ Net Meter', 'Bi-Directional Meter', 'Import / Export Billing', const Color(0xFFFEF08A), const Color(0xFFCA8A04)),
+              _buildUiSchematicNode(
+                '⇄ Net Meter',
+                'Bi-Directional Meter',
+                'Import / Export Billing',
+                const Color(0xFFFEF08A),
+                const Color(0xFFCA8A04),
+              ),
               const Icon(Icons.swap_horiz_rounded, color: Color(0xFF0D2B6F)),
-              _buildUiSchematicNode('🏛️ MSEDCL Grid', 'Distribution Utility', 'Continuous Grid Sync', const Color(0xFFE0E7FF), const Color(0xFF0D2B6F)),
+              _buildUiSchematicNode(
+                '🏛️ MSEDCL Grid',
+                'Distribution Utility',
+                'Continuous Grid Sync',
+                const Color(0xFFE0E7FF),
+                const Color(0xFF0D2B6F),
+              ),
             ],
           ),
         ],
@@ -2170,7 +2985,13 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
     );
   }
 
-  Widget _buildUiSchematicNode(String title, String sub, String detail, Color bg, Color border) {
+  Widget _buildUiSchematicNode(
+    String title,
+    String sub,
+    String detail,
+    Color bg,
+    Color border,
+  ) {
     return Container(
       width: 120,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
@@ -2181,10 +3002,22 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
       ),
       child: Column(
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11), textAlign: TextAlign.center),
-          Text(sub, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)), textAlign: TextAlign.center),
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            textAlign: TextAlign.center,
+          ),
+          Text(
+            sub,
+            style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 2),
-          Text(detail, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+          Text(
+            detail,
+            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
@@ -2196,7 +3029,9 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
     final rows = SolarQuotationCalculations.calculate12MonthGeneration(
       capacityKw: capKw,
       electricityTariff: _electricityTariff,
-      targetAnnualUnits: _annualGenerationUnits > 0 ? _annualGenerationUnits : null,
+      targetAnnualUnits: _annualGenerationUnits > 0
+          ? _annualGenerationUnits
+          : null,
     );
 
     double maxUnits = 1.0;
@@ -2215,12 +3050,18 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: 'Annual Generation (kWh / Units) *',
-                  helperText: 'Editable — Scaled proportionally across 12 months',
+                  helperText:
+                      'Editable — Scaled proportionally across 12 months',
                   isDense: true,
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(
-                    icon: const Icon(Icons.auto_fix_high_rounded, color: Color(0xFF047857), size: 20),
-                    tooltip: 'Recalculate from capacity formula (1460 units/kW)',
+                    icon: const Icon(
+                      Icons.auto_fix_high_rounded,
+                      color: Color(0xFF047857),
+                      size: 20,
+                    ),
+                    tooltip:
+                        'Recalculate from capacity formula (1460 units/kW)',
                     onPressed: () {
                       setState(() {
                         _recalculateAll(recalculateGenFromFormula: true);
@@ -2238,7 +3079,11 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
             const SizedBox(width: 10),
             Expanded(
               flex: 6,
-              child: _buildSummaryBox('Annual Electricity Savings', _inrFormat.format(_annualSavings), const Color(0xFF0D2B6F)),
+              child: _buildSummaryBox(
+                'Annual Electricity Savings',
+                _inrFormat.format(_annualSavings),
+                const Color(0xFF0D2B6F),
+              ),
             ),
           ],
         ),
@@ -2246,11 +3091,29 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
         // Summary Cards
         Row(
           children: [
-            Expanded(child: _buildSummaryBox('Annual Generation', '${_annualGenerationUnits.toStringAsFixed(0)} kWh', const Color(0xFF047857))),
+            Expanded(
+              child: _buildSummaryBox(
+                'Annual Generation',
+                '${_annualGenerationUnits.toStringAsFixed(0)} kWh',
+                const Color(0xFF047857),
+              ),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: _buildSummaryBox('Monthly Average', '${(_annualGenerationUnits / 12).toStringAsFixed(0)} Units', const Color(0xFF1D4ED8))),
+            Expanded(
+              child: _buildSummaryBox(
+                'Monthly Average',
+                '${(_annualGenerationUnits / 12).toStringAsFixed(0)} Units',
+                const Color(0xFF1D4ED8),
+              ),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: _buildSummaryBox('Daily Average', '${(_annualGenerationUnits / 365).toStringAsFixed(1)} Units', const Color(0xFFD97706))),
+            Expanded(
+              child: _buildSummaryBox(
+                'Daily Average',
+                '${(_annualGenerationUnits / 365).toStringAsFixed(1)} Units',
+                const Color(0xFFD97706),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 14),
@@ -2273,7 +3136,13 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
               return Column(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Text(r.units.toStringAsFixed(0), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
+                  Text(
+                    r.units.toStringAsFixed(0),
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 3),
                   Container(
                     width: 22,
@@ -2288,7 +3157,13 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(r.monthEn.substring(0, 3), style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                  Text(
+                    r.monthEn.substring(0, 3),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
                 ],
               );
             }).toList(),
@@ -2309,7 +3184,11 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
               child: TextField(
                 controller: _tariffCtrl,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Tariff Rate (₹/kWh)', isDense: true, border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                  labelText: 'Tariff Rate (₹/kWh)',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
                 onChanged: (_) => setState(() => _recalculateAll()),
               ),
             ),
@@ -2319,21 +3198,33 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
               child: TextField(
                 controller: _maintenanceCtrl,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Annual Maintenance (₹)', isDense: true, border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                  labelText: 'Annual Maintenance (₹)',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
                 onChanged: (_) => setState(() => _recalculateAll()),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               flex: 4,
-              child: _buildSummaryBox('Payback Period', '$_paybackYears Yrs', const Color(0xFFD97706)),
+              child: _buildSummaryBox(
+                'Payback Period',
+                '$_paybackYears Yrs',
+                const Color(0xFFD97706),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 8),
         Text(
           t.roiDisclaimer,
-          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontStyle: FontStyle.italic),
+          style: const TextStyle(
+            fontSize: 11,
+            color: Color(0xFF64748B),
+            fontStyle: FontStyle.italic,
+          ),
         ),
       ],
     );
@@ -2351,28 +3242,66 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
       ),
       child: Column(
         children: [
-          _gstRow('Total Amount (GST Inclusive)', _inrFormat.format(gst.totalAmount), isBold: true),
+          _gstRow(
+            'Total Amount (GST Inclusive)',
+            _inrFormat.format(gst.totalAmount),
+            isBold: true,
+          ),
           const Divider(height: 8),
-          _gstRow('70% Goods Portion @ 5% GST', _inrFormat.format(gst.portion70)),
+          _gstRow(
+            '70% Goods Portion @ 5% GST',
+            _inrFormat.format(gst.portion70),
+          ),
           _gstRow('GST Included @ 5%', _inrFormat.format(gst.gst5)),
-          _gstRow('30% Services Portion @ 18% GST', _inrFormat.format(gst.portion30)),
+          _gstRow(
+            '30% Services Portion @ 18% GST',
+            _inrFormat.format(gst.portion30),
+          ),
           _gstRow('GST Included @ 18%', _inrFormat.format(gst.gst18)),
           const Divider(height: 8),
-          _gstRow('Total Taxable Value', _inrFormat.format(gst.totalTaxableValue), isBold: true, color: const Color(0xFF0D2B6F)),
-          _gstRow('Total GST Included', _inrFormat.format(gst.totalGstIncluded), isBold: true, color: const Color(0xFF047857)),
+          _gstRow(
+            'Total Taxable Value',
+            _inrFormat.format(gst.totalTaxableValue),
+            isBold: true,
+            color: const Color(0xFF0D2B6F),
+          ),
+          _gstRow(
+            'Total GST Included',
+            _inrFormat.format(gst.totalGstIncluded),
+            isBold: true,
+            color: const Color(0xFF047857),
+          ),
         ],
       ),
     );
   }
 
-  Widget _gstRow(String label, String value, {bool isBold = false, Color? color}) {
+  Widget _gstRow(
+    String label,
+    String value, {
+    bool isBold = false,
+    Color? color,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: 11, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
-          Text(value, style: TextStyle(fontSize: 11.5, fontWeight: isBold ? FontWeight.bold : FontWeight.w600, color: color)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -2389,9 +3318,19 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+          ),
           const SizedBox(height: 2),
-          Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: color)),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -2410,7 +3349,11 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: const [
-          BoxShadow(color: Color(0x06000000), blurRadius: 4, offset: Offset(0, 2)),
+          BoxShadow(
+            color: Color(0x06000000),
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
@@ -2423,7 +3366,13 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                 Icon(icon, color: iconColor, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13.5,
+                    ),
+                  ),
                 ),
                 if (trailing != null) trailing,
               ],
@@ -2440,11 +3389,19 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
   void _resetToDefaultBoq() {
     setState(() {
       _items = SolarQuotation.defaultItems(_capacity);
+      final capKw = SolarQuotationCalculations.parseCapacity(_capacity);
+      final wattage = SolarQuotationCalculations.extractWattage(
+        _panelWattageCtrl.text,
+      );
+      final count = int.tryParse(_panelCountCtrl.text.trim()) ?? 6;
+      _syncItemsWithPanelSpecs(capKw, wattage, count);
       _renderKey++;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('BOQ components reset to standard specification for $_capacity.'),
+        content: Text(
+          'BOQ components reset to standard specification for $_capacity.',
+        ),
         backgroundColor: const Color(0xFF047857),
       ),
     );
@@ -2464,17 +3421,39 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: itemCtrl, decoration: const InputDecoration(labelText: 'Item / Component Name *')),
+            TextField(
+              controller: itemCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Item / Component Name *',
+              ),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: makeCtrl, decoration: const InputDecoration(labelText: 'Company / Make / Brand (e.g. Waaree, Polycab, Sungrow)')),
+            TextField(
+              controller: makeCtrl,
+              decoration: const InputDecoration(
+                labelText:
+                    'Company / Make / Brand (e.g. Waaree, Polycab, Sungrow)',
+              ),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: specCtrl, decoration: const InputDecoration(labelText: 'Technical Specification')),
+            TextField(
+              controller: specCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Technical Specification',
+              ),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: qtyCtrl, decoration: const InputDecoration(labelText: 'Quantity')),
+            TextField(
+              controller: qtyCtrl,
+              decoration: const InputDecoration(labelText: 'Quantity'),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () {
               if (itemCtrl.text.trim().isNotEmpty) {
@@ -2501,7 +3480,9 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
   void _openEditItemDialog(int index) {
     final cur = _items[index];
     final itemCtrl = TextEditingController(text: cur['item']);
-    final makeCtrl = TextEditingController(text: cur['make'] ?? cur['company'] ?? '');
+    final makeCtrl = TextEditingController(
+      text: cur['make'] ?? cur['company'] ?? '',
+    );
     final specCtrl = TextEditingController(text: cur['spec']);
     final qtyCtrl = TextEditingController(text: cur['qty']);
 
@@ -2512,17 +3493,39 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: itemCtrl, decoration: const InputDecoration(labelText: 'Item / Component Name *')),
+            TextField(
+              controller: itemCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Item / Component Name *',
+              ),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: makeCtrl, decoration: const InputDecoration(labelText: 'Company / Make / Brand (e.g. Waaree, Polycab, Sungrow)')),
+            TextField(
+              controller: makeCtrl,
+              decoration: const InputDecoration(
+                labelText:
+                    'Company / Make / Brand (e.g. Waaree, Polycab, Sungrow)',
+              ),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: specCtrl, decoration: const InputDecoration(labelText: 'Technical Specification')),
+            TextField(
+              controller: specCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Technical Specification',
+              ),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: qtyCtrl, decoration: const InputDecoration(labelText: 'Quantity')),
+            TextField(
+              controller: qtyCtrl,
+              decoration: const InputDecoration(labelText: 'Quantity'),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () {
               setState(() {
@@ -2556,7 +3559,13 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 4))],
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0A000000),
+                blurRadius: 8,
+                offset: Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2565,15 +3574,32 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFF047857), size: 28),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.receipt_long_rounded,
+                      color: Color(0xFF047857),
+                      size: 28,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Customer Margin Money Receipt (10%)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0D2B6F))),
-                      Text('Official PM Surya Ghar Bank Loan Margin Receipt Generator', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      Text(
+                        'Customer Margin Money Receipt (10%)',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0D2B6F),
+                        ),
+                      ),
+                      Text(
+                        'Official PM Surya Ghar Bank Loan Margin Receipt Generator',
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
                     ],
                   ),
                 ],
@@ -2612,9 +3638,18 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                           labelText: 'Receipt Date *',
                           isDense: true,
                           border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.calendar_today_rounded, size: 18),
+                          suffixIcon: Icon(
+                            Icons.calendar_today_rounded,
+                            size: 18,
+                          ),
                         ),
-                        child: Text(_dateFormat.format(_receiptDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        child: Text(
+                          _dateFormat.format(_receiptDate),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -2631,9 +3666,21 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Received with thanks from: ${_customerNameCtrl.text.isNotEmpty ? _customerNameCtrl.text : "Valued Customer"}', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold)),
+                    Text(
+                      'Received with thanks from: ${_customerNameCtrl.text.isNotEmpty ? _customerNameCtrl.text : "Valued Customer"}',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text('Consumer No: ${_consumerNoCtrl.text} • Mobile: ${_mobileNoCtrl.text} • Address: ${_addressCtrl.text}', style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+                    Text(
+                      'Consumer No: ${_consumerNoCtrl.text} • Mobile: ${_mobileNoCtrl.text} • Address: ${_addressCtrl.text}',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -2654,7 +3701,8 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                       ),
                       onChanged: (val) {
                         setState(() {
-                          _receiptMarginAmount = double.tryParse(val.trim()) ?? 0.0;
+                          _receiptMarginAmount =
+                              double.tryParse(val.trim()) ?? 0.0;
                         });
                       },
                     ),
@@ -2669,9 +3717,19 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                         isDense: true,
                         border: OutlineInputBorder(),
                       ),
-                      items: ['Cash', 'Cheque', 'Online / NEFT / RTGS', 'UPI', 'Demand Draft']
-                          .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                          .toList(),
+                      items:
+                          [
+                                'Cash',
+                                'Cheque',
+                                'Online / NEFT / RTGS',
+                                'UPI',
+                                'Demand Draft',
+                              ]
+                              .map(
+                                (m) =>
+                                    DropdownMenuItem(value: m, child: Text(m)),
+                              )
+                              .toList(),
                       onChanged: (val) {
                         if (val != null) {
                           setState(() => _receiptPaymentMode = val);
@@ -2691,12 +3749,20 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.info_outline, size: 16, color: Color(0xFF854D0E)),
+                    const Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: Color(0xFF854D0E),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Amount in Words: ${NumberToWordsUtils.convertToBilingualRupees(_receiptMarginAmount, language: _language)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF854D0E)),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11.5,
+                          color: Color(0xFF854D0E),
+                        ),
                       ),
                     ),
                   ],
@@ -2736,9 +3802,18 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                           labelText: 'Payment Date',
                           isDense: true,
                           border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.calendar_today_rounded, size: 18),
+                          suffixIcon: Icon(
+                            Icons.calendar_today_rounded,
+                            size: 18,
+                          ),
                         ),
-                        child: Text(_dateFormat.format(_receiptPaymentDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        child: Text(
+                          _dateFormat.format(_receiptPaymentDate),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -2761,13 +3836,24 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                   FilledButton.icon(
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF047857),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                     ),
                     onPressed: () async {
-                      final effectiveMargin = double.tryParse(_receiptMarginAmountCtrl.text.trim()) ?? _receiptMarginAmount;
-                      final effectiveReceiptNo = _receiptNoCtrl.text.trim().isNotEmpty ? _receiptNoCtrl.text.trim() : _receiptNo;
+                      final effectiveMargin =
+                          double.tryParse(
+                            _receiptMarginAmountCtrl.text.trim(),
+                          ) ??
+                          _receiptMarginAmount;
+                      final effectiveReceiptNo =
+                          _receiptNoCtrl.text.trim().isNotEmpty
+                          ? _receiptNoCtrl.text.trim()
+                          : _receiptNo;
                       final effectiveNotes = _receiptNotesCtrl.text.trim();
-                      final effectiveRef = _receiptTransactionRefCtrl.text.trim();
+                      final effectiveRef = _receiptTransactionRefCtrl.text
+                          .trim();
 
                       final receipt = CustomerMarginReceipt.create(
                         customerId: _customerId,
@@ -2779,7 +3865,9 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                         mobileNo: _mobileNoCtrl.text.trim(),
                         receiptNo: effectiveReceiptNo,
                         receiptDate: _receiptDate,
-                        quotationNo: _quotationNoCtrl.text.trim().isNotEmpty ? _quotationNoCtrl.text.trim() : _quotationNo,
+                        quotationNo: _quotationNoCtrl.text.trim().isNotEmpty
+                            ? _quotationNoCtrl.text.trim()
+                            : _quotationNo,
                         quotationDate: _quotationDate,
                         systemCapacity: _capacity,
                         systemType: _systemType,
@@ -2787,18 +3875,32 @@ class _SolarQuotationGeneratorDialogState extends State<SolarQuotationGeneratorD
                         bankLoanAmount: _bankLoan,
                         marginAmount: effectiveMargin,
                         paymentMode: _receiptPaymentMode,
-                        transactionRef: effectiveRef.isNotEmpty ? effectiveRef : 'Paid in Cash',
+                        transactionRef: effectiveRef.isNotEmpty
+                            ? effectiveRef
+                            : 'Paid in Cash',
                         paymentDate: _receiptPaymentDate,
-                        notes: effectiveNotes.isNotEmpty ? effectiveNotes : null,
+                        notes: effectiveNotes.isNotEmpty
+                            ? effectiveNotes
+                            : null,
                       );
                       await QuotationStorageService.saveMarginReceipt(receipt);
                       if (mounted) {
-                        final pdfBytes = await MarginMoneyReceiptService.generateReceiptPdfBytes(receipt, includeStampAndSignature: true);
-                        await Printing.layoutPdf(onLayout: (_) => pdfBytes, name: receipt.pdfFileName);
+                        final pdfBytes =
+                            await MarginMoneyReceiptService.generateReceiptPdfBytes(
+                              receipt,
+                              includeStampAndSignature: true,
+                            );
+                        await Printing.layoutPdf(
+                          onLayout: (_) => pdfBytes,
+                          name: receipt.pdfFileName,
+                        );
                       }
                     },
                     icon: const Icon(Icons.print_rounded, size: 18),
-                    label: const Text('Save & Print Margin Receipt', style: TextStyle(fontWeight: FontWeight.bold)),
+                    label: const Text(
+                      'Save & Print Margin Receipt',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),

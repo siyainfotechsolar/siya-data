@@ -139,7 +139,7 @@ class RecordService {
     String? siteTypeFilter,
     String? financingTypeFilter, // 'All', 'Cash', 'Bank Loan'
     String? workflowQueueFilter, // 'Agreement Pending', 'Loan Pending', 'Installation Pending', 'RTS Pending', 'Subsidy Pending', 'Subsidy Processing', 'Completed'
-    String workQueueScope = 'Active', // 'Active', 'Completed', 'Old Applications', 'All'
+    String workQueueScope = 'All', // 'All', 'Active', 'Completed', 'Old Applications'
     String sortBy = 'updated_at',
     bool ascending = false,
   }) async {

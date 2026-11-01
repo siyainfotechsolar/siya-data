@@ -354,5 +354,55 @@ void main() {
         artifactPdf.writeAsBytesSync(pdfBytes);
       } catch (_) {}
     });
+
+    // -------------------------------------------------------------------------
+    // 12. Panel Wattage & Count updates System Capacity & Generation Units
+    // -------------------------------------------------------------------------
+    test('12. Panel Wattage and Count updates System Capacity and Generation Units accurately', () {
+      // 1. Wattage parsing
+      expect(SolarQuotationCalculations.extractWattage('550 Wp'), equals(550.0));
+      expect(SolarQuotationCalculations.extractWattage('540W'), equals(540.0));
+      expect(SolarQuotationCalculations.extractWattage('545.5 Wp TopCon'), equals(545.5));
+      expect(SolarQuotationCalculations.extractWattage('580'), equals(580.0));
+
+      // 2. Capacity calculation: 6 panels x 550 Wp = 3.3 kW
+      final cap550 = SolarQuotationCalculations.calculateCapacityKwFromPanels(
+        panelWattageWp: 550.0,
+        panelCount: 6,
+      );
+      expect(cap550, equals(3.3));
+      expect(SolarQuotationCalculations.formatCapacity(cap550), equals('3.3 kW'));
+
+      // 3. Units generated for 3.3 kW
+      final units33 = SolarQuotationCalculations.calculateAnnualGenerationUnits(3.3);
+      expect(units33, equals(5135.0));
+      final dailyAvg33 = units33 / 365.0;
+      expect(dailyAvg33, closeTo(14.0, 0.2));
+
+      // 4. Capacity calculation: 6 panels x 540 Wp = 3.24 kW
+      final cap540 = SolarQuotationCalculations.calculateCapacityKwFromPanels(
+        panelWattageWp: 540.0,
+        panelCount: 6,
+      );
+      expect(cap540, equals(3.24));
+      expect(SolarQuotationCalculations.formatCapacity(cap540), equals('3.24 kW'));
+      final units324 = SolarQuotationCalculations.calculateAnnualGenerationUnits(3.24);
+      expect(units324, equals(5038.0));
+
+      // 5. Capacity calculation: 8 panels x 550 Wp = 4.4 kW
+      final cap8Panels = SolarQuotationCalculations.calculateCapacityKwFromPanels(
+        panelWattageWp: 550.0,
+        panelCount: 8,
+      );
+      expect(cap8Panels, equals(4.4));
+      expect(SolarQuotationCalculations.formatCapacity(cap8Panels), equals('4.4 kW'));
+      final units44 = SolarQuotationCalculations.calculateAnnualGenerationUnits(4.4);
+      expect(units44, equals(6842.0));
+
+      // 6. Panel count calculation from target capacity
+      expect(SolarQuotationCalculations.calculatePanelCountFromCapacity(capacityKw: 3.0, panelWattageWp: 550.0), equals(6));
+      expect(SolarQuotationCalculations.calculatePanelCountFromCapacity(capacityKw: 5.0, panelWattageWp: 550.0), equals(10));
+      expect(SolarQuotationCalculations.calculatePanelCountFromCapacity(capacityKw: 4.0, panelWattageWp: 540.0), equals(8));
+    });
   });
 }

@@ -43,7 +43,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
   String _selectedSiteType = 'Subsidy';
   String _selectedFinancingType = 'All'; // 'All', 'Cash Customer', 'Bank Loan'
   String _selectedWorkflowQueue = 'All';
-  String _workQueueScope = 'Active'; // 'Active', 'Completed', 'Old Applications', 'All'
+  String _workQueueScope = 'All'; // 'All', 'Active', 'Completed', 'Old Applications'
   String _sortBy = 'updated_at';
   bool _sortAscending = false;
 
@@ -587,11 +587,11 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       value: _workQueueScope,
                       decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
                       items: const [
+                        DropdownMenuItem(value: 'All', child: Text('🌐 All Customers')),
                         DropdownMenuItem(value: 'Active', child: Text('⚡ Active Customers')),
                         DropdownMenuItem(value: 'No Action Required', child: Text('⏸️ Hold / No Action')),
                         DropdownMenuItem(value: 'Completed', child: Text('✅ Completed Customers')),
                         DropdownMenuItem(value: 'Old Applications', child: Text('⏳ Old Applications (≥60 Days)')),
-                        DropdownMenuItem(value: 'All', child: Text('🌐 All Customers')),
                       ],
                       onChanged: (val) {
                         if (val != null) {
@@ -956,11 +956,11 @@ class _RecordsScreenState extends State<RecordsScreen> {
                             child: DropdownButton<String>(
                               value: _workQueueScope,
                               items: const [
-                                DropdownMenuItem(value: 'Active', child: Text('⚡ Active Customers', style: TextStyle(fontWeight: FontWeight.bold))),
+                                DropdownMenuItem(value: 'All', child: Text('🌐 All Customers', style: TextStyle(fontWeight: FontWeight.bold))),
+                                DropdownMenuItem(value: 'Active', child: Text('⚡ Active Customers')),
                                 DropdownMenuItem(value: 'No Action Required', child: Text('⏸️ Hold / No Action Required')),
                                 DropdownMenuItem(value: 'Completed', child: Text('✅ Completed Customers')),
                                 DropdownMenuItem(value: 'Old Applications', child: Text('⏳ Old Applications (≥60 Days)')),
-                                DropdownMenuItem(value: 'All', child: Text('🌐 All Customers')),
                               ],
                               onChanged: (val) {
                                 if (val != null) {

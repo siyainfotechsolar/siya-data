@@ -136,54 +136,70 @@ class SolarQuotation {
     this.connectionType = 'LT Residential',
     this.discount = 0.0,
     this.isGstIncluded = true,
-  })  : bankName = bankName ?? CompanyMaster.current.bankName,
-        branch = branch ?? CompanyMaster.current.branch,
-        accountNo = accountNo ?? CompanyMaster.current.accountNo,
-        ifscCode = ifscCode ?? CompanyMaster.current.ifscCode,
-        accountType = accountType ?? CompanyMaster.current.accountType,
-        upiId = upiId ?? '',
-        signatoryName = signatoryName ?? CompanyMaster.current.signatoryName,
-        signatoryDesignation = signatoryDesignation ?? CompanyMaster.current.signatoryDesignation,
-        createdAt = createdAt ?? DateTime.now(),
-        items = items ?? defaultItems(systemCapacity),
-        subsidyAmount = subsidyAmount ??
-            SolarQuotationCalculations.calculatePmSuryaGharSubsidy(
-              capacityKw: SolarQuotationCalculations.parseCapacity(systemCapacity),
-              quotationType: quotationType,
-            ),
-        payableAfterSubsidy = payableAfterSubsidy ??
-            (grandTotal -
-                    (subsidyAmount ??
-                        SolarQuotationCalculations.calculatePmSuryaGharSubsidy(
-                          capacityKw: SolarQuotationCalculations.parseCapacity(systemCapacity),
-                          quotationType: quotationType,
-                        )))
-                .clamp(0.0, double.infinity),
-        downPayment = downPayment ?? customerContribution,
-        monthlyEmi = monthlyEmi ??
-            SolarQuotationCalculations.calculateMonthlyEmi(
-              principal: bankLoanAmount,
-              annualInterestRate: annualInterestRate,
-              tenureMonths: loanTenureMonths,
-            ),
-        annualGenerationUnits = annualGenerationUnits ??
-            SolarQuotationCalculations.calculateAnnualGenerationUnits(
-              SolarQuotationCalculations.parseCapacity(systemCapacity),
-            ),
-        annualSavings = annualSavings ??
-            ((annualGenerationUnits ??
-                    SolarQuotationCalculations.calculateAnnualGenerationUnits(
-                      SolarQuotationCalculations.parseCapacity(systemCapacity),
-                    )) *
-                electricityTariff),
-        paybackYears = paybackYears ?? 3.5,
-        panelCount = panelCount ?? ((SolarQuotationCalculations.parseCapacity(systemCapacity) * 1000) / 540).ceil(),
-        inverterCapacity = inverterCapacity ?? systemCapacity,
-        termsAndConditions = termsAndConditions ?? defaultImportantNotes;
+  }) : bankName = bankName ?? CompanyMaster.current.bankName,
+       branch = branch ?? CompanyMaster.current.branch,
+       accountNo = accountNo ?? CompanyMaster.current.accountNo,
+       ifscCode = ifscCode ?? CompanyMaster.current.ifscCode,
+       accountType = accountType ?? CompanyMaster.current.accountType,
+       upiId = upiId ?? '',
+       signatoryName = signatoryName ?? CompanyMaster.current.signatoryName,
+       signatoryDesignation =
+           signatoryDesignation ?? CompanyMaster.current.signatoryDesignation,
+       createdAt = createdAt ?? DateTime.now(),
+       items = items ?? defaultItems(systemCapacity),
+       subsidyAmount =
+           subsidyAmount ??
+           SolarQuotationCalculations.calculatePmSuryaGharSubsidy(
+             capacityKw: SolarQuotationCalculations.parseCapacity(
+               systemCapacity,
+             ),
+             quotationType: quotationType,
+           ),
+       payableAfterSubsidy =
+           payableAfterSubsidy ??
+           (grandTotal -
+                   (subsidyAmount ??
+                       SolarQuotationCalculations.calculatePmSuryaGharSubsidy(
+                         capacityKw: SolarQuotationCalculations.parseCapacity(
+                           systemCapacity,
+                         ),
+                         quotationType: quotationType,
+                       )))
+               .clamp(0.0, double.infinity),
+       downPayment = downPayment ?? customerContribution,
+       monthlyEmi =
+           monthlyEmi ??
+           SolarQuotationCalculations.calculateMonthlyEmi(
+             principal: bankLoanAmount,
+             annualInterestRate: annualInterestRate,
+             tenureMonths: loanTenureMonths,
+           ),
+       annualGenerationUnits =
+           annualGenerationUnits ??
+           SolarQuotationCalculations.calculateAnnualGenerationUnits(
+             SolarQuotationCalculations.parseCapacity(systemCapacity),
+           ),
+       annualSavings =
+           annualSavings ??
+           ((annualGenerationUnits ??
+                   SolarQuotationCalculations.calculateAnnualGenerationUnits(
+                     SolarQuotationCalculations.parseCapacity(systemCapacity),
+                   )) *
+               electricityTariff),
+       paybackYears = paybackYears ?? 3.5,
+       panelCount =
+           panelCount ??
+           ((SolarQuotationCalculations.parseCapacity(systemCapacity) * 1000) /
+                   540)
+               .ceil(),
+       inverterCapacity = inverterCapacity ?? systemCapacity,
+       termsAndConditions = termsAndConditions ?? defaultImportantNotes;
 
   /// Default 9 standard components as specified in solar quotation requirements
   static List<Map<String, String>> defaultItems([String? capacity]) {
-    final capStr = (capacity != null && capacity.trim().isNotEmpty) ? capacity.trim() : '3 kW';
+    final capStr = (capacity != null && capacity.trim().isNotEmpty)
+        ? capacity.trim()
+        : '3 kW';
     double capKw = 3.0;
     final m = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(capStr);
     if (m != null) capKw = double.tryParse(m.group(1)!) ?? 3.0;
@@ -201,14 +217,16 @@ class SolarQuotation {
         'sr': '2',
         'item': 'Grid-Tied Inverter',
         'make': 'Sungrow / Growatt / Solis / Polycab',
-        'spec': '$capStr ${isThreePhase ? '3-Phase' : '1-Phase'} Grid-Tied Inverter (IP65)',
+        'spec':
+            '$capStr ${isThreePhase ? '3-Phase' : '1-Phase'} Grid-Tied Inverter (IP65)',
         'qty': '1 No.',
       },
       {
         'sr': '3',
         'item': 'Mounting Structure',
         'make': 'Hot Dip Galvanized Iron (GI)',
-        'spec': 'Hot Dip GI Elevated Structure (Wind resistance up to 150 km/h)',
+        'spec':
+            'Hot Dip GI Elevated Structure (Wind resistance up to 150 km/h)',
         'qty': '1 Set',
       },
       {
@@ -349,16 +367,22 @@ class SolarQuotation {
     final effectiveQuotationDate = quotationDate ?? DateTime.now();
     final effectiveGrandTotal = grandTotal ?? (totalSystemCost + gstAmount);
 
-    final double capKw = SolarQuotationCalculations.parseCapacity(systemCapacity);
-    final double effSubsidy = subsidyAmount ??
+    final double capKw = SolarQuotationCalculations.parseCapacity(
+      systemCapacity,
+    );
+    final double effSubsidy =
+        subsidyAmount ??
         SolarQuotationCalculations.calculatePmSuryaGharSubsidy(
           capacityKw: capKw,
           quotationType: quotationType,
         );
-    final double effPayable = payableAfterSubsidy ?? (effectiveGrandTotal - effSubsidy).clamp(0.0, double.infinity);
+    final double effPayable =
+        payableAfterSubsidy ??
+        (effectiveGrandTotal - effSubsidy).clamp(0.0, double.infinity);
 
     // Bank loan is calculated on Net Amount After Subsidy for residential, or Grand Total for commercial
-    final double netFinancingBase = (quotationType != 'Commercial' && effSubsidy > 0)
+    final double netFinancingBase =
+        (quotationType != 'Commercial' && effSubsidy > 0)
         ? effPayable
         : effectiveGrandTotal;
 
@@ -368,43 +392,58 @@ class SolarQuotation {
     final double effectiveContribution;
     if (bankLoanAmount != null) {
       effectiveLoan = bankLoanAmount;
-      effectiveContribution = customerContribution ?? (netFinancingBase - effectiveLoan).clamp(0.0, double.infinity);
+      effectiveContribution =
+          customerContribution ??
+          (netFinancingBase - effectiveLoan).clamp(0.0, double.infinity);
     } else if (customerContribution != null) {
       effectiveContribution = customerContribution;
-      effectiveLoan = (netFinancingBase - effectiveContribution).clamp(0.0, double.infinity);
+      effectiveLoan = (netFinancingBase - effectiveContribution).clamp(
+        0.0,
+        double.infinity,
+      );
     } else if (effectiveGrandTotal == 222222.0) {
       effectiveLoan = 200000.0;
       effectiveContribution = 22222.0;
-    } else if (effectiveGrandTotal == 200000.0 && !isLoanPayment) {
+    } else if (!isLoanPayment) {
       effectiveLoan = 0.0;
-      effectiveContribution = 200000.0;
+      effectiveContribution = netFinancingBase.roundToDouble();
     } else {
-      effectiveContribution = (netFinancingBase * 0.10).roundToDouble();
-      effectiveLoan = (netFinancingBase - effectiveContribution).roundToDouble();
+      // 100% Solar Loan on Net Amount After Subsidy with 0 Down Payment by default
+      effectiveContribution = 0.0;
+      effectiveLoan = netFinancingBase.roundToDouble();
     }
 
-    final double effAnnualGen = annualGenerationUnits ?? SolarQuotationCalculations.calculateAnnualGenerationUnits(capKw);
-    final double effAnnualSav = annualSavings ?? (effAnnualGen * electricityTariff).roundToDouble();
-    final double effEmi = monthlyEmi ??
+    final double effAnnualGen =
+        annualGenerationUnits ??
+        SolarQuotationCalculations.calculateAnnualGenerationUnits(capKw);
+    final double effAnnualSav =
+        annualSavings ?? (effAnnualGen * electricityTariff).roundToDouble();
+    final double effEmi =
+        monthlyEmi ??
         SolarQuotationCalculations.calculateMonthlyEmi(
           principal: effectiveLoan,
           annualInterestRate: annualInterestRate,
           tenureMonths: loanTenureMonths,
         );
 
-    final words = NumberToWordsUtils.convertToBilingualRupees(effectiveGrandTotal, language: language);
+    final words = NumberToWordsUtils.convertToBilingualRupees(
+      effectiveGrandTotal,
+      language: language,
+    );
 
     final generatedId = id ?? 'quot_${DateTime.now().millisecondsSinceEpoch}';
-    final effectiveQuotationNo = quotationNo ??
+    final effectiveQuotationNo =
+        quotationNo ??
         'SIYA-Q-${effectiveQuotationDate.year}-${(consumerNo.length > 4 ? consumerNo.substring(consumerNo.length - 4) : (consumerNo.isNotEmpty ? consumerNo : '${DateTime.now().millisecondsSinceEpoch % 10000}'.padLeft(4, '0')))}';
 
     final safeCustomerName = customerName
         .trim()
         .replaceAll(RegExp(r'[^\w\s-]'), '')
         .replaceAll(RegExp(r'\s+'), '_');
-    final safeQuotationNo = effectiveQuotationNo
-        .trim()
-        .replaceAll(RegExp(r'[^\w\s-]'), '_');
+    final safeQuotationNo = effectiveQuotationNo.trim().replaceAll(
+      RegExp(r'[^\w\s-]'),
+      '_',
+    );
     final fileName = 'Quotation_${safeCustomerName}_$safeQuotationNo.pdf';
 
     return SolarQuotation(
@@ -418,7 +457,9 @@ class SolarQuotation {
       mobileNo: mobileNo?.trim() ?? '',
       quotationNo: effectiveQuotationNo,
       quotationDate: effectiveQuotationDate,
-      systemCapacity: systemCapacity.trim().isNotEmpty ? systemCapacity.trim() : '3 kW',
+      systemCapacity: systemCapacity.trim().isNotEmpty
+          ? systemCapacity.trim()
+          : '3 kW',
       systemType: systemType,
       totalSystemCost: totalSystemCost,
       gstAmount: gstAmount,
@@ -462,7 +503,8 @@ class SolarQuotation {
       panelCount: panelCount ?? ((capKw * 1000) / 540).ceil(),
       inverterBrand: inverterBrand ?? 'Sungrow / Growatt / Solis',
       inverterCapacity: inverterCapacity ?? systemCapacity,
-      mountingStructure: mountingStructure ?? 'Hot Dip GI Elevated Rooftop Structure',
+      mountingStructure:
+          mountingStructure ?? 'Hot Dip GI Elevated Rooftop Structure',
       includeDiagram: includeDiagram,
       includeGenerationTable: includeGenerationTable,
       includeRoi: includeRoi,
@@ -580,7 +622,9 @@ class SolarQuotation {
   }
 
   factory SolarQuotation.fromJson(Map<String, dynamic> json) {
-    final meta = (json['metadata'] is Map) ? (json['metadata'] as Map) : const {};
+    final meta = (json['metadata'] is Map)
+        ? (json['metadata'] as Map)
+        : const {};
 
     // Status
     String parsedStatus = 'Issued';
@@ -595,7 +639,10 @@ class SolarQuotation {
     final capKw = SolarQuotationCalculations.parseCapacity(capacity);
 
     // Quotation Type
-    final type = json['quotation_type']?.toString() ?? meta['quotation_type']?.toString() ?? 'Residential';
+    final type =
+        json['quotation_type']?.toString() ??
+        meta['quotation_type']?.toString() ??
+        'Residential';
 
     // Numbers
     double parseNum(dynamic val, [double defaultVal = 0.0]) {
@@ -612,7 +659,10 @@ class SolarQuotation {
 
     final subsidy = parseNum(
       json['subsidy_amount'] ?? meta['subsidy_amount'],
-      SolarQuotationCalculations.calculatePmSuryaGharSubsidy(capacityKw: capKw, quotationType: type),
+      SolarQuotationCalculations.calculatePmSuryaGharSubsidy(
+        capacityKw: capKw,
+        quotationType: type,
+      ),
     );
 
     final payable = parseNum(
@@ -620,9 +670,16 @@ class SolarQuotation {
       (grandTot - subsidy).clamp(0.0, double.infinity),
     );
 
-    final tenure = (json['loan_tenure_months'] ?? meta['loan_tenure_months'] ?? 60) as int;
-    final interest = parseNum(json['annual_interest_rate'] ?? meta['annual_interest_rate'], 7.5);
-    final tariff = parseNum(json['electricity_tariff'] ?? meta['electricity_tariff'], 8.0);
+    final tenure =
+        (json['loan_tenure_months'] ?? meta['loan_tenure_months'] ?? 60) as int;
+    final interest = parseNum(
+      json['annual_interest_rate'] ?? meta['annual_interest_rate'],
+      7.5,
+    );
+    final tariff = parseNum(
+      json['electricity_tariff'] ?? meta['electricity_tariff'],
+      8.0,
+    );
     final annualGen = parseNum(
       json['annual_generation_units'] ?? meta['annual_generation_units'],
       SolarQuotationCalculations.calculateAnnualGenerationUnits(capKw),
@@ -641,7 +698,8 @@ class SolarQuotation {
     );
 
     List<String>? terms;
-    final rawTerms = json['terms_and_conditions'] ?? meta['terms_and_conditions'];
+    final rawTerms =
+        json['terms_and_conditions'] ?? meta['terms_and_conditions'];
     if (rawTerms is List) {
       terms = rawTerms.map((e) => e.toString()).toList();
     }
@@ -657,7 +715,8 @@ class SolarQuotation {
       mobileNo: json['mobile_no']?.toString() ?? '',
       quotationNo: json['quotation_no']?.toString() ?? '',
       quotationDate: json['quotation_date'] != null
-          ? DateTime.tryParse(json['quotation_date'].toString()) ?? DateTime.now()
+          ? DateTime.tryParse(json['quotation_date'].toString()) ??
+                DateTime.now()
           : DateTime.now(),
       systemCapacity: capacity,
       systemType: json['system_type']?.toString() ?? 'On-Grid Solar System',
@@ -674,9 +733,15 @@ class SolarQuotation {
       accountType: json['account_type']?.toString() ?? 'Current Account',
       upiId: json['upi_id']?.toString() ?? 'siyainfodigital@sbi',
       signatoryName: json['signatory_name']?.toString() ?? 'Manoj Kshirsagar',
-      signatoryDesignation: json['signatory_designation']?.toString() ?? 'Managing Director / Partner',
-      pdfFileName: json['file_name']?.toString() ?? json['pdf_file_name']?.toString() ?? 'Quotation.pdf',
-      pdfFilePath: json['file_path']?.toString() ?? json['pdf_file_path']?.toString(),
+      signatoryDesignation:
+          json['signatory_designation']?.toString() ??
+          'Managing Director / Partner',
+      pdfFileName:
+          json['file_name']?.toString() ??
+          json['pdf_file_name']?.toString() ??
+          'Quotation.pdf',
+      pdfFilePath:
+          json['file_path']?.toString() ?? json['pdf_file_path']?.toString(),
       fileUrl: json['file_url']?.toString(),
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
@@ -684,43 +749,89 @@ class SolarQuotation {
       createdBy: json['created_by']?.toString(),
       items: json['items'] != null
           ? (json['items'] as List)
-              .map((item) => Map<String, String>.from(item as Map))
-              .toList()
+                .map((item) => Map<String, String>.from(item as Map))
+                .toList()
           : (meta['items'] is List)
-              ? (meta['items'] as List)
-                  .map((item) => Map<String, String>.from(item as Map))
-                  .toList()
-              : defaultItems(capacity),
+          ? (meta['items'] as List)
+                .map((item) => Map<String, String>.from(item as Map))
+                .toList()
+          : defaultItems(capacity),
       status: parsedStatus,
       quotationType: type,
-      language: json['language']?.toString() ?? meta['language']?.toString() ?? 'mr_en',
+      language:
+          json['language']?.toString() ??
+          meta['language']?.toString() ??
+          'mr_en',
       subsidyAmount: subsidy,
       payableAfterSubsidy: payable,
-      includeSubsidyInPricing: json['include_subsidy_in_pricing'] ?? meta['include_subsidy_in_pricing'] ?? true,
-      paymentMode: json['payment_mode']?.toString() ?? meta['payment_mode']?.toString() ?? 'Bank Loan',
-      downPayment: parseNum(json['down_payment'] ?? meta['down_payment'], contrib),
+      includeSubsidyInPricing:
+          json['include_subsidy_in_pricing'] ??
+          meta['include_subsidy_in_pricing'] ??
+          true,
+      paymentMode:
+          json['payment_mode']?.toString() ??
+          meta['payment_mode']?.toString() ??
+          'Bank Loan',
+      downPayment: parseNum(
+        json['down_payment'] ?? meta['down_payment'],
+        contrib,
+      ),
       loanTenureMonths: tenure,
       annualInterestRate: interest,
       monthlyEmi: emi,
-      processingFees: parseNum(json['processing_fees'] ?? meta['processing_fees']),
+      processingFees: parseNum(
+        json['processing_fees'] ?? meta['processing_fees'],
+      ),
       electricityTariff: tariff,
       annualGenerationUnits: annualGen,
       annualSavings: annualSav,
-      paybackYears: parseNum(json['payback_years'] ?? meta['payback_years'], 3.5),
-      solarPackageName: json['solar_package_name']?.toString() ?? meta['solar_package_name']?.toString() ?? 'PM Surya Ghar Standard Package',
-      panelBrand: json['panel_brand']?.toString() ?? meta['panel_brand']?.toString() ?? 'Waaree / Adani / Goldi (DCR TopCon)',
-      panelWattage: json['panel_wattage']?.toString() ?? meta['panel_wattage']?.toString() ?? '540 Wp / 550 Wp',
-      panelCount: (json['panel_count'] ?? meta['panel_count'] ?? ((capKw * 1000) / 540).ceil()) as int,
-      inverterBrand: json['inverter_brand']?.toString() ?? meta['inverter_brand']?.toString() ?? 'Sungrow / Growatt / Solis',
-      inverterCapacity: json['inverter_capacity']?.toString() ?? meta['inverter_capacity']?.toString() ?? capacity,
-      mountingStructure: json['mounting_structure']?.toString() ?? meta['mounting_structure']?.toString() ?? 'Hot Dip GI Elevated Rooftop Structure',
-      includeDiagram: json['include_diagram'] ?? meta['include_diagram'] ?? true,
-      includeGenerationTable: json['include_generation_table'] ?? meta['include_generation_table'] ?? true,
+      paybackYears: parseNum(
+        json['payback_years'] ?? meta['payback_years'],
+        3.5,
+      ),
+      solarPackageName:
+          json['solar_package_name']?.toString() ??
+          meta['solar_package_name']?.toString() ??
+          'PM Surya Ghar Standard Package',
+      panelBrand:
+          json['panel_brand']?.toString() ??
+          meta['panel_brand']?.toString() ??
+          'Waaree / Adani / Goldi (DCR TopCon)',
+      panelWattage:
+          json['panel_wattage']?.toString() ??
+          meta['panel_wattage']?.toString() ??
+          '540 Wp / 550 Wp',
+      panelCount:
+          (json['panel_count'] ??
+                  meta['panel_count'] ??
+                  ((capKw * 1000) / 540).ceil())
+              as int,
+      inverterBrand:
+          json['inverter_brand']?.toString() ??
+          meta['inverter_brand']?.toString() ??
+          'Sungrow / Growatt / Solis',
+      inverterCapacity:
+          json['inverter_capacity']?.toString() ??
+          meta['inverter_capacity']?.toString() ??
+          capacity,
+      mountingStructure:
+          json['mounting_structure']?.toString() ??
+          meta['mounting_structure']?.toString() ??
+          'Hot Dip GI Elevated Rooftop Structure',
+      includeDiagram:
+          json['include_diagram'] ?? meta['include_diagram'] ?? true,
+      includeGenerationTable:
+          json['include_generation_table'] ??
+          meta['include_generation_table'] ??
+          true,
       includeRoi: json['include_roi'] ?? meta['include_roi'] ?? true,
       termsAndConditions: terms,
       notes: json['notes']?.toString() ?? meta['notes']?.toString(),
       email: json['email']?.toString() ?? meta['email']?.toString(),
-      connectionType: json['connection_type']?.toString() ?? meta['connection_type']?.toString() ?? 'LT Residential',
+      connectionType:
+          json['connection_type']?.toString() ??
+          meta['connection_type']?.toString() ??
+          'LT Residential',
       discount: parseNum(json['discount'] ?? meta['discount']),
       isGstIncluded: json['is_gst_included'] ?? meta['is_gst_included'] ?? true,
     );
@@ -830,7 +941,8 @@ class SolarQuotation {
       language: language ?? this.language,
       subsidyAmount: subsidyAmount ?? this.subsidyAmount,
       payableAfterSubsidy: payableAfterSubsidy ?? this.payableAfterSubsidy,
-      includeSubsidyInPricing: includeSubsidyInPricing ?? this.includeSubsidyInPricing,
+      includeSubsidyInPricing:
+          includeSubsidyInPricing ?? this.includeSubsidyInPricing,
       paymentMode: paymentMode ?? this.paymentMode,
       downPayment: downPayment ?? this.downPayment,
       loanTenureMonths: loanTenureMonths ?? this.loanTenureMonths,
@@ -838,7 +950,8 @@ class SolarQuotation {
       monthlyEmi: monthlyEmi ?? this.monthlyEmi,
       processingFees: processingFees ?? this.processingFees,
       electricityTariff: electricityTariff ?? this.electricityTariff,
-      annualGenerationUnits: annualGenerationUnits ?? this.annualGenerationUnits,
+      annualGenerationUnits:
+          annualGenerationUnits ?? this.annualGenerationUnits,
       annualSavings: annualSavings ?? this.annualSavings,
       paybackYears: paybackYears ?? this.paybackYears,
       solarPackageName: solarPackageName ?? this.solarPackageName,
@@ -849,7 +962,8 @@ class SolarQuotation {
       inverterCapacity: inverterCapacity ?? this.inverterCapacity,
       mountingStructure: mountingStructure ?? this.mountingStructure,
       includeDiagram: includeDiagram ?? this.includeDiagram,
-      includeGenerationTable: includeGenerationTable ?? this.includeGenerationTable,
+      includeGenerationTable:
+          includeGenerationTable ?? this.includeGenerationTable,
       includeRoi: includeRoi ?? this.includeRoi,
       termsAndConditions: termsAndConditions ?? this.termsAndConditions,
       notes: notes ?? this.notes,
@@ -860,10 +974,12 @@ class SolarQuotation {
     );
   }
 
-  String get formattedDate => DateFormat('dd / MM / yyyy').format(quotationDate);
+  String get formattedDate =>
+      DateFormat('dd / MM / yyyy').format(quotationDate);
 
   /// Statutory 70:30 GST calculation module (GST inclusive).
-  SolarQuotationGstBreakdown get gstBreakdown => SolarQuotationGstBreakdown.calculate(grandTotal);
+  SolarQuotationGstBreakdown get gstBreakdown =>
+      SolarQuotationGstBreakdown.calculate(grandTotal);
 }
 
 /// GST Module for Solar Quotation (Statutory 70:30 Rule).
