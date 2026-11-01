@@ -47,6 +47,7 @@ class SolarQuotation {
   final String paymentMode; // 'Cash', 'Bank Loan', 'Part Payment + Bank Loan'
   final double downPayment;
   final int loanTenureMonths;
+  final List<String> loanDocuments;
   final double annualInterestRate;
   final double monthlyEmi;
   final double processingFees;
@@ -112,7 +113,8 @@ class SolarQuotation {
     this.includeSubsidyInPricing = true,
     this.paymentMode = 'Bank Loan',
     double? downPayment,
-    this.loanTenureMonths = 60,
+    this.loanTenureMonths = 120,
+    List<String>? loanDocuments,
     this.annualInterestRate = 7.5,
     double? monthlyEmi,
     this.processingFees = 0.0,
@@ -193,7 +195,17 @@ class SolarQuotation {
                    540)
                .ceil(),
        inverterCapacity = inverterCapacity ?? systemCapacity,
-       termsAndConditions = termsAndConditions ?? defaultImportantNotes;
+       termsAndConditions = termsAndConditions ?? defaultImportantNotes,
+        loanDocuments = loanDocuments ?? defaultLoanDocuments;
+
+  /// Default 5 Required Documents for Nationalized Bank Solar Loan Sanction
+  static const List<String> defaultLoanDocuments = [
+    'Aadhaar Card (Applicant KYC)',
+    'PAN Card (Identity Verification)',
+    'Electricity Bill / Light Bill (Latest Paid Bill)',
+    '8A Utara (Land & Property Ownership Extract)',
+    'Bank Passbook / Statement (Last 6 Months Records)',
+  ];
 
   /// Default 9 standard components as specified in solar quotation requirements
   static List<Map<String, String>> defaultItems([String? capacity]) {
@@ -339,7 +351,8 @@ class SolarQuotation {
     bool includeSubsidyInPricing = true,
     String paymentMode = 'Bank Loan',
     double? downPayment,
-    int loanTenureMonths = 60,
+    int loanTenureMonths = 120,
+    List<String>? loanDocuments,
     double annualInterestRate = 7.5,
     double? monthlyEmi,
     double processingFees = 0.0,
@@ -408,9 +421,10 @@ class SolarQuotation {
       effectiveLoan = 0.0;
       effectiveContribution = netFinancingBase.roundToDouble();
     } else {
-      // 100% Solar Loan on Net Amount After Subsidy with 0 Down Payment by default
-      effectiveContribution = 0.0;
-      effectiveLoan = netFinancingBase.roundToDouble();
+      // Default loan: 200,000 as requested
+      effectiveLoan = 200000.0;
+      effectiveContribution =
+          (netFinancingBase - effectiveLoan).clamp(0.0, double.infinity);
     }
 
     final double effAnnualGen =
@@ -490,6 +504,7 @@ class SolarQuotation {
       paymentMode: paymentMode,
       downPayment: downPayment ?? effectiveContribution,
       loanTenureMonths: loanTenureMonths,
+      loanDocuments: loanDocuments ?? defaultLoanDocuments,
       annualInterestRate: annualInterestRate,
       monthlyEmi: effEmi,
       processingFees: processingFees,
@@ -560,6 +575,7 @@ class SolarQuotation {
       'payment_mode': paymentMode,
       'down_payment': downPayment,
       'loan_tenure_months': loanTenureMonths,
+      'loan_documents': loanDocuments,
       'annual_interest_rate': annualInterestRate,
       'monthly_emi': monthlyEmi,
       'processing_fees': processingFees,
@@ -594,6 +610,7 @@ class SolarQuotation {
         'payment_mode': paymentMode,
         'down_payment': downPayment,
         'loan_tenure_months': loanTenureMonths,
+        'loan_documents': loanDocuments,
         'annual_interest_rate': annualInterestRate,
         'monthly_emi': monthlyEmi,
         'processing_fees': processingFees,
@@ -671,7 +688,11 @@ class SolarQuotation {
     );
 
     final tenure =
-        (json['loan_tenure_months'] ?? meta['loan_tenure_months'] ?? 60) as int;
+        (json['loan_tenure_months'] ?? meta['loan_tenure_months'] ?? 120) as int;
+    final docListRaw = json['loan_documents'] ?? meta['loan_documents'];
+    final loanDocs = docListRaw is List
+        ? docListRaw.map((e) => e.toString()).toList()
+        : SolarQuotation.defaultLoanDocuments;
     final interest = parseNum(
       json['annual_interest_rate'] ?? meta['annual_interest_rate'],
       7.5,
@@ -777,6 +798,7 @@ class SolarQuotation {
         contrib,
       ),
       loanTenureMonths: tenure,
+      loanDocuments: loanDocs,
       annualInterestRate: interest,
       monthlyEmi: emi,
       processingFees: parseNum(
@@ -879,6 +901,7 @@ class SolarQuotation {
     String? paymentMode,
     double? downPayment,
     int? loanTenureMonths,
+    List<String>? loanDocuments,
     double? annualInterestRate,
     double? monthlyEmi,
     double? processingFees,
@@ -946,6 +969,7 @@ class SolarQuotation {
       paymentMode: paymentMode ?? this.paymentMode,
       downPayment: downPayment ?? this.downPayment,
       loanTenureMonths: loanTenureMonths ?? this.loanTenureMonths,
+      loanDocuments: loanDocuments ?? this.loanDocuments,
       annualInterestRate: annualInterestRate ?? this.annualInterestRate,
       monthlyEmi: monthlyEmi ?? this.monthlyEmi,
       processingFees: processingFees ?? this.processingFees,
@@ -976,6 +1000,25 @@ class SolarQuotation {
 
   String get formattedDate =>
       DateFormat('dd / MM / yyyy').format(quotationDate);
+
+  String get dcCableBrand => _findItemMake(['dc cable', 'cable'], 'Polycab / Havells / Siechem (Solar Grade)');
+  String get acCableBrand => _findItemMake(['ac cable', 'armoured'], 'Polycab / KEI / Finolex');
+  String get switchgearBrand => _findItemMake(['dcdb', 'acdb', 'protection'], 'Hensel / Elmex / Schneider Protection Box');
+  String get earthingBrand => _findItemMake(['earthing', 'electrode'], 'True Power / Ashlok Chemical GI');
+  String get netMeterBrand => _findItemMake(['meter', 'net metering'], 'MSEDCL / Discom Approved Bi-directional Meter');
+
+  String _findItemMake(List<String> keywords, String fallback) {
+    for (final itm in items) {
+      final name = (itm['item'] ?? '').toLowerCase();
+      for (final kw in keywords) {
+        if (name.contains(kw)) {
+          final m = itm['make'] ?? itm['company'];
+          if (m != null && m.trim().isNotEmpty) return m.trim();
+        }
+      }
+    }
+    return fallback;
+  }
 
   /// Statutory 70:30 GST calculation module (GST inclusive).
   SolarQuotationGstBreakdown get gstBreakdown =>

@@ -1929,16 +1929,12 @@ class SolarQuotationService {
                 ))
         : quotation.grandTotal;
 
-    // Bank loan is calculated on Net Amount After Subsidy
-    final double loanPrincipal =
-        (quotation.bankLoanAmount > 0 &&
-            quotation.bankLoanAmount <= (netAmountAfterSubsidy * 1.05))
+    // Bank loan is standardly ₹2,00,000 or customer specific
+    final double loanPrincipal = quotation.bankLoanAmount > 0
         ? quotation.bankLoanAmount
-        : netAmountAfterSubsidy.roundToDouble();
+        : 200000.0;
 
-    final double customerMargin =
-        (quotation.customerContribution >= 0 &&
-            quotation.customerContribution <= netAmountAfterSubsidy)
+    final double customerMargin = quotation.customerContribution >= 0
         ? quotation.customerContribution
         : (netAmountAfterSubsidy - loanPrincipal).clamp(0.0, double.infinity);
 
@@ -2096,7 +2092,7 @@ class SolarQuotationService {
                             ),
                           ),
                           pw.Text(
-                            'Because the bank loan is availed strictly on the net cost after deducting the ${inrIntFormatter.format(quotation.subsidyAmount)} central subsidy, your loan principal is only ${inrIntFormatter.format(loanPrincipal)}. This drops your monthly EMI to just ${inrIntFormatter.format(loan60['emi'] ?? 0)}/mo (5-Year tenure), keeping financing exceptionally light and stress-free.',
+                            'Because the bank loan is availed on the project cost (${inrIntFormatter.format(loanPrincipal)}), your loan principal is ${inrIntFormatter.format(loanPrincipal)}. This drops your monthly EMI to just ${inrIntFormatter.format(loan120['emi'] ?? 0)}/mo (10-Year tenure, 120 Months), keeping financing exceptionally light and stress-free.',
                             style: const pw.TextStyle(
                               fontSize: 6.5,
                               color: slateBodyColor,
@@ -2135,7 +2131,7 @@ class SolarQuotationService {
                             ),
                           ),
                           pw.Text(
-                            'Your solar power plant generates an estimated ${inrIntFormatter.format(monthlySolarSavings)} in electricity bill savings every month. Since your monthly solar savings (${inrIntFormatter.format(monthlySolarSavings)}/mo) exceed your EMI (${inrIntFormatter.format(loan60['emi'] ?? 0)}/mo), the system completely pays for itself from Month 1 with an instant net surplus in your pocket!',
+                            'Your solar power plant generates an estimated ${inrIntFormatter.format(monthlySolarSavings)} in electricity bill savings every month. Since your monthly solar savings (${inrIntFormatter.format(monthlySolarSavings)}/mo) exceed your EMI (${inrIntFormatter.format(loan120['emi'] ?? 0)}/mo for 120 Months), the system completely pays for itself from Month 1 with an instant net surplus in your pocket!',
                             style: const pw.TextStyle(
                               fontSize: 6.5,
                               color: slateBodyColor,
@@ -2216,13 +2212,13 @@ class SolarQuotationService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           _buildBulletPoint(
-                            '1. KYC: Applicant Aadhaar Card & PAN Card (Self-Attested).',
+                            '1. Aadhaar Card: Applicant & Co-Applicant KYC (Self-Attested).',
                           ),
                           _buildBulletPoint(
-                            '2. Electricity Bill: Latest 3 months paid bills with Consumer CA No.',
+                            '2. PAN Card: Applicant & Co-Applicant PAN Card for CIBIL & Loan Sanction.',
                           ),
                           _buildBulletPoint(
-                            '3. Income / Banking: Last 6 months bank statement showing regular transactions.',
+                            '3. Light Bill: Latest paid Electricity Bill with Consumer CA Number.',
                           ),
                         ],
                       ),
@@ -2233,13 +2229,10 @@ class SolarQuotationService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           _buildBulletPoint(
-                            '4. Property Proof: Latest House Tax Receipt / Index-II / 7/12 Extract.',
+                            '4. 8A Utara: Gram Panchayat / Revenue Land & Property Ownership Extract.',
                           ),
                           _buildBulletPoint(
-                            '5. Formal Quotation & Rooftop Feasibility Report (Provided by Siya Infotech).',
-                          ),
-                          _buildBulletPoint(
-                            '6. 2 Passport Size Photographs & JanSamarth Portal Registration.',
+                            '5. Bank Passbook: Last 6 months bank statement / passbook copy with IFSC.',
                           ),
                         ],
                       ),
@@ -3495,13 +3488,13 @@ class SolarQuotationService {
   }) {
     final rows = [
       {'tenure': '3 Years (36 Months)', 'data': loan36, 'highlight': false},
-      {
-        'tenure': '5 Years (60 Months)',
-        'data': loan60,
-        'highlight': true,
-      }, // Most popular
+      {'tenure': '5 Years (60 Months)', 'data': loan60, 'highlight': false},
       {'tenure': '7 Years (84 Months)', 'data': loan84, 'highlight': false},
-      {'tenure': '10 Years (120 Months)', 'data': loan120, 'highlight': false},
+      {
+        'tenure': '10 Years (120 Months)',
+        'data': loan120,
+        'highlight': true,
+      }, // Standard 10-Year Scheme
     ];
 
     return pw.Container(
@@ -3811,16 +3804,12 @@ class SolarQuotationService {
                 ))
         : quotation.grandTotal;
 
-    // Bank loan is calculated on Net Amount After Subsidy
-    final double loanPrincipal =
-        (quotation.bankLoanAmount > 0 &&
-            quotation.bankLoanAmount <= (netAmountAfterSubsidy * 1.05))
+    // Bank loan is standardly ₹2,00,000 or customer specific
+    final double loanPrincipal = quotation.bankLoanAmount > 0
         ? quotation.bankLoanAmount
-        : netAmountAfterSubsidy.roundToDouble();
+        : 200000.0;
 
-    final double customerMargin =
-        (quotation.customerContribution >= 0 &&
-            quotation.customerContribution <= netAmountAfterSubsidy)
+    final double customerMargin = quotation.customerContribution >= 0
         ? quotation.customerContribution
         : (netAmountAfterSubsidy - loanPrincipal).clamp(0.0, double.infinity);
 
@@ -4106,7 +4095,7 @@ class SolarQuotationService {
                   children: [
                     pw.Expanded(
                       child: pw.Text(
-                        '• Substantially Lower Monthly EMI: Availing the bank loan on Net Cost (${inrIntFormatter.format(netAmountAfterSubsidy)}) after deducting ${inrIntFormatter.format(quotation.subsidyAmount)} central subsidy drops your EMI to just ${inrIntFormatter.format(loan60['emi'] ?? 0)}/mo (5-Year tenure), keeping financing light.',
+                        '• Substantially Lower Monthly EMI: Availing the bank loan on Net Cost (${inrIntFormatter.format(netAmountAfterSubsidy)}) drops your EMI to just ${inrIntFormatter.format(loan120['emi'] ?? 0)}/mo (10-Year tenure, 120 Months), keeping financing light.',
                         style: const pw.TextStyle(
                           fontSize: 6.5,
                           color: slateBodyColor,
@@ -4117,7 +4106,7 @@ class SolarQuotationService {
                     pw.SizedBox(width: 8),
                     pw.Expanded(
                       child: pw.Text(
-                        '• 100% Self-Financing: Monthly electricity bill savings (${inrIntFormatter.format(monthlySolarSavings)}/mo) comfortably exceed the EMI (${inrIntFormatter.format(loan60['emi'] ?? 0)}/mo), creating immediate net monthly savings of +${inrIntFormatter.format(monthlySolarSavings - (loan60['emi'] ?? 0))}/mo from Month 1.',
+                        '• 100% Self-Financing: Monthly electricity bill savings (${inrIntFormatter.format(monthlySolarSavings)}/mo) comfortably exceed the EMI (${inrIntFormatter.format(loan120['emi'] ?? 0)}/mo), creating immediate net monthly savings of +${inrIntFormatter.format(monthlySolarSavings - (loan120['emi'] ?? 0))}/mo from Month 1.',
                         style: const pw.TextStyle(
                           fontSize: 6.5,
                           color: slateBodyColor,
@@ -4191,16 +4180,11 @@ class SolarQuotationService {
                               color: navyColor,
                             ),
                           ),
-                          _buildBulletPoint('1. KYC: Aadhaar Card & PAN Card.'),
-                          _buildBulletPoint(
-                            '2. Electricity Bill: Latest 3 months paid bills.',
-                          ),
-                          _buildBulletPoint(
-                            '3. Income Proof: Last 6 months bank statement.',
-                          ),
-                          _buildBulletPoint(
-                            '4. Property Proof: House Tax Receipt / Index-II.',
-                          ),
+                          _buildBulletPoint('1. Aadhaar Card (Applicant KYC)'),
+                          _buildBulletPoint('2. PAN Card (Identity Verification)'),
+                          _buildBulletPoint('3. Light Bill / Electricity Bill (Latest Paid)'),
+                          _buildBulletPoint('4. 8A Utara (Land & Property Ownership Extract)'),
+                          _buildBulletPoint('5. Bank Passbook / Statement (Last 6 Months Records)'),
                         ],
                       ),
                     ),

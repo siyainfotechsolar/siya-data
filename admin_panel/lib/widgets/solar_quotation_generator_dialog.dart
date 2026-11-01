@@ -19,7 +19,7 @@ import '../services/solar_quotation_service.dart';
 /// 5. Item-wise Editable Pricing
 /// 6. Pricing & Statutory 70:30 GST Breakdown Card
 /// 7. On-Grid Solar System Working Schematic (Vector visual preview & PDF toggle)
-/// 8. January–December 12-Month Generation Table & Interactive Bar Chart
+/// 8. Januaryâ€“December 12-Month Generation Table & Interactive Bar Chart
 /// 9. PM Surya Ghar Subsidy Calculator (Residential)
 /// 10. Solar Savings, ROI & Payback Analysis
 /// 11. Payment Modes: Cash / Bank Loan / Part Payment with Reducing-Balance EMI Formula
@@ -116,6 +116,24 @@ class _SolarQuotationGeneratorDialogState
   final _mountingStructureCtrl = TextEditingController(
     text: 'Hot Dip GI Elevated Rooftop Structure',
   );
+  final _structureBrandCtrl = TextEditingController(
+    text: 'Hot Dip Galvanized Iron (GI)',
+  );
+  final _dcCableBrandCtrl = TextEditingController(
+    text: 'Polycab / Havells / Siechem (Solar Grade)',
+  );
+  final _acCableBrandCtrl = TextEditingController(
+    text: 'Polycab / KEI / Finolex',
+  );
+  final _protectionBoxBrandCtrl = TextEditingController(
+    text: 'Hensel / Elmex / Schneider Protection Box',
+  );
+  final _earthingBrandCtrl = TextEditingController(
+    text: 'True Power / Ashlok Chemical GI',
+  );
+  final _netMeterBrandCtrl = TextEditingController(
+    text: 'MSEDCL / Discom Approved Bi-directional Meter',
+  );
 
   // Pricing & GST
   double _totalCost = 200000.0;
@@ -139,14 +157,17 @@ class _SolarQuotationGeneratorDialogState
       'Bank Loan'; // 'Cash', 'Bank Loan', 'Part Payment + Bank Loan'
   final _loanBankNameCtrl = TextEditingController(text: 'STATE BANK OF INDIA');
   double _downPayment = 0.0;
-  double _bankLoan = 122000.0;
-  final _loanAmountCtrl = TextEditingController(text: '122000');
+  double _bankLoan = 200000.0;
+  final _loanAmountCtrl = TextEditingController(text: '200000');
   final _downPaymentCtrl = TextEditingController(text: '0');
   double _annualInterestRate = 7.5;
   final _interestRateCtrl = TextEditingController(text: '7.5');
-  int _loanTenureMonths = 60;
-  double _monthlyEmi = 2445.0;
+  int _loanTenureMonths = 120;
+  double _monthlyEmi = 2374.0;
   double _processingFees = 0.0;
+
+  // Required Bank Loan Documents
+  List<String> _loanDocuments = List.from(SolarQuotation.defaultLoanDocuments);
 
   // Company Bank Account (for RTGS / NEFT / Disbursement)
   final _companyAccountNameCtrl = TextEditingController(
@@ -207,7 +228,7 @@ class _SolarQuotationGeneratorDialogState
   // Formatters
   final _inrFormat = NumberFormat.currency(
     locale: 'en_IN',
-    symbol: '₹ ',
+    symbol: 'â‚¹ ',
     decimalDigits: 0,
   );
   final _dateFormat = DateFormat('dd/MM/yyyy');
@@ -244,6 +265,12 @@ class _SolarQuotationGeneratorDialogState
     _inverterBrandCtrl.dispose();
     _inverterCapacityCtrl.dispose();
     _mountingStructureCtrl.dispose();
+    _structureBrandCtrl.dispose();
+    _dcCableBrandCtrl.dispose();
+    _acCableBrandCtrl.dispose();
+    _protectionBoxBrandCtrl.dispose();
+    _earthingBrandCtrl.dispose();
+    _netMeterBrandCtrl.dispose();
     _grandTotalCtrl.dispose();
     _discountCtrl.dispose();
     _subsidyAmountCtrl.dispose();
@@ -344,6 +371,30 @@ class _SolarQuotationGeneratorDialogState
       _inverterBrandCtrl.text = q.inverterBrand;
       _inverterCapacityCtrl.text = q.inverterCapacity;
       _mountingStructureCtrl.text = q.mountingStructure;
+      _loanDocuments = List.from(
+        q.loanDocuments.isNotEmpty
+            ? q.loanDocuments
+            : SolarQuotation.defaultLoanDocuments,
+      );
+      for (final itm in q.items) {
+        final name = (itm['item'] ?? '').toLowerCase();
+        final make = itm['make'] ?? itm['company'] ?? '';
+        if (make.isEmpty) continue;
+        if (name.contains('structure')) _structureBrandCtrl.text = make;
+        if (name.contains('dc cable')) _dcCableBrandCtrl.text = make;
+        if (name.contains('ac cable')) _acCableBrandCtrl.text = make;
+        if (name.contains('dcdb') ||
+            name.contains('acdb') ||
+            name.contains('protection')) {
+          _protectionBoxBrandCtrl.text = make;
+        }
+        if (name.contains('earthing') || name.contains('lightning')) {
+          _earthingBrandCtrl.text = make;
+        }
+        if (name.contains('meter') || name.contains('net metering')) {
+          _netMeterBrandCtrl.text = make;
+        }
+      }
 
       _companyBankNameCtrl.text = q.bankName.isNotEmpty
           ? q.bankName
@@ -449,7 +500,7 @@ class _SolarQuotationGeneratorDialogState
 
     for (int i = 0; i < _items.length; i++) {
       final itm = Map<String, String>.from(_items[i]);
-      final name = itm['item']?.toLowerCase() ?? '';
+      final name = (itm['item'] ?? '').toLowerCase();
       if (name.contains('module') || name.contains('panel')) {
         itm['spec'] =
             'Mono / TOPCon DCR - $capStr ($count Nos × ${wattage.toInt()} Wp, 25 Yrs Warranty)';
@@ -465,8 +516,51 @@ class _SolarQuotationGeneratorDialogState
           itm['make'] = _inverterBrandCtrl.text.trim();
         }
         _items[i] = itm;
+      } else if (name.contains('structure')) {
+        if (_structureBrandCtrl.text.trim().isNotEmpty) {
+          itm['make'] = _structureBrandCtrl.text.trim();
+        }
+        if (_mountingStructureCtrl.text.trim().isNotEmpty) {
+          itm['spec'] = _mountingStructureCtrl.text.trim();
+        }
+        _items[i] = itm;
+      } else if (name.contains('dc cable')) {
+        if (_dcCableBrandCtrl.text.trim().isNotEmpty) {
+          itm['make'] = _dcCableBrandCtrl.text.trim();
+        }
+        _items[i] = itm;
+      } else if (name.contains('ac cable')) {
+        if (_acCableBrandCtrl.text.trim().isNotEmpty) {
+          itm['make'] = _acCableBrandCtrl.text.trim();
+        }
+        _items[i] = itm;
+      } else if (name.contains('dcdb') ||
+          name.contains('acdb') ||
+          name.contains('protection')) {
+        if (_protectionBoxBrandCtrl.text.trim().isNotEmpty) {
+          itm['make'] = _protectionBoxBrandCtrl.text.trim();
+        }
+        _items[i] = itm;
+      } else if (name.contains('earthing') || name.contains('lightning')) {
+        if (_earthingBrandCtrl.text.trim().isNotEmpty) {
+          itm['make'] = _earthingBrandCtrl.text.trim();
+        }
+        _items[i] = itm;
+      } else if (name.contains('meter') || name.contains('net metering')) {
+        if (_netMeterBrandCtrl.text.trim().isNotEmpty) {
+          itm['make'] = _netMeterBrandCtrl.text.trim();
+        }
+        _items[i] = itm;
       }
     }
+  }
+
+  void _syncAllComponentMakesToItems() {
+    final capKw = SolarQuotationCalculations.parseCapacity(_capacity);
+    final wattage =
+        SolarQuotationCalculations.extractWattage(_panelWattageCtrl.text);
+    final count = int.tryParse(_panelCountCtrl.text.trim()) ?? 6;
+    _syncItemsWithPanelSpecs(capKw, wattage, count);
   }
 
   void _syncAllFromPanelSpecs({
@@ -574,19 +668,15 @@ class _SolarQuotationGeneratorDialogState
         _loanAmountCtrl.text = _bankLoan.toStringAsFixed(0);
       } else {
         final enteredLoan = double.tryParse(_loanAmountCtrl.text.trim());
-        // Default loan is 100% of Net Amount After Subsidy (0 Down Payment)
-        if (enteredLoan == null ||
-            enteredLoan == 0.0 ||
-            enteredLoan > netFinancingBase) {
-          _bankLoan = netFinancingBase.roundToDouble();
-          _loanAmountCtrl.text = _bankLoan.toStringAsFixed(0);
+        if (enteredLoan == null || enteredLoan == 0.0) {
+          _bankLoan = 200000.0;
+          _loanAmountCtrl.text = '200000';
         } else {
           _bankLoan = enteredLoan;
         }
-        _downPayment = (netFinancingBase - _bankLoan).clamp(
-          0.0,
-          double.infinity,
-        );
+        _downPayment = (netFinancingBase > _bankLoan)
+            ? (netFinancingBase - _bankLoan).roundToDouble()
+            : 0.0;
         _downPaymentCtrl.text = _downPayment.toStringAsFixed(0);
       }
       _annualInterestRate =
@@ -735,6 +825,7 @@ class _SolarQuotationGeneratorDialogState
       paymentMode: _paymentMode,
       downPayment: _downPayment,
       loanTenureMonths: _loanTenureMonths,
+      loanDocuments: _loanDocuments,
       annualInterestRate: _annualInterestRate,
       monthlyEmi: _monthlyEmi,
       processingFees: _processingFees,
@@ -1004,7 +1095,7 @@ class _SolarQuotationGeneratorDialogState
                               ),
                             ),
                             subtitle: Text(
-                              'Consumer No: ${c.consumerNo} • ${c.village ?? c.address ?? ''} • ${c.systemCapacity ?? '3 kW'}',
+                              'Consumer No: ${c.consumerNo} â€¢ ${c.village ?? c.address ?? ''} â€¢ ${c.systemCapacity ?? '3 kW'}',
                               style: const TextStyle(fontSize: 12),
                             ),
                             trailing: const Icon(
@@ -1111,7 +1202,7 @@ class _SolarQuotationGeneratorDialogState
                   ),
                 ),
                 Text(
-                  'SIYA INFOTECH & SOLAR ENERGY • Quotation: $_quotationNo',
+                  'SIYA INFOTECH & SOLAR ENERGY â€¢ Quotation: $_quotationNo',
                   style: const TextStyle(
                     fontSize: 11,
                     color: Color(0xFF93C5FD),
@@ -1220,7 +1311,7 @@ class _SolarQuotationGeneratorDialogState
     );
   }
 
-  // ── MOBILE TAB VIEW ────────────────────────────────────────────────────────
+  // â”€â”€ MOBILE TAB VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildMobileTabs(SolarQuotationTranslations t) {
     return DefaultTabController(
       length: 2,
@@ -1252,7 +1343,7 @@ class _SolarQuotationGeneratorDialogState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── SECTION 1: QUOTATION DETAILS, CATEGORY & STATUS ───────────────
+          // â”€â”€ SECTION 1: QUOTATION DETAILS, CATEGORY & STATUS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
             title: '1. Quotation Details, Project Category & Status',
             icon: Icons.category_rounded,
@@ -1410,7 +1501,7 @@ class _SolarQuotationGeneratorDialogState
 
           const SizedBox(height: 12),
 
-          // ── SECTION 2: CUSTOMER INFORMATION ───────────────────────────────
+          // â”€â”€ SECTION 2: CUSTOMER INFORMATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
             title: '2. Customer Profile & Site Details',
             icon: Icons.person_outline_rounded,
@@ -1585,7 +1676,7 @@ class _SolarQuotationGeneratorDialogState
 
           const SizedBox(height: 12),
 
-          // ── SECTION 3: SOLAR SYSTEM CONFIGURATION ─────────────────────────
+          // â”€â”€ SECTION 3: SOLAR SYSTEM CONFIGURATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
             title: '3. Solar System Technical Specifications',
             icon: Icons.bolt_rounded,
@@ -1832,7 +1923,7 @@ class _SolarQuotationGeneratorDialogState
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
-                                    '${_panelCountCtrl.text.trim().isNotEmpty ? _panelCountCtrl.text.trim() : '6'} Panels × ${SolarQuotationCalculations.extractWattage(_panelWattageCtrl.text).toInt()} Wp',
+                                    '${_panelCountCtrl.text.trim().isNotEmpty ? _panelCountCtrl.text.trim() : '6'} Panels Ã— ${SolarQuotationCalculations.extractWattage(_panelWattageCtrl.text).toInt()} Wp',
                                     style: const TextStyle(
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.bold,
@@ -1844,9 +1935,9 @@ class _SolarQuotationGeneratorDialogState
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              '⚡ Daily Avg: ~${(_annualGenerationUnits / 365).toStringAsFixed(1)} Units/Day  •  '
-                              '📅 Monthly Avg: ~${(_annualGenerationUnits / 12).toStringAsFixed(0)} Units/Month  •  '
-                              '☀️ Annual Total: ${_annualGenerationUnits.toStringAsFixed(0)} Units/Year',
+                              'âš¡ Daily Avg: ~${(_annualGenerationUnits / 365).toStringAsFixed(1)} Units/Day  â€¢  '
+                              'ðŸ“… Monthly Avg: ~${(_annualGenerationUnits / 12).toStringAsFixed(0)} Units/Month  â€¢  '
+                              'â˜€ï¸ Annual Total: ${_annualGenerationUnits.toStringAsFixed(0)} Units/Year',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Color(0xFF334155),
@@ -1898,7 +1989,123 @@ class _SolarQuotationGeneratorDialogState
                     isDense: true,
                     border: OutlineInputBorder(),
                   ),
-                  onChanged: (_) => setState(() => _renderKey++),
+                  onChanged: (_) {
+                    _syncAllComponentMakesToItems();
+                    setState(() => _renderKey++);
+                  },
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFCBD5E1)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(
+                            Icons.precision_manufacturing_rounded,
+                            size: 18,
+                            color: Color(0xFF0F2D69),
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'All Component Companies / Makes (Brand Configuration)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12.5,
+                              color: Color(0xFF0F2D69),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _buildBrandOptionRow(
+                        label: '1. Solar PV Modules Company / Make',
+                        controller: _panelBrandCtrl,
+                        presets: [
+                          'Waaree',
+                          'Adani Solar',
+                          'Goldi Solar',
+                          'Tata Power Solar',
+                          'Vikram Solar',
+                        ],
+                      ),
+                      _buildBrandOptionRow(
+                        label: '2. Grid-Tied Inverter Company / Make',
+                        controller: _inverterBrandCtrl,
+                        presets: [
+                          'Sungrow',
+                          'Growatt',
+                          'Solis',
+                          'Polycab',
+                          'Havells',
+                          'Deye',
+                        ],
+                      ),
+                      _buildBrandOptionRow(
+                        label: '3. Mounting Structure Company / Make',
+                        controller: _structureBrandCtrl,
+                        presets: [
+                          'Hot Dip Galvanized Iron (GI)',
+                          'Elevated GI Rooftop Structure',
+                          'Aluminium Rail Structure',
+                        ],
+                      ),
+                      _buildBrandOptionRow(
+                        label: '4. DC Solar Cable Company / Make',
+                        controller: _dcCableBrandCtrl,
+                        presets: [
+                          'Polycab / Havells / Siechem (Solar Grade)',
+                          'Polycab Solar Grade',
+                          'Havells Solar Cable',
+                          'Siechem 4 sq.mm',
+                        ],
+                      ),
+                      _buildBrandOptionRow(
+                        label: '5. AC Armoured Cable Company / Make',
+                        controller: _acCableBrandCtrl,
+                        presets: [
+                          'Polycab / KEI / Finolex',
+                          'Polycab Armoured',
+                          'KEI Industries',
+                          'Finolex 4-Core',
+                        ],
+                      ),
+                      _buildBrandOptionRow(
+                        label: '6. ACDB & DCDB Protection Box Make',
+                        controller: _protectionBoxBrandCtrl,
+                        presets: [
+                          'Hensel / Elmex / Schneider Protection Box',
+                          'Hensel IP65 Enclosure',
+                          'Elmex SPD Box',
+                          'Schneider Electric',
+                        ],
+                      ),
+                      _buildBrandOptionRow(
+                        label: '7. Earthing Electrodes & LA Make',
+                        controller: _earthingBrandCtrl,
+                        presets: [
+                          'True Power / Ashlok Chemical GI',
+                          'True Power Safe Earth',
+                          'Ashlok Chemical GI Kit',
+                        ],
+                      ),
+                      _buildBrandOptionRow(
+                        label: '8. Net Meter & Liaisoning Make',
+                        controller: _netMeterBrandCtrl,
+                        presets: [
+                          'MSEDCL / Discom Approved Bi-directional Meter',
+                          'MSEDCL Approved Smart Meter',
+                          'Secure Meters Dual Register',
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1906,7 +2113,7 @@ class _SolarQuotationGeneratorDialogState
 
           const SizedBox(height: 12),
 
-          // ── SECTION 4: ITEM-WISE PRICING & BOQ ────────────────────────────
+          // â”€â”€ SECTION 4: ITEM-WISE PRICING & BOQ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
             title: '4. Bill of Materials (BOQ) & Scope of Supply',
             icon: Icons.format_list_numbered_rounded,
@@ -2059,7 +2266,7 @@ class _SolarQuotationGeneratorDialogState
 
           const SizedBox(height: 12),
 
-          // ── SECTION 5: PRICING & STATUTORY 70:30 GST ──────────────────────
+          // â”€â”€ SECTION 5: PRICING & STATUTORY 70:30 GST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
             title: '5. Commercial Proposal Pricing & Statutory 70:30 GST',
             icon: Icons.currency_rupee_rounded,
@@ -2125,7 +2332,7 @@ class _SolarQuotationGeneratorDialogState
 
           const SizedBox(height: 12),
 
-          // ── SECTION 6: ON-GRID SCHEMATIC PREVIEW & TOGGLE ─────────────────
+          // â”€â”€ SECTION 6: ON-GRID SCHEMATIC PREVIEW & TOGGLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (_systemType.toLowerCase().contains('on-grid')) ...[
             _buildCard(
               title: '6. On-Grid Solar System Working Schematic',
@@ -2147,9 +2354,9 @@ class _SolarQuotationGeneratorDialogState
             const SizedBox(height: 12),
           ],
 
-          // ── SECTION 7: 12-MONTH GENERATION & INTERACTIVE CHART ────────────
+          // â”€â”€ SECTION 7: 12-MONTH GENERATION & INTERACTIVE CHART â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
-            title: '7. 12-Month Generation Schedule (Jan–Dec)',
+            title: '7. 12-Month Generation Schedule (Janâ€“Dec)',
             icon: Icons.calendar_month_rounded,
             iconColor: const Color(0xFF047857),
             trailing: Row(
@@ -2168,7 +2375,7 @@ class _SolarQuotationGeneratorDialogState
 
           const SizedBox(height: 12),
 
-          // ── SECTION 8: SOLAR SAVINGS, ROI & PAYBACK ANALYSIS ──────────────
+          // â”€â”€ SECTION 8: SOLAR SAVINGS, ROI & PAYBACK ANALYSIS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
             title: '8. Financial ROI, Bill Savings & Payback Analysis',
             icon: Icons.trending_up_rounded,
@@ -2188,7 +2395,7 @@ class _SolarQuotationGeneratorDialogState
 
           const SizedBox(height: 12),
 
-          // ── SECTION 9: PM SURYA GHAR SUBSIDY CALCULATOR ───────────────────
+          // â”€â”€ SECTION 9: PM SURYA GHAR SUBSIDY CALCULATOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
             title: '9. PM Surya Ghar Central Government Subsidy',
             icon: Icons.account_balance_rounded,
@@ -2229,9 +2436,9 @@ class _SolarQuotationGeneratorDialogState
                           controller: _subsidyAmountCtrl,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
-                            labelText: 'Central Government Subsidy (₹) *',
+                            labelText: 'Central Government Subsidy (â‚¹) *',
                             helperText:
-                                'Editable — Automatically updates Loan & Margin',
+                                'Editable â€” Automatically updates Loan & Margin',
                             isDense: true,
                             border: const OutlineInputBorder(),
                             suffixIcon: IconButton(
@@ -2313,7 +2520,7 @@ class _SolarQuotationGeneratorDialogState
 
           const SizedBox(height: 12),
 
-          // ── SECTION 10: PAYMENT MODE & EMI SCHEDULE ───────────────────────
+          // â”€â”€ SECTION 10: PAYMENT MODE & EMI SCHEDULE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
             title: '10. Payment Milestones & Bank Loan EMI Options',
             icon: Icons.payments_rounded,
@@ -2367,7 +2574,7 @@ class _SolarQuotationGeneratorDialogState
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '100% Bank Solar Loan with 0 Down Payment: Financed on Net Cost After Subsidy ${_inrFormat.format((_quotationType != 'Commercial' && _subsidyAmount > 0) ? _payableAfterSubsidy : _grandTotal)} (Turnkey ${_inrFormat.format(_grandTotal)} - Subsidy ${_inrFormat.format(_subsidyAmount)}). Down Payment = ₹0.',
+                            '100% Bank Solar Loan with 0 Down Payment: Financed on Net Cost After Subsidy ${_inrFormat.format((_quotationType != 'Commercial' && _subsidyAmount > 0) ? _payableAfterSubsidy : _grandTotal)} (Turnkey ${_inrFormat.format(_grandTotal)} - Subsidy ${_inrFormat.format(_subsidyAmount)}). Down Payment = â‚¹0.',
                             style: const TextStyle(
                               fontSize: 11.5,
                               color: Color(0xFF065F46),
@@ -2399,9 +2606,9 @@ class _SolarQuotationGeneratorDialogState
                           controller: _loanAmountCtrl,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
-                            labelText: 'Proposed Loan Amount (₹) *',
+                            labelText: 'Proposed Loan Amount (â‚¹) *',
                             helperText:
-                                '100% Loan on Net Cost after ₹${_subsidyAmount.round()} subsidy',
+                                '100% Loan on Net Cost after â‚¹${_subsidyAmount.round()} subsidy',
                             helperStyle: const TextStyle(
                               fontSize: 10,
                               color: Color(0xFF047857),
@@ -2424,7 +2631,7 @@ class _SolarQuotationGeneratorDialogState
                           controller: _downPaymentCtrl,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
-                            labelText: 'Down Payment (₹)',
+                            labelText: 'Down Payment (â‚¹)',
                             helperText: '0 Down Payment (100% Loan)',
                             helperStyle: TextStyle(
                               fontSize: 10,
@@ -2518,6 +2725,56 @@ class _SolarQuotationGeneratorDialogState
                       ],
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFCBD5E1)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: const [
+                            Icon(
+                              Icons.folder_shared_outlined,
+                              size: 16,
+                              color: Color(0xFF0F2D69),
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Required Loan Documents (Nationalized Bank Sanction):',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: Color(0xFF0F2D69),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            _buildDocChip('📄 Aadhaar Card (Applicant KYC)'),
+                            _buildDocChip('💳 PAN Card (Identity Verification)'),
+                            _buildDocChip(
+                              '💡 Light Bill (Electricity Bill - Latest Paid)',
+                            ),
+                            _buildDocChip(
+                              '📜 8A Utara (Land & Property Ownership Extract)',
+                            ),
+                            _buildDocChip(
+                              '🏦 Bank Passbook (Last 6 Months Bank Records)',
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
@@ -2579,7 +2836,7 @@ class _SolarQuotationGeneratorDialogState
 
           const SizedBox(height: 12),
 
-          // ── SECTION 11: COMPANY BANK ACCOUNT (FOR DISBURSEMENT) ───────────
+          // â”€â”€ SECTION 11: COMPANY BANK ACCOUNT (FOR DISBURSEMENT) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
             title:
                 '11. Vendor Company Bank Details (For RTGS, NEFT & Loan Disbursement)',
@@ -2682,7 +2939,7 @@ class _SolarQuotationGeneratorDialogState
 
           const SizedBox(height: 12),
 
-          // ── SECTION 12: TERMS, CONDITIONS & SITE NOTES ────────────────────
+          // â”€â”€ SECTION 12: TERMS, CONDITIONS & SITE NOTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
             title: '12. Commercial Terms, Warranties & Project Notes',
             icon: Icons.gavel_rounded,
@@ -2721,7 +2978,7 @@ class _SolarQuotationGeneratorDialogState
 
           const SizedBox(height: 12),
 
-          // ── SECTION 13: AUTHORIZATION & SIGNATURES ────────────────────────
+          // â”€â”€ SECTION 13: AUTHORIZATION & SIGNATURES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
             title: '13. Authorization, Official Seal & Customer Acceptance',
             icon: Icons.verified_user_rounded,
@@ -2904,7 +3161,7 @@ class _SolarQuotationGeneratorDialogState
     );
   }
 
-  // ── ON-GRID VISUAL SCHEMATIC WIDGET (UI) ──────────────────────────────────
+  // â”€â”€ ON-GRID VISUAL SCHEMATIC WIDGET (UI) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildOnGridVisualSchematic(SolarQuotationTranslations t) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -2919,7 +3176,7 @@ class _SolarQuotationGeneratorDialogState
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _buildUiSchematicNode(
-                '☀️ Rooftop Panels',
+                'â˜€ï¸ Rooftop Panels',
                 'Solar PV Modules',
                 'Waaree / Adani TopCon',
                 const Color(0xFFE0F2FE),
@@ -2927,7 +3184,7 @@ class _SolarQuotationGeneratorDialogState
               ),
               const Icon(Icons.arrow_forward_rounded, color: Color(0xFFEA580C)),
               _buildUiSchematicNode(
-                '⚡ DCDB Box',
+                'âš¡ DCDB Box',
                 'DC Protection',
                 'Surge Protection & Fuse',
                 const Color(0xFFFEF3C7),
@@ -2935,7 +3192,7 @@ class _SolarQuotationGeneratorDialogState
               ),
               const Icon(Icons.arrow_forward_rounded, color: Color(0xFFEA580C)),
               _buildUiSchematicNode(
-                '🔄 Grid Inverter',
+                'ðŸ”„ Grid Inverter',
                 'Grid-Tied MPPT',
                 'High Efficiency IP65',
                 const Color(0xFFD1FAE5),
@@ -2943,7 +3200,7 @@ class _SolarQuotationGeneratorDialogState
               ),
               const Icon(Icons.arrow_forward_rounded, color: Color(0xFF047857)),
               _buildUiSchematicNode(
-                '⚡ ACDB Box',
+                'âš¡ ACDB Box',
                 'AC Protection',
                 'MCB & AC SPD',
                 const Color(0xFFEDE9FE),
@@ -2956,7 +3213,7 @@ class _SolarQuotationGeneratorDialogState
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _buildUiSchematicNode(
-                '🏠 Building Load',
+                'ðŸ  Building Load',
                 'Self-Consumption',
                 'Lights, Fan, AC, Machine',
                 const Color(0xFFF1F5F9),
@@ -2964,7 +3221,7 @@ class _SolarQuotationGeneratorDialogState
               ),
               const Icon(Icons.swap_horiz_rounded, color: Color(0xFF0D2B6F)),
               _buildUiSchematicNode(
-                '⇄ Net Meter',
+                'â‡„ Net Meter',
                 'Bi-Directional Meter',
                 'Import / Export Billing',
                 const Color(0xFFFEF08A),
@@ -2972,7 +3229,7 @@ class _SolarQuotationGeneratorDialogState
               ),
               const Icon(Icons.swap_horiz_rounded, color: Color(0xFF0D2B6F)),
               _buildUiSchematicNode(
-                '🏛️ MSEDCL Grid',
+                'ðŸ›ï¸ MSEDCL Grid',
                 'Distribution Utility',
                 'Continuous Grid Sync',
                 const Color(0xFFE0E7FF),
@@ -3023,7 +3280,7 @@ class _SolarQuotationGeneratorDialogState
     );
   }
 
-  // ── GENERATION UI SECTION (TABLE + INTERACTIVE BAR CHART) ─────────────────
+  // â”€â”€ GENERATION UI SECTION (TABLE + INTERACTIVE BAR CHART) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildGenerationUiSection(SolarQuotationTranslations t) {
     final capKw = SolarQuotationCalculations.parseCapacity(_capacity);
     final rows = SolarQuotationCalculations.calculate12MonthGeneration(
@@ -3051,7 +3308,7 @@ class _SolarQuotationGeneratorDialogState
                 decoration: InputDecoration(
                   labelText: 'Annual Generation (kWh / Units) *',
                   helperText:
-                      'Editable — Scaled proportionally across 12 months',
+                      'Editable â€” Scaled proportionally across 12 months',
                   isDense: true,
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(
@@ -3173,7 +3430,7 @@ class _SolarQuotationGeneratorDialogState
     );
   }
 
-  // ── ROI UI SECTION ────────────────────────────────────────────────────────
+  // â”€â”€ ROI UI SECTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildRoiUiSection(SolarQuotationTranslations t) {
     return Column(
       children: [
@@ -3185,7 +3442,7 @@ class _SolarQuotationGeneratorDialogState
                 controller: _tariffCtrl,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: 'Tariff Rate (₹/kWh)',
+                  labelText: 'Tariff Rate (â‚¹/kWh)',
                   isDense: true,
                   border: OutlineInputBorder(),
                 ),
@@ -3199,7 +3456,7 @@ class _SolarQuotationGeneratorDialogState
                 controller: _maintenanceCtrl,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: 'Annual Maintenance (₹)',
+                  labelText: 'Annual Maintenance (â‚¹)',
                   isDense: true,
                   border: OutlineInputBorder(),
                 ),
@@ -3230,7 +3487,7 @@ class _SolarQuotationGeneratorDialogState
     );
   }
 
-  // ── GST SUMMARY CARD ──────────────────────────────────────────────────────
+  // â”€â”€ GST SUMMARY CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildGstSummaryCard(double grandTotal) {
     final gst = SolarQuotationGstBreakdown.calculate(grandTotal);
     return Container(
@@ -3336,6 +3593,107 @@ class _SolarQuotationGeneratorDialogState
     );
   }
 
+  Widget _buildDocChip(String title) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFF93C5FD)),
+      ),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF1E3A8A),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBrandOptionRow({
+    required String label,
+    required TextEditingController controller,
+    required List<String> presets,
+    String? hint,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              labelText: label,
+              hintText: hint,
+              isDense: true,
+              border: const OutlineInputBorder(),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            ),
+            onChanged: (_) {
+              _syncAllComponentMakesToItems();
+              setState(() => _renderKey++);
+            },
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: presets.map((preset) {
+              final isSelected =
+                  controller.text.trim().toLowerCase() ==
+                  preset.trim().toLowerCase();
+              return InkWell(
+                onTap: () {
+                  setState(() {
+                    controller.text = preset;
+                    _syncAllComponentMakesToItems();
+                    _renderKey++;
+                  });
+                },
+                borderRadius: BorderRadius.circular(4),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: isSelected
+                          ? const Color(0xFF3B82F6)
+                          : const Color(0xFFCBD5E1),
+                      width: isSelected ? 1.2 : 0.8,
+                    ),
+                  ),
+                  child: Text(
+                    preset,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected
+                          ? const Color(0xFF1D4ED8)
+                          : const Color(0xFF475569),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCard({
     required String title,
     required IconData icon,
@@ -3385,7 +3743,7 @@ class _SolarQuotationGeneratorDialogState
     );
   }
 
-  // ── RESET TO DEFAULT BOQ ──────────────────────────────────────────────────
+  // â”€â”€ RESET TO DEFAULT BOQ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void _resetToDefaultBoq() {
     setState(() {
       _items = SolarQuotation.defaultItems(_capacity);
@@ -3407,7 +3765,7 @@ class _SolarQuotationGeneratorDialogState
     );
   }
 
-  // ── ADD / EDIT LINE ITEMS ──────────────────────────────────────────────────
+  // â”€â”€ ADD / EDIT LINE ITEMS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void _openAddCustomItemDialog() {
     final itemCtrl = TextEditingController();
     final makeCtrl = TextEditingController();
@@ -3428,12 +3786,87 @@ class _SolarQuotationGeneratorDialogState
               ),
             ),
             const SizedBox(height: 10),
-            TextField(
-              controller: makeCtrl,
-              decoration: const InputDecoration(
-                labelText:
-                    'Company / Make / Brand (e.g. Waaree, Polycab, Sungrow)',
-              ),
+            StatefulBuilder(
+              builder: (context, setDialogState) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: makeCtrl,
+                      decoration: const InputDecoration(
+                        labelText:
+                            'Company / Make / Brand (e.g. Waaree, Polycab, Sungrow)',
+                        isDense: true,
+                      ),
+                      onChanged: (_) => setDialogState(() {}),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        'Waaree',
+                        'Adani',
+                        'Goldi',
+                        'Sungrow',
+                        'Growatt',
+                        'Solis',
+                        'Polycab',
+                        'Havells',
+                        'Finolex',
+                        'KEI',
+                        'Hensel',
+                        'Elmex',
+                        'Schneider',
+                        'True Power',
+                        'Ashlok',
+                        'MSEDCL Approved',
+                      ].map((preset) {
+                        final isSel =
+                            makeCtrl.text.trim().toLowerCase() ==
+                            preset.toLowerCase();
+                        return InkWell(
+                          onTap: () {
+                            setDialogState(() {
+                              makeCtrl.text = preset;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSel
+                                  ? const Color(0xFFEFF6FF)
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: isSel
+                                    ? const Color(0xFF3B82F6)
+                                    : const Color(0xFFCBD5E1),
+                              ),
+                            ),
+                            child: Text(
+                              preset,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: isSel
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: isSel
+                                    ? const Color(0xFF1D4ED8)
+                                    : const Color(0xFF1E293B),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 10),
             TextField(
@@ -3500,12 +3933,87 @@ class _SolarQuotationGeneratorDialogState
               ),
             ),
             const SizedBox(height: 10),
-            TextField(
-              controller: makeCtrl,
-              decoration: const InputDecoration(
-                labelText:
-                    'Company / Make / Brand (e.g. Waaree, Polycab, Sungrow)',
-              ),
+            StatefulBuilder(
+              builder: (context, setDialogState) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: makeCtrl,
+                      decoration: const InputDecoration(
+                        labelText:
+                            'Company / Make / Brand (e.g. Waaree, Polycab, Sungrow)',
+                        isDense: true,
+                      ),
+                      onChanged: (_) => setDialogState(() {}),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        'Waaree',
+                        'Adani',
+                        'Goldi',
+                        'Sungrow',
+                        'Growatt',
+                        'Solis',
+                        'Polycab',
+                        'Havells',
+                        'Finolex',
+                        'KEI',
+                        'Hensel',
+                        'Elmex',
+                        'Schneider',
+                        'True Power',
+                        'Ashlok',
+                        'MSEDCL Approved',
+                      ].map((preset) {
+                        final isSel =
+                            makeCtrl.text.trim().toLowerCase() ==
+                            preset.toLowerCase();
+                        return InkWell(
+                          onTap: () {
+                            setDialogState(() {
+                              makeCtrl.text = preset;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSel
+                                  ? const Color(0xFFEFF6FF)
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: isSel
+                                    ? const Color(0xFF3B82F6)
+                                    : const Color(0xFFCBD5E1),
+                              ),
+                            ),
+                            child: Text(
+                              preset,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: isSel
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: isSel
+                                    ? const Color(0xFF1D4ED8)
+                                    : const Color(0xFF1E293B),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 10),
             TextField(
@@ -3547,7 +4055,7 @@ class _SolarQuotationGeneratorDialogState
     );
   }
 
-  // ── TAB 1: MARGIN MONEY RECEIPT TAB (FULLY EDITABLE) ──────────────────────
+  // â”€â”€ TAB 1: MARGIN MONEY RECEIPT TAB (FULLY EDITABLE) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildMarginReceiptTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -3675,7 +4183,7 @@ class _SolarQuotationGeneratorDialogState
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Consumer No: ${_consumerNoCtrl.text} • Mobile: ${_mobileNoCtrl.text} • Address: ${_addressCtrl.text}',
+                      'Consumer No: ${_consumerNoCtrl.text} â€¢ Mobile: ${_mobileNoCtrl.text} â€¢ Address: ${_addressCtrl.text}',
                       style: const TextStyle(
                         fontSize: 11.5,
                         color: Color(0xFF64748B),
@@ -3693,7 +4201,7 @@ class _SolarQuotationGeneratorDialogState
                       controller: _receiptMarginAmountCtrl,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                        labelText: 'Customer Margin Amount Received (₹) *',
+                        labelText: 'Customer Margin Amount Received (â‚¹) *',
                         helperText: 'Default: 10% Down Payment from Quotation',
                         prefixIcon: Icon(Icons.currency_rupee_rounded),
                         isDense: true,
