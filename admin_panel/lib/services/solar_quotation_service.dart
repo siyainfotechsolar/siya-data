@@ -2204,41 +2204,38 @@ class SolarQuotationService {
                   ),
                   border: pw.Border.all(color: borderDarkColor, width: 0.8),
                 ),
-                child: pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Expanded(
-                      child: pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          _buildBulletPoint(
-                            '1. Aadhaar Card: Applicant & Co-Applicant KYC (Self-Attested).',
-                          ),
-                          _buildBulletPoint(
-                            '2. PAN Card: Applicant & Co-Applicant PAN Card for CIBIL & Loan Sanction.',
-                          ),
-                          _buildBulletPoint(
-                            '3. Light Bill: Latest paid Electricity Bill with Consumer CA Number.',
-                          ),
-                        ],
+                child: () {
+                  final docs = quotation.loanDocuments.isNotEmpty
+                      ? quotation.loanDocuments
+                      : SolarQuotation.defaultLoanDocuments;
+                  final int half = (docs.length / 2).ceil();
+                  final col1 = docs.take(half).toList();
+                  final col2 = docs.skip(half).toList();
+                  return pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            for (int i = 0; i < col1.length; i++)
+                              _buildBulletPoint('${i + 1}. ${col1[i]}'),
+                          ],
+                        ),
                       ),
-                    ),
-                    pw.SizedBox(width: 12),
-                    pw.Expanded(
-                      child: pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          _buildBulletPoint(
-                            '4. 8A Utara: Gram Panchayat / Revenue Land & Property Ownership Extract.',
-                          ),
-                          _buildBulletPoint(
-                            '5. Bank Passbook: Last 6 months bank statement / passbook copy with IFSC.',
-                          ),
-                        ],
+                      pw.SizedBox(width: 12),
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            for (int i = 0; i < col2.length; i++)
+                              _buildBulletPoint('${col1.length + i + 1}. ${col2[i]}'),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  );
+                }(),
               ),
 
               pw.Spacer(),
@@ -4180,11 +4177,15 @@ class SolarQuotationService {
                               color: navyColor,
                             ),
                           ),
-                          _buildBulletPoint('1. Aadhaar Card (Applicant KYC)'),
-                          _buildBulletPoint('2. PAN Card (Identity Verification)'),
-                          _buildBulletPoint('3. Light Bill / Electricity Bill (Latest Paid)'),
-                          _buildBulletPoint('4. 8A Utara (Land & Property Ownership Extract)'),
-                          _buildBulletPoint('5. Bank Passbook / Statement (Last 6 Months Records)'),
+                          ...(() {
+                            final docs = quotation.loanDocuments.isNotEmpty
+                                ? quotation.loanDocuments
+                                : SolarQuotation.defaultLoanDocuments;
+                            return List.generate(
+                              docs.length,
+                              (i) => _buildBulletPoint('${i + 1}. ${docs[i]}'),
+                            );
+                          })(),
                         ],
                       ),
                     ),

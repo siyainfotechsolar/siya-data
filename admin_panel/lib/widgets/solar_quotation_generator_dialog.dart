@@ -168,6 +168,7 @@ class _SolarQuotationGeneratorDialogState
 
   // Required Bank Loan Documents
   List<String> _loanDocuments = List.from(SolarQuotation.defaultLoanDocuments);
+  late final TextEditingController _loanDocumentsCtrl;
 
   // Company Bank Account (for RTGS / NEFT / Disbursement)
   final _companyAccountNameCtrl = TextEditingController(
@@ -237,6 +238,9 @@ class _SolarQuotationGeneratorDialogState
   @override
   void initState() {
     super.initState();
+    _loanDocumentsCtrl = TextEditingController(
+      text: _loanDocuments.join('\n'),
+    );
     _tabController = TabController(
       length: 2,
       vsync: this,
@@ -287,6 +291,7 @@ class _SolarQuotationGeneratorDialogState
     _signatoryDesignationCtrl.dispose();
     _loanAmountCtrl.dispose();
     _downPaymentCtrl.dispose();
+    _loanDocumentsCtrl.dispose();
     _interestRateCtrl.dispose();
     _tariffCtrl.dispose();
     _maintenanceCtrl.dispose();
@@ -376,6 +381,7 @@ class _SolarQuotationGeneratorDialogState
             ? q.loanDocuments
             : SolarQuotation.defaultLoanDocuments,
       );
+      _loanDocumentsCtrl.text = _loanDocuments.join('\n');
       for (final itm in q.items) {
         final name = (itm['item'] ?? '').toLowerCase();
         final make = itm['make'] ?? itm['company'] ?? '';
@@ -505,51 +511,35 @@ class _SolarQuotationGeneratorDialogState
         itm['spec'] =
             'Mono / TOPCon DCR - $capStr ($count Nos × ${wattage.toInt()} Wp, 25 Yrs Warranty)';
         itm['qty'] = '$capStr ($count Nos)';
-        if (_panelBrandCtrl.text.trim().isNotEmpty) {
-          itm['make'] = _panelBrandCtrl.text.trim();
-        }
+        itm['make'] = _panelBrandCtrl.text.trim();
         _items[i] = itm;
       } else if (name.contains('inverter')) {
         itm['spec'] =
             '$capStr ${isThreePhase ? '3-Phase' : '1-Phase'} Grid-Tied Inverter (IP65)';
-        if (_inverterBrandCtrl.text.trim().isNotEmpty) {
-          itm['make'] = _inverterBrandCtrl.text.trim();
-        }
+        itm['make'] = _inverterBrandCtrl.text.trim();
         _items[i] = itm;
       } else if (name.contains('structure')) {
-        if (_structureBrandCtrl.text.trim().isNotEmpty) {
-          itm['make'] = _structureBrandCtrl.text.trim();
-        }
+        itm['make'] = _structureBrandCtrl.text.trim();
         if (_mountingStructureCtrl.text.trim().isNotEmpty) {
           itm['spec'] = _mountingStructureCtrl.text.trim();
         }
         _items[i] = itm;
       } else if (name.contains('dc cable')) {
-        if (_dcCableBrandCtrl.text.trim().isNotEmpty) {
-          itm['make'] = _dcCableBrandCtrl.text.trim();
-        }
+        itm['make'] = _dcCableBrandCtrl.text.trim();
         _items[i] = itm;
       } else if (name.contains('ac cable')) {
-        if (_acCableBrandCtrl.text.trim().isNotEmpty) {
-          itm['make'] = _acCableBrandCtrl.text.trim();
-        }
+        itm['make'] = _acCableBrandCtrl.text.trim();
         _items[i] = itm;
       } else if (name.contains('dcdb') ||
           name.contains('acdb') ||
           name.contains('protection')) {
-        if (_protectionBoxBrandCtrl.text.trim().isNotEmpty) {
-          itm['make'] = _protectionBoxBrandCtrl.text.trim();
-        }
+        itm['make'] = _protectionBoxBrandCtrl.text.trim();
         _items[i] = itm;
       } else if (name.contains('earthing') || name.contains('lightning')) {
-        if (_earthingBrandCtrl.text.trim().isNotEmpty) {
-          itm['make'] = _earthingBrandCtrl.text.trim();
-        }
+        itm['make'] = _earthingBrandCtrl.text.trim();
         _items[i] = itm;
       } else if (name.contains('meter') || name.contains('net metering')) {
-        if (_netMeterBrandCtrl.text.trim().isNotEmpty) {
-          itm['make'] = _netMeterBrandCtrl.text.trim();
-        }
+        itm['make'] = _netMeterBrandCtrl.text.trim();
         _items[i] = itm;
       }
     }
@@ -652,33 +642,10 @@ class _SolarQuotationGeneratorDialogState
                     : 0.0))
             .clamp(0.0, double.infinity);
 
-    final double netFinancingBase =
-        (_quotationType != 'Commercial' && _subsidyAmount > 0)
-        ? _payableAfterSubsidy
-        : _grandTotal;
-
-    // Loan & EMI (Calculated on Net Amount After Subsidy)
+    // Loan & EMI (Calculated based on user-editable inputs - completely editable)
     if (_paymentMode.toLowerCase().contains('loan')) {
-      if (_paymentMode == 'Part Payment + Bank Loan') {
-        _downPayment = double.tryParse(_downPaymentCtrl.text.trim()) ?? 0.0;
-        _bankLoan = (netFinancingBase - _downPayment).clamp(
-          0.0,
-          double.infinity,
-        );
-        _loanAmountCtrl.text = _bankLoan.toStringAsFixed(0);
-      } else {
-        final enteredLoan = double.tryParse(_loanAmountCtrl.text.trim());
-        if (enteredLoan == null || enteredLoan == 0.0) {
-          _bankLoan = 200000.0;
-          _loanAmountCtrl.text = '200000';
-        } else {
-          _bankLoan = enteredLoan;
-        }
-        _downPayment = (netFinancingBase > _bankLoan)
-            ? (netFinancingBase - _bankLoan).roundToDouble()
-            : 0.0;
-        _downPaymentCtrl.text = _downPayment.toStringAsFixed(0);
-      }
+      _bankLoan = double.tryParse(_loanAmountCtrl.text.trim()) ?? 200000.0;
+      _downPayment = double.tryParse(_downPaymentCtrl.text.trim()) ?? 0.0;
       _annualInterestRate =
           double.tryParse(_interestRateCtrl.text.trim()) ?? 7.5;
       _monthlyEmi = SolarQuotationCalculations.calculateMonthlyEmi(
@@ -687,8 +654,9 @@ class _SolarQuotationGeneratorDialogState
         tenureMonths: _loanTenureMonths,
       );
     } else {
-      _bankLoan = 0.0;
-      _downPayment = _grandTotal;
+      _bankLoan = double.tryParse(_loanAmountCtrl.text.trim()) ?? 0.0;
+      _downPayment =
+          double.tryParse(_downPaymentCtrl.text.trim()) ?? _grandTotal;
       _monthlyEmi = 0.0;
     }
 
@@ -2606,9 +2574,9 @@ class _SolarQuotationGeneratorDialogState
                           controller: _loanAmountCtrl,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
-                            labelText: 'Proposed Loan Amount (â‚¹) *',
+                            labelText: 'Proposed Loan Amount (₹) *',
                             helperText:
-                                '100% Loan on Net Cost after â‚¹${_subsidyAmount.round()} subsidy',
+                                'Completely editable loan amount (Default ₹2,00,000)',
                             helperStyle: const TextStyle(
                               fontSize: 10,
                               color: Color(0xFF047857),
@@ -2622,6 +2590,94 @@ class _SolarQuotationGeneratorDialogState
                       ),
                     ],
                   ),
+                  const SizedBox(height: 8),
+                  // Quick presets for loan amount & margin
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      ActionChip(
+                        avatar: const Icon(
+                          Icons.currency_rupee,
+                          size: 13,
+                          color: Color(0xFF047857),
+                        ),
+                        label: const Text(
+                          '₹2,00,000 Default',
+                          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _loanAmountCtrl.text = '200000';
+                            _recalculateAll();
+                          });
+                        },
+                      ),
+                      ActionChip(
+                        avatar: const Icon(
+                          Icons.account_balance_wallet_outlined,
+                          size: 13,
+                          color: Color(0xFF1D4ED8),
+                        ),
+                        label: const Text(
+                          '100% Net Cost (₹0 Down)',
+                          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            final net =
+                                (_quotationType != 'Commercial' && _subsidyAmount > 0)
+                                    ? _payableAfterSubsidy
+                                    : _grandTotal;
+                            _loanAmountCtrl.text = net.round().toString();
+                            _downPaymentCtrl.text = '0';
+                            _recalculateAll();
+                          });
+                        },
+                      ),
+                      ActionChip(
+                        avatar: const Icon(
+                          Icons.balance,
+                          size: 13,
+                          color: Color(0xFF64748B),
+                        ),
+                        label: const Text(
+                          'Auto Balance Margin',
+                          style: TextStyle(fontSize: 10.5),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            final net =
+                                (_quotationType != 'Commercial' && _subsidyAmount > 0)
+                                    ? _payableAfterSubsidy
+                                    : _grandTotal;
+                            final loan =
+                                double.tryParse(_loanAmountCtrl.text.trim()) ?? 0.0;
+                            final margin = (net - loan).clamp(0.0, double.infinity);
+                            _downPaymentCtrl.text = margin.round().toString();
+                            _recalculateAll();
+                          });
+                        },
+                      ),
+                      ActionChip(
+                        avatar: const Icon(
+                          Icons.clear,
+                          size: 13,
+                          color: Color(0xFFDC2626),
+                        ),
+                        label: const Text(
+                          'Clear Loan (₹0)',
+                          style: TextStyle(fontSize: 10.5),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _loanAmountCtrl.text = '0';
+                            _recalculateAll();
+                          });
+                        },
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -2631,8 +2687,8 @@ class _SolarQuotationGeneratorDialogState
                           controller: _downPaymentCtrl,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
-                            labelText: 'Down Payment (â‚¹)',
-                            helperText: '0 Down Payment (100% Loan)',
+                            labelText: 'Down Payment (₹)',
+                            helperText: 'Editable customer margin money',
                             helperStyle: TextStyle(
                               fontSize: 10,
                               color: Color(0xFF64748B),
@@ -2727,7 +2783,7 @@ class _SolarQuotationGeneratorDialogState
                   ),
                   const SizedBox(height: 10),
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(8),
@@ -2737,40 +2793,194 @@ class _SolarQuotationGeneratorDialogState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          children: const [
-                            Icon(
+                          children: [
+                            const Icon(
                               Icons.folder_shared_outlined,
                               size: 16,
                               color: Color(0xFF0F2D69),
                             ),
-                            SizedBox(width: 6),
-                            Text(
-                              'Required Loan Documents (Nationalized Bank Sanction):',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: Color(0xFF0F2D69),
+                            const SizedBox(width: 6),
+                            const Expanded(
+                              child: Text(
+                                'Required Loan Documents (Completely Editable List):',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12.5,
+                                  color: Color(0xFF0F2D69),
+                                ),
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _loanDocuments = List.from(
+                                    SolarQuotation.defaultLoanDocuments,
+                                  );
+                                  _loanDocumentsCtrl.text =
+                                      _loanDocuments.join('\n');
+                                  _renderKey++;
+                                });
+                              },
+                              icon: const Icon(Icons.restart_alt, size: 14),
+                              label: const Text(
+                                'Reset Defaults',
+                                style: TextStyle(fontSize: 11),
+                              ),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            TextButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _loanDocuments.clear();
+                                  _loanDocumentsCtrl.text = '';
+                                  _renderKey++;
+                                });
+                              },
+                              icon: const Icon(
+                                Icons.clear_all,
+                                size: 14,
+                                color: Color(0xFFDC2626),
+                              ),
+                              label: const Text(
+                                'Clear All',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFFDC2626),
+                                ),
+                              ),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
+                        // Quick Add suggestions
                         Wrap(
-                          spacing: 8,
-                          runSpacing: 6,
+                          spacing: 6,
+                          runSpacing: 4,
                           children: [
-                            _buildDocChip('📄 Aadhaar Card (Applicant KYC)'),
-                            _buildDocChip('💳 PAN Card (Identity Verification)'),
-                            _buildDocChip(
-                              '💡 Light Bill (Electricity Bill - Latest Paid)',
-                            ),
-                            _buildDocChip(
-                              '📜 8A Utara (Land & Property Ownership Extract)',
-                            ),
-                            _buildDocChip(
-                              '🏦 Bank Passbook (Last 6 Months Bank Records)',
-                            ),
+                            for (final suggestion in [
+                              'Aadhaar Card (Applicant KYC)',
+                              'PAN Card (Identity Verification)',
+                              'Electricity Bill / Light Bill (Latest Paid Bill)',
+                              '8A Utara (Land & Property Ownership Extract)',
+                              'Bank Passbook / Statement (Last 6 Months Records)',
+                              '7/12 Extract (Satbara Utara)',
+                              'House Tax Receipt (Ghar Patti)',
+                              'Passport Size Photographs (3 Copies)',
+                              'Salary Slip / ITR (Form 16)',
+                              'Solar Quotation & Undertaking',
+                            ])
+                              ActionChip(
+                                label: Text(
+                                  '+ $suggestion',
+                                  style: const TextStyle(fontSize: 10.5),
+                                ),
+                                backgroundColor: _loanDocuments.any(
+                                  (d) => d
+                                      .toLowerCase()
+                                      .contains(
+                                        suggestion.split(' ').first.toLowerCase(),
+                                      ),
+                                )
+                                    ? const Color(0xFFE2E8F0)
+                                    : const Color(0xFFEFF6FF),
+                                onPressed: () {
+                                  setState(() {
+                                    if (!_loanDocuments.contains(suggestion)) {
+                                      _loanDocuments.add(suggestion);
+                                      _loanDocumentsCtrl.text =
+                                          _loanDocuments.join('\n');
+                                      _renderKey++;
+                                    }
+                                  });
+                                },
+                              ),
                           ],
+                        ),
+                        const SizedBox(height: 10),
+                        // Current active documents as removable chips
+                        if (_loanDocuments.isNotEmpty) ...[
+                          const Text(
+                            'Active Documents on Proposal & Bank EMI Sheet (Click ✕ to remove):',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: _loanDocuments.map((doc) {
+                              return Chip(
+                                label: Text(
+                                  doc,
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                                backgroundColor: Colors.white,
+                                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                deleteIcon: const Icon(
+                                  Icons.close,
+                                  size: 14,
+                                  color: Color(0xFF64748B),
+                                ),
+                                onDeleted: () {
+                                  setState(() {
+                                    _loanDocuments.remove(doc);
+                                    _loanDocumentsCtrl.text =
+                                        _loanDocuments.join('\n');
+                                    _renderKey++;
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        // Multi-line editor for custom editing / Marathi / typing
+                        TextField(
+                          controller: _loanDocumentsCtrl,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            labelText:
+                                'Edit Document Requirements (1 item per line)',
+                            helperText:
+                                'Each line appears as a numbered checklist item on Proposal Page 7 and the Bank Loan Sheet. You can edit, rephrase, or add any custom bank document here.',
+                            helperStyle: TextStyle(
+                              fontSize: 10.5,
+                              color: Color(0xFF64748B),
+                            ),
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.all(10),
+                          ),
+                          onChanged: (text) {
+                            final lines = text
+                                .split('\n')
+                                .map((s) => s.trim())
+                                .where((s) => s.isNotEmpty)
+                                .toList();
+                            setState(() {
+                              _loanDocuments = lines;
+                              _renderKey++;
+                            });
+                          },
                         ),
                       ],
                     ),
@@ -3589,25 +3799,6 @@ class _SolarQuotationGeneratorDialogState
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildDocChip(String title) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFF93C5FD)),
-      ),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF1E3A8A),
-        ),
       ),
     );
   }
