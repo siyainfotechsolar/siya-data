@@ -11,6 +11,7 @@ import 'package:siya_shared/siya_shared.dart';
 import 'company_stamp_helper.dart';
 import 'customer_signature_helper.dart';
 import 'settings_service.dart';
+import 'solar_quotation_font_helper.dart';
 
 /// Professional Executive Solar Customer Proposal & Quotation Service
 /// 100% Clean Corporate English — Spacious, Un-cramped 7-Page Executive Proposal.
@@ -163,7 +164,8 @@ class SolarQuotationService {
     bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
-    final pdf = pw.Document();
+    final pdfTheme = await SolarQuotationFontHelper.loadPdfTheme();
+    final pdf = pw.Document(theme: pdfTheme);
 
     // Load Customer Signature Font if needed
     pw.Font? customerSignatureFont;
@@ -319,6 +321,13 @@ class SolarQuotationService {
 
     const int totalPages = 7;
 
+    final String lang =
+        quotation.language.isNotEmpty ? quotation.language : 'mr_en';
+    final bool isMarathi = lang == 'mr';
+    final bool isEnglishOnly = lang == 'en';
+    String tr(String en, String mr) =>
+        isMarathi ? mr : (isEnglishOnly ? en : '$en / $mr');
+
     // ──────────────────────────────────────────────────────────────────────────
     // PAGE 1: CORPORATE COVER & COMPANY PROFILE (WITH GRAPHICS)
     // ──────────────────────────────────────────────────────────────────────────
@@ -367,10 +376,13 @@ class SolarQuotationService {
                           ),
                           pw.SizedBox(height: 2),
                           pw.Text(
-                            'Authorized Solar EPC & Channel Partner | PM Surya Ghar: Muft Bijli Yojana',
+                            tr(
+                              'Authorized Solar EPC & Channel Partner | PM Surya Ghar: Muft Bijli Yojana',
+                              'अधिकृत सोलर ईपीसी पार्टनर | पीएम सूर्य घर: मोफत वीज योजना',
+                            ),
                             style: pw.TextStyle(
                               color: emeraldColor,
-                              fontSize: 8.2,
+                              fontSize: 8.0,
                               fontWeight: pw.FontWeight.bold,
                             ),
                           ),
@@ -543,7 +555,10 @@ class SolarQuotationService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(
-                            'PROPOSAL PREPARED EXCLUSIVELY FOR:',
+                            tr(
+                              'PROPOSAL PREPARED EXCLUSIVELY FOR:',
+                              'ग्राहकाचा संपूर्ण तपशील (CUSTOMER DETAILS):',
+                            ),
                             style: pw.TextStyle(
                               color: navyColor,
                               fontSize: 7.2,
@@ -561,14 +576,14 @@ class SolarQuotationService {
                           ),
                           pw.SizedBox(height: 1.5),
                           pw.Text(
-                            'Site Location: ${quotation.address.isNotEmpty ? quotation.address : "Rooftop Site Location"}, ${quotation.villageCity.isNotEmpty ? quotation.villageCity : ""}, ${quotation.district.isNotEmpty ? quotation.district : "Dhule"}',
+                            '${tr("Site Location", "जागेचा पत्ता")}: ${quotation.address.isNotEmpty ? quotation.address : "Rooftop Site Location"}, ${quotation.villageCity.isNotEmpty ? quotation.villageCity : ""}, ${quotation.district.isNotEmpty ? quotation.district : "Dhule"}',
                             style: const pw.TextStyle(
                               color: slateBodyColor,
                               fontSize: 7.2,
                             ),
                           ),
                           pw.Text(
-                            'Consumer / CA No.: ${quotation.consumerNo.isNotEmpty ? quotation.consumerNo : "To be assigned"} | Mobile: ${quotation.mobileNo.isNotEmpty ? quotation.mobileNo : "N/A"}',
+                            '${tr("Consumer / CA No.", "ग्राहक क्र.")}: ${quotation.consumerNo.isNotEmpty ? quotation.consumerNo : "To be assigned"} | ${tr("Mobile", "मोबाईल")}: ${quotation.mobileNo.isNotEmpty ? quotation.mobileNo : "N/A"}',
                             style: const pw.TextStyle(
                               color: slateMutedColor,
                               fontSize: 6.8,
@@ -589,7 +604,10 @@ class SolarQuotationService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(
-                            'PROJECT REFERENCE DETAILS:',
+                            tr(
+                              'PROJECT REFERENCE DETAILS:',
+                              'प्रकल्प संदर्भ तपशील (PROJECT REFERENCE):',
+                            ),
                             style: pw.TextStyle(
                               color: navyColor,
                               fontSize: 7.2,
@@ -598,7 +616,7 @@ class SolarQuotationService {
                           ),
                           pw.SizedBox(height: 3),
                           pw.Text(
-                            'Proposal No.: ${quotation.quotationNo}',
+                            '${tr("Proposal No.", "कोटेशन क्र.")}: ${quotation.quotationNo}',
                             style: pw.TextStyle(
                               color: darkTextColor,
                               fontSize: 8.5,
@@ -607,7 +625,7 @@ class SolarQuotationService {
                           ),
                           pw.SizedBox(height: 1.5),
                           pw.Text(
-                            'Proposed System: ${quotation.systemCapacity} Grid-Connected Rooftop PV',
+                            '${tr("Proposed System", "प्रस्तावित सोलर")}: ${quotation.systemCapacity} Grid-Connected Rooftop PV',
                             style: pw.TextStyle(
                               color: emeraldColor,
                               fontSize: 7.5,
@@ -615,7 +633,7 @@ class SolarQuotationService {
                             ),
                           ),
                           pw.Text(
-                            'Date: ${quotation.formattedDate} | Validity: 30 Days from issuance',
+                            '${tr("Date", "दिनांक")}: ${quotation.formattedDate} | ${tr("Validity: 30 Days", "वैधता: ३० दिवस")}',
                             style: const pw.TextStyle(
                               color: slateMutedColor,
                               fontSize: 6.8,
@@ -671,7 +689,10 @@ class SolarQuotationService {
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
                         pw.Text(
-                          'PROJECT PROPOSAL & COMMERCIAL QUOTATION',
+                          tr(
+                            'PROJECT PROPOSAL & COMMERCIAL QUOTATION',
+                            'प्रकल्प प्रस्ताव व सोलर रूफटॉप कोटेशन',
+                          ),
                           style: pw.TextStyle(
                             color: PdfColors.white,
                             fontSize: 11.5,
@@ -681,7 +702,10 @@ class SolarQuotationService {
                         ),
                         pw.SizedBox(height: 2),
                         pw.Text(
-                          'Grid-Connected Rooftop Solar Photovoltaic (PV) System',
+                          tr(
+                            'Grid-Connected Rooftop Solar Photovoltaic (PV) System',
+                            'ऑन-ग्रिड रूफटॉप सोलर सिस्टीम (PM Surya Ghar)',
+                          ),
                           style: const pw.TextStyle(
                             color: PdfColor.fromInt(0xFFBAE6FD),
                             fontSize: 8.2,
@@ -716,7 +740,12 @@ class SolarQuotationService {
               pw.SizedBox(height: 12),
 
               // Customer Profile Card
-              _buildSectionHeader('CUSTOMER & INSTALLATION SITE DETAILS'),
+              _buildSectionHeader(
+                tr(
+                  'CUSTOMER & INSTALLATION SITE DETAILS',
+                  'ग्राहकाचा संपूर्ण तपशील व जागेचा पत्ता',
+                ),
+              ),
               pw.Container(
                 padding: const pw.EdgeInsets.all(10),
                 decoration: pw.BoxDecoration(
@@ -735,24 +764,24 @@ class SolarQuotationService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           _buildProfileRow(
-                            'Customer Name',
+                            tr('Customer Name', 'ग्राहकाचे नाव'),
                             quotation.customerName,
                             isBold: true,
                           ),
                           _buildProfileRow(
-                            'Consumer / CA No.',
+                            tr('Consumer / CA No.', 'ग्राहक क्रमांक (CA No.)'),
                             quotation.consumerNo.isNotEmpty
                                 ? quotation.consumerNo
                                 : 'To be provided for Net Metering',
                           ),
                           _buildProfileRow(
-                            'Contact Mobile',
+                            tr('Contact Mobile', 'मोबाईल क्र.'),
                             quotation.mobileNo.isNotEmpty
                                 ? quotation.mobileNo
                                 : 'N/A',
                           ),
                           _buildProfileRow(
-                            'Email Address',
+                            tr('Email Address', 'ईमेल पत्ता'),
                             (quotation.email != null &&
                                     quotation.email!.isNotEmpty)
                                 ? quotation.email!
@@ -773,23 +802,23 @@ class SolarQuotationService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           _buildProfileRow(
-                            'Installation Address',
+                            tr('Installation Address', 'जागेचा पत्ता'),
                             quotation.address.isNotEmpty
                                 ? quotation.address
                                 : 'Rooftop Site Location',
                           ),
                           _buildProfileRow(
-                            'Village / City',
+                            tr('Village / City', 'गाव / शहर'),
                             quotation.villageCity.isNotEmpty
                                 ? quotation.villageCity
                                 : 'N/A',
                           ),
                           _buildProfileRow(
-                            'District & State',
+                            tr('District & State', 'जिल्हा व राज्य'),
                             '${quotation.district.isNotEmpty ? quotation.district : "Dhule"}, Maharashtra',
                           ),
                           _buildProfileRow(
-                            'Tariff Category',
+                            tr('Tariff Category', 'जोडणी प्रकार'),
                             '${quotation.quotationType} Connection',
                           ),
                         ],
@@ -826,27 +855,29 @@ class SolarQuotationService {
               pw.SizedBox(height: 14),
 
               // Key System Highlights Grid (6 spacious cards)
-              _buildSectionHeader('KEY PROJECT HIGHLIGHTS'),
+              _buildSectionHeader(
+                tr('KEY PROJECT HIGHLIGHTS', 'मुख्य प्रकल्प वैशिष्ट्ये व सारांश'),
+              ),
               pw.Row(
                 children: [
                   _buildHighlightBox(
-                    'SYSTEM CAPACITY',
+                    tr('SYSTEM CAPACITY', 'सोलर क्षमता'),
                     quotation.systemCapacity,
-                    'DC Solar Capacity',
+                    tr('DC Solar Capacity', 'सोलर क्षमता'),
                     emeraldColor,
                   ),
                   pw.SizedBox(width: 8),
                   _buildHighlightBox(
-                    'ANNUAL GENERATION',
+                    tr('ANNUAL GENERATION', 'वार्षिक वीज निर्मिती'),
                     '${numberFormat.format(quotation.annualGenerationUnits.round())} Units',
-                    'Est. kWh / Year',
+                    tr('Est. kWh / Year', 'अंदाजित युनिट्स'),
                     navyColor,
                   ),
                   pw.SizedBox(width: 8),
                   _buildHighlightBox(
-                    'TOTAL PROJECT COST',
+                    tr('TOTAL PROJECT COST', 'एकूण प्रकल्प किंमत'),
                     inrIntFormatter.format(quotation.grandTotal),
-                    'Incl. 70:30 GST',
+                    tr('Turnkey Cost', 'जीएसटीसह'),
                     darkTextColor,
                   ),
                 ],
@@ -855,31 +886,31 @@ class SolarQuotationService {
               pw.Row(
                 children: [
                   _buildHighlightBox(
-                    'CENTRAL SUBSIDY',
+                    tr('CENTRAL SUBSIDY', 'शासकीय सबसिडी'),
                     quotation.subsidyAmount > 0
                         ? inrIntFormatter.format(quotation.subsidyAmount)
                         : 'N/A (Commercial)',
-                    'PM Surya Ghar Scheme',
+                    tr('PM Surya Ghar DBT', 'थेट बँक खात्यात'),
                     emeraldColor,
                   ),
                   pw.SizedBox(width: 8),
                   _buildHighlightBox(
-                    'NET EFFECTIVE COST',
+                    tr('NET EFFECTIVE COST', 'प्रत्यक्ष देय रक्कम'),
                     inrIntFormatter.format(
                       quotation.payableAfterSubsidy > 0
                           ? quotation.payableAfterSubsidy
                           : quotation.grandTotal,
                     ),
-                    'After Direct Subsidy',
+                    tr('After Direct Subsidy', 'सबसिडी वजा जाता'),
                     navyColor,
                   ),
                   pw.SizedBox(width: 8),
                   _buildHighlightBox(
-                    'SIMPLE PAYBACK',
+                    tr('SIMPLE PAYBACK', 'परतावा कालावधी'),
                     quotation.paybackYears > 0
                         ? '${quotation.paybackYears.toStringAsFixed(1)} Years'
                         : '3.5 Years',
-                    'High Lifetime ROI',
+                    tr('High Lifetime ROI', '२५ वर्षे मोफत वीज'),
                     goldenYellowColor,
                   ),
                 ],
@@ -924,7 +955,7 @@ class SolarQuotationService {
                 ),
                 child: pw.Column(
                   children: [
-                    _buildBoqHeaderRow(),
+                    _buildBoqHeaderRow(quotation.language),
                     if (quotation.items.isNotEmpty)
                       ...quotation.items.asMap().entries.map((entry) {
                         final idx = entry.key;
@@ -2191,9 +2222,14 @@ class SolarQuotationService {
 
               // Section 5: Required Document Checklist
               _buildSectionHeader(
-                'LOAN SANCTION DOCUMENTATION CHECKLIST',
-                subTitle:
-                    'Submit to Siya Infotech & Solar Energy for End-to-End Bank Liaisoning',
+                tr(
+                  'LOAN SANCTION DOCUMENTATION CHECKLIST',
+                  'बँक कर्जासाठी आवश्यक कागदपत्रे (चेकलिस्ट)',
+                ),
+                subTitle: tr(
+                  'Submit to Siya Infotech & Solar Energy for End-to-End Bank Liaisoning',
+                  'बँक कर्ज मंजुरीसाठी कागदपत्रे जमा करा',
+                ),
               ),
               pw.Container(
                 padding: const pw.EdgeInsets.all(7),
@@ -2406,7 +2442,11 @@ class SolarQuotationService {
     );
   }
 
-  static pw.Widget _buildBoqHeaderRow() {
+  static pw.Widget _buildBoqHeaderRow([String language = 'en']) {
+    final bool isBi = language == 'mr_en';
+    final bool isMr = language == 'mr';
+    String h(String en, String mr) => isMr ? mr : (isBi ? '$en / $mr' : en);
+
     return pw.Container(
       padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
       decoration: const pw.BoxDecoration(
@@ -2420,7 +2460,7 @@ class SolarQuotationService {
           pw.SizedBox(
             width: 20,
             child: pw.Text(
-              '#',
+              h('#', 'क्र.'),
               style: pw.TextStyle(
                 fontSize: 7.5,
                 fontWeight: pw.FontWeight.bold,
@@ -2431,7 +2471,7 @@ class SolarQuotationService {
           pw.SizedBox(
             width: 95,
             child: pw.Text(
-              'Item Component',
+              h('Item Component', 'साहित्य'),
               style: pw.TextStyle(
                 fontSize: 7.5,
                 fontWeight: pw.FontWeight.bold,
@@ -2442,7 +2482,7 @@ class SolarQuotationService {
           pw.SizedBox(
             width: 105,
             child: pw.Text(
-              'Company / Make (Brand)',
+              h('Company / Make', 'कंपनी / ब्रँड'),
               style: pw.TextStyle(
                 fontSize: 7.5,
                 fontWeight: pw.FontWeight.bold,
@@ -2452,7 +2492,7 @@ class SolarQuotationService {
           ),
           pw.Expanded(
             child: pw.Text(
-              'Technical Specification & Standard',
+              h('Technical Specification & Standard', 'तांत्रिक तपशील'),
               style: pw.TextStyle(
                 fontSize: 7.5,
                 fontWeight: pw.FontWeight.bold,
@@ -2463,7 +2503,7 @@ class SolarQuotationService {
           pw.SizedBox(
             width: 65,
             child: pw.Text(
-              'Quantity',
+              h('Quantity', 'नग'),
               style: pw.TextStyle(
                 fontSize: 7.5,
                 fontWeight: pw.FontWeight.bold,
@@ -2474,7 +2514,7 @@ class SolarQuotationService {
           pw.SizedBox(
             width: 95,
             child: pw.Text(
-              'Warranty Term',
+              h('Warranty Term', 'वॉरंटी'),
               style: pw.TextStyle(
                 fontSize: 7.5,
                 fontWeight: pw.FontWeight.bold,
@@ -3751,7 +3791,8 @@ class SolarQuotationService {
     SolarQuotation quotation, {
     bool includeStampAndSignature = true,
   }) async {
-    final pdf = pw.Document();
+    final pdfTheme = await SolarQuotationFontHelper.loadPdfTheme();
+    final pdf = pw.Document(theme: pdfTheme);
     final comp = MasterDataHub.company;
 
     // Load Company Logo
@@ -3790,6 +3831,13 @@ class SolarQuotationService {
       symbol: 'Rs. ',
       decimalDigits: 0,
     );
+
+    final String lang =
+        quotation.language.isNotEmpty ? quotation.language : 'mr_en';
+    final bool isMarathi = lang == 'mr';
+    final bool isEnglishOnly = lang == 'en';
+    String tr(String en, String mr) =>
+        isMarathi ? mr : (isEnglishOnly ? en : '$en / $mr');
 
     final double netAmountAfterSubsidy =
         (quotation.quotationType != 'Commercial' && quotation.subsidyAmount > 0)
@@ -3929,7 +3977,10 @@ class SolarQuotationService {
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
                         pw.Text(
-                          'NATIONALIZED BANK ROOFTOP SOLAR LOAN — EMI CALCULATION SHEET',
+                          tr(
+                            'NATIONALIZED BANK ROOFTOP SOLAR LOAN — EMI CALCULATION SHEET',
+                            'पीएम सूर्य घर बँक सोलर कर्ज हप्ता (EMI) पत्रक',
+                          ),
                           style: pw.TextStyle(
                             color: PdfColors.white,
                             fontSize: 9.5,
@@ -3937,7 +3988,10 @@ class SolarQuotationService {
                           ),
                         ),
                         pw.Text(
-                          'PM Surya Ghar Concessional Solar Financing Scheme (Loan on Net Cost Post-Subsidy)',
+                          tr(
+                            'PM Surya Ghar Concessional Solar Financing Scheme',
+                            'सुलभ राष्ट्रीयकृत बँक सोलर कर्ज योजना (SBI / Bank of Maharashtra / PNB)',
+                          ),
                           style: const pw.TextStyle(
                             color: PdfColor.fromInt(0xFFBAE6FD),
                             fontSize: 7.2,
@@ -3946,7 +4000,7 @@ class SolarQuotationService {
                       ],
                     ),
                     pw.Text(
-                      'Proposal No.: ${quotation.quotationNo}',
+                      '${tr("Proposal No.", "कोटेशन क्र.")}: ${quotation.quotationNo}',
                       style: pw.TextStyle(
                         color: PdfColors.white,
                         fontSize: 8.0,
@@ -3976,12 +4030,12 @@ class SolarQuotationService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           _buildProfileRow(
-                            'Applicant Name',
+                            tr('Applicant Name', 'ग्राहकाचे नाव'),
                             quotation.customerName,
                             isBold: true,
                           ),
                           _buildProfileRow(
-                            'Consumer / CA No.',
+                            tr('Consumer / CA No.', 'ग्राहक क्रमांक (CA No.)'),
                             quotation.consumerNo.isNotEmpty
                                 ? quotation.consumerNo
                                 : 'To be provided',
@@ -3994,12 +4048,12 @@ class SolarQuotationService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           _buildProfileRow(
-                            'Proposed System',
+                            tr('Proposed System', 'प्रस्तावित सोलर क्षमता'),
                             '${quotation.systemCapacity} Grid-Connected Rooftop PV',
                             isBold: true,
                           ),
                           _buildProfileRow(
-                            'Installation Site',
+                            tr('Installation Site', 'जागेचा पत्ता'),
                             '${quotation.address}, ${quotation.villageCity}',
                           ),
                         ],
@@ -4170,7 +4224,10 @@ class SolarQuotationService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(
-                            'DOCUMENT CHECKLIST: (Submit to Siya Infotech)',
+                            tr(
+                              'DOCUMENT CHECKLIST: (Submit to Siya Infotech)',
+                              'आवश्यक कागदपत्रे चेकलिस्ट: (सिया इन्फोटेककडे जमा करा)',
+                            ),
                             style: pw.TextStyle(
                               fontSize: 6.5,
                               fontWeight: pw.FontWeight.bold,

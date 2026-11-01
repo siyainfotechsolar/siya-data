@@ -74,8 +74,9 @@ class _SolarQuotationGeneratorDialogState
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // Language & Quotation Type
-  String _language = 'en'; // 100% Corporate English Proposal
+  // Language & Quotation Type (mr_en: Marathi + English Mix / स्थानिक भाषा)
+  String _language =
+      'mr_en'; // Default: Marathi + English Mix (लोकल भाषा - Local Language)
   String _quotationType = 'Residential'; // 'Residential' or 'Commercial'
 
   // Customer Details
@@ -336,7 +337,7 @@ class _SolarQuotationGeneratorDialogState
         q?.connectionType ?? 'LT Residential 1-Phase (230V)';
 
     if (q != null) {
-      _language = q.language;
+      _language = q.language.isNotEmpty ? q.language : 'mr_en';
       _quotationType = q.quotationType;
       _capacity = q.systemCapacity;
       _systemType = q.systemType;
@@ -1462,6 +1463,92 @@ class _SolarQuotationGeneratorDialogState
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFCBD5E1)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(
+                            Icons.translate_rounded,
+                            size: 16,
+                            color: Color(0xFF0F2D69),
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Quotation Language / भाषा पर्याय (स्थानिक / लोकल भाषा निवड):',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12.5,
+                              color: Color(0xFF0F2D69),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(
+                            value: 'mr_en',
+                            icon: Icon(Icons.language_rounded, size: 15),
+                            label: Text(
+                              'मराठी + English Mix (लोकल भाषा - शिफारस)',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          ButtonSegment(
+                            value: 'mr',
+                            label: Text(
+                              'मराठी (Pure Marathi)',
+                              style: TextStyle(fontSize: 11.5),
+                            ),
+                          ),
+                          ButtonSegment(
+                            value: 'en',
+                            label: Text(
+                              'English (Corporate)',
+                              style: TextStyle(fontSize: 11.5),
+                            ),
+                          ),
+                        ],
+                        selected: {_language},
+                        onSelectionChanged: (val) {
+                          setState(() {
+                            _language = val.first;
+                            _renderKey++;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _language == 'mr_en'
+                            ? '✓ निवडलेले: मराठी आणि इंग्रजी मिक्स — स्थानिक शेतकरी व ग्राहकांना सहज समजण्यासाठी सर्व तांत्रिक व आर्थिक तपशील मराठी व इंग्रजीत छापले जातील.'
+                            : (_language == 'mr'
+                                ? '✓ निवडलेले: संपूर्ण मराठी कोटेशन — सर्व तपशील स्थानिक मराठी भाषेत छापले जातील.'
+                                : '✓ Selected: Corporate English quotation for formal and corporate presentations.'),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: _language == 'mr_en'
+                              ? const Color(0xFF047857)
+                              : const Color(0xFF64748B),
+                          fontWeight: _language == 'mr_en'
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -2874,16 +2961,16 @@ class _SolarQuotationGeneratorDialogState
                           runSpacing: 4,
                           children: [
                             for (final suggestion in [
-                              'Aadhaar Card (Applicant KYC)',
-                              'PAN Card (Identity Verification)',
-                              'Electricity Bill / Light Bill (Latest Paid Bill)',
-                              '8A Utara (Land & Property Ownership Extract)',
-                              'Bank Passbook / Statement (Last 6 Months Records)',
-                              '7/12 Extract (Satbara Utara)',
-                              'House Tax Receipt (Ghar Patti)',
-                              'Passport Size Photographs (3 Copies)',
-                              'Salary Slip / ITR (Form 16)',
-                              'Solar Quotation & Undertaking',
+                              'Aadhaar Card (आधार कार्ड - KYC)',
+                              'PAN Card (पॅन कार्ड - Pan Card)',
+                              'Light Bill (लाईट बिल - Electricity Bill)',
+                              '8A Utara (८अ उतारा - Land Extract)',
+                              'Bank Passbook (बँक पासबुक - Passbook/Statement)',
+                              '7/12 Extract (७/१२ उतारा - Satbara Utara)',
+                              'House Tax Receipt (घरपट्टी पावती - Grampanchayat)',
+                              'Passport Size Photographs (३ पासपोर्ट फोटो)',
+                              'Salary Slip / Income Proof (उत्पन्नाचा दाखला / ITR)',
+                              'Solar Quotation & Undertaking (सोलर हमीपत्र)',
                             ])
                               ActionChip(
                                 label: Text(
