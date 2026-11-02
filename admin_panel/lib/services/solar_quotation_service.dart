@@ -966,8 +966,8 @@ class SolarQuotationService {
 
               // Section 1: Detailed BOQ
               _buildSectionHeader(
-                'BILL OF MATERIALS (BOQ) & TECHNICAL SPECIFICATIONS',
-                subTitle: 'Tier-1 MNRE / ALMM Approved Components',
+                tr('BILL OF MATERIALS (BOQ) & TECHNICAL SPECIFICATIONS', 'साहित्य यादी (BOQ) व तांत्रिक तपशील'),
+                subTitle: tr('Tier-1 MNRE / ALMM Approved Components', 'Tier-1 MNRE/ALMM मान्यताप्राप्त साहित्य'),
               ),
               pw.Container(
                 decoration: pw.BoxDecoration(
@@ -1024,18 +1024,19 @@ class SolarQuotationService {
                                               : 'Standard Component Warranty')));
                         return _buildBoqItemRow(
                           '${idx + 1}',
-                          it['item'] ?? '',
+                          _translateBoqItem(it['item'] ?? '', quotation.language),
                           make,
                           it['spec'] ?? '',
                           it['qty'] ?? '1 Set',
                           warranty,
                           isZebra: idx % 2 == 1,
+                          language: quotation.language,
                         );
                       })
                     else ...[
                       _buildBoqItemRow(
                         '1',
-                        'Solar PV Modules',
+                        _translateBoqItem('Solar PV Modules', quotation.language),
                         quotation.panelBrand.isNotEmpty
                             ? quotation.panelBrand
                             : 'Waaree / Adani / Goldi (DCR TopCon)',
@@ -1045,10 +1046,11 @@ class SolarQuotationService {
                         quotation.systemCapacity,
                         '25 Years Linear Performance Warranty',
                         isZebra: false,
+                        language: quotation.language,
                       ),
                       _buildBoqItemRow(
                         '2',
-                        'Grid-Tied Inverter',
+                        _translateBoqItem('Grid-Tied Inverter', quotation.language),
                         quotation.inverterBrand.isNotEmpty
                             ? quotation.inverterBrand
                             : 'Growatt / Solis / Polycab',
@@ -1056,10 +1058,11 @@ class SolarQuotationService {
                         '1 Set',
                         '5 Years Standard Replacement Warranty',
                         isZebra: true,
+                        language: quotation.language,
                       ),
                       _buildBoqItemRow(
                         '3',
-                        'Mounting Structure',
+                        _translateBoqItem('Mounting Structure', quotation.language),
                         'Hot Dip Galvanized Iron (GI)',
                         quotation.mountingStructure.isNotEmpty
                             ? quotation.mountingStructure
@@ -1067,51 +1070,57 @@ class SolarQuotationService {
                         'Complete Roof Set',
                         '10 Years Structural Integrity Warranty',
                         isZebra: false,
+                        language: quotation.language,
                       ),
                       _buildBoqItemRow(
                         '4',
-                        'DC Distribution Box',
+                        _translateBoqItem('DC Distribution Box', quotation.language),
                         'Hensel / Elmex / Schneider',
                         'IP65 Weatherproof Enclosure with 1000V DC Fuses and Type-II Surge Protection Devices (SPD)',
                         '1 Set',
                         '2 Years Equipment Warranty',
                         isZebra: true,
+                        language: quotation.language,
                       ),
                       _buildBoqItemRow(
                         '5',
-                        'AC Distribution Box',
+                        _translateBoqItem('AC Distribution Box', quotation.language),
                         'Hensel / Elmex / Schneider',
                         'IP65 Weatherproof Enclosure with Heavy-Duty MCB / Isolator and AC Surge Protection Devices',
                         '1 Set',
                         '2 Years Equipment Warranty',
                         isZebra: false,
+                        language: quotation.language,
                       ),
                       _buildBoqItemRow(
                         '6',
-                        'Solar DC & AC Cables',
+                        _translateBoqItem('Solar DC & AC Cables', quotation.language),
                         'Polycab / Havells / KEI',
                         '4 sq.mm / 6 sq.mm UV-resistant, Flame Retardant (FRLS) Cu/Al Cables enclosed in UV conduit pipes',
                         'As per site layout',
                         '5 Years Manufacturer Warranty',
                         isZebra: true,
+                        language: quotation.language,
                       ),
                       _buildBoqItemRow(
                         '7',
-                        'Earthing & Lightning Kit',
+                        _translateBoqItem('Earthing & Lightning Kit', quotation.language),
                         'True Power / Ashlok',
                         'Chemical Gel Earthing Electrodes (Inverter, Structure & LA) + Early Streamer Lightning Arrester',
                         '3 Pits + 1 Arrester',
                         '5 Years Functional Warranty',
                         isZebra: false,
+                        language: quotation.language,
                       ),
                       _buildBoqItemRow(
                         '8',
-                        'Bi-Directional Net Meter',
+                        _translateBoqItem('Bi-Directional Net Meter', quotation.language),
                         'MSEDCL / Discom Approved',
                         'MSEDCL Approved Dual-Register Import/Export Smart Energy Meter',
                         '1 Unit',
                         'Standard Utility Warranty',
                         isZebra: true,
+                        language: quotation.language,
                       ),
                     ],
                   ],
@@ -1122,8 +1131,8 @@ class SolarQuotationService {
 
               // Section 2: Statutory 70:30 GST Breakdown
               _buildSectionHeader(
-                'STATUTORY 70:30 GST FINANCIAL BREAKDOWN',
-                subTitle: 'Ministry of Finance Mandated Ratio',
+                tr('STATUTORY 70:30 GST FINANCIAL BREAKDOWN', 'सरकारी ७०:३० GST आर्थिक विभाजन'),
+                subTitle: tr('Ministry of Finance Mandated Ratio', 'वित्त मंत्रालय निर्धारित गुणोत्तर'),
               ),
               pw.Container(
                 padding: const pw.EdgeInsets.all(10),
@@ -2573,6 +2582,30 @@ class SolarQuotationService {
     );
   }
 
+  /// Translates BOQ item name to bilingual (English / मराठी) for mr_en language mode.
+  static String _translateBoqItem(String englishName, String language) {
+    if (language != 'mr_en' && language != 'mr') return englishName;
+    const Map<String, String> _boqMr = {
+      'Solar PV Modules': 'सोलर पॅनेल्स',
+      'Grid-Tied Inverter': 'ग्रिड इन्व्हर्टर',
+      'Mounting Structure': 'माउंटिंग स्ट्रक्चर',
+      'DC Cable': 'DC केबल',
+      'AC Cable': 'AC केबल',
+      'ACDB & DCDB': 'ACDB व DCDB',
+      'DC Distribution Box': 'DC वितरण बॉक्स',
+      'AC Distribution Box': 'AC वितरण बॉक्स',
+      'Solar DC & AC Cables': 'DC व AC केबल्स',
+      'Earthing Electrodes': 'अर्थिंग इलेक्ट्रोड',
+      'Earthing & Lightning Kit': 'अर्थिंग व लाइटनिंग',
+      'Installation & Commissioning': 'बसवणे व चालू करणे',
+      'Net Metering Assistance': 'नेट मीटर सहाय्य',
+      'Bi-Directional Net Meter': 'द्विदिशा नेट मीटर',
+    };
+    final mr = _boqMr[englishName];
+    if (mr == null || mr.isEmpty) return englishName;
+    return language == 'mr' ? mr : '$englishName\n$mr';
+  }
+
   static pw.Widget _buildBoqHeaderRow([String language = 'en']) {
     final bool isBi = language == 'mr_en';
     final bool isMr = language == 'mr';
@@ -2666,6 +2699,7 @@ class SolarQuotationService {
     String qty,
     String warranty, {
     bool isZebra = false,
+    String language = 'en',
   }) {
     return pw.Container(
       padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
