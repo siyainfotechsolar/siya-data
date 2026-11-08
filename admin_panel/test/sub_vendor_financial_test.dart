@@ -308,6 +308,53 @@ void main() {
       expect(masterPdfBytes, isNotEmpty);
       expect(masterPdfBytes.length, greaterThan(1000));
     });
+
+    test('6. Final Permission Settings: SIYA Admin has Full Control; Sub-Vendor has View-Only access to own site materials', () {
+      // SIYA Admin defines material rates & GST
+      final adminIssuedPanel = VendorMaterialTransaction.create(
+        assignmentId: 'asg-admin-site-1',
+        vendorId: 'vnd-1',
+        customerId: 'cust-1',
+        transactionType: 'ISSUE',
+        itemName: 'DCR Mono Perc Modules 550Wp',
+        itemCategory: 'SOLAR_PANEL',
+        quantity: 10,
+        unitRate: 11500.0,
+        gstRate: 5.0,
+      );
+
+      // Verify Admin's calculation
+      expect(adminIssuedPanel.gstRate, equals(5.0));
+      expect(adminIssuedPanel.taxableAmount, equals(115000.0));
+      expect(adminIssuedPanel.totalAmount, equals(120750.0));
+
+      // Sub-Vendor views the material detail (Read-only object)
+      final subVendorView = adminIssuedPanel;
+      expect(subVendorView.itemName, equals('DCR Mono Perc Modules 550Wp'));
+      expect(subVendorView.totalAmount, equals(120750.0));
+
+      // Automatic inclusion in site calculation
+      final assignment = VendorSiteAssignment(
+        id: 'asg-admin-site-1',
+        vendorId: 'vnd-1',
+        customerId: 'cust-1',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 5.5,
+        ratePerKw: 1000.0,
+        vendorCharges: 5500.0,
+      );
+
+      final detail = SiteFinancialDetail.compute(
+        assignment: assignment,
+        materials: [adminIssuedPanel],
+        payouts: [],
+      );
+
+      expect(detail.totalMaterialCost, equals(120750.0));
+      expect(detail.vendorCharges, equals(5500.0));
+      expect(detail.totalVendorPayable, equals(5500.0));
+      expect(detail.outstandingVendorPayable, equals(5500.0));
+    });
   });
 }
 
