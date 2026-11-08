@@ -1549,15 +1549,41 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                         Text('(${v.vendorCode})', style: const TextStyle(color: Colors.grey)),
                       ],
                     ),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.picture_as_pdf, size: 14),
-                      label: const Text('Export Statement'),
-                      style: ElevatedButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        backgroundColor: const Color(0xFF0D2B6F),
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: () => SubVendorPdfService.printOrShareVendorOverallStatement(summary, vendor: v),
+                    Row(
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.calculate, size: 14),
+                          label: const Text('Settlement Calculator'),
+                          style: ElevatedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            backgroundColor: const Color(0xFF2563EB),
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () {
+                            if (vendorAssignments.isNotEmpty) {
+                              showDialog(
+                                context: context,
+                                builder: (_) => SubVendorFinalSettlementCalculatorDialog(assignment: vendorAssignments.first),
+                              ).then((_) => _loadAllData());
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('No sites assigned to this sub-vendor yet.')),
+                              );
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.picture_as_pdf, size: 14),
+                          label: const Text('Export Statement'),
+                          style: ElevatedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            backgroundColor: const Color(0xFF0D2B6F),
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () => SubVendorPdfService.printOrShareVendorOverallStatement(summary, vendor: v),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1566,10 +1592,10 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                   children: [
                     _sumBox('Sites', '${summary.totalAssignedSites} (${summary.completedSites} Done)'),
                     _sumBox('Capacity', '${summary.totalCapacityKw} kW'),
-                    _sumBox('Net Material Cost', _currency.format(summary.totalMaterialCost)),
-                    _sumBox('Vendor Charges', _currency.format(summary.totalVendorCharges)),
-                    _sumBox('Total Paid', _currency.format(summary.totalPaidAmount)),
-                    _sumBox('Outstanding Due', _currency.format(summary.outstandingSettlement), isHighlight: true),
+                    _sumBox('Collection', _currency.format(summary.effectiveTotalCollection)),
+                    _sumBox('Material Cost', '- ${_currency.format(summary.totalMaterialCost)}'),
+                    _sumBox('SIYA Fee', '- ${_currency.format(summary.totalVendorCharges)}'),
+                    _sumBox('Net Due', _currency.format(summary.netSettlementPayable), isHighlight: true),
                   ],
                 ),
               ],

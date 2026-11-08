@@ -43,7 +43,19 @@ class SiteFinancialDetail {
 
   // Payouts & Settlement to Sub-Vendor
   final double totalPaidToVendor;
-  final double outstandingVendorPayable; // totalVendorPayable - totalPaidToVendor
+  final double outstandingVendorPayable; // legacy vendor charges minus paid
+
+  /// Effective collection realized (Bank loan credited + customer cash) or total site quotation
+  double get effectiveCollection => amountReceivedBySiya > 0 ? amountReceivedBySiya : totalSiteAmount;
+
+  /// Net balance payable to Sub-Vendor under Net Balance model:
+  /// (Collection - Material Cost - SIYA Charges - Expenses - Paid to Vendor)
+  double get netSubVendorBalance {
+    if (effectiveCollection > 0) {
+      return double.parse((effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - totalPaidToVendor).toStringAsFixed(2));
+    }
+    return outstandingVendorPayable;
+  } // totalVendorPayable - totalPaidToVendor
 
   const SiteFinancialDetail({
     required this.assignment,
@@ -210,6 +222,18 @@ class VendorFinancialSummary {
   // Payments & Balance to Vendor
   final double totalPaidAmount;
   final double outstandingSettlement; // totalSettlementAmount - totalPaidAmount
+
+  /// Total customer collection realized (or site quotations if pending collection)
+  double get effectiveTotalCollection => totalCustomerCollection > 0 ? totalCustomerCollection : totalSiteAmount;
+
+  /// Net Sub-Vendor settlement balance after deducting Material Cost and SIYA Charges from Collections:
+  /// (Total Collections - Total Material Cost - Total SIYA Charges - Expenses - Total Paid)
+  double get netSettlementPayable {
+    if (effectiveTotalCollection > 0 && totalMaterialCost > 0) {
+      return double.parse((effectiveTotalCollection - totalMaterialCost - totalVendorCharges - totalOtherExpenses - totalPaidAmount).toStringAsFixed(2));
+    }
+    return outstandingSettlement;
+  }
 
   // Site-by-site breakdown
   final List<SiteFinancialDetail> siteDetails;
