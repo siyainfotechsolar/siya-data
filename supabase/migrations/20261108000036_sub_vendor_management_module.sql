@@ -556,3 +556,4 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.admin_create_sub_vendor TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_set_vendor_status TO authenticated;
+

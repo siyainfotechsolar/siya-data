@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/record_service.dart';
 import '../services/supabase_service.dart';
 import 'home_screen.dart';
+import 'sub_vendor_dashboard_screen.dart';
 
 class MobileLoginScreen extends StatefulWidget {
   const MobileLoginScreen({super.key});
@@ -78,8 +80,15 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     });
 
     try {
-      final email = _emailController.text.trim();
+      final input = _emailController.text.trim();
       final password = _passwordController.text;
+
+      // Automatically support 10-digit mobile number or Vendor ID username login
+      String email = input;
+      if (!email.contains('@')) {
+        final clean = email.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').toLowerCase();
+        email = '$clean@vendor.siyasolar.com';
+      }
 
       await SupabaseService.signInWithEmailPassword(
         email: email,
@@ -91,7 +100,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
         final prefs = await SharedPreferences.getInstance();
         if (_rememberPassword) {
           await prefs.setBool(_prefKeyRememberPassword, true);
-          await prefs.setString(_prefKeySavedEmail, email);
+          await prefs.setString(_prefKeySavedEmail, input);
           await prefs.setString(_prefKeySavedPassword, password);
         } else {
           await prefs.setBool(_prefKeyRememberPassword, false);
@@ -103,6 +112,21 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
       }
 
       TextInput.finishAutofillContext();
+
+      // Check role & navigate to appropriate screen
+      final user = SupabaseService.currentUser;
+      if (user != null) {
+        final profile = await MobileRecordService.getCurrentStaffProfile();
+        final role = profile?['role']?.toString().toLowerCase();
+        if (role == 'sub_vendor' || role == 'vendor') {
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const SubVendorMobileDashboardScreen()),
+            );
+          }
+          return;
+        }
+      }
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -301,12 +325,13 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                                   keyboardType: TextInputType.emailAddress,
                                   autofillHints: const [AutofillHints.email, AutofillHints.username],
                                   decoration: InputDecoration(
-                                    labelText: 'Staff Email',
+                                    labelText: 'Mobile Number / Vendor ID / Email',
+                                    hintText: 'e.g. 9822334455 or staff@siyasolar.com',
                                     prefixIcon: const Icon(Icons.person_outline),
                                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                   ),
                                   validator: (val) =>
-                                      (val == null || !val.contains('@')) ? 'Valid email required' : null,
+                                      (val == null || val.trim().isEmpty) ? 'Please enter mobile, vendor ID or email' : null,
                                 ),
                                 const SizedBox(height: 16),
                                 TextFormField(
