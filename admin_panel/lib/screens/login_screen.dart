@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/supabase_service.dart';
 import 'dashboard_screen.dart';
+import 'sub_vendor_dashboard_screen.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
@@ -99,9 +100,16 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         }
 
         if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
-          );
+          final role = (profile?['role'] as String? ?? 'staff').toLowerCase();
+          if (role == 'sub_vendor') {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const SubVendorDashboardScreen()),
+            );
+          } else {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+            );
+          }
         }
       } catch (_) {
         await SupabaseService.signOut();
@@ -161,8 +169,14 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final email = _emailController.text.trim();
+    final rawInput = _emailController.text.trim();
     final password = _passwordController.text;
+
+    // Support Mobile Number or Vendor ID / Username login by resolving to email
+    String email = rawInput;
+    if (!rawInput.contains('@')) {
+      email = '${rawInput.toLowerCase()}@vendor.siyasolar.com';
+    }
 
     setState(() {
       _isLoading = true;
@@ -247,11 +261,18 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
       TextInput.finishAutofillContext();
 
-      // 6. Navigate to Admin Dashboard
+      // 6. Navigate based on Role (Sub-Vendor -> SubVendorDashboardScreen, Admin -> AdminDashboardScreen)
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
-        );
+        final role = (profile?['role'] as String? ?? 'staff').toLowerCase();
+        if (role == 'sub_vendor') {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const SubVendorDashboardScreen()),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+          );
+        }
       }
     } catch (e) {
       final userMessage = _mapAuthError(e);

@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/solar_quotation.dart';
 import 'company_stamp_helper.dart';
 import 'customer_signature_helper.dart';
+import 'solar_quotation_font_helper.dart';
 import 'package:siya_shared/siya_shared.dart';
 import 'settings_service.dart';
 
@@ -62,7 +63,8 @@ class BankLoanQuotationService {
     bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
   }) async {
-    final pdf = pw.Document();
+    final pdfTheme = await SolarQuotationFontHelper.loadPdfTheme();
+    final pdf = pw.Document(theme: pdfTheme);
 
     pw.Font? customerSignatureFont;
     if (includeCustomerSignature) {

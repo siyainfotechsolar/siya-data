@@ -7,6 +7,7 @@ class UserRole {
   static const String installationStaff = 'installation_staff';
   static const String accounts = 'accounts';
   static const String viewer = 'viewer';
+  static const String subVendor = 'sub_vendor';
 
   static const List<String> allRoles = [
     superAdmin,
@@ -17,6 +18,7 @@ class UserRole {
     installationStaff,
     accounts,
     viewer,
+    subVendor,
   ];
 
   static String displayName(String role) {
@@ -26,6 +28,8 @@ class UserRole {
         return 'Owner / Super Admin';
       case 'admin':
         return 'Admin';
+      case 'sub_vendor':
+        return 'Sub-Vendor';
       case 'office_staff':
         return 'Office Staff';
       case 'sales':
@@ -135,6 +139,14 @@ class UserRole {
           'reports': ['view'],
         };
 
+      case 'sub_vendor':
+        return {
+          'vendor_dashboard': ['view'],
+          'assigned_sites': ['view', 'update_status'],
+          'materials': ['view'],
+          'settlement': ['view', 'download_pdf'],
+        };
+
       case 'staff':
       default:
         return {
@@ -185,7 +197,8 @@ class UserProfile {
   bool get isAdmin =>
       role == 'admin' || role == 'super_admin' || role == 'owner';
   bool get isSuperAdmin => role == 'super_admin' || role == 'owner';
-  bool get isStaff => !isAdmin;
+  bool get isSubVendor => role.toLowerCase() == UserRole.subVendor;
+  bool get isStaff => !isAdmin && !isSubVendor;
 
   bool get isSuspended => status.toUpperCase() == 'SUSPENDED';
   bool get isInactive => status.toUpperCase() == 'INACTIVE' || !isActive;

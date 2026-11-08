@@ -101,8 +101,8 @@ class SolarQuotationFontHelper {
     final latinBold = pw.Font.helveticaBold();
 
     return pw.ThemeData.withFont(
-      base: latinRegular,
-      bold: latinBold,
+      base: devanagariRegular,
+      bold: devanagariBold,
       fontFallback: [devanagariRegular, devanagariBold, latinRegular, latinBold],
     );
   }

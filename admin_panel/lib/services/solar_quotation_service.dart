@@ -392,7 +392,7 @@ class SolarQuotationService {
                           pw.Text(
                             tr(
                               'Authorized Solar EPC & Channel Partner | PM Surya Ghar: Muft Bijli Yojana',
-                              'अधिकृत सोलर ईपीसी पार्टनर | पीएम सूर्य घर: मोफत वीज योजना',
+                              'मान्यताप्राप्त सोलर ईपीसी पार्टनर | पीएम सूर्य घर: मोफत वीज योजना',
                             ),
                             style: pw.TextStyle(
                               color: emeraldColor,
@@ -866,7 +866,7 @@ class SolarQuotationService {
                       ? 'We thank you for considering SIYA INFOTECH & SOLAR ENERGY as your solar energy partner. We are pleased to submit this comprehensive proposal for the design, engineering, procurement, supply, installation, testing, and commissioning of a high-efficiency ${quotation.systemCapacity} Grid-Tied Solar Rooftop System.\n\n'
                         'This customized proposal integrates premium Tier-1 solar modules with 25-year performance warranties, high-efficiency grid-tied inverters with digital monitoring, and wind-resilient galvanized structures. It is specifically designed to eliminate up to 90% of your monthly electricity expenditure while securing central government subsidies under the PM Surya Ghar: Muft Bijli Yojana.'
                       : 'सिया इन्फोटेक & सोलर एनर्जी (SIYA INFOTECH & SOLAR ENERGY) सोबत संपर्क केल्याबद्दल मनःपूर्वक धन्यवाद. आपल्या निवासस्थानासाठी उच्च कार्यक्षमतेची ${quotation.systemCapacity} ऑन-ग्रिड सोलर रूफटॉप सिस्टीम (PM Surya Ghar) बसविण्याचा हा संपूर्ण प्रकल्प प्रस्ताव सादर करत आहोत.\n\n'
-                        'या प्रस्तावात २५ वर्षांची वॉरंटी असलेले Tier-1 DCR सोलर पॅनेल्स, अत्याधुनिक इन्व्हर्टर आणि वादळ-प्रतिरोधक GI स्ट्रक्चरचा समावेश आहे. यामुळे तुमचे मासिक वीज बिल ९०% पर्यंत कमी होईल आणि पीएम सूर्य घर योजनेअंतर्गत ₹७८,००० थेट शासकीय सबसिडी (DBT Subsidy) तसेच राष्ट्रीयकृत बँकेचे सुलभ कर्ज उपलब्ध होईल.',
+                        'या प्रस्तावात २५ वर्षांची वॉरंटी असलेले Tier-1 DCR सोलर पॅनेल्स, अत्याधुनिक इन्व्हर्टर आणि वादळ-प्रतिरोधक GI स्ट्रक्चरचा समावेश आहे. यामुळे तुमचे मासिक वीज बिल ९०% पर्यंत कमी होईल आणि पीएम सूर्य घर योजनेअंतर्गत ₹७८,००० थेट शासकीय सबसिडी (DBT Subsidy) तसेच सरकारी व प्रमुख बँकांचे सुलभ कर्ज उपलब्ध होईल.',
                   style: const pw.TextStyle(
                     color: slateBodyColor,
                     fontSize: 7.8,
@@ -891,7 +891,7 @@ class SolarQuotationService {
                   ),
                   pw.SizedBox(width: 8),
                   _buildHighlightBox(
-                    tr('ANNUAL GENERATION', 'वार्षिक वीज निर्मिती'),
+                    tr('ANNUAL GENERATION', 'वार्षिक वीज उत्पादन'),
                     '${numberFormat.format(quotation.annualGenerationUnits.round())} Units',
                     tr('Est. kWh / Year', 'अंदाजित युनिट्स'),
                     navyColor,
@@ -1346,7 +1346,7 @@ class SolarQuotationService {
 
               // Section 1: Seasonal Performance Infographic Banner
               _buildSectionHeader(
-                tr('ROOFTOP SOLAR SEASONAL GENERATION', 'ऋतूनुसार सोलर वीज निर्मिती'),
+                tr('ROOFTOP SOLAR SEASONAL GENERATION', 'हंगामानुसार सोलर वीज उत्पादन'),
                 subTitle: tr('Summer, Monsoon & Winter Trends', 'उन्हाळा, पावसाळा व हिवाळा कल'),
               ),
               if (seasonalBannerImage != null) ...[
@@ -1382,8 +1382,8 @@ class SolarQuotationService {
 
               // Section 3: 2-Column Monthly Yield & Financial Savings Table
               _buildSectionHeader(
-                tr('12-MONTH DETAILED GENERATION SCHEDULE', '१२ महिन्यांचे सविस्तर वीज निर्मिती कोष्टक'),
-                subTitle: tr('Generation (kWh) & Monthly Savings', 'वीज निर्मिती व मासिक बचत'),
+                tr('12-MONTH DETAILED GENERATION SCHEDULE', '१२ महिन्यांचे सविस्तर वीज उत्पादन कोष्टक'),
+                subTitle: tr('Generation (kWh) & Monthly Savings', 'वीज उत्पादन व मासिक बचत'),
               ),
               _buildMonthlyGenerationTable(
                 monthlyYields,
@@ -1433,7 +1433,7 @@ class SolarQuotationService {
 
               // Section 5: Performance Assurance Card
               _buildSectionHeader(
-                tr('SYSTEM PERFORMANCE & GENERATION ASSURANCES', 'सोलर कार्यक्षमता व निर्मिती हमी'),
+                tr('SYSTEM PERFORMANCE & GENERATION ASSURANCES', 'सोलर कार्यक्षमता व उत्पादन हमी'),
                 subTitle: tr('25 Years Assurance', '२५ वर्षे शाश्वत कामगिरी'),
               ),
               pw.Container(
@@ -1491,7 +1491,7 @@ class SolarQuotationService {
 
               _buildSectionHeader(
                 tr('ON-GRID ROOFTOP SOLAR SYSTEM ARCHITECTURE', 'ऑन-ग्रिड सोलर रूफटॉप कार्यप्रणाली'),
-                subTitle: tr('Generation, Consumption & Net Metering', 'वीज निर्मिती, वापर व नेट मीटरिंग'),
+                subTitle: tr('Generation, Consumption & Net Metering', 'वीज उत्पादन, वापर व नेट मीटरिंग'),
               ),
 
               pw.SizedBox(height: 4),
@@ -1728,7 +1728,7 @@ class SolarQuotationService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(
-                            tr('Option B: Concessional Solar Bank Loan', 'पर्याय ब: राष्ट्रीयकृत बँक सोलर कर्ज'),
+                            tr('Option B: Concessional Solar Bank Loan', 'पर्याय ब: सरकारी बँक सोलर कर्ज'),
                             style: pw.TextStyle(
                               fontSize: 8.5,
                               fontWeight: pw.FontWeight.bold,
@@ -1737,7 +1737,7 @@ class SolarQuotationService {
                           ),
                           pw.SizedBox(height: 4),
                           _buildBulletPoint(
-                            tr('Nationalized bank solar rooftop loan up to 90% of project cost.', 'राष्ट्रीयकृत बँकेकडून सोलर रूफटॉपसाठी सुलभ कर्ज मंजुरी.'),
+                            tr('Nationalized bank solar rooftop loan up to 90% of project cost.', 'सरकारी बँकेकडून सोलर रूफटॉपसाठी सुलभ कर्ज मंजुरी.'),
                           ),
                           _buildBulletPoint(
                             tr('Concessional interest rate: ${quotation.annualInterestRate.toStringAsFixed(1)}% p.a. (Tenure: ${quotation.loanTenureMonths} Months).', 'सवलतीचा व्याजदर: ${quotation.annualInterestRate.toStringAsFixed(1)}% प्रतिवर्ष (कालावधी: ${quotation.loanTenureMonths} महिने).'),
@@ -1756,8 +1756,8 @@ class SolarQuotationService {
 
               // Bank Details Card
               _buildSectionHeader(
-                tr('COMPANY BANK ACCOUNT (FOR DISBURSEMENT / RTGS / NEFT)', 'कंपनीचे अधिकृत बँक खाते (कर्ज वितरण / RTGS / NEFT साठी)'),
-                subTitle: tr('Official EPC Account', 'अधिकृत बँक खाते'),
+                tr('COMPANY BANK ACCOUNT (FOR DISBURSEMENT / RTGS / NEFT)', 'कंपनीचे बँक खाते (कर्ज वितरण / RTGS / NEFT साठी)'),
+                subTitle: tr('Official EPC Account', 'कंपनीचे बँक खाते'),
               ),
               pw.Container(
                 padding: const pw.EdgeInsets.symmetric(
@@ -1855,7 +1855,7 @@ class SolarQuotationService {
                       _buildTermBullet(
                         tr(
                           '3. Grid Approval & Net Metering: All liaisoning with MSEDCL / Discom handled turnkey by Siya Infotech & Solar Energy.',
-                          '३. नेट मीटर व परवानग्या: महावितरण (MSEDCL) कडील सर्व अर्ज व अधिकृत परवानग्या सिया इन्फोटेक पूर्ण करून देईल.',
+                          '३. नेट मीटर व परवानग्या: महावितरण (MSEDCL) कडील सर्व अर्ज व शासकीय परवानग्या सिया इन्फोटेक पूर्ण करून देईल.',
                         ),
                       ),
                       _buildTermBullet(
@@ -1944,7 +1944,7 @@ class SolarQuotationService {
                           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                           children: [
                             pw.Text(
-                              tr('Authorized Signature: ____________', 'अधिकृत सही: ____________'),
+                              tr('Authorized Signature: ____________', 'कंपनी सही व शिक्का: ____________'),
                               style: const pw.TextStyle(
                                 fontSize: 6.8,
                                 color: slateMutedColor,
@@ -2297,7 +2297,7 @@ class SolarQuotationService {
 
               // Section 4: Empanelled Nationalized Banks
               _buildSectionHeader(
-                tr('EMPANELLED NATIONALIZED BANKS & SCHEME FEATURES', 'अधिकृत राष्ट्रीयकृत बँका व सोलर कर्ज योजना'),
+                tr('EMPANELLED NATIONALIZED BANKS & SCHEME FEATURES', 'मान्यताप्राप्त सरकारी बँका व सोलर कर्ज योजना'),
                 subTitle: tr('Concessional Solar Loans', 'कमी व्याजदराची बँक कर्जे'),
               ),
               pw.Container(
@@ -4158,7 +4158,7 @@ class SolarQuotationService {
                         pw.Text(
                           tr(
                             'PM Surya Ghar Concessional Solar Financing Scheme',
-                            'सुलभ राष्ट्रीयकृत बँक सोलर कर्ज योजना (SBI / Bank of Maharashtra / PNB)',
+                            'सुलभ सरकारी बँक सोलर कर्ज योजना (SBI / Bank of Maharashtra / PNB)',
                           ),
                           style: const pw.TextStyle(
                             color: PdfColor.fromInt(0xFFBAE6FD),
@@ -4322,12 +4322,12 @@ class SolarQuotationService {
                       child: pw.Text(
                         isLoanOnProjectCost
                             ? tr(
-                                '• Direct Subsidy Credit: Under PM Surya Ghar, central subsidy of ${inrIntFormatter.format(quotation.subsidyAmount)} is deposited directly to your bank account via DBT post net metering, substantially easing your finances.',
-                                '• थेट सबसिडी जमा: पीएम सूर्य घर योजनेअंतर्गत ${inrIntFormatter.format(quotation.subsidyAmount)} शासकीय सबसिडी थेट बँक खात्यात DBT द्वारे जमा होते, ज्यामुळे कर्जाचा भार अत्यंत हलका होतो.',
+                                '- Direct Subsidy Credit: Under PM Surya Ghar, central subsidy of ${inrIntFormatter.format(quotation.subsidyAmount)} is deposited directly to your bank account via DBT post net metering, substantially easing your finances.',
+                                '- थेट सबसिडी जमा: पीएम सूर्य घर योजनेअंतर्गत ${inrIntFormatter.format(quotation.subsidyAmount)} शासकीय सबसिडी थेट बँक खात्यात DBT द्वारे जमा होते, ज्यामुळे कर्जाचा भार अत्यंत हलका होतो.',
                               )
                             : tr(
-                                '• Lower Monthly EMI: Availing loan on net cost (${inrIntFormatter.format(netAmountAfterSubsidy)}) drops EMI to just ${inrIntFormatter.format(loan120['emi'] ?? 0)}/mo (10-Year tenure, 120 Months), keeping financing light.',
-                                '• कमी मासिक हप्ता: निव्वळ रकमेवर कर्ज घेतल्यास हप्ता फक्त ${inrIntFormatter.format(loan120['emi'] ?? 0)}/महिना (१२० महिने) येतो.',
+                                '- Lower Monthly EMI: Availing loan on net cost (${inrIntFormatter.format(netAmountAfterSubsidy)}) drops EMI to just ${inrIntFormatter.format(loan120['emi'] ?? 0)}/mo (10-Year tenure, 120 Months), keeping financing light.',
+                                '- कमी मासिक हप्ता: निव्वळ रकमेवर कर्ज घेतल्यास हप्ता फक्त ${inrIntFormatter.format(loan120['emi'] ?? 0)}/महिना (१२० महिने) येतो.',
                               ),
                         style: const pw.TextStyle(
                           fontSize: 6.5,
@@ -4340,8 +4340,8 @@ class SolarQuotationService {
                     pw.Expanded(
                       child: pw.Text(
                         tr(
-                          '• 100% Self-Financing: Monthly electricity bill savings (${inrIntFormatter.format(monthlySolarSavings)}/mo) comfortably exceed EMI (${inrIntFormatter.format(loan120['emi'] ?? 0)}/mo), giving instant net surplus in your pocket from Month 1!',
-                          '• १००% स्व-फेडणारा प्रकल्प: दरमहा वीज बिल बचत (${inrIntFormatter.format(monthlySolarSavings)}/महिना) हप्त्यापेक्षा (${inrIntFormatter.format(loan120['emi'] ?? 0)}/महिना) जास्त असल्याने पहिल्याच महिन्यापासून निव्वळ नफा मिळतो!',
+                          '- 100% Self-Financing: Monthly electricity bill savings (${inrIntFormatter.format(monthlySolarSavings)}/mo) comfortably exceed EMI (${inrIntFormatter.format(loan120['emi'] ?? 0)}/mo), giving instant net surplus in your pocket from Month 1!',
+                          '- १००% स्व-फेडणारा प्रकल्प: दरमहा वीज बिल बचत (${inrIntFormatter.format(monthlySolarSavings)}/महिना) हप्त्यापेक्षा (${inrIntFormatter.format(loan120['emi'] ?? 0)}/महिना) जास्त असल्याने पहिल्याच महिन्यापासून निव्वळ नफा मिळतो!',
                         ),
                         style: const pw.TextStyle(
                           fontSize: 6.5,
@@ -4358,7 +4358,7 @@ class SolarQuotationService {
 
               // Empanelled Banks
               _buildSectionHeader(
-                tr('EMPANELLED NATIONALIZED BANKS', 'अधिकृत राष्ट्रीयकृत बँका व सोलर योजना'),
+                tr('EMPANELLED NATIONALIZED BANKS', 'मान्यताप्राप्त सरकारी बँका व सोलर योजना'),
                 subTitle: tr('Concessional Solar Loans', 'कमी व्याजदराची बँक कर्जे'),
               ),
               pw.Row(

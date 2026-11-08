@@ -488,18 +488,18 @@ class SolarQuotationTranslations {
   // Generation & Savings Section
   String get generationTitle => text(
     'MONTHLY SOLAR GENERATION (JAN–DEC)',
-    'महिन्यानुसार वीज निर्मिती (जानेवारी-डिसेंबर)',
+    'महिन्यानुसार वीज उत्पादन (जानेवारी-डिसेंबर)',
   );
   String get month => text('Month', 'महिना');
   String get unitsGenerated =>
-      text('Generation (Units/kWh)', 'निर्मिती (युनिट्स)');
+      text('Generation (Units/kWh)', 'वीज उत्पादन (युनिट्स)');
   String get dailyAverage =>
       text('Daily Avg (Units)', 'दैनिक सरासरी (युनिट्स)');
   String get monthlySavings => text('Est. Savings (₹)', 'अंदाजित बचत (₹)');
   String get annualGeneration =>
-      text('Estimated Annual Generation', 'अंदाजित वार्षिक वीज निर्मिती');
+      text('Estimated Annual Generation', 'अंदाजित वार्षिक वीज उत्पादन');
   String get averageMonthlyUnits =>
-      text('Average Monthly Generation', 'मासिक सरासरी निर्मिती');
+      text('Average Monthly Generation', 'मासिक सरासरी उत्पादन');
   String get annualSavings =>
       text('Estimated Annual Bill Savings', 'अंदाजित वार्षिक वीज बिल बचत');
 
@@ -521,7 +521,7 @@ class SolarQuotationTranslations {
   );
   String get roiDisclaimer => text(
     'Generation, savings and payback calculations are estimates based on standard test conditions and current DISCOM tariffs. Actual production may vary with site orientation, shading and weather.',
-    'वीज निर्मिती, बचत आणि परतावा कालावधी हे प्रमाणित हवामान आणि महावितरणच्या सध्याच्या वीज दरावर आधारित अंदाज आहेत. प्रत्यक्ष उत्पादन साइट दिशा, सावली व हवामानानुसार बदलू शकते.',
+    'वीज उत्पादन, बचत आणि परतावा कालावधी हे प्रमाणित हवामान आणि महावितरणच्या सध्याच्या वीज दरावर आधारित अंदाज आहेत. प्रत्यक्ष उत्पादन साइट दिशा, सावली व हवामानानुसार बदलू शकते.',
   );
 
   // Diagram Section
@@ -551,7 +551,7 @@ class SolarQuotationTranslations {
   String get customerSignature =>
       text('Customer Acceptance Signature', 'ग्राहकाची संमती व स्वाक्षरी');
   String get authorizedSignature =>
-      text('Authorized Signatory & Stamp', 'अधिकृत स्वाक्षरी व कंपनी शिक्का');
+      text('Authorized Signatory & Stamp', 'मान्यताप्राप्त स्वाक्षरी व कंपनी शिक्का');
   String get forCompany => text(
     'For SIYA INFOTECH & SOLAR ENERGY',
     'मे. सिया इन्फोटेक अँड सोलर एनर्जी करिता',

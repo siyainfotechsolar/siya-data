@@ -21,6 +21,11 @@ export 'models/lead_record.dart';
 export 'models/office_task.dart';
 export 'models/solar_quotation.dart';
 export 'models/staff_master.dart';
+export 'models/sub_vendor.dart';
+export 'models/vendor_site_assignment.dart';
+export 'models/vendor_material_transaction.dart';
+export 'models/vendor_payout.dart';
+export 'models/vendor_financial_summary.dart';
 export 'models/work_completion_report_data.dart';
 
 // Services

@@ -24,6 +24,7 @@ import 'customer_hishob_screen.dart';
 import 'quotations_screen.dart';
 import 'margin_receipts_screen.dart';
 import 'commission_screen.dart';
+import 'sub_vendor_management_screen.dart';
 import 'document_enhancer_screen.dart';
 import 'solar_quotation_generator_screen.dart';
 import '../models/user_profile.dart';
@@ -59,6 +60,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItem(id: 'quotations', label: 'Quotations', icon: Icons.request_quote_outlined, selectedIcon: Icons.request_quote, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'margin_receipts', label: 'Margin Receipts', icon: Icons.description_outlined, selectedIcon: Icons.description, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'commissions', label: 'Commissions', icon: Icons.monetization_on_outlined, selectedIcon: Icons.monetization_on, isMainBottomNav: false, moduleKey: 'commission'),
+    _NavItem(id: 'sub_vendors', label: 'Sub-Vendors', icon: Icons.engineering_outlined, selectedIcon: Icons.engineering, isMainBottomNav: false, moduleKey: 'commission'),
     _NavItem(id: 'office_tasks', label: 'Office Tasks', icon: Icons.assignment_ind_outlined, selectedIcon: Icons.assignment_ind, isMainBottomNav: false),
     _NavItem(id: 'whatsapp', label: 'WhatsApp', icon: Icons.share_rounded, selectedIcon: Icons.share, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'leads', label: 'Leads', icon: Icons.leaderboard_outlined, selectedIcon: Icons.leaderboard, isMainBottomNav: false, moduleKey: 'customer'),
@@ -608,6 +610,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return const MarginReceiptsScreen();
       case 'commissions':
         return const CommissionScreen();
+      case 'sub_vendors':
+        return const SubVendorManagementScreen();
       case 'office_tasks':
         return const OfficeTasksScreen();
       case 'whatsapp':
