@@ -116,7 +116,7 @@ class VendorSiteAssignment {
       customerName: json['customer_name'] as String? ?? customer?['name'] as String?,
       customerMobile: json['customer_mobile'] as String? ?? customer?['mobile'] as String?,
       customerAddress: json['customer_address'] as String? ?? customer?['address'] as String?,
-      customerVillageCity: customer?['village_city'] as String?,
+      customerVillageCity: (customer?['village_city'] ?? customer?['address']) as String?,
       customerTotalAmount: (customer?['total_amount'] as num?)?.toDouble() ??
           (json['customer_total_amount'] as num?)?.toDouble() ??
           0.0,

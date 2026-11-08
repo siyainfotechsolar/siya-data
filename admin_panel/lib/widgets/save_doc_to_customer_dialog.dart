@@ -67,7 +67,7 @@ class _SaveDocToCustomerDialogState extends State<SaveDocToCustomerDialog> {
       final client = SupabaseService.client;
       final res = await client
           .from('consumer_records')
-          .select('id, name, consumer_no, mobile, address, village_city')
+          .select('id, name, consumer_no, mobile, address')
           .or('name.ilike.%$q%,consumer_no.ilike.%$q%,mobile.ilike.%$q%')
           .limit(8);
 

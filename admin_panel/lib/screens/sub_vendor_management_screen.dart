@@ -238,45 +238,108 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
           Expanded(
             child: _filteredVendors.isEmpty
                 ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _errorMessage != null ? Icons.warning_amber_rounded : Icons.people_outline,
-                          size: 48,
-                          color: _errorMessage != null ? const Color(0xFFDC2626) : Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _errorMessage != null
-                              ? 'Sub-Vendor Tables Not Initialized in Supabase'
-                              : 'No sub-vendors found.',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: _errorMessage != null ? const Color(0xFFDC2626) : Colors.grey.shade600,
-                          ),
-                        ),
-                        if (_errorMessage != null) ...[
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Table "public.sub_vendors" is missing from the database schema cache.\nPlease run the migration in Supabase SQL editor to create the tables.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.code),
-                            label: const Text('View Supabase Setup Instructions'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0D2B6F),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Builder(
+                      builder: (context) {
+                        final isMissingTables = _errorMessage != null &&
+                            (_errorMessage!.contains('PGRST205') || _errorMessage!.contains('sub_vendors'));
+                        if (isMissingTables) {
+                          return Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.warning_amber_rounded, size: 48, color: Color(0xFFDC2626)),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Sub-Vendor Tables Not Initialized in Supabase',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                              ),
+                              const SizedBox(height: 6),
+                              const Text(
+                                'Table "public.sub_vendors" is missing from the database schema cache.\nPlease run the migration in Supabase SQL editor to create the tables.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                icon: const Icon(Icons.code),
+                                label: const Text('View Supabase Setup Instructions'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF0D2B6F),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                ),
+                                onPressed: _showMigrationSqlHelpDialog,
+                              ),
+                            ],
+                          );
+                        }
+
+                        if (_errorMessage != null) {
+                          return Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline, size: 48, color: Color(0xFFDC2626)),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Failed to Load Sub-Vendor Data',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                              ),
+                              const SizedBox(height: 6),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                                child: Text(
+                                  _errorMessage!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Retry'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF0D2B6F),
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: _loadAllData,
+                              ),
+                            ],
+                          );
+                        }
+
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.people_outline, size: 52, color: Colors.grey.shade400),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No Sub-Vendors Added Yet',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
                             ),
-                            onPressed: _showMigrationSqlHelpDialog,
-                          ),
-                        ],
-                      ],
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Register your first solar contractor to assign sites and track materials.',
+                              style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.person_add, size: 16),
+                              label: const Text('Add Sub-Vendor'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFF59E0B),
+                                foregroundColor: Colors.black87,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              ),
+                              onPressed: () async {
+                                final created = await showDialog<bool>(
+                                  context: context,
+                                  builder: (_) => const AddEditSubVendorDialog(),
+                                );
+                                if (created == true) _loadAllData();
+                              },
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   )
                 : ListView.builder(
@@ -807,6 +870,8 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   }
 
   Widget _buildSetupRequiredBanner() {
+    final isMissingTables = _errorMessage != null &&
+        (_errorMessage!.contains('PGRST205') || _errorMessage!.contains('sub_vendors'));
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -817,19 +882,22 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 24),
+          Icon(isMissingTables ? Icons.warning_amber_rounded : Icons.error_outline,
+              color: const Color(0xFFDC2626), size: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Database Setup Required (Migration Pending)',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF991B1B)),
+                Text(
+                  isMissingTables
+                      ? 'Database Setup Required (Migration Pending)'
+                      : 'Error Loading Sub-Vendor Data',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF991B1B)),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  _errorMessage?.contains('PGRST205') == true || _errorMessage?.contains('sub_vendors') == true
+                  isMissingTables
                       ? 'The sub_vendors tables have not been created in Supabase yet. Please apply migration 20261108000036_sub_vendor_management_module.sql in Supabase SQL Editor.'
                       : (_errorMessage ?? ''),
                   style: const TextStyle(fontSize: 12, color: Color(0xFF7F1D1D)),
@@ -838,16 +906,28 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
             ),
           ),
           const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: _showMigrationSqlHelpDialog,
-            icon: const Icon(Icons.terminal, size: 15),
-            label: const Text('Setup Guide'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          if (isMissingTables)
+            ElevatedButton.icon(
+              onPressed: _showMigrationSqlHelpDialog,
+              icon: const Icon(Icons.terminal, size: 15),
+              label: const Text('Setup Guide'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+            )
+          else
+            ElevatedButton.icon(
+              onPressed: _loadAllData,
+              icon: const Icon(Icons.refresh, size: 15),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0D2B6F),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
             ),
-          ),
         ],
       ),
     );

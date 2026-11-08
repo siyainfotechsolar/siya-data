@@ -259,12 +259,10 @@ class SubVendorService {
           name,
           mobile,
           address,
-          village_city,
-          district,
+          status,
           system_capacity,
           total_amount,
           paid_amount,
-          status,
           installation_status
         ),
         sub_vendors!vendor_id (
@@ -330,7 +328,7 @@ class SubVendorService {
           .select('''
             *,
             consumer_records!customer_id (
-              id, consumer_no, name, mobile, address, village_city, total_amount, paid_amount
+              id, consumer_no, name, mobile, address, status, system_capacity, total_amount, paid_amount
             ),
             sub_vendors!vendor_id (
               id, vendor_code, name, mobile

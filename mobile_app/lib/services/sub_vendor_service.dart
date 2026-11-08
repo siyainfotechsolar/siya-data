@@ -103,11 +103,10 @@ class SubVendorService {
         final map = Map<String, dynamic>.from(json as Map);
         if (map['customer'] != null && map['customer'] is Map) {
           final cust = map['customer'] as Map;
-          map['customer_name'] = cust['customer_name'];
-          map['consumer_number'] = cust['consumer_number'];
-          map['village_city'] = cust['village_city'];
-          map['district'] = cust['district'];
-          map['mobile_number'] = cust['mobile_number'];
+          map['customer_name'] = cust['name'] ?? cust['customer_name'];
+          map['consumer_number'] = cust['consumer_no'] ?? cust['consumer_number'];
+          map['customer_address'] = cust['address'];
+          map['mobile_number'] = cust['mobile'] ?? cust['mobile_number'];
         }
         return VendorSiteAssignment.fromJson(map);
       }).toList();
@@ -131,7 +130,7 @@ class SubVendorService {
     try {
       var query = client
           .from('vendor_material_transactions')
-          .select('*, customer:consumer_records(customer_name, consumer_number)')
+          .select('*, customer:consumer_records(name, consumer_no)')
           .eq('vendor_id', vendorId);
 
       if (assignmentId != null && assignmentId.isNotEmpty) {
@@ -145,8 +144,8 @@ class SubVendorService {
         final map = Map<String, dynamic>.from(json as Map);
         if (map['customer'] != null && map['customer'] is Map) {
           final cust = map['customer'] as Map;
-          map['customer_name'] = cust['customer_name'];
-          map['consumer_number'] = cust['consumer_number'];
+          map['customer_name'] = cust['name'] ?? cust['customer_name'];
+          map['consumer_number'] = cust['consumer_no'] ?? cust['consumer_number'];
         }
         return VendorMaterialTransaction.fromJson(map);
       }).toList();
