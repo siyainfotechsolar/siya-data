@@ -800,27 +800,210 @@ class _IssueReturnMaterialDialogState extends State<IssueReturnMaterialDialog> {
     super.dispose();
   }
 
+  static const List<Map<String, String>> _bosPresets = [
+    {
+      'label': 'GI Structure',
+      'name': 'GI Solar Mounting Structure (Elevated / Tin Shed)',
+      'unit': 'Sets',
+      'defaultQty': '1',
+      'defaultRate': '18000',
+    },
+    {
+      'label': 'DC Cable',
+      'name': 'Solar DC Cable 4 sq.mm / 6 sq.mm (Polycab / Havells)',
+      'unit': 'Mtrs',
+      'defaultQty': '50',
+      'defaultRate': '45',
+    },
+    {
+      'label': 'AC Cable',
+      'name': 'Solar AC Cable 4 sq.mm / 6 sq.mm (3/4 Core Cu/Al)',
+      'unit': 'Mtrs',
+      'defaultQty': '20',
+      'defaultRate': '75',
+    },
+    {
+      'label': 'ACDB / DCDB Box',
+      'name': 'ACDB & DCDB Distribution Box with MCB & SPD',
+      'unit': 'Sets',
+      'defaultQty': '1',
+      'defaultRate': '3500',
+    },
+    {
+      'label': 'Earthing Kit',
+      'name': 'Chemical Earthing Electrodes & Gel Pit (3 Pits Kit)',
+      'unit': 'Sets',
+      'defaultQty': '3',
+      'defaultRate': '1800',
+    },
+    {
+      'label': 'Lightning Arrester',
+      'name': 'Early Streamer Lightning Arrester (LA) with GI Strip',
+      'unit': 'Sets',
+      'defaultQty': '1',
+      'defaultRate': '3200',
+    },
+    {
+      'label': 'MC4 & Pipes',
+      'name': 'MC4 Connectors & UV Conduit Protection Pipes',
+      'unit': 'Sets',
+      'defaultQty': '1',
+      'defaultRate': '1200',
+    },
+    {
+      'label': 'Nut-Bolts & Clamps',
+      'name': 'Fasteners, SS304 Nut-Bolts & End/Mid Clamps',
+      'unit': 'Sets',
+      'defaultQty': '1',
+      'defaultRate': '2000',
+    },
+  ];
+
+  static const List<Map<String, String>> _panelPresets = [
+    {
+      'label': '550Wp DCR Mono',
+      'name': 'Solar PV Modules (550Wp DCR Mono TopCon)',
+      'unit': 'Nos',
+      'defaultQty': '6',
+      'defaultRate': '12000',
+    },
+    {
+      'label': '540Wp Bifacial',
+      'name': 'Solar PV Modules (540Wp DCR Bifacial Dual-Glass)',
+      'unit': 'Nos',
+      'defaultQty': '6',
+      'defaultRate': '11800',
+    },
+    {
+      'label': '575Wp / 580Wp DCR',
+      'name': 'Solar PV Modules (575Wp / 580Wp High Efficiency DCR)',
+      'unit': 'Nos',
+      'defaultQty': '6',
+      'defaultRate': '12500',
+    },
+  ];
+
+  static const List<Map<String, String>> _inverterPresets = [
+    {
+      'label': '3.3kW Single Phase',
+      'name': 'Grid-Tied Solar Inverter (3.3kW Single Phase with WiFi)',
+      'unit': 'Nos',
+      'defaultQty': '1',
+      'defaultRate': '25000',
+    },
+    {
+      'label': '5kW Single Phase',
+      'name': 'Grid-Tied Solar Inverter (5kW Single Phase with WiFi)',
+      'unit': 'Nos',
+      'defaultQty': '1',
+      'defaultRate': '34000',
+    },
+    {
+      'label': '6kW / 8kW 3-Phase',
+      'name': 'Grid-Tied Solar Inverter (6kW / 8kW Three Phase)',
+      'unit': 'Nos',
+      'defaultQty': '1',
+      'defaultRate': '48000',
+    },
+    {
+      'label': '10kW Three Phase',
+      'name': 'Grid-Tied Solar Inverter (10kW Three Phase)',
+      'unit': 'Nos',
+      'defaultQty': '1',
+      'defaultRate': '55000',
+    },
+  ];
+
+  void _applyPreset(Map<String, String> preset) {
+    setState(() {
+      _itemCtrl.text = preset['name'] ?? '';
+      _unitCtrl.text = preset['unit'] ?? 'Nos';
+      _qtyCtrl.text = preset['defaultQty'] ?? '1';
+      _rateCtrl.text = preset['defaultRate'] ?? '0';
+    });
+  }
+
   void _onCategoryChanged(String cat) {
     setState(() {
       _itemCategory = cat;
       if (cat == 'SOLAR_PANEL') {
-        _itemCtrl.text = 'Solar PV Modules (550Wp DCR TopCon)';
+        _applyPreset(_panelPresets.first);
         _gstRateCtrl.text = '5';
-        _unitCtrl.text = 'Nos';
       } else if (cat == 'INVERTER') {
-        _itemCtrl.text = 'Grid-Tied Solar Inverter (3.3kW Single Phase)';
+        _applyPreset(_inverterPresets.first);
         _gstRateCtrl.text = '5';
-        _unitCtrl.text = 'Nos';
       } else if (cat == 'BOS') {
-        _itemCtrl.text = 'Solar BOS Structure, DC/AC Cables, ACDB/DCDB, Earthing';
+        _applyPreset(_bosPresets.first);
         _gstRateCtrl.text = '18';
-        _unitCtrl.text = 'Sets';
       } else {
         _itemCtrl.text = 'Net Meter / Testing Kit';
         _gstRateCtrl.text = '18';
         _unitCtrl.text = 'Nos';
+        _qtyCtrl.text = '1';
+        _rateCtrl.text = '3500';
       }
     });
+  }
+
+  Widget _buildPresetChips() {
+    List<Map<String, String>> presets = [];
+    String title = '';
+    if (_itemCategory == 'BOS') {
+      presets = _bosPresets;
+      title = 'BOS साहित्य निवडा (Select Individual BOS Item — 18% GST):';
+    } else if (_itemCategory == 'SOLAR_PANEL') {
+      presets = _panelPresets;
+      title = 'सोलर पॅनेल मॉडेल निवडा (Select Module — 5% GST):';
+    } else if (_itemCategory == 'INVERTER') {
+      presets = _inverterPresets;
+      title = 'सोलर इनव्हर्टर मॉडेल निवडा (Select Inverter — 5% GST):';
+    }
+
+    if (presets.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF0D2B6F)),
+            ),
+            if (_itemCategory == 'BOS')
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(4)),
+                child: const Text('वेगवेगळे आयटम्स (18% GST)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF92400E))),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: presets.map((p) {
+            final isSelected = _itemCtrl.text.trim() == p['name'];
+            return ActionChip(
+              avatar: Icon(Icons.check_circle_outline, size: 14, color: isSelected ? Colors.white : const Color(0xFF0D2B6F)),
+              backgroundColor: isSelected ? const Color(0xFF0D2B6F) : const Color(0xFFF1F5F9),
+              side: BorderSide(color: isSelected ? const Color(0xFF0D2B6F) : const Color(0xFFCBD5E1)),
+              label: Text(
+                p['label']!,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected ? Colors.white : const Color(0xFF1E293B),
+                ),
+              ),
+              onPressed: () => _applyPreset(p),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 10),
+      ],
+    );
   }
 
   double get _computedTaxable {
@@ -966,7 +1149,8 @@ class _IssueReturnMaterialDialogState extends State<IssueReturnMaterialDialog> {
                       if (val != null) _onCategoryChanged(val);
                     },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
+                  _buildPresetChips(),
                   TextFormField(
                     controller: _itemCtrl,
                     decoration: const InputDecoration(
