@@ -6,6 +6,7 @@ import 'package:siya_shared/siya_shared.dart';
 import 'solar_quotation_font_helper.dart';
 
 /// Professional PDF Generator for SIYA SOLAR SITE COST CALCULATOR statements.
+/// Supports both Taxable Base Cost, Item-wise GST (5%, 12%, 18%), and Grand Total.
 class SolarSiteCostPdfService {
   static const PdfColor navyColor = PdfColor.fromInt(0xFF0D2B6F);
   static const PdfColor goldColor = PdfColor.fromInt(0xFFD97706);
@@ -39,37 +40,37 @@ class SolarSiteCostPdfService {
             _buildInfoCard(calc),
             pw.SizedBox(height: 12),
 
-            // 3. Solar Panels Section
+            // 3. Solar Panels Section (with 5% GST)
             if (calc.panels.isNotEmpty) ...[
-              _buildSectionTitle('1. SOLAR PANELS (WATTAGE × RATE/WATT)'),
+              _buildSectionTitle('1. SOLAR PANELS (WATTAGE × RATE/WATT + 5% GST)'),
               _buildPanelsTable(calc),
               pw.SizedBox(height: 10),
             ],
 
-            // 4. Inverters Section (Fixed Cost)
+            // 4. Inverters Section (Fixed Cost + 5%/12% GST)
             if (calc.inverters.isNotEmpty) ...[
-              _buildSectionTitle('2. INVERTER COST (FIXED RATE ONLY)'),
+              _buildSectionTitle('2. INVERTER COST (FIXED RATE + 5%/12% GST)'),
               _buildInvertersTable(calc),
               pw.SizedBox(height: 10),
             ],
 
-            // 5. GI Pipe Section (Size-wise & KG Rate)
+            // 5. GI Pipe Section (Size-wise, KG Rate + 18% GST)
             if (calc.giPipes.isNotEmpty) ...[
-              _buildSectionTitle('3. GI PIPE STRUCTURE (SIZE-WISE & RATE PER KG)'),
+              _buildSectionTitle('3. GI PIPE STRUCTURE (SIZE-WISE & RATE PER KG + 18% GST)'),
               _buildGiPipesTable(calc),
               pw.SizedBox(height: 10),
             ],
 
-            // 6. Other Structure Section
+            // 6. Other Structure Section (+ 18% GST)
             if (calc.structureItems.isNotEmpty) ...[
-              _buildSectionTitle('4. OTHER STRUCTURE MATERIAL'),
+              _buildSectionTitle('4. OTHER STRUCTURE MATERIAL (+ 18% GST)'),
               _buildStructureTable(calc),
               pw.SizedBox(height: 10),
             ],
 
-            // 7. Electrical BOS Section
+            // 7. Electrical BOS Section (+ 18% GST)
             if (calc.bosItems.isNotEmpty) ...[
-              _buildSectionTitle('5. ELECTRICAL BOS MATERIAL'),
+              _buildSectionTitle('5. ELECTRICAL BOS MATERIAL (+ 18% GST)'),
               _buildBosTable(calc),
               pw.SizedBox(height: 10),
             ],
@@ -91,7 +92,7 @@ class SolarSiteCostPdfService {
             _buildExpensesTable(calc),
             pw.SizedBox(height: 14),
 
-            // 11. Final Category Summary & Prominent Site Cost Card
+            // 11. Final Category Summary with GST & Prominent Site Cost Card
             _buildFinalSummaryBox(calc),
             pw.SizedBox(height: 16),
 
@@ -133,7 +134,7 @@ class SolarSiteCostPdfService {
               ),
               pw.SizedBox(height: 2),
               pw.Text(
-                'SOLAR SITE MATERIAL-WISE TOTAL COST CALCULATOR',
+                'SOLAR SITE MATERIAL-WISE TOTAL COST & GST CALCULATOR',
                 style: pw.TextStyle(
                   fontSize: 9.5,
                   fontWeight: pw.FontWeight.bold,
@@ -141,7 +142,7 @@ class SolarSiteCostPdfService {
                 ),
               ),
               pw.Text(
-                'Confidential Site Material & Cost Estimation Sheet',
+                'Confidential Site Material, BOS, Labour & GST Estimation Sheet',
                 style: const pw.TextStyle(fontSize: 8, color: slateMutedColor),
               ),
             ],
@@ -200,7 +201,7 @@ class SolarSiteCostPdfService {
               children: [
                 _infoRow('System Capacity:', '${calc.systemCapacityKw.toStringAsFixed(2)} kW (${calc.totalSystemWattage.toStringAsFixed(0)} W)'),
                 pw.SizedBox(height: 3),
-                _infoRow('Cost Per kW:', _currency.format(calc.costPerKw)),
+                _infoRow('Pricing Mode:', calc.isGstApplicable ? 'GST Inclusive (With Tax)' : 'Net Base Cost (Without GST)'),
               ],
             ),
           ),
@@ -243,24 +244,32 @@ class SolarSiteCostPdfService {
     return pw.Table(
       border: pw.TableBorder.all(color: borderDarkColor, width: 0.5),
       columnWidths: const {
-        0: pw.FlexColumnWidth(2.5), // Brand & Model
-        1: pw.FlexColumnWidth(1.2), // Wattage
-        2: pw.FlexColumnWidth(1.0), // Qty
-        3: pw.FlexColumnWidth(1.4), // Total Wattage
-        4: pw.FlexColumnWidth(1.3), // Rate/W
-        5: pw.FlexColumnWidth(1.6), // Total Amount
+        0: pw.FlexColumnWidth(2.3), // Brand & Model
+        1: pw.FlexColumnWidth(1.0), // Wattage
+        2: pw.FlexColumnWidth(0.9), // Qty
+        3: pw.FlexColumnWidth(1.2), // Rate/W
+        4: pw.FlexColumnWidth(1.4), // Taxable
+        5: pw.FlexColumnWidth(0.9), // GST %
+        6: pw.FlexColumnWidth(1.2), // GST (Rs)
+        7: pw.FlexColumnWidth(1.5), // Total Amount
       },
       children: [
-        _tableHeader(['Panel Brand / Model', 'Wattage (W)', 'Quantity', 'Total Watts', 'Rate (Rs/W)', 'Total (Rs.)']),
+        _tableHeader(['Panel Brand / Model', 'Watts', 'Qty', 'Rate/W', 'Taxable (Rs.)', 'GST %', 'GST (Rs.)', 'Total (Rs.)']),
         ...calc.panels.map((p) => _tableRow([
               '${p.brand} ${p.model}'.trim(),
               '${p.wattage.toStringAsFixed(0)} W',
               '${p.quantity} Nos',
-              '${p.totalWattage.toStringAsFixed(0)} W',
               'Rs. ${p.ratePerWatt.toStringAsFixed(2)}',
+              _currency.format(p.taxableAmount),
+              '${p.gstRate.toStringAsFixed(0)}%',
+              _currency.format(p.gstAmount),
               _currency.format(p.totalAmount),
             ])),
-        _tableTotalRow('Total Solar Panel Cost', _currency.format(calc.totalPanelCost), 6),
+        _tableTotalRow('Total Solar Panel Cost (Taxable / GST / Total)', [
+          _currency.format(calc.totalPanelTaxable),
+          _currency.format(calc.totalPanelGst),
+          _currency.format(calc.totalPanelCost),
+        ], 8),
       ],
     );
   }
@@ -269,22 +278,32 @@ class SolarSiteCostPdfService {
     return pw.Table(
       border: pw.TableBorder.all(color: borderDarkColor, width: 0.5),
       columnWidths: const {
-        0: pw.FlexColumnWidth(3.0), // Brand & Model
-        1: pw.FlexColumnWidth(1.5), // Capacity
-        2: pw.FlexColumnWidth(1.0), // Qty
-        3: pw.FlexColumnWidth(1.8), // Fixed Rate
-        4: pw.FlexColumnWidth(1.8), // Total
+        0: pw.FlexColumnWidth(2.5),
+        1: pw.FlexColumnWidth(1.2),
+        2: pw.FlexColumnWidth(0.9),
+        3: pw.FlexColumnWidth(1.4),
+        4: pw.FlexColumnWidth(1.4),
+        5: pw.FlexColumnWidth(0.9),
+        6: pw.FlexColumnWidth(1.2),
+        7: pw.FlexColumnWidth(1.5),
       },
       children: [
-        _tableHeader(['Inverter Brand / Model', 'Capacity', 'Quantity', 'Fixed Rate (Rs.)', 'Total (Rs.)']),
+        _tableHeader(['Inverter Brand / Model', 'Capacity', 'Qty', 'Fixed Rate', 'Taxable (Rs.)', 'GST %', 'GST (Rs.)', 'Total (Rs.)']),
         ...calc.inverters.map((inv) => _tableRow([
               '${inv.brand} ${inv.model}'.trim(),
               inv.capacity,
               '${inv.quantity} Nos',
               _currency.format(inv.fixedRate),
+              _currency.format(inv.taxableAmount),
+              '${inv.gstRate.toStringAsFixed(0)}%',
+              _currency.format(inv.gstAmount),
               _currency.format(inv.totalAmount),
             ])),
-        _tableTotalRow('Total Inverter Cost (Fixed Rate)', _currency.format(calc.totalInverterCost), 5),
+        _tableTotalRow('Total Inverter Cost (Taxable / GST / Total)', [
+          _currency.format(calc.totalInverterTaxable),
+          _currency.format(calc.totalInverterGst),
+          _currency.format(calc.totalInverterCost),
+        ], 8),
       ],
     );
   }
@@ -293,26 +312,34 @@ class SolarSiteCostPdfService {
     return pw.Table(
       border: pw.TableBorder.all(color: borderDarkColor, width: 0.5),
       columnWidths: const {
-        0: pw.FlexColumnWidth(2.2), // Size
-        1: pw.FlexColumnWidth(1.0), // Thk
-        2: pw.FlexColumnWidth(1.0), // Pipes
-        3: pw.FlexColumnWidth(1.3), // Wt/Pipe
-        4: pw.FlexColumnWidth(1.4), // Total Wt
-        5: pw.FlexColumnWidth(1.2), // Rate/KG
-        6: pw.FlexColumnWidth(1.7), // Total
+        0: pw.FlexColumnWidth(2.0),
+        1: pw.FlexColumnWidth(0.8),
+        2: pw.FlexColumnWidth(0.8),
+        3: pw.FlexColumnWidth(1.1),
+        4: pw.FlexColumnWidth(1.0),
+        5: pw.FlexColumnWidth(1.3),
+        6: pw.FlexColumnWidth(0.8),
+        7: pw.FlexColumnWidth(1.1),
+        8: pw.FlexColumnWidth(1.4),
       },
       children: [
-        _tableHeader(['GI Pipe Size', 'Thk (mm)', 'Pipes', 'Wt/Pipe', 'Total Wt (KG)', 'Rate/KG', 'Total (Rs.)']),
+        _tableHeader(['GI Pipe Size', 'Thk', 'Pipes', 'Total Wt', 'Rate/KG', 'Taxable (Rs.)', 'GST %', 'GST (Rs.)', 'Total (Rs.)']),
         ...calc.giPipes.map((pipe) => _tableRow([
               pipe.pipeSize,
-              '${pipe.thicknessMm.toStringAsFixed(1)} mm',
-              '${pipe.numberOfPipes} Nos',
-              '${pipe.weightPerPipeKg.toStringAsFixed(1)} KG',
-              '${pipe.totalWeightKg.toStringAsFixed(1)} KG',
-              'Rs. ${pipe.ratePerKg.toStringAsFixed(2)}',
+              '${pipe.thicknessMm.toStringAsFixed(1)}mm',
+              '${pipe.numberOfPipes}',
+              '${pipe.totalWeightKg.toStringAsFixed(1)}KG',
+              'Rs.${pipe.ratePerKg.toStringAsFixed(0)}',
+              _currency.format(pipe.taxableAmount),
+              '${pipe.gstRate.toStringAsFixed(0)}%',
+              _currency.format(pipe.gstAmount),
               _currency.format(pipe.totalAmount),
             ])),
-        _tableTotalRow('Total GI Pipe Cost', _currency.format(calc.totalGiPipeCost), 7),
+        _tableTotalRow('Total GI Pipe Cost (Taxable / GST / Total)', [
+          _currency.format(calc.totalGiPipeTaxable),
+          _currency.format(calc.totalGiPipeGst),
+          _currency.format(calc.totalGiPipeCost),
+        ], 9),
       ],
     );
   }
@@ -321,22 +348,32 @@ class SolarSiteCostPdfService {
     return pw.Table(
       border: pw.TableBorder.all(color: borderDarkColor, width: 0.5),
       columnWidths: const {
-        0: pw.FlexColumnWidth(3.0),
-        1: pw.FlexColumnWidth(1.5),
-        2: pw.FlexColumnWidth(1.2),
-        3: pw.FlexColumnWidth(1.5),
-        4: pw.FlexColumnWidth(1.8),
+        0: pw.FlexColumnWidth(2.5),
+        1: pw.FlexColumnWidth(1.4),
+        2: pw.FlexColumnWidth(1.1),
+        3: pw.FlexColumnWidth(1.2),
+        4: pw.FlexColumnWidth(1.4),
+        5: pw.FlexColumnWidth(0.8),
+        6: pw.FlexColumnWidth(1.1),
+        7: pw.FlexColumnWidth(1.4),
       },
       children: [
-        _tableHeader(['Structure Item', 'Specification', 'Unit / Qty', 'Rate (Rs.)', 'Total (Rs.)']),
+        _tableHeader(['Structure Item', 'Specification', 'Unit/Qty', 'Rate', 'Taxable (Rs.)', 'GST %', 'GST (Rs.)', 'Total (Rs.)']),
         ...calc.structureItems.map((item) => _tableRow([
               item.itemName,
               item.specification,
               '${item.quantity.toStringAsFixed(0)} ${item.unit}',
-              'Rs. ${item.rate.toStringAsFixed(2)}',
+              'Rs.${item.rate.toStringAsFixed(2)}',
+              _currency.format(item.taxableAmount),
+              '${item.gstRate.toStringAsFixed(0)}%',
+              _currency.format(item.gstAmount),
               _currency.format(item.totalAmount),
             ])),
-        _tableTotalRow('Total Other Structure Cost', _currency.format(calc.totalStructureCost), 5),
+        _tableTotalRow('Total Other Structure Cost', [
+          _currency.format(calc.totalStructureTaxable),
+          _currency.format(calc.totalStructureGst),
+          _currency.format(calc.totalStructureCost),
+        ], 8),
       ],
     );
   }
@@ -345,22 +382,32 @@ class SolarSiteCostPdfService {
     return pw.Table(
       border: pw.TableBorder.all(color: borderDarkColor, width: 0.5),
       columnWidths: const {
-        0: pw.FlexColumnWidth(2.6),
-        1: pw.FlexColumnWidth(2.0),
-        2: pw.FlexColumnWidth(1.2),
-        3: pw.FlexColumnWidth(1.4),
-        4: pw.FlexColumnWidth(1.8),
+        0: pw.FlexColumnWidth(2.3),
+        1: pw.FlexColumnWidth(1.5),
+        2: pw.FlexColumnWidth(1.0),
+        3: pw.FlexColumnWidth(1.2),
+        4: pw.FlexColumnWidth(1.4),
+        5: pw.FlexColumnWidth(0.8),
+        6: pw.FlexColumnWidth(1.1),
+        7: pw.FlexColumnWidth(1.4),
       },
       children: [
-        _tableHeader(['BOS Item', 'Specification', 'Unit / Qty', 'Rate (Rs.)', 'Total (Rs.)']),
+        _tableHeader(['BOS Item', 'Specification', 'Unit/Qty', 'Rate', 'Taxable (Rs.)', 'GST %', 'GST (Rs.)', 'Total (Rs.)']),
         ...calc.bosItems.map((item) => _tableRow([
               item.itemName,
               item.specification,
               item.unit == 'FIXED' ? '1 Fixed' : '${item.quantity.toStringAsFixed(0)} ${item.unit}',
               _currency.format(item.rate),
+              _currency.format(item.taxableAmount),
+              '${item.gstRate.toStringAsFixed(0)}%',
+              _currency.format(item.gstAmount),
               _currency.format(item.totalAmount),
             ])),
-        _tableTotalRow('Total Electrical BOS Cost', _currency.format(calc.totalBosCost), 5),
+        _tableTotalRow('Total Electrical BOS Cost', [
+          _currency.format(calc.totalBosTaxable),
+          _currency.format(calc.totalBosGst),
+          _currency.format(calc.totalBosCost),
+        ], 8),
       ],
     );
   }
@@ -369,22 +416,32 @@ class SolarSiteCostPdfService {
     return pw.Table(
       border: pw.TableBorder.all(color: borderDarkColor, width: 0.5),
       columnWidths: const {
-        0: pw.FlexColumnWidth(3.0),
-        1: pw.FlexColumnWidth(2.0),
-        2: pw.FlexColumnWidth(1.2),
-        3: pw.FlexColumnWidth(1.4),
-        4: pw.FlexColumnWidth(1.8),
+        0: pw.FlexColumnWidth(2.5),
+        1: pw.FlexColumnWidth(1.5),
+        2: pw.FlexColumnWidth(1.0),
+        3: pw.FlexColumnWidth(1.2),
+        4: pw.FlexColumnWidth(1.4),
+        5: pw.FlexColumnWidth(0.8),
+        6: pw.FlexColumnWidth(1.1),
+        7: pw.FlexColumnWidth(1.4),
       },
       children: [
-        _tableHeader(['Material Name', 'Specification', 'Unit / Qty', 'Rate (Rs.)', 'Total (Rs.)']),
+        _tableHeader(['Material Name', 'Specification', 'Unit/Qty', 'Rate', 'Taxable (Rs.)', 'GST %', 'GST (Rs.)', 'Total (Rs.)']),
         ...calc.otherMaterials.map((item) => _tableRow([
               item.materialName,
               item.specification,
               '${item.quantity.toStringAsFixed(0)} ${item.unit}',
-              'Rs. ${item.rate.toStringAsFixed(2)}',
+              'Rs.${item.rate.toStringAsFixed(2)}',
+              _currency.format(item.taxableAmount),
+              '${item.gstRate.toStringAsFixed(0)}%',
+              _currency.format(item.gstAmount),
               _currency.format(item.totalAmount),
             ])),
-        _tableTotalRow('Total Other Materials Cost', _currency.format(calc.totalOtherMaterialCost), 5),
+        _tableTotalRow('Total Other Materials Cost', [
+          _currency.format(calc.totalOtherMaterialTaxable),
+          _currency.format(calc.totalOtherMaterialGst),
+          _currency.format(calc.totalOtherMaterialCost),
+        ], 8),
       ],
     );
   }
@@ -402,7 +459,7 @@ class SolarSiteCostPdfService {
         _tableRow(['A. Wiring Labour', calc.labour.wiringLabour.description, _currency.format(calc.totalWiringLabour)]),
         _tableRow(['B. Structure Labour', calc.labour.structureLabour.description, _currency.format(calc.totalStructureLabour)]),
         _tableRow(['C. Civil Labour', calc.labour.civilLabour.description, _currency.format(calc.totalCivilLabour)]),
-        _tableTotalRow('Total Labour Cost (Wiring + Structure + Civil)', _currency.format(calc.totalLabourCost), 3),
+        _tableSimpleTotalRow('Total Labour Cost (Wiring + Structure + Civil)', _currency.format(calc.totalLabourCost), 3),
       ],
     );
   }
@@ -425,7 +482,7 @@ class SolarSiteCostPdfService {
               'Additional expense',
               _currency.format(exp.amount),
             ])),
-        _tableTotalRow('Total Other Expenses', _currency.format(calc.totalOtherExpensesCost), 3),
+        _tableSimpleTotalRow('Total Other Expenses', _currency.format(calc.totalOtherExpensesCost), 3),
       ],
     );
   }
@@ -443,21 +500,33 @@ class SolarSiteCostPdfService {
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Text('CATEGORY-WISE COST SUMMARY', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: navyColor)),
-              pw.Text('All amounts in INR (Exclusive of GST/Loans)', style: const pw.TextStyle(fontSize: 7.5, color: slateMutedColor)),
+              pw.Text('CATEGORY-WISE COST & GST SUMMARY', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: navyColor)),
+              pw.Text(calc.isGstApplicable ? 'Mode: GST Inclusive' : 'Mode: Net Base Cost', style: const pw.TextStyle(fontSize: 7.5, color: slateMutedColor)),
             ],
           ),
           pw.Divider(color: borderDarkColor, thickness: 0.8),
           pw.SizedBox(height: 4),
 
-          _summaryRow('1. Total Solar Panel Cost:', _currency.format(calc.totalPanelCost)),
-          _summaryRow('2. Total Inverter Cost (Fixed):', _currency.format(calc.totalInverterCost)),
-          _summaryRow('3. Total GI Pipe Structure Cost:', _currency.format(calc.totalGiPipeCost)),
-          if (calc.totalStructureCost > 0)
-            _summaryRow('4. Total Other Structure Material Cost:', _currency.format(calc.totalStructureCost)),
-          _summaryRow('5. Total Electrical BOS Cost:', _currency.format(calc.totalBosCost)),
-          if (calc.totalOtherMaterialCost > 0)
-            _summaryRow('6. Total Other Materials Cost:', _currency.format(calc.totalOtherMaterialCost)),
+          _summaryRow('1. Total Solar Panel Taxable:', _currency.format(calc.totalPanelTaxable)),
+          if (calc.totalPanelGst > 0)
+            _summaryRow('   + Solar Panels 5% GST:', _currency.format(calc.totalPanelGst)),
+          _summaryRow('2. Total Inverter Taxable (Fixed):', _currency.format(calc.totalInverterTaxable)),
+          if (calc.totalInverterGst > 0)
+            _summaryRow('   + Inverter GST:', _currency.format(calc.totalInverterGst)),
+          _summaryRow('3. Total GI Pipe Structure Taxable:', _currency.format(calc.totalGiPipeTaxable)),
+          if (calc.totalGiPipeGst > 0)
+            _summaryRow('   + GI Pipe 18% GST:', _currency.format(calc.totalGiPipeGst)),
+          if (calc.totalStructureTaxable > 0)
+            _summaryRow('4. Total Other Structure Material Taxable:', _currency.format(calc.totalStructureTaxable)),
+          _summaryRow('5. Total Electrical BOS Taxable:', _currency.format(calc.totalBosTaxable)),
+          if (calc.totalBosGst > 0)
+            _summaryRow('   + Electrical BOS 18% GST:', _currency.format(calc.totalBosGst)),
+          if (calc.totalOtherMaterialTaxable > 0)
+            _summaryRow('6. Total Other Materials Taxable:', _currency.format(calc.totalOtherMaterialTaxable)),
+          
+          pw.Divider(color: borderDarkColor, thickness: 0.5),
+          _summaryRow('Subtotal Taxable Material Cost:', _currency.format(calc.totalTaxableCost)),
+          _summaryRow('Total Material GST Amount (5% & 18%):', _currency.format(calc.totalGstAmount)),
           _summaryRow('7. Total Labour Cost (Wiring + Structure + Civil):', _currency.format(calc.totalLabourCost)),
           _summaryRow('8. Total Other Expenses (Transport & Unloading):', _currency.format(calc.totalOtherExpensesCost)),
 
@@ -472,8 +541,8 @@ class SolarSiteCostPdfService {
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Text(
-                  'FINAL TOTAL SITE COST:',
-                  style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+                  calc.isGstApplicable ? 'FINAL TOTAL SITE COST (GST INCLUSIVE):' : 'FINAL TOTAL SITE COST (NET BASE):',
+                  style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
                 ),
                 pw.Text(
                   _currency.format(calc.finalSiteCost),
@@ -485,8 +554,12 @@ class SolarSiteCostPdfService {
           if (calc.systemCapacityKw > 0) ...[
             pw.SizedBox(height: 4),
             pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.end,
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
+                pw.Text(
+                  'Base Net Cost (w/o GST): ${_currency.format(calc.finalSiteCostWithoutGst)}',
+                  style: const pw.TextStyle(fontSize: 8, color: slateMutedColor),
+                ),
                 pw.Text(
                   'Cost Per Installed kW: ${_currency.format(calc.costPerKw)} / kW',
                   style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: emeraldColor),
@@ -541,7 +614,33 @@ class SolarSiteCostPdfService {
     );
   }
 
-  static pw.TableRow _tableTotalRow(String label, String total, int colSpan) {
+  static pw.TableRow _tableTotalRow(String label, List<String> totals, int totalCols) {
+    return pw.TableRow(
+      decoration: const pw.BoxDecoration(color: zebraBgColor),
+      children: [
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: pw.Text(
+            label,
+            style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+          ),
+        ),
+        ...List.generate(
+          totalCols - totals.length - 1,
+          (_) => pw.Padding(padding: const pw.EdgeInsets.all(2), child: pw.Text('')),
+        ),
+        ...totals.map((t) => pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: pw.Text(
+                t,
+                style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: darkTextColor),
+              ),
+            )),
+      ],
+    );
+  }
+
+  static pw.TableRow _tableSimpleTotalRow(String label, String total, int colSpan) {
     return pw.TableRow(
       decoration: const pw.BoxDecoration(color: zebraBgColor),
       children: [
@@ -554,7 +653,7 @@ class SolarSiteCostPdfService {
         ),
         ...List.generate(
           colSpan - 2,
-          (index) => pw.Padding(padding: const pw.EdgeInsets.all(2), child: pw.Text('')),
+          (_) => pw.Padding(padding: const pw.EdgeInsets.all(2), child: pw.Text('')),
         ),
         pw.Padding(
           padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),

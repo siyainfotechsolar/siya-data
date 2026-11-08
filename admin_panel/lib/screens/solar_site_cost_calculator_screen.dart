@@ -12,16 +12,16 @@ import '../services/solar_site_cost_pdf_service.dart';
 
 /// SIYA SOLAR SITE COST CALCULATOR SCREEN
 ///
-/// Pure Site Cost Calculator:
-/// - Solar Panel (Wattage x Qty x Rate/Watt)
-/// - Inverter (Fixed Cost x Qty)
-/// - GI Pipe (Size-wise, Weight x Qty x Rate/KG)
-/// - Other Structure Material (Configurable units)
-/// - Electrical BOS Material (Fixed, Meter, Nos, Set)
-/// - Other Custom Materials
+/// Material-wise Solar Site Cost & GST Estimation:
+/// - Solar Panels (Wattage x Qty x Rate/Watt + 5% GST)
+/// - Inverter (Fixed Cost x Qty + 5% / 12% GST)
+/// - GI Pipe (Size-wise, Weight x Qty x Rate/KG + 18% GST)
+/// - Other Structure Material (Configurable units + 18% GST)
+/// - Electrical BOS Material (Fixed, Meter, Nos, Set + 18% GST)
+/// - Other Custom Materials (Configurable GST)
 /// - Labour Cost (Exactly 3 categories: Wiring, Structure, Civil)
 /// - Other Expenses (Transportation, Loading/Unloading, Other)
-/// - Final Site Cost & Cost Per kW
+/// - Full GST & Taxable breakdown with Net/Gross toggle
 class SolarSiteCostCalculatorScreen extends StatefulWidget {
   const SolarSiteCostCalculatorScreen({super.key});
 
@@ -38,6 +38,7 @@ class _SolarSiteCostCalculatorScreenState
   bool _isLoading = false;
   String? _savedCalculationId;
   String _calculationNumber = '';
+  bool _isGstApplicable = true; // Enabled by default to show GST
 
   // Header controllers
   final _siteNameCtrl = TextEditingController(text: 'New Solar Site');
@@ -90,7 +91,6 @@ class _SolarSiteCostCalculatorScreenState
     setState(() => _isLoading = true);
     try {
       await SolarSiteCostService.fetchMaterialMaster();
-      // Start with blank template or load sample if empty
       _startNewBlankCalculation();
     } catch (_) {
       _startNewBlankCalculation();
@@ -103,9 +103,10 @@ class _SolarSiteCostCalculatorScreenState
     setState(() {
       _savedCalculationId = null;
       _calculationNumber = '';
+      _isGstApplicable = true;
       _siteNameCtrl.text = 'New Solar Site';
       _customerNameCtrl.text = '';
-      _capacityCtrl.text = '3.0';
+      _capacityCtrl.text = '3.3';
       _notesCtrl.text = '';
       _calculationDate = DateTime.now();
 
@@ -117,6 +118,7 @@ class _SolarSiteCostCalculatorScreenState
           wattage: 550.0,
           quantity: 6,
           ratePerWatt: 18.0,
+          gstRate: 5.0,
         ),
       ];
 
@@ -128,6 +130,7 @@ class _SolarSiteCostCalculatorScreenState
           capacity: '3.3 kW',
           quantity: 1,
           fixedRate: 25000.0,
+          gstRate: 5.0,
         ),
       ];
 
@@ -140,6 +143,7 @@ class _SolarSiteCostCalculatorScreenState
           numberOfPipes: 10,
           weightPerPipeKg: 8.0,
           ratePerKg: 85.0,
+          gstRate: 18.0,
         ),
         const SolarGiPipeCostItem(
           id: 'pipe_init_2',
@@ -149,6 +153,7 @@ class _SolarSiteCostCalculatorScreenState
           numberOfPipes: 5,
           weightPerPipeKg: 12.0,
           ratePerKg: 90.0,
+          gstRate: 18.0,
         ),
         const SolarGiPipeCostItem(
           id: 'pipe_init_3',
@@ -158,18 +163,19 @@ class _SolarSiteCostCalculatorScreenState
           numberOfPipes: 4,
           weightPerPipeKg: 6.0,
           ratePerKg: 80.0,
+          gstRate: 18.0,
         ),
       ];
 
       _structureItems = [];
 
       _bosItems = [
-        const SolarBosCostItem(id: 'bos_1', itemName: 'ACDB', unit: 'FIXED', quantity: 1, rate: 2500.0),
-        const SolarBosCostItem(id: 'bos_2', itemName: 'DCDB', unit: 'FIXED', quantity: 1, rate: 2200.0),
-        const SolarBosCostItem(id: 'bos_3', itemName: 'DC Cable', unit: 'FIXED', quantity: 1, rate: 1750.0),
-        const SolarBosCostItem(id: 'bos_4', itemName: 'AC Cable', unit: 'FIXED', quantity: 1, rate: 1950.0),
-        const SolarBosCostItem(id: 'bos_5', itemName: 'Earthing Kit', unit: 'FIXED', quantity: 1, rate: 3500.0),
-        const SolarBosCostItem(id: 'bos_6', itemName: 'MC4 Connector', unit: 'FIXED', quantity: 1, rate: 500.0),
+        const SolarBosCostItem(id: 'bos_1', itemName: 'ACDB', unit: 'FIXED', quantity: 1, rate: 2500.0, gstRate: 18.0),
+        const SolarBosCostItem(id: 'bos_2', itemName: 'DCDB', unit: 'FIXED', quantity: 1, rate: 2200.0, gstRate: 18.0),
+        const SolarBosCostItem(id: 'bos_3', itemName: 'DC Cable', unit: 'FIXED', quantity: 1, rate: 1750.0, gstRate: 18.0),
+        const SolarBosCostItem(id: 'bos_4', itemName: 'AC Cable', unit: 'FIXED', quantity: 1, rate: 1950.0, gstRate: 18.0),
+        const SolarBosCostItem(id: 'bos_5', itemName: 'Earthing Kit', unit: 'FIXED', quantity: 1, rate: 3500.0, gstRate: 18.0),
+        const SolarBosCostItem(id: 'bos_6', itemName: 'MC4 Connector', unit: 'FIXED', quantity: 1, rate: 500.0, gstRate: 18.0),
       ];
 
       _otherMaterials = [];
@@ -186,15 +192,17 @@ class _SolarSiteCostCalculatorScreenState
   }
 
   /// Loads the exact sample test calculation from Section 11 of the requirement:
-  /// Panel ₹59,400 + Inverter ₹25,000 + GI Pipe ₹14,120 + BOS ₹12,400 + Labour ₹18,500 + Expenses ₹4,500 = ₹1,33,920
-  void _loadSampleTestCalculation() {
-    final sample = SolarSiteCostCalculation.createSampleTestCalculation();
+  /// Base Taxable: ₹1,33,920. When GST is toggled ON: ₹1,42,913.60
+  void _loadSampleTestCalculation({bool withGst = false}) {
+    final sample = SolarSiteCostCalculation.createSampleTestCalculation(withGst: withGst);
     _populateFromCalculation(sample);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Loaded Sample Test Calculation: Expected Total = ₹1,33,920'),
-        backgroundColor: Color(0xFF047857),
-        duration: Duration(seconds: 3),
+      SnackBar(
+        content: Text(withGst
+            ? 'Loaded Sample with GST: Base Taxable = ₹1,33,920 | GST = ₹8,993.60 | Total = ₹1,42,913.60'
+            : 'Loaded Sample (Net Cost): Expected Base Total = ₹1,33,920 (Toggle GST to see taxes)'),
+        backgroundColor: const Color(0xFF047857),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -203,6 +211,7 @@ class _SolarSiteCostCalculatorScreenState
     setState(() {
       _savedCalculationId = calc.id;
       _calculationNumber = calc.calculationNumber;
+      _isGstApplicable = calc.isGstApplicable;
       _siteNameCtrl.text = calc.siteName;
       _customerNameCtrl.text = calc.customerName;
       _capacityCtrl.text = calc.systemCapacityKw > 0 ? calc.systemCapacityKw.toStringAsFixed(2) : '3.3';
@@ -248,6 +257,7 @@ class _SolarSiteCostCalculatorScreenState
       systemCapacityKw: capacity,
       calculationDate: _calculationDate,
       notes: _notesCtrl.text.trim(),
+      isGstApplicable: _isGstApplicable,
       panels: _panels,
       inverters: _inverters,
       giPipes: _giPipes,
@@ -323,52 +333,53 @@ class _SolarSiteCostCalculatorScreenState
   Future<void> _exportCsv() async {
     final calc = _buildCurrentCalculation();
     final rows = <List<dynamic>>[
-      ['SIYA INFOTECH & SOLAR ENERGY - SOLAR SITE COST ESTIMATE'],
+      ['SIYA INFOTECH & SOLAR ENERGY - SOLAR SITE COST & GST ESTIMATE'],
       ['Calculation Number', calc.calculationNumber],
       ['Site Name', calc.siteName],
       ['Customer Name', calc.customerName],
       ['System Capacity', '${calc.systemCapacityKw} kW'],
       ['Calculation Date', _dateFormat.format(calc.calculationDate)],
+      ['GST Mode', calc.isGstApplicable ? 'GST Inclusive' : 'Net Base Cost'],
       [],
       ['1. SOLAR PANELS'],
-      ['Brand', 'Model', 'Wattage (W)', 'Quantity', 'Total Watts', 'Rate Per Watt (Rs.)', 'Amount (Rs.)'],
-      ...calc.panels.map((p) => [p.brand, p.model, p.wattage, p.quantity, p.totalWattage, p.ratePerWatt, p.totalAmount]),
-      ['Total Solar Panel Cost', '', '', '', '', '', calc.totalPanelCost],
+      ['Brand', 'Model', 'Wattage (W)', 'Quantity', 'Total Watts', 'Rate/Watt (₹)', 'Taxable (₹)', 'GST %', 'GST Amount (₹)', 'Total Amount (₹)'],
+      ...calc.panels.map((p) => [p.brand, p.model, p.wattage, p.quantity, p.totalWattage, p.ratePerWatt, p.taxableAmount, '${p.gstRate}%', p.gstAmount, p.totalAmount]),
+      ['Total Solar Panel Cost', '', '', '', '', '', calc.totalPanelTaxable, '', calc.totalPanelGst, calc.totalPanelCost],
       [],
       ['2. INVERTERS (FIXED COST)'],
-      ['Brand', 'Model', 'Capacity', 'Quantity', 'Fixed Rate (Rs.)', 'Amount (Rs.)'],
-      ...calc.inverters.map((i) => [i.brand, i.model, i.capacity, i.quantity, i.fixedRate, i.totalAmount]),
-      ['Total Inverter Cost', '', '', '', '', calc.totalInverterCost],
+      ['Brand', 'Model', 'Capacity', 'Quantity', 'Fixed Rate (₹)', 'Taxable (₹)', 'GST %', 'GST Amount (₹)', 'Total Amount (₹)'],
+      ...calc.inverters.map((i) => [i.brand, i.model, i.capacity, i.quantity, i.fixedRate, i.taxableAmount, '${i.gstRate}%', i.gstAmount, i.totalAmount]),
+      ['Total Inverter Cost', '', '', '', '', calc.totalInverterTaxable, '', calc.totalInverterGst, calc.totalInverterCost],
       [],
       ['3. GI PIPES (SIZE-WISE CALCULATION)'],
-      ['Pipe Size', 'Thickness (mm)', 'Length (Ft)', 'Pipes (Nos)', 'Weight/Pipe (KG)', 'Total Weight (KG)', 'Rate/KG (Rs.)', 'Amount (Rs.)'],
-      ...calc.giPipes.map((pipe) => [pipe.pipeSize, pipe.thicknessMm, pipe.lengthFeet, pipe.numberOfPipes, pipe.weightPerPipeKg, pipe.totalWeightKg, pipe.ratePerKg, pipe.totalAmount]),
-      ['Total GI Pipe Cost', '', '', '', '', '', '', calc.totalGiPipeCost],
+      ['Pipe Size', 'Thickness (mm)', 'Length (Ft)', 'Pipes (Nos)', 'Weight/Pipe (KG)', 'Total Weight (KG)', 'Rate/KG (₹)', 'Taxable (₹)', 'GST %', 'GST Amount (₹)', 'Total Amount (₹)'],
+      ...calc.giPipes.map((pipe) => [pipe.pipeSize, pipe.thicknessMm, pipe.lengthFeet, pipe.numberOfPipes, pipe.weightPerPipeKg, pipe.totalWeightKg, pipe.ratePerKg, pipe.taxableAmount, '${pipe.gstRate}%', pipe.gstAmount, pipe.totalAmount]),
+      ['Total GI Pipe Cost', '', '', '', '', '', '', calc.totalGiPipeTaxable, '', calc.totalGiPipeGst, calc.totalGiPipeCost],
       [],
       ['4. OTHER STRUCTURE MATERIAL'],
-      ['Item Name', 'Specification', 'Unit', 'Quantity', 'Rate (Rs.)', 'Amount (Rs.)'],
-      ...calc.structureItems.map((s) => [s.itemName, s.specification, s.unit, s.quantity, s.rate, s.totalAmount]),
-      ['Total Other Structure Cost', '', '', '', '', calc.totalStructureCost],
+      ['Item Name', 'Specification', 'Unit', 'Quantity', 'Rate (₹)', 'Taxable (₹)', 'GST %', 'GST Amount (₹)', 'Total Amount (₹)'],
+      ...calc.structureItems.map((s) => [s.itemName, s.specification, s.unit, s.quantity, s.rate, s.taxableAmount, '${s.gstRate}%', s.gstAmount, s.totalAmount]),
+      ['Total Other Structure Cost', '', '', '', '', calc.totalStructureTaxable, '', calc.totalStructureGst, calc.totalStructureCost],
       [],
       ['5. ELECTRICAL BOS MATERIAL'],
-      ['Item Name', 'Specification', 'Unit', 'Quantity', 'Rate (Rs.)', 'Amount (Rs.)'],
-      ...calc.bosItems.map((b) => [b.itemName, b.specification, b.unit, b.quantity, b.rate, b.totalAmount]),
-      ['Total Electrical BOS Cost', '', '', '', '', calc.totalBosCost],
+      ['Item Name', 'Specification', 'Unit', 'Quantity', 'Rate (₹)', 'Taxable (₹)', 'GST %', 'GST Amount (₹)', 'Total Amount (₹)'],
+      ...calc.bosItems.map((b) => [b.itemName, b.specification, b.unit, b.quantity, b.rate, b.taxableAmount, '${b.gstRate}%', b.gstAmount, b.totalAmount]),
+      ['Total Electrical BOS Cost', '', '', '', '', calc.totalBosTaxable, '', calc.totalBosGst, calc.totalBosCost],
       [],
       ['6. OTHER CUSTOM MATERIALS'],
-      ['Material Name', 'Specification', 'Unit', 'Quantity', 'Rate (Rs.)', 'Amount (Rs.)'],
-      ...calc.otherMaterials.map((m) => [m.materialName, m.specification, m.unit, m.quantity, m.rate, m.totalAmount]),
-      ['Total Other Materials Cost', '', '', '', '', calc.totalOtherMaterialCost],
+      ['Material Name', 'Specification', 'Unit', 'Quantity', 'Rate (₹)', 'Taxable (₹)', 'GST %', 'GST Amount (₹)', 'Total Amount (₹)'],
+      ...calc.otherMaterials.map((m) => [m.materialName, m.specification, m.unit, m.quantity, m.rate, m.taxableAmount, '${m.gstRate}%', m.gstAmount, m.totalAmount]),
+      ['Total Other Materials Cost', '', '', '', '', calc.totalOtherMaterialTaxable, '', calc.totalOtherMaterialGst, calc.totalOtherMaterialCost],
       [],
       ['7. LABOUR COST (THREE CATEGORIES)'],
-      ['Labour Category', 'Description', 'Amount (Rs.)'],
+      ['Labour Category', 'Description', 'Amount (₹)'],
       ['Wiring Labour', calc.labour.wiringLabour.description, calc.totalWiringLabour],
       ['Structure Labour', calc.labour.structureLabour.description, calc.totalStructureLabour],
       ['Civil Labour', calc.labour.civilLabour.description, calc.totalCivilLabour],
       ['Total Labour Cost', '', calc.totalLabourCost],
       [],
       ['8. OTHER EXPENSES'],
-      ['Expense Description', 'Amount (Rs.)'],
+      ['Expense Description', 'Amount (₹)'],
       ['Transportation Charges', calc.otherExpenses.transportation],
       ['Loading / Unloading', calc.otherExpenses.loadingUnloading],
       ['Other Expenses', calc.otherExpenses.otherExpenses],
@@ -376,26 +387,28 @@ class _SolarSiteCostCalculatorScreenState
       ['Total Other Expenses', calc.totalOtherExpensesCost],
       [],
       ['FINAL SUMMARY'],
-      ['Category', 'Subtotal (Rs.)'],
-      ['Solar Panels', calc.totalPanelCost],
-      ['Inverter', calc.totalInverterCost],
-      ['GI Pipe Structure', calc.totalGiPipeCost],
-      ['Other Structure Material', calc.totalStructureCost],
-      ['Electrical BOS Material', calc.totalBosCost],
-      ['Other Materials', calc.totalOtherMaterialCost],
-      ['Total Labour Charges', calc.totalLabourCost],
-      ['Total Other Expenses', calc.totalOtherExpensesCost],
-      ['FINAL TOTAL SITE COST', calc.finalSiteCost],
-      ['Cost Per kW', calc.costPerKw],
+      ['Category', 'Taxable (₹)', 'GST (₹)', 'Subtotal (₹)'],
+      ['Solar Panels (5% GST)', calc.totalPanelTaxable, calc.totalPanelGst, calc.totalPanelCost],
+      ['Inverter (5% GST)', calc.totalInverterTaxable, calc.totalInverterGst, calc.totalInverterCost],
+      ['GI Pipe Structure (18% GST)', calc.totalGiPipeTaxable, calc.totalGiPipeGst, calc.totalGiPipeCost],
+      ['Other Structure Material (18% GST)', calc.totalStructureTaxable, calc.totalStructureGst, calc.totalStructureCost],
+      ['Electrical BOS Material (18% GST)', calc.totalBosTaxable, calc.totalBosGst, calc.totalBosCost],
+      ['Other Custom Materials', calc.totalOtherMaterialTaxable, calc.totalOtherMaterialGst, calc.totalOtherMaterialCost],
+      ['Total Labour Charges', calc.totalLabourCost, 0.0, calc.totalLabourCost],
+      ['Total Other Expenses', calc.totalOtherExpensesCost, 0.0, calc.totalOtherExpensesCost],
+      ['SUBTOTAL TAXABLE COST', calc.totalTaxableCost, '', ''],
+      ['TOTAL MATERIAL GST (5% & 18%)', '', calc.totalGstAmount, ''],
+      ['FINAL TOTAL SITE COST', '', '', calc.finalSiteCost],
+      ['Cost Per kW Installed', '', '', calc.costPerKw],
     ];
 
     try {
       final csvString = const ListToCsvConverter().convert(rows);
       final bytes = utf8.encode(csvString);
-      final filename = 'Site_Cost_${calc.siteName.replaceAll(' ', '_')}_${_dateFormat.format(calc.calculationDate)}.csv';
+      final filename = 'Site_Cost_GST_${calc.siteName.replaceAll(' ', '_')}_${_dateFormat.format(calc.calculationDate)}.csv';
 
       await FilePicker.platform.saveFile(
-        dialogTitle: 'Export Site Cost CSV',
+        dialogTitle: 'Export Site Cost & GST CSV',
         fileName: filename,
         bytes: Uint8List.fromList(bytes),
         allowedExtensions: ['csv'],
@@ -538,7 +551,7 @@ class _SolarSiteCostCalculatorScreenState
   @override
   Widget build(BuildContext context) {
     final calc = _buildCurrentCalculation();
-    final isSampleMatch = (calc.finalSiteCost - 133920.0).abs() < 0.01;
+    final isBaseSampleMatch = (calc.finalSiteCostWithoutGst - 133920.0).abs() < 0.01;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -553,8 +566,8 @@ class _SolarSiteCostCalculatorScreenState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Site Basic Details Card
-                        _buildSiteInfoCard(calc, isSampleMatch),
+                        // Site Basic Details Card & GST Toggle
+                        _buildSiteInfoCard(calc, isBaseSampleMatch),
                         const SizedBox(height: 16),
 
                         // Main Content (2-Column on Wide Desktop, 1-Column on Mobile)
@@ -592,14 +605,14 @@ class _SolarSiteCostCalculatorScreenState
                                   // Right side: Sticky Live Cost Summary Box (width 35%)
                                   Expanded(
                                     flex: 35,
-                                    child: _buildLiveCostSummaryCard(calc, isSampleMatch),
+                                    child: _buildLiveCostSummaryCard(calc, isBaseSampleMatch),
                                   ),
                                 ],
                               );
                             } else {
                               return Column(
                                 children: [
-                                  _buildLiveCostSummaryCard(calc, isSampleMatch),
+                                  _buildLiveCostSummaryCard(calc, isBaseSampleMatch),
                                   const SizedBox(height: 16),
                                   _buildPanelSection(),
                                   const SizedBox(height: 16),
@@ -617,7 +630,7 @@ class _SolarSiteCostCalculatorScreenState
                                   const SizedBox(height: 16),
                                   _buildExpensesSection(),
                                   const SizedBox(height: 16),
-                                  _buildLiveCostSummaryCard(calc, isSampleMatch),
+                                  _buildLiveCostSummaryCard(calc, isBaseSampleMatch),
                                 ],
                               );
                             }
@@ -646,11 +659,11 @@ class _SolarSiteCostCalculatorScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'SIYA SOLAR SITE COST CALCULATOR',
+            'SIYA SOLAR SITE COST & GST CALCULATOR',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5),
           ),
           Text(
-            'Material-wise Costing & Live Site Cost Estimation (Site Cost Only)',
+            'Panel (5%), Inverter (5%), GI Pipe (18%), BOS (18%) & Labour Costing',
             style: TextStyle(fontSize: 11, color: Colors.amber.shade200),
           ),
         ],
@@ -665,8 +678,8 @@ class _SolarSiteCostCalculatorScreenState
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
           icon: const Icon(Icons.verified, size: 16),
-          label: const Text('Load Sample Test (₹1,33,920)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          onPressed: _loadSampleTestCalculation,
+          label: const Text('Sample Test (₹1,33,920)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          onPressed: () => _loadSampleTestCalculation(withGst: false),
         ),
         const SizedBox(width: 8),
         IconButton(
@@ -705,9 +718,9 @@ class _SolarSiteCostCalculatorScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // Top Site Basic Info Card
+  // Top Site Basic Info Card & GST Toggle
   // ---------------------------------------------------------------------------
-  Widget _buildSiteInfoCard(SolarSiteCostCalculation calc, bool isSampleMatch) {
+  Widget _buildSiteInfoCard(SolarSiteCostCalculation calc, bool isBaseSampleMatch) {
     return Card(
       elevation: 0,
       color: Colors.white,
@@ -729,7 +742,44 @@ class _SolarSiteCostCalculatorScreenState
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0D2B6F)),
                 ),
                 const Spacer(),
-                if (isSampleMatch)
+
+                // GST Mode Toggle
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _isGstApplicable ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _isGstApplicable ? const Color(0xFF3B82F6) : Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _isGstApplicable ? Icons.receipt_long : Icons.money_off,
+                        size: 16,
+                        color: _isGstApplicable ? const Color(0xFF0D2B6F) : Colors.grey.shade700,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _isGstApplicable ? 'GST Mode: INCLUSIVE (5% & 18%)' : 'GST Mode: NET BASE (Without GST)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: _isGstApplicable ? const Color(0xFF0D2B6F) : Colors.grey.shade800,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Switch(
+                        value: _isGstApplicable,
+                        activeColor: const Color(0xFF0D2B6F),
+                        onChanged: (val) => setState(() => _isGstApplicable = val),
+                      ),
+                    ],
+                  ),
+                ),
+
+                if (isBaseSampleMatch) ...[
+                  const SizedBox(width: 12),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
@@ -742,12 +792,13 @@ class _SolarSiteCostCalculatorScreenState
                         Icon(Icons.check_circle, size: 14, color: Color(0xFF047857)),
                         SizedBox(width: 4),
                         Text(
-                          'Section 11 Sample Verified: ₹1,33,920',
+                          'Base Net Verified: ₹1,33,920',
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF047857)),
                         ),
                       ],
                     ),
                   ),
+                ],
               ],
             ),
             const SizedBox(height: 12),
@@ -838,15 +889,17 @@ class _SolarSiteCostCalculatorScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // SECTION 1: Solar Panel Cost
+  // SECTION 1: Solar Panel Cost (+ 5% GST)
   // ---------------------------------------------------------------------------
   Widget _buildPanelSection() {
-    final subtotal = _panels.fold(0.0, (sum, p) => sum + p.totalAmount);
+    final taxable = _panels.fold(0.0, (sum, p) => sum + p.taxableAmount);
+    final gst = _panels.fold(0.0, (sum, p) => sum + p.gstAmount);
+    final total = _isGstApplicable ? (taxable + gst) : taxable;
     final totalWatts = _panels.fold(0.0, (sum, p) => sum + p.totalWattage);
 
     return _buildSectionCard(
-      title: '1. Solar Panel Cost (Wattage × Rate/Watt)',
-      badge: '${totalWatts.toStringAsFixed(0)} W • Subtotal: ${_currency.format(subtotal)}',
+      title: '1. Solar Panel Cost (Wattage × Rate/Watt + 5% GST)',
+      badge: '${totalWatts.toStringAsFixed(0)} W • Taxable: ${_currency.format(taxable)} • GST: ${_currency.format(gst)} • Total: ${_currency.format(total)}',
       badgeColor: const Color(0xFF0D2B6F),
       onAdd: () {
         setState(() {
@@ -857,6 +910,7 @@ class _SolarSiteCostCalculatorScreenState
             wattage: 550.0,
             quantity: 6,
             ratePerWatt: 18.0,
+            gstRate: 5.0,
           ));
         });
       },
@@ -905,7 +959,7 @@ class _SolarSiteCostCalculatorScreenState
             child: TextFormField(
               initialValue: item.wattage.toStringAsFixed(0),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Wattage (W)', suffixText: 'W', isDense: true),
+              decoration: const InputDecoration(labelText: 'Watts', suffixText: 'W', isDense: true),
               onChanged: (val) {
                 final d = double.tryParse(val) ?? 0.0;
                 setState(() => _panels[index] = item.copyWith(wattage: d));
@@ -914,11 +968,11 @@ class _SolarSiteCostCalculatorScreenState
           ),
           const SizedBox(width: 8),
           Expanded(
-            flex: 2,
+            flex: 1,
             child: TextFormField(
               initialValue: item.quantity.toString(),
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Quantity (Nos)', isDense: true),
+              decoration: const InputDecoration(labelText: 'Qty', isDense: true),
               onChanged: (val) {
                 final i = int.tryParse(val) ?? 0;
                 setState(() => _panels[index] = item.copyWith(quantity: i));
@@ -931,10 +985,27 @@ class _SolarSiteCostCalculatorScreenState
             child: TextFormField(
               initialValue: item.ratePerWatt.toStringAsFixed(2),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Rate/Watt (₹)', prefixText: '₹', isDense: true),
+              decoration: const InputDecoration(labelText: 'Rate/W', prefixText: '₹', isDense: true),
               onChanged: (val) {
                 final d = double.tryParse(val) ?? 0.0;
                 setState(() => _panels[index] = item.copyWith(ratePerWatt: d));
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          // GST Rate Dropdown (0%, 5%, 12%)
+          SizedBox(
+            width: 80,
+            child: DropdownButtonFormField<double>(
+              initialValue: item.gstRate,
+              decoration: const InputDecoration(labelText: 'GST %', isDense: true),
+              items: const [
+                DropdownMenuItem(value: 0.0, child: Text('0%')),
+                DropdownMenuItem(value: 5.0, child: Text('5%')),
+                DropdownMenuItem(value: 12.0, child: Text('12%')),
+              ],
+              onChanged: (val) {
+                if (val != null) setState(() => _panels[index] = item.copyWith(gstRate: val));
               },
             ),
           ),
@@ -942,8 +1013,10 @@ class _SolarSiteCostCalculatorScreenState
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('${item.totalWattage.toStringAsFixed(0)} W', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
-              Text(_currency.format(item.totalAmount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F))),
+              Text('Taxable: ${_currency.format(item.taxableAmount)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              if (item.gstRate > 0)
+                Text('+ GST (${item.gstRate.toStringAsFixed(0)}%): ${_currency.format(item.gstAmount)}', style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
+              Text(_currency.format(_isGstApplicable ? item.totalAmount : item.taxableAmount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F))),
             ],
           ),
           const SizedBox(width: 8),
@@ -957,14 +1030,16 @@ class _SolarSiteCostCalculatorScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // SECTION 2: Inverter Cost (Fixed Rate Only)
+  // SECTION 2: Inverter Cost (+ 5% / 12% GST)
   // ---------------------------------------------------------------------------
   Widget _buildInverterSection() {
-    final subtotal = _inverters.fold(0.0, (sum, inv) => sum + inv.totalAmount);
+    final taxable = _inverters.fold(0.0, (sum, inv) => sum + inv.taxableAmount);
+    final gst = _inverters.fold(0.0, (sum, inv) => sum + inv.gstAmount);
+    final total = _isGstApplicable ? (taxable + gst) : taxable;
 
     return _buildSectionCard(
-      title: '2. Inverter Cost (Fixed Rate Only)',
-      badge: 'Subtotal: ${_currency.format(subtotal)}',
+      title: '2. Inverter Cost (Fixed Rate + 5% / 12% GST)',
+      badge: 'Taxable: ${_currency.format(taxable)} • GST: ${_currency.format(gst)} • Total: ${_currency.format(total)}',
       badgeColor: const Color(0xFF0D2B6F),
       onAdd: () {
         setState(() {
@@ -975,6 +1050,7 @@ class _SolarSiteCostCalculatorScreenState
             capacity: '3.3 kW',
             quantity: 1,
             fixedRate: 25000.0,
+            gstRate: 5.0,
           ));
         });
       },
@@ -1022,7 +1098,7 @@ class _SolarSiteCostCalculatorScreenState
             flex: 2,
             child: TextFormField(
               initialValue: item.capacity,
-              decoration: const InputDecoration(labelText: 'Capacity (e.g. 3.3 kW)', isDense: true),
+              decoration: const InputDecoration(labelText: 'Capacity', isDense: true),
               onChanged: (val) => _inverters[index] = item.copyWith(capacity: val),
             ),
           ),
@@ -1032,7 +1108,7 @@ class _SolarSiteCostCalculatorScreenState
             child: TextFormField(
               initialValue: item.quantity.toString(),
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Quantity', isDense: true),
+              decoration: const InputDecoration(labelText: 'Qty', isDense: true),
               onChanged: (val) {
                 final i = int.tryParse(val) ?? 0;
                 setState(() => _inverters[index] = item.copyWith(quantity: i));
@@ -1045,15 +1121,40 @@ class _SolarSiteCostCalculatorScreenState
             child: TextFormField(
               initialValue: item.fixedRate.toStringAsFixed(0),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Fixed Rate (₹)', prefixText: '₹', isDense: true),
+              decoration: const InputDecoration(labelText: 'Fixed Rate', prefixText: '₹', isDense: true),
               onChanged: (val) {
                 final d = double.tryParse(val) ?? 0.0;
                 setState(() => _inverters[index] = item.copyWith(fixedRate: d));
               },
             ),
           ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 80,
+            child: DropdownButtonFormField<double>(
+              initialValue: item.gstRate,
+              decoration: const InputDecoration(labelText: 'GST %', isDense: true),
+              items: const [
+                DropdownMenuItem(value: 0.0, child: Text('0%')),
+                DropdownMenuItem(value: 5.0, child: Text('5%')),
+                DropdownMenuItem(value: 12.0, child: Text('12%')),
+                DropdownMenuItem(value: 18.0, child: Text('18%')),
+              ],
+              onChanged: (val) {
+                if (val != null) setState(() => _inverters[index] = item.copyWith(gstRate: val));
+              },
+            ),
+          ),
           const SizedBox(width: 12),
-          Text(_currency.format(item.totalAmount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F))),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('Taxable: ${_currency.format(item.taxableAmount)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              if (item.gstRate > 0)
+                Text('+ GST (${item.gstRate.toStringAsFixed(0)}%): ${_currency.format(item.gstAmount)}', style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
+              Text(_currency.format(_isGstApplicable ? item.totalAmount : item.taxableAmount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F))),
+            ],
+          ),
           const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
@@ -1065,15 +1166,17 @@ class _SolarSiteCostCalculatorScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // SECTION 3: GI Pipe (Size-wise & Rate Per KG)
+  // SECTION 3: GI Pipe (Size-wise & Rate Per KG + 18% GST)
   // ---------------------------------------------------------------------------
   Widget _buildGiPipeSection() {
-    final subtotal = _giPipes.fold(0.0, (sum, pipe) => sum + pipe.totalAmount);
+    final taxable = _giPipes.fold(0.0, (sum, pipe) => sum + pipe.taxableAmount);
+    final gst = _giPipes.fold(0.0, (sum, pipe) => sum + pipe.gstAmount);
+    final total = _isGstApplicable ? (taxable + gst) : taxable;
     final totalWeight = _giPipes.fold(0.0, (sum, pipe) => sum + pipe.totalWeightKg);
 
     return _buildSectionCard(
-      title: '3. GI Pipe Structure (Size-wise & Rate Per KG)',
-      badge: '${totalWeight.toStringAsFixed(1)} KG • Subtotal: ${_currency.format(subtotal)}',
+      title: '3. GI Pipe Structure (Size-wise & Rate Per KG + 18% GST)',
+      badge: '${totalWeight.toStringAsFixed(1)} KG • Taxable: ${_currency.format(taxable)} • GST: ${_currency.format(gst)} • Total: ${_currency.format(total)}',
       badgeColor: const Color(0xFF0D2B6F),
       onAdd: () {
         setState(() {
@@ -1085,6 +1188,7 @@ class _SolarSiteCostCalculatorScreenState
             numberOfPipes: 10,
             weightPerPipeKg: 8.0,
             ratePerKg: 85.0,
+            gstRate: 18.0,
           ));
         });
       },
@@ -1123,7 +1227,7 @@ class _SolarSiteCostCalculatorScreenState
         children: [
           // Pipe Size Preset
           SizedBox(
-            width: 140,
+            width: 130,
             child: DropdownButtonFormField<String>(
               initialValue: pipePresets.contains(item.pipeSize) ? item.pipeSize : 'Custom Size',
               decoration: const InputDecoration(labelText: 'Pipe Size', isDense: true),
@@ -1163,7 +1267,7 @@ class _SolarSiteCostCalculatorScreenState
           ),
           if (item.pipeSize == 'Custom Size')
             SizedBox(
-              width: 130,
+              width: 120,
               child: TextFormField(
                 initialValue: item.pipeSize == 'Custom Size' ? '' : item.pipeSize,
                 decoration: const InputDecoration(labelText: 'Custom Name', isDense: true),
@@ -1171,11 +1275,11 @@ class _SolarSiteCostCalculatorScreenState
               ),
             ),
           SizedBox(
-            width: 100,
+            width: 90,
             child: TextFormField(
               initialValue: item.thicknessMm.toStringAsFixed(1),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Thk (mm)', suffixText: 'mm', isDense: true),
+              decoration: const InputDecoration(labelText: 'Thk (mm)', isDense: true),
               onChanged: (val) {
                 final d = double.tryParse(val) ?? 1.6;
                 setState(() => _giPipes[index] = item.copyWith(thicknessMm: d));
@@ -1183,23 +1287,11 @@ class _SolarSiteCostCalculatorScreenState
             ),
           ),
           SizedBox(
-            width: 100,
-            child: TextFormField(
-              initialValue: item.lengthFeet.toStringAsFixed(0),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Length (Ft)', suffixText: 'Ft', isDense: true),
-              onChanged: (val) {
-                final d = double.tryParse(val) ?? 20.0;
-                setState(() => _giPipes[index] = item.copyWith(lengthFeet: d));
-              },
-            ),
-          ),
-          SizedBox(
-            width: 90,
+            width: 80,
             child: TextFormField(
               initialValue: item.numberOfPipes.toString(),
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Pipes (Nos)', isDense: true),
+              decoration: const InputDecoration(labelText: 'Pipes', isDense: true),
               onChanged: (val) {
                 final i = int.tryParse(val) ?? 0;
                 setState(() => _giPipes[index] = item.copyWith(numberOfPipes: i));
@@ -1207,11 +1299,11 @@ class _SolarSiteCostCalculatorScreenState
             ),
           ),
           SizedBox(
-            width: 110,
+            width: 100,
             child: TextFormField(
               initialValue: item.weightPerPipeKg.toStringAsFixed(1),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Wt/Pipe (KG)', suffixText: 'KG', isDense: true),
+              decoration: const InputDecoration(labelText: 'Wt/Pipe(KG)', isDense: true),
               onChanged: (val) {
                 final d = double.tryParse(val) ?? 0.0;
                 setState(() => _giPipes[index] = item.copyWith(weightPerPipeKg: d));
@@ -1219,22 +1311,38 @@ class _SolarSiteCostCalculatorScreenState
             ),
           ),
           SizedBox(
-            width: 110,
+            width: 100,
             child: TextFormField(
               initialValue: item.ratePerKg.toStringAsFixed(2),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Rate/KG (₹)', prefixText: '₹', isDense: true),
+              decoration: const InputDecoration(labelText: 'Rate/KG', prefixText: '₹', isDense: true),
               onChanged: (val) {
                 final d = double.tryParse(val) ?? 0.0;
                 setState(() => _giPipes[index] = item.copyWith(ratePerKg: d));
               },
             ),
           ),
+          SizedBox(
+            width: 80,
+            child: DropdownButtonFormField<double>(
+              initialValue: item.gstRate,
+              decoration: const InputDecoration(labelText: 'GST %', isDense: true),
+              items: const [
+                DropdownMenuItem(value: 0.0, child: Text('0%')),
+                DropdownMenuItem(value: 18.0, child: Text('18%')),
+              ],
+              onChanged: (val) {
+                if (val != null) setState(() => _giPipes[index] = item.copyWith(gstRate: val));
+              },
+            ),
+          ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('${item.totalWeightKg.toStringAsFixed(1)} KG total', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
-              Text(_currency.format(item.totalAmount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F))),
+              Text('Taxable: ${_currency.format(item.taxableAmount)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              if (item.gstRate > 0)
+                Text('+ 18% GST: ${_currency.format(item.gstAmount)}', style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
+              Text(_currency.format(_isGstApplicable ? item.totalAmount : item.taxableAmount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F))),
             ],
           ),
           IconButton(
@@ -1247,14 +1355,16 @@ class _SolarSiteCostCalculatorScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // SECTION 4: Other Structure Material
+  // SECTION 4: Other Structure Material (+ 18% GST)
   // ---------------------------------------------------------------------------
   Widget _buildStructureSection() {
-    final subtotal = _structureItems.fold(0.0, (sum, item) => sum + item.totalAmount);
+    final taxable = _structureItems.fold(0.0, (sum, item) => sum + item.taxableAmount);
+    final gst = _structureItems.fold(0.0, (sum, item) => sum + item.gstAmount);
+    final total = _isGstApplicable ? (taxable + gst) : taxable;
 
     return _buildSectionCard(
-      title: '4. Other Structure Material',
-      badge: 'Subtotal: ${_currency.format(subtotal)}',
+      title: '4. Other Structure Material (+ 18% GST)',
+      badge: 'Taxable: ${_currency.format(taxable)} • GST: ${_currency.format(gst)} • Total: ${_currency.format(total)}',
       badgeColor: const Color(0xFF0D2B6F),
       onAdd: () {
         setState(() {
@@ -1265,6 +1375,7 @@ class _SolarSiteCostCalculatorScreenState
             unit: 'NOS',
             quantity: 10,
             rate: 25.0,
+            gstRate: 18.0,
           ));
         });
       },
@@ -1315,25 +1426,23 @@ class _SolarSiteCostCalculatorScreenState
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 100,
+            width: 90,
             child: DropdownButtonFormField<String>(
               initialValue: units.contains(item.unit.toUpperCase()) ? item.unit.toUpperCase() : 'NOS',
               decoration: const InputDecoration(labelText: 'Unit', isDense: true),
               items: units.map((u) => DropdownMenuItem(value: u, child: Text(u, style: const TextStyle(fontSize: 12)))).toList(),
               onChanged: (val) {
-                if (val != null) {
-                  setState(() => _structureItems[index] = item.copyWith(unit: val));
-                }
+                if (val != null) setState(() => _structureItems[index] = item.copyWith(unit: val));
               },
             ),
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 90,
+            width: 80,
             child: TextFormField(
               initialValue: item.quantity.toStringAsFixed(0),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Quantity', isDense: true),
+              decoration: const InputDecoration(labelText: 'Qty', isDense: true),
               onChanged: (val) {
                 final d = double.tryParse(val) ?? 0.0;
                 setState(() => _structureItems[index] = item.copyWith(quantity: d));
@@ -1342,7 +1451,7 @@ class _SolarSiteCostCalculatorScreenState
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 110,
+            width: 100,
             child: TextFormField(
               initialValue: item.rate.toStringAsFixed(2),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1353,8 +1462,31 @@ class _SolarSiteCostCalculatorScreenState
               },
             ),
           ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 80,
+            child: DropdownButtonFormField<double>(
+              initialValue: item.gstRate,
+              decoration: const InputDecoration(labelText: 'GST %', isDense: true),
+              items: const [
+                DropdownMenuItem(value: 0.0, child: Text('0%')),
+                DropdownMenuItem(value: 18.0, child: Text('18%')),
+              ],
+              onChanged: (val) {
+                if (val != null) setState(() => _structureItems[index] = item.copyWith(gstRate: val));
+              },
+            ),
+          ),
           const SizedBox(width: 12),
-          Text(_currency.format(item.totalAmount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F))),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('Taxable: ${_currency.format(item.taxableAmount)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              if (item.gstRate > 0)
+                Text('+ GST: ${_currency.format(item.gstAmount)}', style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
+              Text(_currency.format(_isGstApplicable ? item.totalAmount : item.taxableAmount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F))),
+            ],
+          ),
           const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
@@ -1366,14 +1498,16 @@ class _SolarSiteCostCalculatorScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // SECTION 5: Electrical BOS Material
+  // SECTION 5: Electrical BOS Material (+ 18% GST)
   // ---------------------------------------------------------------------------
   Widget _buildBosSection() {
-    final subtotal = _bosItems.fold(0.0, (sum, item) => sum + item.totalAmount);
+    final taxable = _bosItems.fold(0.0, (sum, item) => sum + item.taxableAmount);
+    final gst = _bosItems.fold(0.0, (sum, item) => sum + item.gstAmount);
+    final total = _isGstApplicable ? (taxable + gst) : taxable;
 
     return _buildSectionCard(
-      title: '5. Electrical BOS Material',
-      badge: 'Subtotal: ${_currency.format(subtotal)}',
+      title: '5. Electrical BOS Material (+ 18% GST)',
+      badge: 'Taxable: ${_currency.format(taxable)} • GST: ${_currency.format(gst)} • Total: ${_currency.format(total)}',
       badgeColor: const Color(0xFF0D2B6F),
       onAdd: () {
         setState(() {
@@ -1383,6 +1517,7 @@ class _SolarSiteCostCalculatorScreenState
             unit: 'METER',
             quantity: 10,
             rate: 120.0,
+            gstRate: 18.0,
           ));
         });
       },
@@ -1419,21 +1554,19 @@ class _SolarSiteCostCalculatorScreenState
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 100,
+            width: 90,
             child: DropdownButtonFormField<String>(
               initialValue: units.contains(item.unit.toUpperCase()) ? item.unit.toUpperCase() : 'FIXED',
               decoration: const InputDecoration(labelText: 'Unit', isDense: true),
               items: units.map((u) => DropdownMenuItem(value: u, child: Text(u, style: const TextStyle(fontSize: 12)))).toList(),
               onChanged: (val) {
-                if (val != null) {
-                  setState(() => _bosItems[index] = item.copyWith(unit: val));
-                }
+                if (val != null) setState(() => _bosItems[index] = item.copyWith(unit: val));
               },
             ),
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 80,
+            width: 70,
             child: TextFormField(
               initialValue: item.quantity.toStringAsFixed(0),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1446,7 +1579,7 @@ class _SolarSiteCostCalculatorScreenState
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 110,
+            width: 100,
             child: TextFormField(
               initialValue: item.rate.toStringAsFixed(0),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1457,8 +1590,31 @@ class _SolarSiteCostCalculatorScreenState
               },
             ),
           ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 80,
+            child: DropdownButtonFormField<double>(
+              initialValue: item.gstRate,
+              decoration: const InputDecoration(labelText: 'GST %', isDense: true),
+              items: const [
+                DropdownMenuItem(value: 0.0, child: Text('0%')),
+                DropdownMenuItem(value: 18.0, child: Text('18%')),
+              ],
+              onChanged: (val) {
+                if (val != null) setState(() => _bosItems[index] = item.copyWith(gstRate: val));
+              },
+            ),
+          ),
           const SizedBox(width: 12),
-          Text(_currency.format(item.totalAmount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F))),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('Taxable: ${_currency.format(item.taxableAmount)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              if (item.gstRate > 0)
+                Text('+ GST: ${_currency.format(item.gstAmount)}', style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
+              Text(_currency.format(_isGstApplicable ? item.totalAmount : item.taxableAmount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F))),
+            ],
+          ),
           const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
@@ -1470,14 +1626,16 @@ class _SolarSiteCostCalculatorScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // SECTION 6: Other Materials (Unlimited custom rows)
+  // SECTION 6: Other Materials
   // ---------------------------------------------------------------------------
   Widget _buildOtherMaterialsSection() {
-    final subtotal = _otherMaterials.fold(0.0, (sum, item) => sum + item.totalAmount);
+    final taxable = _otherMaterials.fold(0.0, (sum, item) => sum + item.taxableAmount);
+    final gst = _otherMaterials.fold(0.0, (sum, item) => sum + item.gstAmount);
+    final total = _isGstApplicable ? (taxable + gst) : taxable;
 
     return _buildSectionCard(
       title: '6. Other Materials (Custom Rows)',
-      badge: 'Subtotal: ${_currency.format(subtotal)}',
+      badge: 'Taxable: ${_currency.format(taxable)} • GST: ${_currency.format(gst)} • Total: ${_currency.format(total)}',
       badgeColor: const Color(0xFF0D2B6F),
       onAdd: () {
         setState(() {
@@ -1488,6 +1646,7 @@ class _SolarSiteCostCalculatorScreenState
             unit: 'NOS',
             quantity: 1,
             rate: 500.0,
+            gstRate: 18.0,
           ));
         });
       },
@@ -1530,7 +1689,7 @@ class _SolarSiteCostCalculatorScreenState
                       ),
                       const SizedBox(width: 8),
                       SizedBox(
-                        width: 80,
+                        width: 70,
                         child: TextFormField(
                           initialValue: item.unit,
                           decoration: const InputDecoration(labelText: 'Unit', isDense: true),
@@ -1539,7 +1698,7 @@ class _SolarSiteCostCalculatorScreenState
                       ),
                       const SizedBox(width: 8),
                       SizedBox(
-                        width: 80,
+                        width: 70,
                         child: TextFormField(
                           initialValue: item.quantity.toStringAsFixed(0),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1552,7 +1711,7 @@ class _SolarSiteCostCalculatorScreenState
                       ),
                       const SizedBox(width: 8),
                       SizedBox(
-                        width: 100,
+                        width: 90,
                         child: TextFormField(
                           initialValue: item.rate.toStringAsFixed(0),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1563,8 +1722,34 @@ class _SolarSiteCostCalculatorScreenState
                           },
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 80,
+                        child: DropdownButtonFormField<double>(
+                          initialValue: item.gstRate,
+                          decoration: const InputDecoration(labelText: 'GST %', isDense: true),
+                          items: const [
+                            DropdownMenuItem(value: 0.0, child: Text('0%')),
+                            DropdownMenuItem(value: 5.0, child: Text('5%')),
+                            DropdownMenuItem(value: 12.0, child: Text('12%')),
+                            DropdownMenuItem(value: 18.0, child: Text('18%')),
+                            DropdownMenuItem(value: 28.0, child: Text('28%')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) setState(() => _otherMaterials[idx] = item.copyWith(gstRate: val));
+                          },
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Text(_currency.format(item.totalAmount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F))),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text('Taxable: ${_currency.format(item.taxableAmount)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                          if (item.gstRate > 0)
+                            Text('+ GST: ${_currency.format(item.gstAmount)}', style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
+                          Text(_currency.format(_isGstApplicable ? item.totalAmount : item.taxableAmount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F))),
+                        ],
+                      ),
                       const SizedBox(width: 8),
                       IconButton(
                         icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
@@ -1769,9 +1954,9 @@ class _SolarSiteCostCalculatorScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // FINAL LIVE COST SUMMARY CARD (PROMINENT UI)
+  // FINAL LIVE COST & GST SUMMARY CARD (PROMINENT UI)
   // ---------------------------------------------------------------------------
-  Widget _buildLiveCostSummaryCard(SolarSiteCostCalculation calc, bool isSampleMatch) {
+  Widget _buildLiveCostSummaryCard(SolarSiteCostCalculation calc, bool isBaseSampleMatch) {
     return Card(
       elevation: 2,
       color: Colors.white,
@@ -1789,32 +1974,52 @@ class _SolarSiteCostCalculatorScreenState
                 const Icon(Icons.calculate, color: Color(0xFF0D2B6F), size: 24),
                 const SizedBox(width: 8),
                 const Text(
-                  'FINAL COST SUMMARY',
+                  'FINAL COST & GST SUMMARY',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0D2B6F), letterSpacing: 0.5),
                 ),
                 const Spacer(),
-                if (isSampleMatch)
+                if (isBaseSampleMatch)
                   const Tooltip(
-                    message: 'Calculations exactly match Section 11 specifications!',
+                    message: 'Net material base cost matches Section 11 specifications!',
                     child: Icon(Icons.verified, color: Color(0xFF047857), size: 20),
                   ),
               ],
             ),
             const Divider(height: 20),
 
-            _summaryLine('1. Total Solar Panel Cost:', calc.totalPanelCost),
-            _summaryLine('2. Total Inverter Cost (Fixed):', calc.totalInverterCost),
-            _summaryLine('3. Total GI Pipe Structure Cost:', calc.totalGiPipeCost),
-            if (calc.totalStructureCost > 0)
-              _summaryLine('4. Total Other Structure Cost:', calc.totalStructureCost),
-            _summaryLine('5. Total Electrical BOS Cost:', calc.totalBosCost),
-            if (calc.totalOtherMaterialCost > 0)
-              _summaryLine('6. Total Other Materials Cost:', calc.totalOtherMaterialCost),
-            _summaryLine('7. Total Wiring Labour:', calc.totalWiringLabour, isIndented: true),
-            _summaryLine('8. Total Structure Labour:', calc.totalStructureLabour, isIndented: true),
-            _summaryLine('9. Total Civil Labour:', calc.totalCivilLabour, isIndented: true),
-            _summaryLine('   -> Total Labour Charges:', calc.totalLabourCost, isBold: true),
-            _summaryLine('10. Total Other Expenses:', calc.totalOtherExpensesCost),
+            _summaryLine('1. Solar Panels (Taxable):', calc.totalPanelTaxable),
+            if (calc.totalPanelGst > 0)
+              _summaryLine('   + 5% Panel GST:', calc.totalPanelGst, isIndented: true, isGst: true),
+            
+            _summaryLine('2. Inverter (Fixed Taxable):', calc.totalInverterTaxable),
+            if (calc.totalInverterGst > 0)
+              _summaryLine('   + Inverter GST:', calc.totalInverterGst, isIndented: true, isGst: true),
+
+            _summaryLine('3. GI Pipe Structure (Taxable):', calc.totalGiPipeTaxable),
+            if (calc.totalGiPipeGst > 0)
+              _summaryLine('   + 18% GI Pipe GST:', calc.totalGiPipeGst, isIndented: true, isGst: true),
+
+            if (calc.totalStructureTaxable > 0) ...[
+              _summaryLine('4. Other Structure (Taxable):', calc.totalStructureTaxable),
+              if (calc.totalStructureGst > 0)
+                _summaryLine('   + 18% Structure GST:', calc.totalStructureGst, isIndented: true, isGst: true),
+            ],
+
+            _summaryLine('5. Electrical BOS (Taxable):', calc.totalBosTaxable),
+            if (calc.totalBosGst > 0)
+              _summaryLine('   + 18% BOS GST:', calc.totalBosGst, isIndented: true, isGst: true),
+
+            if (calc.totalOtherMaterialTaxable > 0) ...[
+              _summaryLine('6. Other Materials (Taxable):', calc.totalOtherMaterialTaxable),
+              if (calc.totalOtherMaterialGst > 0)
+                _summaryLine('   + Custom GST:', calc.totalOtherMaterialGst, isIndented: true, isGst: true),
+            ],
+
+            const Divider(height: 14),
+            _summaryLine('Subtotal Taxable Material Cost:', calc.totalTaxableCost, isBold: true),
+            _summaryLine('Total Material GST (5% & 18%):', calc.totalGstAmount, isBold: true, isGst: true),
+            _summaryLine('7. Total Labour Cost (Wiring+Structure+Civil):', calc.totalLabourCost),
+            _summaryLine('8. Total Other Expenses (Transport/Handling):', calc.totalOtherExpensesCost),
 
             const SizedBox(height: 12),
 
@@ -1833,9 +2038,9 @@ class _SolarSiteCostCalculatorScreenState
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'FINAL SITE COST:',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 0.5),
+                      Text(
+                        _isGstApplicable ? 'FINAL SITE COST (WITH GST):' : 'FINAL SITE COST (NET BASE):',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
                       ),
                       Text(
                         _currency.format(calc.finalSiteCost),
@@ -1847,22 +2052,23 @@ class _SolarSiteCostCalculatorScreenState
                       ),
                     ],
                   ),
-                  if (calc.systemCapacityKw > 0) ...[
-                    const Divider(color: Colors.white24, height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Cost Per kW Installed:',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
+                  const Divider(color: Colors.white24, height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _isGstApplicable
+                            ? 'Net Base (w/o GST): ${_currency.format(calc.finalSiteCostWithoutGst)}'
+                            : 'Gross (with GST): ${_currency.format(calc.finalSiteCostWithGst)}',
+                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                      ),
+                      if (calc.systemCapacityKw > 0)
                         Text(
                           '${_currency.format(calc.costPerKw)} / kW',
-                          style: const TextStyle(color: Color(0xFF86EFAC), fontWeight: FontWeight.bold, fontSize: 13),
+                          style: const TextStyle(color: Color(0xFF86EFAC), fontWeight: FontWeight.bold, fontSize: 12.5),
                         ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -1907,7 +2113,7 @@ class _SolarSiteCostCalculatorScreenState
     );
   }
 
-  Widget _summaryLine(String title, double amount, {bool isBold = false, bool isIndented = false}) {
+  Widget _summaryLine(String title, double amount, {bool isBold = false, bool isIndented = false, bool isGst = false}) {
     return Padding(
       padding: EdgeInsets.only(top: 2, bottom: 2, left: isIndented ? 12 : 0),
       child: Row(
@@ -1918,7 +2124,7 @@ class _SolarSiteCostCalculatorScreenState
             style: TextStyle(
               fontSize: isBold ? 12.5 : 12,
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: isBold ? const Color(0xFF0D2B6F) : Colors.grey.shade800,
+              color: isGst ? Colors.blue.shade800 : (isBold ? const Color(0xFF0D2B6F) : Colors.grey.shade800),
             ),
           ),
           Text(
@@ -1926,7 +2132,7 @@ class _SolarSiteCostCalculatorScreenState
             style: TextStyle(
               fontSize: isBold ? 13 : 12,
               fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
-              color: isBold ? const Color(0xFF0D2B6F) : Colors.black87,
+              color: isGst ? Colors.blue.shade800 : (isBold ? const Color(0xFF0D2B6F) : Colors.black87),
             ),
           ),
         ],
