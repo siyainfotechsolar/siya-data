@@ -316,7 +316,11 @@ class VendorFinancialSummary {
       totCustOut += assignment.effectiveCustomerOutstanding;
 
       final siteMaterials = allMaterials.where((m) => m.assignmentId == assignment.id).toList();
-      final sitePayouts = allPayouts.where((p) => p.assignmentId == assignment.id).toList();
+      final sitePayouts = allPayouts.where((p) {
+        if (p.assignmentId == assignment.id) return true;
+        if (p.assignmentId == null && assignments.length == 1) return true;
+        return false;
+      }).toList();
 
       final detail = SiteFinancialDetail.compute(
         assignment: assignment,
