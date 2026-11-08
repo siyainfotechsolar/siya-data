@@ -27,6 +27,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   List<VendorPayout> _allPayouts = [];
 
   bool _isLoading = true;
+  String? _errorMessage;
   String? _selectedVendorFilter;
   String _assignmentStatusFilter = 'All';
   String _vendorSearchQuery = '';
@@ -45,7 +46,10 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   }
 
   Future<void> _loadAllData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final vendors = await SubVendorService.fetchAllVendors();
       final assignments = await SubVendorService.fetchAssignments();
@@ -62,14 +66,35 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
           _assignments = assignments;
           _allMaterials = materials;
           _allPayouts = payouts;
+          _errorMessage = null;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
+        final errText = e.toString();
+        setState(() {
+          _errorMessage = errText;
+          _isLoading = false;
+        });
+        final isTableMissing = errText.contains('sub_vendors') || errText.contains('PGRST205');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load sub-vendor data: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(
+              isTableMissing
+                  ? 'Supabase Database setup required: Tables not found in schema cache. Please execute 20261108000036_sub_vendor_management_module.sql in Supabase SQL Editor.'
+                  : 'Failed to load sub-vendor data: $e',
+            ),
+            backgroundColor: Colors.red.shade700,
+            duration: const Duration(seconds: 10),
+            action: isTableMissing
+                ? SnackBarAction(
+                    label: 'Setup Guide',
+                    textColor: Colors.yellowAccent,
+                    onPressed: _showMigrationSqlHelpDialog,
+                  )
+                : null,
+          ),
         );
       }
     }
@@ -189,6 +214,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
       padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
+          if (_errorMessage != null) _buildSetupRequiredBanner(),
           // Search Bar
           Card(
             elevation: 0,
@@ -211,7 +237,48 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
           const SizedBox(height: 12),
           Expanded(
             child: _filteredVendors.isEmpty
-                ? const Center(child: Text('No sub-vendors found.'))
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _errorMessage != null ? Icons.warning_amber_rounded : Icons.people_outline,
+                          size: 48,
+                          color: _errorMessage != null ? const Color(0xFFDC2626) : Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          _errorMessage != null
+                              ? 'Sub-Vendor Tables Not Initialized in Supabase'
+                              : 'No sub-vendors found.',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: _errorMessage != null ? const Color(0xFFDC2626) : Colors.grey.shade600,
+                          ),
+                        ),
+                        if (_errorMessage != null) ...[
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Table "public.sub_vendors" is missing from the database schema cache.\nPlease run the migration in Supabase SQL editor to create the tables.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.code),
+                            label: const Text('View Supabase Setup Instructions'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0D2B6F),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            ),
+                            onPressed: _showMigrationSqlHelpDialog,
+                          ),
+                        ],
+                      ],
+                    ),
+                  )
                 : ListView.builder(
                     itemCount: _filteredVendors.length,
                     itemBuilder: (context, index) {
@@ -735,6 +802,113 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSetupRequiredBanner() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFCA5A5)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Database Setup Required (Migration Pending)',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF991B1B)),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _errorMessage?.contains('PGRST205') == true || _errorMessage?.contains('sub_vendors') == true
+                      ? 'The sub_vendors tables have not been created in Supabase yet. Please apply migration 20261108000036_sub_vendor_management_module.sql in Supabase SQL Editor.'
+                      : (_errorMessage ?? ''),
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF7F1D1D)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            onPressed: _showMigrationSqlHelpDialog,
+            icon: const Icon(Icons.terminal, size: 15),
+            label: const Text('Setup Guide'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMigrationSqlHelpDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.terminal, color: Color(0xFF0D2B6F)),
+            SizedBox(width: 8),
+            Text('Supabase Database Setup Required'),
+          ],
+        ),
+        content: SizedBox(
+          width: 620,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'To activate the Sub-Vendor Management module, apply the database schema in your Supabase project (Project: unueboqvasadiuvgcvvh):',
+                style: TextStyle(fontSize: 13, color: Color(0xFF334155)),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const SelectableText(
+                  '1. Open Supabase Dashboard:\n'
+                  '   https://supabase.com/dashboard/project/unueboqvasadiuvgcvvh/sql/new\n\n'
+                  '2. Open migration file in your codebase:\n'
+                  '   supabase/migrations/20261108000036_sub_vendor_management_module.sql\n\n'
+                  '3. Paste the complete SQL contents into the Supabase SQL Editor and click "RUN".\n\n'
+                  '4. After successful run, return here and click "Refresh All".',
+                  style: TextStyle(color: Color(0xFF38BDF8), fontFamily: 'monospace', fontSize: 12, height: 1.4),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Refresh All Data'),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0D2B6F)),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _loadAllData();
+            },
+          ),
+        ],
       ),
     );
   }

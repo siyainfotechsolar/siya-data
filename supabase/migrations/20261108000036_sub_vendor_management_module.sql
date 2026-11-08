@@ -10,6 +10,14 @@
 --   6. Provides Admin RPCs for sub-vendor creation, status toggle, site assignment, material issue/return, and payout.
 -- ==============================================================================
 
+-- 0. Ensure 'sub_vendor' role is permitted in public.app_role enum if it exists
+DO $$ BEGIN
+    ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'sub_vendor';
+EXCEPTION
+    WHEN duplicate_object THEN null;
+    WHEN others THEN null;
+END $$;
+
 -- 1. Create Sub-Vendors Table (Sub-Vendor Master)
 CREATE TABLE IF NOT EXISTS public.sub_vendors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -556,4 +564,17 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.admin_create_sub_vendor TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_set_vendor_status TO authenticated;
+
+-- ==============================================================================
+-- 9. Table Grants for Supabase Data API (PostgREST)
+-- ==============================================================================
+GRANT ALL ON TABLE public.sub_vendors TO authenticated, anon, service_role;
+GRANT ALL ON TABLE public.vendor_site_assignments TO authenticated, anon, service_role;
+GRANT ALL ON TABLE public.vendor_material_transactions TO authenticated, anon, service_role;
+GRANT ALL ON TABLE public.vendor_payouts TO authenticated, anon, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.seq_sub_vendor_code TO authenticated, anon, service_role;
+
+-- Reload Supabase PostgREST Schema Cache
+NOTIFY pgrst, 'reload schema';
+
 
