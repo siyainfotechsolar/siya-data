@@ -53,6 +53,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
   List<VendorMaterialTransaction> _materials = [];
   List<VendorPayout> _payouts = [];
   List<VendorCustomerPayment> _customerPayments = [];
+  List<VendorGstRecovery> _gstRecoveries = [];
 
   // Search & filter
   String _siteSearch = '';
@@ -85,6 +86,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
         SubVendorService.fetchVendorMaterials(vendorId),
         SubVendorService.fetchVendorPayouts(vendorId),
         SubVendorService.fetchCustomerPayments(vendorId: vendorId),
+        SubVendorService.fetchVendorGstRecoveries(vendorId),
       ]);
 
       if (mounted) {
@@ -94,6 +96,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
           _materials = results[2] as List<VendorMaterialTransaction>;
           _payouts = results[3] as List<VendorPayout>;
           _customerPayments = results[4] as List<VendorCustomerPayment>;
+          _gstRecoveries = results[5] as List<VendorGstRecovery>;
           _isLoading = false;
         });
       }
@@ -145,23 +148,67 @@ class _SubVendorCompleteFinancialDashboardScreenState
     }
   }
 
-  void _exportLoanReportCsv() {
+  void _exportSiteQuotationCsv() {
+    final rows = <List<dynamic>>[
+      [
+        'Consumer No',
+        'Customer Name',
+        'Sub-Vendor Name',
+        'Ref Quotation No',
+        'Capacity (kW)',
+        '70% Goods Taxable (₹)',
+        '5% Goods GST (₹)',
+        '30% Services Taxable (₹)',
+        '18% Services GST (₹)',
+        'Total Taxable Amount (₹)',
+        'Total Output GST (₹)',
+        'Total Quotation Gross (₹)',
+        'Quotation Date',
+      ],
+      for (final a in _assignments) ...[
+        () {
+          final gst = SolarQuotationGstBreakdown.calculate(a.effectiveSiteAmount);
+          return [
+            a.consumerNo ?? 'N/A',
+            a.customerName ?? 'Site',
+            widget.vendor.name,
+            a.refQuotationNo ?? 'QUOT-${a.consumerNo ?? "GEN"}',
+            a.siteCapacityKw,
+            gst.taxable70,
+            gst.gst5,
+            gst.taxable30,
+            gst.gst18,
+            gst.totalTaxableValue,
+            gst.totalGstIncluded,
+            gst.grandTotal,
+            a.quotationDate != null ? _dateFormat.format(a.quotationDate!) : _dateFormat.format(a.assignedDate),
+          ];
+        }(),
+      ],
+    ];
+    _exportCsv(
+      fileName: 'site_quotation_report_${widget.vendor.vendorCode}_${DateTime.now().millisecondsSinceEpoch}',
+      rows: rows,
+    );
+  }
+
+  void _exportLoanCollectionCsv() {
     final rows = <List<dynamic>>[
       [
         'Consumer No',
         'Customer Name',
         'Capacity kW',
         'Payment Type',
-        'Quotation Amount',
-        'Expected 90% Loan',
-        '10% Quotation Diff',
+        'Total Quotation (₹)',
+        'Expected 90% Loan (₹)',
+        'Sanction Amount (₹)',
+        'Actual Bank Credited (₹)',
+        'Loan Shortfall (₹)',
+        'Remaining 10% Margin (₹)',
+        'Customer Margin Received (₹)',
+        'Pending Margin (₹)',
         'Disbursing Bank',
         'Loan App ID',
-        'Sanction Amount',
-        'Total Loan Credited',
-        'Pending Loan Credit',
-        'Total Cash Received',
-        'Customer Outstanding',
         'Loan Status',
       ],
       for (final a in _assignments)
@@ -171,41 +218,43 @@ class _SubVendorCompleteFinancialDashboardScreenState
           a.siteCapacityKw,
           a.paymentType,
           a.effectiveSiteAmount,
-          a.effectiveSiteAmount * 0.90,
-          a.effectiveSiteAmount * 0.10,
-          a.loanBankName ?? 'N/A',
-          a.loanApplicationId ?? 'N/A',
+          a.expectedLoan,
           a.loanSanctionedAmount,
           a.totalLoanCredited,
-          a.loanPendingCredit,
+          a.loanShortfallCalc,
+          a.remaining10,
           a.totalCashReceived,
-          a.customerOutstanding,
+          a.customerMarginPending,
+          a.loanBankName ?? 'N/A',
+          a.loanApplicationId ?? 'N/A',
           a.loanStatus,
         ],
     ];
     _exportCsv(
-      fileName: 'loan_report_${widget.vendor.vendorCode}_${DateTime.now().millisecondsSinceEpoch}',
+      fileName: 'loan_collection_report_${widget.vendor.vendorCode}_${DateTime.now().millisecondsSinceEpoch}',
       rows: rows,
     );
   }
 
-  void _exportMaterialReportCsv() {
+  void _exportMaterialPurchaseGstCsv() {
     final rows = <List<dynamic>>[
       [
         'Date',
         'Item Name',
         'Category',
         'Remarks / Serial',
-        'Customer / Site',
-        'Consumer No',
+        'Site / Customer',
+        'Supplier Name',
+        'Invoice / Challan No',
         'Tx Type',
         'Quantity',
         'Unit',
-        'Purchase Rate',
+        'Purchase Rate (₹)',
         'GST Rate %',
-        'Taxable Amount',
-        'GST Amount',
-        'Net Total Cost',
+        'Taxable Value (₹)',
+        'Input GST (₹)',
+        'ITC Eligible?',
+        'Total Material Cost (₹)',
       ],
       for (final m in _materials) ...[
         () {
@@ -213,75 +262,207 @@ class _SubVendorCompleteFinancialDashboardScreenState
             (a) => a.id == m.assignmentId,
             orElse: () => _assignments.isNotEmpty ? _assignments.first : _assignments.first,
           );
+          final sign = m.isReturn ? -1.0 : 1.0;
           return [
             _dateFormat.format(m.transactionDate),
             m.itemName,
             m.itemCategory,
             m.remarks ?? m.serialNumbers ?? '',
             assignment.customerName ?? 'Site',
-            assignment.consumerNo ?? '',
+            m.supplierName ?? 'Warehouse Supplier',
+            m.invoiceNumber ?? m.challanNumber ?? '',
             m.isReturn ? 'RETURN' : 'ISSUE',
             m.isReturn ? -m.quantity : m.quantity,
             m.unit,
             m.unitRate,
             m.gstRate,
-            (m.isReturn ? -1 : 1) * m.taxableAmount,
-            (m.isReturn ? -1 : 1) * m.gstAmount,
-            (m.isReturn ? -1 : 1) * m.totalAmount,
+            sign * m.taxableAmount,
+            sign * m.gstAmount,
+            m.isItcEligible ? 'YES' : 'NO',
+            sign * m.totalAmount,
           ];
         }(),
       ],
     ];
     _exportCsv(
-      fileName: 'material_report_${widget.vendor.vendorCode}_${DateTime.now().millisecondsSinceEpoch}',
+      fileName: 'material_purchase_gst_report_${widget.vendor.vendorCode}_${DateTime.now().millisecondsSinceEpoch}',
       rows: rows,
     );
   }
 
-  void _exportGstSummaryCsv() {
+  void _exportOutputVsInputGstCsv() {
     final rows = <List<dynamic>>[
       [
         'Consumer No',
         'Customer Name',
-        'Capacity kW',
-        'Site Quotation (Gross)',
-        'Taxable Value (~86.2% / Composite)',
-        'Output GST Liability (~13.8%)',
-        'Issued Material Cost',
-        'Eligible Input GST Credit',
-        'Net GST Payable',
+        'Capacity (kW)',
+        'Gross Quotation (₹)',
+        '70:30 Goods 5% GST (₹)',
+        '70:30 Services 18% GST (₹)',
+        'Total Output GST (₹)',
+        'Material Input GST (₹)',
+        'Eligible Input ITC (₹)',
+        'Ineligible Input GST (₹)',
+        'Estimated GST Difference (₹)',
+        'Excess ITC Credit Balance (₹)',
+        'Approved Contractual Recovery (₹)',
       ],
       for (final a in _assignments) ...[
         () {
+          final gst = SolarQuotationGstBreakdown.calculate(a.effectiveSiteAmount);
           final siteMats = _materials.where((m) => m.assignmentId == a.id).toList();
           double inputGst = 0.0;
-          double matCost = 0.0;
+          double eligibleItc = 0.0;
+          double ineligibleGst = 0.0;
+
           for (final m in siteMats) {
             final s = m.isReturn ? -1.0 : 1.0;
             inputGst += s * m.gstAmount;
-            matCost += s * m.totalAmount;
+            if (m.isItcEligible) {
+              eligibleItc += s * m.gstAmount;
+            } else {
+              ineligibleGst += s * m.gstAmount;
+            }
           }
-          final gross = a.effectiveSiteAmount;
-          final taxable = gross / 1.138;
-          final outputGst = gross - taxable;
-          final netGst = (outputGst - inputGst).clamp(0.0, double.infinity);
+
+          final estDiff = gst.totalGstIncluded - eligibleItc;
+          final excessItc = estDiff < 0 ? estDiff.abs() : 0.0;
+          final diffPayable = estDiff > 0 ? estDiff : 0.0;
+
+          final siteRecoveries = _gstRecoveries
+              .where((r) => r.assignmentId == a.id && (r.isApproved || r.isCollected))
+              .fold<double>(0.0, (sum, r) => sum + r.totalRecovery);
 
           return [
             a.consumerNo ?? 'N/A',
             a.customerName ?? 'N/A',
             a.siteCapacityKw,
-            gross,
-            taxable,
-            outputGst,
-            matCost,
+            a.effectiveSiteAmount,
+            gst.gst5,
+            gst.gst18,
+            gst.totalGstIncluded,
             inputGst,
-            netGst,
+            eligibleItc,
+            ineligibleGst,
+            diffPayable,
+            excessItc,
+            siteRecoveries,
           ];
         }(),
       ],
     ];
     _exportCsv(
-      fileName: 'gst_summary_${widget.vendor.vendorCode}_${DateTime.now().millisecondsSinceEpoch}',
+      fileName: 'output_vs_input_gst_report_${widget.vendor.vendorCode}_${DateTime.now().millisecondsSinceEpoch}',
+      rows: rows,
+    );
+  }
+
+  void _exportSubVendorGstRecoveryCsv() {
+    final rows = <List<dynamic>>[
+      [
+        'Recovery Date',
+        'Customer / Site',
+        'Consumer No',
+        'Sub-Vendor Name',
+        'Taxable Value (₹)',
+        'GST Rate %',
+        'GST Amount (₹)',
+        'Total Contractual Recovery (₹)',
+        'Invoice / Debit Note No',
+        'Recovery Status',
+        'Payment Date',
+        'Remarks / Contract Terms',
+      ],
+      for (final r in _gstRecoveries)
+        [
+          _dateFormat.format(r.recoveryDate),
+          r.customerName ?? 'Site',
+          r.consumerNo ?? 'N/A',
+          widget.vendor.name,
+          r.taxableValue,
+          r.gstRate,
+          r.gstAmount,
+          r.totalRecovery,
+          r.invoiceNumber ?? 'N/A',
+          r.recoveryStatus,
+          r.paymentDate != null ? _dateFormat.format(r.paymentDate!) : 'Pending',
+          r.remarks ?? '',
+        ],
+    ];
+    _exportCsv(
+      fileName: 'vendor_gst_recovery_report_${widget.vendor.vendorCode}_${DateTime.now().millisecondsSinceEpoch}',
+      rows: rows,
+    );
+  }
+
+  void _exportFinalSettlementCsv() {
+    final s = _summary;
+    final totalCollection = _assignments.fold<double>(0.0, (acc, a) => acc + a.totalCustomerReceived);
+    final totalMaterialCost = s?.totalMaterialCost ?? 0.0;
+    final vendorCharges = s?.totalVendorCharges ?? 0.0;
+    final otherExpenses = s?.totalOtherExpenses ?? 0.0;
+    final approvedGstRecovery = _gstRecoveries
+        .where((r) => r.isApproved || r.isCollected)
+        .fold<double>(0.0, (acc, r) => acc + r.totalRecovery);
+    final previousPayments = s?.totalPaidAmount ?? 0.0;
+
+    final netSubVendorEntitlement = totalCollection - totalMaterialCost - vendorCharges - otherExpenses - approvedGstRecovery;
+    final finalBalance = netSubVendorEntitlement - previousPayments;
+
+    final rows = <List<dynamic>>[
+      ['SIYA INFOTECH & SOLAR ENERGY - SUB-VENDOR FINAL SETTLEMENT REPORT'],
+      ['Vendor Name', widget.vendor.name],
+      ['Vendor Code', widget.vendor.vendorCode],
+      ['Mobile Number', widget.vendor.mobile],
+      ['Generated On', _dateFormat.format(DateTime.now())],
+      [],
+      ['SETTLEMENT SUMMARY COMPONENT', 'AMOUNT (₹)'],
+      ['Total Actual Realized Collections (Loan Credited + Cash Received)', totalCollection],
+      ['Less: Total Material Issued (Net of Returns)', -totalMaterialCost],
+      ['Less: SIYA Vendor Platform Fee (₹1,000/kW)', -vendorCharges],
+      ['Less: Other Approved Site Expenses', -otherExpenses],
+      ['Less: Approved Contractual GST Recovery', -approvedGstRecovery],
+      ['Net Sub-Vendor Contract Entitlement', netSubVendorEntitlement],
+      ['Less: Previous Advances / Bank Payouts Already Paid', -previousPayments],
+      [
+        finalBalance >= 0 ? 'FINAL AMOUNT PAYABLE TO SUB-VENDOR' : 'AMOUNT RECOVERABLE FROM SUB-VENDOR',
+        finalBalance.abs(),
+      ],
+      [],
+      ['SITE-BY-SITE SETTLEMENT DRILLDOWN'],
+      [
+        'Consumer No',
+        'Customer Name',
+        'Capacity kW',
+        'Realized Collection (₹)',
+        'Material Cost (₹)',
+        'Vendor Charges (₹)',
+        'Other Expenses (₹)',
+        'Net Site Balance (₹)',
+      ],
+      for (final a in _assignments) ...[
+        () {
+          final siteMats = _materials.where((m) => m.assignmentId == a.id).toList();
+          final mCost = siteMats.fold<double>(0.0, (sum, m) => sum + m.signedTotal);
+          final charges = a.vendorCharges;
+          final expenses = a.otherExpenses;
+          final siteRecv = a.totalCustomerReceived;
+          final netSite = siteRecv - mCost - charges - expenses;
+          return [
+            a.consumerNo ?? 'N/A',
+            a.customerName ?? 'Site',
+            a.siteCapacityKw,
+            siteRecv,
+            mCost,
+            charges,
+            expenses,
+            netSite,
+          ];
+        }(),
+      ],
+    ];
+    _exportCsv(
+      fileName: 'final_settlement_report_${widget.vendor.vendorCode}_${DateTime.now().millisecondsSinceEpoch}',
       rows: rows,
     );
   }
@@ -365,6 +546,110 @@ class _SubVendorCompleteFinancialDashboardScreenState
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh All',
             onPressed: _loadAllVendorData,
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.download, color: Colors.white),
+            tooltip: 'Export Reports (PDF / CSV)',
+            onSelected: (val) async {
+              switch (val) {
+                case 'pdf_ledger':
+                  if (_summary != null) {
+                    await SubVendorPdfService.printOrShareVendorOverallStatement(_summary!, vendor: widget.vendor);
+                  }
+                  break;
+                case 'csv_quotation':
+                  _exportSiteQuotationCsv();
+                  break;
+                case 'csv_loan':
+                  _exportLoanCollectionCsv();
+                  break;
+                case 'csv_material':
+                  _exportMaterialPurchaseGstCsv();
+                  break;
+                case 'csv_gst':
+                  _exportOutputVsInputGstCsv();
+                  break;
+                case 'csv_recovery':
+                  _exportSubVendorGstRecoveryCsv();
+                  break;
+                case 'csv_settlement':
+                  _exportFinalSettlementCsv();
+                  break;
+              }
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'pdf_ledger',
+                child: Row(
+                  children: [
+                    Icon(Icons.picture_as_pdf, color: Colors.red, size: 18),
+                    SizedBox(width: 8),
+                    Text('Complete Vendor Ledger (PDF)'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'csv_quotation',
+                child: Row(
+                  children: [
+                    Icon(Icons.table_chart, color: Colors.indigo, size: 18),
+                    SizedBox(width: 8),
+                    Text('1. Site Quotation Report (CSV)'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'csv_loan',
+                child: Row(
+                  children: [
+                    Icon(Icons.account_balance, color: Colors.blue, size: 18),
+                    SizedBox(width: 8),
+                    Text('2. Loan Collection Report (CSV)'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'csv_material',
+                child: Row(
+                  children: [
+                    Icon(Icons.inventory_2, color: Colors.amber, size: 18),
+                    SizedBox(width: 8),
+                    Text('3. Material Purchase GST Report (CSV)'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'csv_gst',
+                child: Row(
+                  children: [
+                    Icon(Icons.receipt_long, color: Colors.purple, size: 18),
+                    SizedBox(width: 8),
+                    Text('4. Output vs Input GST Report (CSV)'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'csv_recovery',
+                child: Row(
+                  children: [
+                    Icon(Icons.gavel, color: Colors.deepPurple, size: 18),
+                    SizedBox(width: 8),
+                    Text('5. Vendor GST Recovery Report (CSV)'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'csv_settlement',
+                child: Row(
+                  children: [
+                    Icon(Icons.payments, color: Colors.green, size: 18),
+                    SizedBox(width: 8),
+                    Text('6. Final Settlement Report (CSV)'),
+                  ],
+                ),
+              ),
+            ],
           ),
           if (_summary != null)
             Padding(
@@ -476,30 +761,53 @@ class _SubVendorCompleteFinancialDashboardScreenState
     final s = _summary;
     if (s == null) return const Center(child: Text('No data'));
 
-    final totalQuotation = s.totalSiteAmount;
-    final expectedLoan90 = totalQuotation * 0.90;
-    final loan10Diff = totalQuotation * 0.10;
-    final loanSanctioned = s.totalLoanSanctioned;
-    final loanCredited = s.totalLoanCredited;
-    final loanPending = s.totalLoanPendingCredit;
-    final cashReceived = s.totalCashReceived;
-    final actualCollection = s.totalCustomerCollection;
-    final totalMaterialCost = s.totalMaterialCost;
+    // Section A: Site Summary
+    final totalSites = _assignments.length;
+    final totalInstalledKw = _assignments.fold<double>(0.0, (acc, a) => acc + a.siteCapacityKw);
+    final totalQuotation = _assignments.fold<double>(0.0, (acc, a) => acc + a.effectiveSiteAmount);
+    final loanSitesCount = _assignments.where((a) => a.isBankLoan).length;
+    final cashSitesCount = _assignments.where((a) => !a.isBankLoan).length;
 
-    // GST aggregation
-    final taxableBilling = totalQuotation / 1.138;
-    final outputGst = totalQuotation - taxableBilling;
-    final eligibleItc = s.totalEligibleInputGst;
-    final netGstPayable = (outputGst - eligibleItc).clamp(0.0, double.infinity);
+    // Section B: Loan Summary
+    final expectedLoan90 = _assignments.fold<double>(0.0, (acc, a) => acc + a.expectedLoan);
+    final totalLoanCredited = _assignments.fold<double>(0.0, (acc, a) => acc + a.totalLoanCredited);
+    final totalRemaining10 = _assignments.fold<double>(0.0, (acc, a) => acc + a.remaining10);
+    final totalCashReceived = _assignments.fold<double>(0.0, (acc, a) => acc + a.totalCashReceived);
+    final totalLoanShortfall = _assignments.fold<double>(0.0, (acc, a) => acc + a.loanShortfallCalc);
+    final totalPendingMargin = _assignments.fold<double>(0.0, (acc, a) => acc + a.customerMarginPending);
 
-    final vendorCharges = s.totalVendorCharges;
-    final otherExpenses = s.totalOtherExpenses;
+    // Section C: GST Summary (Statutory 70:30 composite calculation)
+    final totalCustomerOutputGst = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.totalGstIncluded);
+    final goodsGst5 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.gst5);
+    final servicesGst18 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.gst18);
+
+    final totalMaterialGst = _materials.fold<double>(0.0, (acc, m) => acc + m.signedGst);
+    final totalEligibleItc = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcEligible);
+    final totalIneligibleGst = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcIneligible);
+    final estimatedGstDiff = totalCustomerOutputGst - totalEligibleItc;
+
+    final approvedGstRecovery = _gstRecoveries
+        .where((r) => r.isApproved || r.isCollected)
+        .fold<double>(0.0, (acc, r) => acc + r.totalRecovery);
+    final actualGstRecoveryCollected = _gstRecoveries
+        .where((r) => r.isCollected)
+        .fold<double>(0.0, (acc, r) => acc + r.totalRecovery);
+
+    // Section D: Material Summary
+    final totalMaterialCost = _materials.fold<double>(0.0, (acc, m) => acc + m.signedTotal);
+    final materialIssuedValue = _materials.where((m) => m.isIssue).fold<double>(0.0, (acc, m) => acc + m.totalAmount);
+    final materialReturnedValue = _materials.where((m) => m.isReturn).fold<double>(0.0, (acc, m) => acc + m.totalAmount);
+
+    // Section E: Settlement Summary
+    final totalRealizedCollection = _assignments.fold<double>(0.0, (acc, a) => acc + a.totalCustomerReceived);
+    final vendorCharges = _assignments.fold<double>(0.0, (acc, a) => acc + a.vendorCharges);
+    final otherExpenses = _assignments.fold<double>(0.0, (acc, a) => acc + a.otherExpenses);
     final previousPayments = s.totalPaidAmount;
 
     // Option A Final Net Balance:
-    // Realized Collection - Material Cost - SIYA Charges - Net GST - Other Expenses - Previous Advances
-    final effectiveCollection = actualCollection > 0 ? actualCollection : totalQuotation;
-    final netSubVendorEntitlement = effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - netGstPayable;
+    // Realized Collection - Material Cost - SIYA Platform Charges (₹1,000/kW) - Other Expenses - Approved GST Recovery - Previous Advances
+    final effectiveCollection = totalRealizedCollection > 0 ? totalRealizedCollection : totalQuotation;
+    final netSubVendorEntitlement = effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - approvedGstRecovery;
     final finalBalance = netSubVendorEntitlement - previousPayments;
 
     final isPayable = finalBalance >= 0;
@@ -564,7 +872,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text(
-                        'OPTION A NET BALANCE',
+                        'OPTION A NET CONTRACT SETTLEMENT',
                         style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -582,8 +890,8 @@ class _SubVendorCompleteFinancialDashboardScreenState
                 const SizedBox(height: 6),
                 Text(
                   isPayable
-                    ? 'Net balance payable by SIYA to ${widget.vendor.name} after material costs, SIYA platform charges (₹1,000/kW), GST liability, and previous advances.'
-                    : 'Advance payments, material costs, and deductions exceed realized collections. Recoverable from ${widget.vendor.name}.',
+                    ? 'Net balance payable by SIYA to ${widget.vendor.name} based on actual collected funds minus materials issued, SIYA platform fee (₹1,000/kW), approved contractual GST recovery, and previous advances.'
+                    : 'Disbursals, material costs, and deductions exceed realized collections. Recoverable from ${widget.vendor.name}.',
                   style: const TextStyle(color: Color(0xFFE2E8F0), fontSize: 13),
                 ),
                 const Divider(color: Colors.white24, height: 24),
@@ -594,9 +902,9 @@ class _SubVendorCompleteFinancialDashboardScreenState
                   children: [
                     _buildBannerFormulaChip('Realized Collection', _currency.format(effectiveCollection), Colors.white),
                     _buildBannerFormulaChip('Material Cost', '- ${_currency.format(totalMaterialCost)}', const Color(0xFFFECACA)),
-                    _buildBannerFormulaChip('SIYA Charges (₹1,000/kW)', '- ${_currency.format(vendorCharges)}', const Color(0xFFFED7AA)),
-                    _buildBannerFormulaChip('Net GST', '- ${_currency.format(netGstPayable)}', const Color(0xFFFDE68A)),
-                    _buildBannerFormulaChip('Other Expenses', '- ${_currency.format(otherExpenses)}', const Color(0xFFE9D5FF)),
+                    _buildBannerFormulaChip('SIYA Fee (₹1,000/kW)', '- ${_currency.format(vendorCharges)}', const Color(0xFFFED7AA)),
+                    _buildBannerFormulaChip('Approved Expenses', '- ${_currency.format(otherExpenses)}', const Color(0xFFE9D5FF)),
+                    _buildBannerFormulaChip('Approved GST Recovery', '- ${_currency.format(approvedGstRecovery)}', const Color(0xFFFDE68A)),
                     _buildBannerFormulaChip('Previous Advances', '- ${_currency.format(previousPayments)}', const Color(0xFFBFDBFE)),
                   ],
                 ),
@@ -605,34 +913,134 @@ class _SubVendorCompleteFinancialDashboardScreenState
           ),
           const SizedBox(height: 20),
 
-          // SECTION TITLE
-          const Text(
-            'AGGREGATED FINANCIAL OVERVIEW',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A), letterSpacing: 0.5),
-          ),
-          const SizedBox(height: 10),
-
-          // 14 KEY METRIC CARDS
+          // SECTION A: SITE SUMMARY
+          _buildSectionHeader('A. SITE SUMMARY', Icons.layers_outlined, const Color(0xFF1E3A8A)),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 12,
             runSpacing: 12,
             children: [
-              _buildMetricCard('Total Quotation (100%)', _currency.format(totalQuotation), Icons.receipt, const Color(0xFF1E3A8A)),
-              _buildMetricCard('Expected Loan (90%)', _currency.format(expectedLoan90), Icons.account_balance, const Color(0xFF2563EB)),
-              _buildMetricCard('10% Difference', _currency.format(loan10Diff), Icons.pie_chart, const Color(0xFF0284C7)),
-              _buildMetricCard('Loan Sanctioned', _currency.format(loanSanctioned), Icons.check_circle_outline, const Color(0xFF059669)),
-              _buildMetricCard('Actual Loan Credited', _currency.format(loanCredited), Icons.account_balance_wallet, const Color(0xFF047857)),
-              _buildMetricCard('Loan Pending Credit', _currency.format(loanPending), Icons.hourglass_top, const Color(0xFFD97706)),
-              _buildMetricCard('Customer Contribution (Cash)', _currency.format(cashReceived), Icons.payments_outlined, const Color(0xFF0D9488)),
-              _buildMetricCard('Total Actual Collection', _currency.format(actualCollection), Icons.price_check, const Color(0xFF15803D)),
-              _buildMetricCard('Total Material Cost', _currency.format(totalMaterialCost), Icons.inventory_2, const Color(0xFFDC2626)),
-              _buildMetricCard('Output GST Liability', _currency.format(outputGst), Icons.receipt_long, const Color(0xFF7C3AED)),
-              _buildMetricCard('Eligible Input GST Credit', _currency.format(eligibleItc), Icons.assignment_return, const Color(0xFF9333EA)),
-              _buildMetricCard('Net GST Payable', _currency.format(netGstPayable), Icons.account_tree, const Color(0xFF4C1D95)),
-              _buildMetricCard('SIYA Charges (₹1,000/kW)', _currency.format(vendorCharges), Icons.bolt, const Color(0xFFEA580C)),
-              _buildMetricCard('Other Approved Expenses', _currency.format(otherExpenses), Icons.receipt, const Color(0xFF475569)),
-              _buildMetricCard('Previous Payments / Advances', _currency.format(previousPayments), Icons.history, const Color(0xFF334155)),
+              _buildMetricCard('Total Assigned Sites', '$totalSites Sites', Icons.home_work_outlined, const Color(0xFF1E3A8A)),
+              _buildMetricCard('Total Installed kW', '${totalInstalledKw.toStringAsFixed(1)} kW', Icons.bolt, const Color(0xFF0284C7)),
+              _buildMetricCard('Total Quotation Amount', _currency.format(totalQuotation), Icons.receipt, const Color(0xFF0F172A)),
+              _buildMetricCard('Bank Loan Sites', '$loanSitesCount Sites', Icons.account_balance, const Color(0xFF2563EB)),
+              _buildMetricCard('Cash Customer Sites', '$cashSitesCount Sites', Icons.payments, const Color(0xFF0D9488)),
             ],
+          ),
+          const SizedBox(height: 20),
+
+          // SECTION B: LOAN SUMMARY
+          _buildSectionHeader('B. LOAN SUMMARY', Icons.account_balance_outlined, const Color(0xFF2563EB)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildMetricCard('Expected Loan (90%)', _currency.format(expectedLoan90), Icons.pie_chart, const Color(0xFF2563EB)),
+              _buildMetricCard('Actual Loan Credited', _currency.format(totalLoanCredited), Icons.account_balance_wallet, const Color(0xFF047857)),
+              _buildMetricCard('Remaining 10% Margin', _currency.format(totalRemaining10), Icons.pie_chart_outline, const Color(0xFF0284C7)),
+              _buildMetricCard('Customer Margin Received', _currency.format(totalCashReceived), Icons.payments_outlined, const Color(0xFF0D9488)),
+              _buildMetricCard('Loan Shortfall (Expected - Received)', _currency.format(totalLoanShortfall), Icons.warning_amber, const Color(0xFFDC2626)),
+              _buildMetricCard('Pending Margin Collection', _currency.format(totalPendingMargin), Icons.hourglass_top, const Color(0xFFD97706)),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // SECTION C: GST SUMMARY (STATUTORY 70:30 COMPOSITE RULE)
+          _buildSectionHeader('C. GST SUMMARY (STATUTORY 70:30 COMPOSITE RULE)', Icons.receipt_long_outlined, const Color(0xFF7C3AED)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F3FF),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFDDD6FE)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Color(0xFF7C3AED), size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Statutory composite allocation: 70% Goods @ 5% GST (${_currency.format(goodsGst5)}) + 30% Services/BOS @ 18% GST (${_currency.format(servicesGst18)}) = Total Output GST ${_currency.format(totalCustomerOutputGst)}. Note: Statutory GST difference is an informational reconciliation, not an automatic commercial charge.',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF5B21B6)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildMetricCard('Customer Output GST', _currency.format(totalCustomerOutputGst), Icons.receipt_long, const Color(0xFF7C3AED)),
+              _buildMetricCard('Material Input GST', _currency.format(totalMaterialGst), Icons.input, const Color(0xFF0284C7)),
+              _buildMetricCard('Eligible Material ITC', _currency.format(totalEligibleItc), Icons.assignment_turned_in, const Color(0xFF047857)),
+              _buildMetricCard('Ineligible Input GST', _currency.format(totalIneligibleGst), Icons.block, const Color(0xFF64748B)),
+              _buildMetricCard('Estimated GST Difference', _currency.format(estimatedGstDiff), Icons.compare_arrows, const Color(0xFFB45309)),
+              _buildMetricCard('Approved Sub-Vendor Recovery', _currency.format(approvedGstRecovery), Icons.gavel, const Color(0xFF4C1D95)),
+              _buildMetricCard('Actual GST Recovery Received', _currency.format(actualGstRecoveryCollected), Icons.check_circle, const Color(0xFF059669)),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // SECTION D: MATERIAL SUMMARY
+          _buildSectionHeader('D. MATERIAL SUMMARY', Icons.inventory_2_outlined, const Color(0xFFDC2626)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildMetricCard('Net Material Cost', _currency.format(totalMaterialCost), Icons.inventory_2, const Color(0xFFDC2626)),
+              _buildMetricCard('Purchase Invoice GST', _currency.format(totalMaterialGst), Icons.receipt, const Color(0xFFEA580C)),
+              _buildMetricCard('Issued Material Value', _currency.format(materialIssuedValue), Icons.upload_outlined, const Color(0xFF0F172A)),
+              _buildMetricCard('Material Return Value', _currency.format(materialReturnedValue), Icons.assignment_return, const Color(0xFF059669)),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // SECTION E: SETTLEMENT SUMMARY
+          _buildSectionHeader('E. SETTLEMENT SUMMARY (OPTION A)', Icons.payments_outlined, const Color(0xFF047857)),
+          const SizedBox(height: 8),
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _buildSettlementRow('Total Actual Realized Collections', _currency.format(effectiveCollection), isPositive: true),
+                  _buildSettlementRow('Less: Total Material Cost (Net of Returns)', '- ${_currency.format(totalMaterialCost)}', isPositive: false),
+                  _buildSettlementRow('Less: SIYA Platform Charges (₹1,000/kW)', '- ${_currency.format(vendorCharges)}', isPositive: false),
+                  _buildSettlementRow('Less: Other Approved Site Expenses', '- ${_currency.format(otherExpenses)}', isPositive: false),
+                  _buildSettlementRow('Less: Approved Contractual GST Recovery', '- ${_currency.format(approvedGstRecovery)}', isPositive: false),
+                  _buildSettlementRow('Less: Previous Advances & Bank Payouts', '- ${_currency.format(previousPayments)}', isPositive: false),
+                  const Divider(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        isPayable ? 'FINAL SUB-VENDOR PAYABLE' : 'AMOUNT RECOVERABLE FROM SUB-VENDOR',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: isPayable ? const Color(0xFF047857) : Colors.red.shade800,
+                        ),
+                      ),
+                      Text(
+                        _currency.format(finalBalance.abs()),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: isPayable ? const Color(0xFF047857) : Colors.red.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 24),
 
@@ -642,18 +1050,11 @@ class _SubVendorCompleteFinancialDashboardScreenState
             elevation: 0,
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Row(
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text('Full Sub-Vendor Financial Audit Statement', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        SizedBox(height: 4),
-                        Text('Includes complete site-by-site table, material costs, bank loans, and statutory deductions.', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                      ],
-                    ),
-                  ),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.picture_as_pdf, size: 16),
                     label: const Text('Download Ledger PDF'),
@@ -664,8 +1065,12 @@ class _SubVendorCompleteFinancialDashboardScreenState
                     ),
                     onPressed: () => SubVendorPdfService.printOrShareVendorOverallStatement(s, vendor: widget.vendor),
                   ),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.calculate, size: 16),
+                    label: const Text('Settlement Calculator'),
+                    onPressed: _openSettlementCalculator,
+                  ),
                   if (widget.isAdmin) ...[
-                    const SizedBox(width: 8),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.payment, size: 16),
                       label: const Text('Record Payout'),
@@ -676,6 +1081,25 @@ class _SubVendorCompleteFinancialDashboardScreenState
                       ),
                       onPressed: _openRecordPayoutDialog,
                     ),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.gavel, size: 16),
+                      label: const Text('Record Contractual GST Recovery'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C3AED),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      onPressed: () async {
+                        final rec = await showDialog<bool>(
+                          context: context,
+                          builder: (_) => RecordVendorGstRecoveryDialog(
+                            vendor: widget.vendor,
+                            assignments: _assignments,
+                          ),
+                        );
+                        if (rec == true) _loadAllVendorData();
+                      },
+                    ),
                   ],
                 ],
               ),
@@ -683,6 +1107,19 @@ class _SubVendorCompleteFinancialDashboardScreenState
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon, Color color) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color, letterSpacing: 0.5),
+        ),
+      ],
     );
   }
 
@@ -799,7 +1236,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
                   OutlinedButton.icon(
                     icon: const Icon(Icons.download, size: 16),
                     label: const Text('Export Loan CSV'),
-                    onPressed: _exportLoanReportCsv,
+                    onPressed: _exportLoanCollectionCsv,
                   ),
                   if (widget.isAdmin) ...[
                     const SizedBox(width: 8),
@@ -1011,7 +1448,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
                   OutlinedButton.icon(
                     icon: const Icon(Icons.download, size: 16),
                     label: const Text('Export Material CSV'),
-                    onPressed: _exportMaterialReportCsv,
+                    onPressed: _exportMaterialPurchaseGstCsv,
                   ),
                   if (widget.isAdmin) ...[
                     const SizedBox(width: 8),
@@ -1152,19 +1589,33 @@ class _SubVendorCompleteFinancialDashboardScreenState
   // ============================================================================
 
   Widget _buildGstAccountTab() {
-    final s = _summary;
-    final totalQuotation = s?.totalSiteAmount ?? 0.0;
-    final taxableBilling = totalQuotation / 1.138;
-    final outputGst = totalQuotation - taxableBilling;
-    final eligibleItc = s?.totalEligibleInputGst ?? 0.0;
-    final netGstPayable = (outputGst - eligibleItc).clamp(0.0, double.infinity);
+    // Statutory 70:30 Composite Output GST Breakdown
+    final totalCustomerOutputGst = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.totalGstIncluded);
+    final totalGoodsGst5 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.gst5);
+    final totalGoodTaxable70 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.taxable70);
+    final totalServicesGst18 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.gst18);
+    final totalServicesTaxable30 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.taxable30);
+
+    // Material Input GST & ITC
+    final totalMaterialGst = _materials.fold<double>(0.0, (acc, m) => acc + m.signedGst);
+    final totalEligibleItc = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcEligible);
+    final totalIneligibleGst = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcIneligible);
+    final estimatedGstDiff = totalCustomerOutputGst - totalEligibleItc;
+
+    // Contractual Recoveries
+    final approvedGstRecovery = _gstRecoveries
+        .where((r) => r.isApproved || r.isCollected)
+        .fold<double>(0.0, (acc, r) => acc + r.totalRecovery);
+    final actualGstRecoveryCollected = _gstRecoveries
+        .where((r) => r.isCollected)
+        .fold<double>(0.0, (acc, r) => acc + r.totalRecovery);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // STATUTORY NOTICE BANNER
+          // STATUTORY 70:30 RULE BANNER
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -1173,13 +1624,13 @@ class _SubVendorCompleteFinancialDashboardScreenState
               border: Border.all(color: const Color(0xFFBFDBFE)),
             ),
             child: Row(
-              children: const [
-                Icon(Icons.info_outline, color: Color(0xFF1D4ED8)),
-                SizedBox(width: 12),
+              children: [
+                const Icon(Icons.info_outline, color: Color(0xFF1D4ED8)),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Statutory GST Treatment: Composite Solar Supply is calculated on customer quotation billing. Eligible Input Tax Credit (ITC) from purchased Solar Panels (5%) and BOS (18%) is adjusted against Output GST to determine Net GST Payable. No double deduction is applied.',
-                    style: TextStyle(fontSize: 12.5, color: Color(0xFF1E3A8A)),
+                    'Statutory 70:30 Composite Rule: 70% of quotation value is classified under 5% GST (Goods: ${_currency.format(totalGoodTaxable70)} taxable, ${_currency.format(totalGoodsGst5)} GST); 30% is classified under 18% GST (Services/BOS: ${_currency.format(totalServicesTaxable30)} taxable, ${_currency.format(totalServicesGst18)} GST). Total Customer Output GST: ${_currency.format(totalCustomerOutputGst)}.',
+                    style: const TextStyle(fontSize: 12.5, color: Color(0xFF1E3A8A)),
                   ),
                 ),
               ],
@@ -1188,30 +1639,169 @@ class _SubVendorCompleteFinancialDashboardScreenState
           const SizedBox(height: 16),
 
           // SUMMARY CARDS
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
             children: [
-              Expanded(child: _buildMetricCard('Taxable Site Revenue', _currency.format(taxableBilling), Icons.receipt, const Color(0xFF1E3A8A))),
-              const SizedBox(width: 12),
-              Expanded(child: _buildMetricCard('Output GST Liability', _currency.format(outputGst), Icons.receipt_long, const Color(0xFF7C3AED))),
-              const SizedBox(width: 12),
-              Expanded(child: _buildMetricCard('Eligible Material ITC', _currency.format(eligibleItc), Icons.assignment_turned_in, const Color(0xFF047857))),
-              const SizedBox(width: 12),
-              Expanded(child: _buildMetricCard('Net GST Payable to Govt', _currency.format(netGstPayable), Icons.account_balance, const Color(0xFF4C1D95))),
+              _buildMetricCard('Customer Output GST (70:30)', _currency.format(totalCustomerOutputGst), Icons.receipt_long, const Color(0xFF7C3AED)),
+              _buildMetricCard('Material Input GST', _currency.format(totalMaterialGst), Icons.input, const Color(0xFF0284C7)),
+              _buildMetricCard('Eligible Material ITC', _currency.format(totalEligibleItc), Icons.assignment_turned_in, const Color(0xFF047857)),
+              _buildMetricCard('Ineligible Input GST', _currency.format(totalIneligibleGst), Icons.block, const Color(0xFF64748B)),
+              _buildMetricCard('Estimated GST Difference', _currency.format(estimatedGstDiff), Icons.compare_arrows, const Color(0xFFB45309)),
+              _buildMetricCard('Approved Contractual Recovery', _currency.format(approvedGstRecovery), Icons.gavel, const Color(0xFF4C1D95)),
+              _buildMetricCard('Actual Recovery Collected', _currency.format(actualGstRecoveryCollected), Icons.check_circle, const Color(0xFF059669)),
             ],
           ),
           const SizedBox(height: 16),
+
+          // STATUTORY DIFFERENCE DISCLAIMER NOTICE
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Important Compliance Rule: The Estimated GST Difference (${_currency.format(estimatedGstDiff)}) is an informational statutory tax reconciliation figure. It is NOT automatically charged or debited to the Sub-Vendor. Any commercial Sub-Vendor GST recovery must be approved by Admin under contractual terms with proper documentation.',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // CONTRACTUAL GST RECOVERIES TABLE (ADMIN CONTROLLED)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: const [
+                  Icon(Icons.gavel, size: 18, color: Color(0xFF7C3AED)),
+                  SizedBox(width: 8),
+                  Text(
+                    'CONTRACTUAL SUB-VENDOR GST RECOVERIES (ADMIN CONTROLLED)',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                  ),
+                ],
+              ),
+              if (widget.isAdmin)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Record Contractual Recovery'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7C3AED),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () async {
+                    final rec = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => RecordVendorGstRecoveryDialog(
+                        vendor: widget.vendor,
+                        assignments: _assignments,
+                      ),
+                    );
+                    if (rec == true) _loadAllVendorData();
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          if (_gstRecoveries.isEmpty)
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.grey.shade300),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(
+                  child: Text(
+                    'No contractual GST recovery entries recorded yet. (Commercial recoveries require Admin approval).',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                ),
+              ),
+            )
+          else
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.grey.shade300),
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  headingRowColor: MaterialStateProperty.all(const Color(0xFFF1F5F9)),
+                  dataRowMinHeight: 44,
+                  dataRowMaxHeight: 50,
+                  columns: const [
+                    DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Customer / Site', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Taxable (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('GST Rate', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('GST Amount (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Total Recovery (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Invoice No', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Remarks', style: TextStyle(fontWeight: FontWeight.bold))),
+                  ],
+                  rows: _gstRecoveries.map((r) {
+                    return DataRow(
+                      cells: [
+                        DataCell(Text(_dateFormat.format(r.recoveryDate), style: const TextStyle(fontSize: 12))),
+                        DataCell(Text(r.customerName ?? 'Site', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+                        DataCell(Text(_currency.format(r.taxableValue), style: const TextStyle(fontSize: 12))),
+                        DataCell(Text('${r.gstRate}%', style: const TextStyle(fontSize: 12))),
+                        DataCell(Text(_currency.format(r.gstAmount), style: const TextStyle(fontSize: 12, color: Color(0xFF7C3AED)))),
+                        DataCell(Text(_currency.format(r.totalRecovery), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)))),
+                        DataCell(Text(r.invoiceNumber ?? '-', style: const TextStyle(fontSize: 11))),
+                        DataCell(
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: r.isApproved ? Colors.green.shade50 : (r.isCollected ? Colors.blue.shade50 : Colors.amber.shade50),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              r.recoveryStatus,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: r.isApproved ? Colors.green.shade800 : (r.isCollected ? Colors.blue.shade800 : Colors.amber.shade900),
+                              ),
+                            ),
+                          ),
+                        ),
+                        DataCell(Text(r.remarks ?? '-', style: const TextStyle(fontSize: 11))),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          const SizedBox(height: 24),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'SITE-WISE GST BREAKDOWN & AUDIT TABLE',
+                'SITE-WISE 70:30 GST BREAKDOWN & AUDIT TABLE',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
               ),
               OutlinedButton.icon(
                 icon: const Icon(Icons.download, size: 16),
-                label: const Text('Export GST CSV'),
-                onPressed: _exportGstSummaryCsv,
+                label: const Text('Export Output vs Input GST CSV'),
+                onPressed: _exportOutputVsInputGstCsv,
               ),
             ],
           ),
@@ -1233,26 +1823,26 @@ class _SubVendorCompleteFinancialDashboardScreenState
                   DataColumn(label: Text('Customer / Site', style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(label: Text('Capacity (kW)', style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(label: Text('Gross Billing (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Taxable Value (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Output GST (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Material Cost (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Input ITC (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Net GST Payable (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('70% Goods (5%)', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('30% Services (18%)', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Total Output GST (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Material Input GST (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Eligible ITC (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Estimated GST Diff (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
                 ],
                 rows: _assignments.map((a) {
                   final gross = a.effectiveSiteAmount;
-                  final taxable = gross / 1.138;
-                  final outGst = gross - taxable;
+                  final gst = a.gstBreakdown;
 
                   final siteMats = _materials.where((m) => m.assignmentId == a.id).toList();
                   double inGst = 0.0;
-                  double matCost = 0.0;
+                  double eligibleItc = 0.0;
                   for (final m in siteMats) {
                     final s = m.isReturn ? -1.0 : 1.0;
                     inGst += s * m.gstAmount;
-                    matCost += s * m.totalAmount;
+                    if (m.isItcEligible) eligibleItc += s * m.gstAmount;
                   }
-                  final netGst = (outGst - inGst).clamp(0.0, double.infinity);
+                  final estDiff = gst.totalGstIncluded - eligibleItc;
 
                   return DataRow(
                     cells: [
@@ -1268,14 +1858,19 @@ class _SubVendorCompleteFinancialDashboardScreenState
                       ),
                       DataCell(Text('${a.siteCapacityKw} kW', style: const TextStyle(fontSize: 12))),
                       DataCell(Text(_currency.format(gross), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                      DataCell(Text(_currency.format(taxable), style: const TextStyle(fontSize: 12))),
-                      DataCell(Text(_currency.format(outGst), style: const TextStyle(fontSize: 12, color: Color(0xFF7C3AED)))),
-                      DataCell(Text(_currency.format(matCost), style: const TextStyle(fontSize: 12, color: Colors.red))),
-                      DataCell(Text(_currency.format(inGst), style: const TextStyle(fontSize: 12, color: Color(0xFF047857), fontWeight: FontWeight.w600))),
+                      DataCell(Text('${_currency.format(gst.taxable70)} (${_currency.format(gst.gst5)})', style: const TextStyle(fontSize: 11))),
+                      DataCell(Text('${_currency.format(gst.taxable30)} (${_currency.format(gst.gst18)})', style: const TextStyle(fontSize: 11))),
+                      DataCell(Text(_currency.format(gst.totalGstIncluded), style: const TextStyle(fontSize: 12, color: Color(0xFF7C3AED), fontWeight: FontWeight.bold))),
+                      DataCell(Text(_currency.format(inGst), style: const TextStyle(fontSize: 12))),
+                      DataCell(Text(_currency.format(eligibleItc), style: const TextStyle(fontSize: 12, color: Color(0xFF047857), fontWeight: FontWeight.w600))),
                       DataCell(
                         Text(
-                          _currency.format(netGst),
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF4C1D95)),
+                          _currency.format(estDiff),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: estDiff >= 0 ? const Color(0xFFB45309) : const Color(0xFF047857),
+                          ),
                         ),
                       ),
                     ],
@@ -1424,16 +2019,17 @@ class _SubVendorCompleteFinancialDashboardScreenState
     final s = _summary;
     if (s == null) return const Center(child: Text('No data'));
 
-    final totalCollection = s.totalCustomerCollection > 0 ? s.totalCustomerCollection : s.totalSiteAmount;
+    final totalRealizedCollection = _assignments.fold<double>(0.0, (acc, a) => acc + a.totalCustomerReceived);
+    final effectiveCollection = totalRealizedCollection > 0 ? totalRealizedCollection : s.totalSiteAmount;
     final totalMaterialCost = s.totalMaterialCost;
-    final taxableBilling = s.totalSiteAmount / 1.138;
-    final outputGst = s.totalSiteAmount - taxableBilling;
-    final netGst = (outputGst - s.totalEligibleInputGst).clamp(0.0, double.infinity);
     final vendorCharges = s.totalVendorCharges;
     final otherExpenses = s.totalOtherExpenses;
+    final approvedGstRecovery = _gstRecoveries
+        .where((r) => r.isApproved || r.isCollected)
+        .fold<double>(0.0, (acc, r) => acc + r.totalRecovery);
     final previousPayments = s.totalPaidAmount;
 
-    final netEntitlement = totalCollection - totalMaterialCost - vendorCharges - otherExpenses - netGst;
+    final netEntitlement = effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - approvedGstRecovery;
     final finalAmount = netEntitlement - previousPayments;
 
     return SingleChildScrollView(
@@ -1470,10 +2066,10 @@ class _SubVendorCompleteFinancialDashboardScreenState
                   ),
                   const SizedBox(height: 16),
 
-                  _buildSettlementRow('Total Realized Collections (Loan Credited + Cash)', _currency.format(totalCollection), isPositive: true),
+                  _buildSettlementRow('Total Realized Collections (Loan Credited + Cash Received)', _currency.format(effectiveCollection), isPositive: true),
                   _buildSettlementRow('Less: Total Material Issued (Net of Returns)', '- ${_currency.format(totalMaterialCost)}', isPositive: false),
                   _buildSettlementRow('Less: SIYA Vendor Charges (₹1,000/kW)', '- ${_currency.format(vendorCharges)}', isPositive: false),
-                  _buildSettlementRow('Less: Net Statutory GST Liability', '- ${_currency.format(netGst)}', isPositive: false),
+                  _buildSettlementRow('Less: Approved Contractual GST Recovery', '- ${_currency.format(approvedGstRecovery)}', isPositive: false),
                   _buildSettlementRow('Less: Other Approved Site Expenses', '- ${_currency.format(otherExpenses)}', isPositive: false),
                   const Divider(height: 20),
                   _buildSettlementRow('Sub-Vendor Net Entitlement', _currency.format(netEntitlement), isBold: true),

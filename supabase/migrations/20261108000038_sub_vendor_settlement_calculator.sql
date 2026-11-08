@@ -128,19 +128,11 @@ CREATE POLICY "Admin full control on vendor settlements"
     FOR ALL
     TO authenticated
     USING (
-        EXISTS (
-            SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid()
-              AND u.role IN ('admin', 'super_admin')
-        )
+        (SELECT public.is_admin())
         OR (auth.jwt()->>'role') IN ('admin', 'super_admin')
     )
     WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid()
-              AND u.role IN ('admin', 'super_admin')
-        )
+        (SELECT public.is_admin())
         OR (auth.jwt()->>'role') IN ('admin', 'super_admin')
     );
 

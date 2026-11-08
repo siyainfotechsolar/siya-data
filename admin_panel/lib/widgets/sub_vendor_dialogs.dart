@@ -3828,3 +3828,326 @@ class _SubVendorFinalSettlementCalculatorDialogState
     );
   }
 }
+
+/// Dialog for Admin to record and approve contractual GST Recovery from Sub-Vendor
+class RecordVendorGstRecoveryDialog extends StatefulWidget {
+  final SubVendor vendor;
+  final List<VendorSiteAssignment> assignments;
+
+  const RecordVendorGstRecoveryDialog({
+    super.key,
+    required this.vendor,
+    required this.assignments,
+  });
+
+  @override
+  State<RecordVendorGstRecoveryDialog> createState() => _RecordVendorGstRecoveryDialogState();
+}
+
+class _RecordVendorGstRecoveryDialogState extends State<RecordVendorGstRecoveryDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _taxableCtrl = TextEditingController();
+  final _invoiceNoCtrl = TextEditingController();
+  final _remarksCtrl = TextEditingController();
+
+  VendorSiteAssignment? _selectedAssignment;
+  double _gstRate = 18.0;
+  String _recoveryStatus = 'Approved';
+  DateTime _recoveryDate = DateTime.now();
+  DateTime? _paymentDate;
+  bool _isLoading = false;
+
+  double get _calculatedGst {
+    final t = double.tryParse(_taxableCtrl.text.trim()) ?? 0.0;
+    return double.parse((t * (_gstRate / 100.0)).toStringAsFixed(2));
+  }
+
+  double get _calculatedTotal {
+    final t = double.tryParse(_taxableCtrl.text.trim()) ?? 0.0;
+    return double.parse((t + _calculatedGst).toStringAsFixed(2));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.assignments.isNotEmpty) {
+      _selectedAssignment = widget.assignments.first;
+    }
+  }
+
+  @override
+  void dispose() {
+    _taxableCtrl.dispose();
+    _invoiceNoCtrl.dispose();
+    _remarksCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedAssignment == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select an assigned customer site')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final taxable = double.parse(_taxableCtrl.text.trim());
+      final recovery = VendorGstRecovery.calculate(
+        assignmentId: _selectedAssignment!.id,
+        vendorId: widget.vendor.id,
+        taxableValue: taxable,
+        gstRate: _gstRate,
+        invoiceNumber: _invoiceNoCtrl.text.trim().isNotEmpty ? _invoiceNoCtrl.text.trim() : null,
+        recoveryStatus: _recoveryStatus,
+        recoveryDate: _recoveryDate,
+        paymentDate: _paymentDate,
+        remarks: _remarksCtrl.text.trim().isNotEmpty ? _remarksCtrl.text.trim() : null,
+        customerName: _selectedAssignment!.customerName,
+        consumerNo: _selectedAssignment!.consumerNo,
+        vendorName: widget.vendor.name,
+        vendorCode: widget.vendor.vendorCode,
+      );
+
+      await SubVendorService.recordVendorGstRecovery(recovery);
+
+      if (mounted) {
+        Navigator.of(context).pop(true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Contractual GST Recovery of ${_currency.format(_calculatedTotal)} recorded successfully!',
+            ),
+            backgroundColor: const Color(0xFF047857),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to record GST recovery: $e'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 580, maxHeight: 720),
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(Icons.receipt_long, color: Color(0xFF7C3AED)),
+                          SizedBox(width: 8),
+                          Text(
+                            'Record Contractual GST Recovery',
+                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 8),
+
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3E8FF),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFDDD6FE)),
+                    ),
+                    child: const Text(
+                      'Admin Control Note: Commercial recovery from the Sub-Vendor must be based on a mutually agreed contractual charge or supply, supported by an official invoice.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF5B21B6)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  DropdownButtonFormField<VendorSiteAssignment>(
+                    value: _selectedAssignment,
+                    decoration: const InputDecoration(
+                      labelText: 'Select Customer Site *',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: widget.assignments.map((a) {
+                      return DropdownMenuItem(
+                        value: a,
+                        child: Text('${a.customerName ?? 'Site'} (${a.consumerNo ?? 'No CA'}) - ${a.siteCapacityKw} kW'),
+                      );
+                    }).toList(),
+                    onChanged: (val) => setState(() => _selectedAssignment = val),
+                    validator: (val) => val == null ? 'Site is required' : null,
+                  ),
+                  const SizedBox(height: 12),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextFormField(
+                          controller: _taxableCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Taxable Recovery Value (₹) *',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.currency_rupee),
+                          ),
+                          onChanged: (_) => setState(() {}),
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'Enter taxable amount';
+                            final n = double.tryParse(v.trim());
+                            if (n == null || n <= 0) return 'Must be greater than 0';
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<double>(
+                          value: _gstRate,
+                          decoration: const InputDecoration(
+                            labelText: 'GST Rate *',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 18.0, child: Text('18% GST')),
+                            DropdownMenuItem(value: 5.0, child: Text('5% GST')),
+                            DropdownMenuItem(value: 12.0, child: Text('12% GST')),
+                            DropdownMenuItem(value: 28.0, child: Text('28% GST')),
+                          ],
+                          onChanged: (v) => setState(() => _gstRate = v ?? 18.0),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Column(
+                          children: [
+                            const Text('GST Amount', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                            const SizedBox(height: 4),
+                            Text(
+                              _currency.format(_calculatedGst),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF7C3AED)),
+                            ),
+                          ],
+                        ),
+                        Container(height: 30, width: 1, color: Colors.grey.shade300),
+                        Column(
+                          children: [
+                            const Text('Total Recovery Due', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                            const SizedBox(height: 4),
+                            Text(
+                              _currency.format(_calculatedTotal),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _invoiceNoCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Recovery Invoice / Debit Note No',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.receipt),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _recoveryStatus,
+                          decoration: const InputDecoration(
+                            labelText: 'Status *',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'Approved', child: Text('Approved')),
+                            DropdownMenuItem(value: 'Pending', child: Text('Pending Approval')),
+                            DropdownMenuItem(value: 'Collected', child: Text('Collected / Deducted')),
+                          ],
+                          onChanged: (v) => setState(() => _recoveryStatus = v ?? 'Approved'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  TextFormField(
+                    controller: _remarksCtrl,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Contractual Basis / Remarks',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.notes),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C3AED),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: _isLoading
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Icon(Icons.check_circle_outline),
+                      label: Text(_isLoading ? 'Saving Entry...' : 'Confirm & Save GST Recovery'),
+                      onPressed: _isLoading ? null : _submit,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

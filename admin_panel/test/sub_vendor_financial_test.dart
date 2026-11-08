@@ -953,6 +953,159 @@ void main() {
       expect(pdfBytes, isNotEmpty);
       expect(pdfBytes.length, greaterThan(1500));
     });
+
+    // -------------------------------------------------------------------------
+    // 15. STATUTORY 70:30 COMPOSITE GST CALCULATION RULE
+    // -------------------------------------------------------------------------
+    test('15. Statutory 70:30 GST composite breakdown matches prompt illustrative ₹2,00,000 example', () {
+      const quotationAmount = 200000.0;
+      final gst = SolarQuotationGstBreakdown.calculate(quotationAmount);
+
+      // 70% Goods portion @ 5% GST
+      expect(gst.portion70, equals(140000.0));
+      // Formula: 140,000 * 5 / 105 = 6666.666...
+      expect(gst.gst5, closeTo(6666.67, 0.01));
+      expect(gst.taxable70, closeTo(133333.33, 0.01));
+
+      // 30% Services/BOS portion @ 18% GST
+      expect(gst.portion30, equals(60000.0));
+      // Formula: 60,000 * 18 / 118 = 9152.542...
+      expect(gst.gst18, closeTo(9152.54, 0.01));
+      expect(gst.taxable30, closeTo(50847.46, 0.01));
+
+      // Total Output GST = 6666.67 + 9152.54 = 15819.21
+      expect(gst.totalGstIncluded, closeTo(15819.21, 0.01));
+      // Total Taxable Value = 200,000 - 15,819.21 = 184180.79
+      expect(gst.totalTaxableValue, closeTo(184180.79, 0.01));
+      expect(gst.grandTotal, equals(200000.0));
+    });
+
+    // -------------------------------------------------------------------------
+    // 16. LOAN CUSTOMER CALCULATIONS & SHORTFALL AUDIT
+    // -------------------------------------------------------------------------
+    test('16. Loan Customer calculation: 90% expected loan, 10% diff, shortfall, and margin pending', () {
+      final siteAssignment = VendorSiteAssignment(
+        id: 'asg-loan-test-1',
+        vendorId: 'vnd-1',
+        customerId: 'cust-1',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 3.0,
+        ratePerKw: 1000.0,
+        vendorCharges: 3000.0,
+        paymentType: 'Bank Loan Customer',
+        totalCustomerSiteAmount: 200000.0,
+        loanSanctionedAmount: 180000.0,
+        totalLoanCredited: 140000.0, // Partial credit received
+        totalCashReceived: 10000.0,  // Margin received from customer
+      );
+
+      // Expected loan: 90% of ₹200,000 = ₹180,000
+      expect(siteAssignment.expectedLoan, equals(180000.0));
+      // Remaining 10%: ₹20,000
+      expect(siteAssignment.remaining10, equals(20000.0));
+      // Loan shortfall: ₹180,000 - ₹140,000 = ₹40,000
+      expect(siteAssignment.loanShortfallCalc, equals(40000.0));
+      // Margin pending: ₹20,000 - ₹10,000 = ₹10,000
+      expect(siteAssignment.customerMarginPending, equals(10000.0));
+
+      // Effective customer collection: ₹140,000 + ₹10,000 = ₹150,000
+      expect(siteAssignment.totalCustomerReceived, equals(0.0)); // stored as 0 until trigger
+      expect(siteAssignment.totalLoanCredited + siteAssignment.totalCashReceived, equals(150000.0));
+    });
+
+    // -------------------------------------------------------------------------
+    // 17. MATERIAL PURCHASE GST & ITC ELIGIBILITY AUDIT
+    // -------------------------------------------------------------------------
+    test('17. Material Purchase GST tracks actual invoice GST and ITC eligibility', () {
+      final eligibleMat = VendorMaterialTransaction.create(
+        assignmentId: 'asg-mat-test',
+        vendorId: 'vnd-1',
+        customerId: 'cust-1',
+        transactionType: 'ISSUE',
+        itemName: 'TopCon Solar Panels 550W',
+        itemCategory: 'SOLAR_PANEL',
+        quantity: 10,
+        unitRate: 10000.0,
+        gstRate: 5.0,
+        supplierName: 'Waaree Solar Ltd',
+        invoiceNumber: 'INV-2026-9901',
+        isItcEligible: true,
+      );
+
+      expect(eligibleMat.taxableAmount, equals(100000.0));
+      expect(eligibleMat.gstAmount, equals(5000.0));
+      expect(eligibleMat.totalAmount, equals(105000.0));
+      expect(eligibleMat.supplierName, equals('Waaree Solar Ltd'));
+      expect(eligibleMat.invoiceNumber, equals('INV-2026-9901'));
+      expect(eligibleMat.isItcEligible, isTrue);
+      expect(eligibleMat.signedItcEligible, equals(5000.0));
+      expect(eligibleMat.signedItcIneligible, equals(0.0));
+
+      final ineligibleMat = VendorMaterialTransaction.create(
+        assignmentId: 'asg-mat-test',
+        vendorId: 'vnd-1',
+        customerId: 'cust-1',
+        transactionType: 'ISSUE',
+        itemName: 'Local Hardware & Consumables',
+        itemCategory: 'BOS',
+        quantity: 1,
+        unitRate: 2000.0,
+        gstRate: 18.0,
+        supplierName: 'Local Hardware Store',
+        invoiceNumber: 'CASH-MEMO-01',
+        isItcEligible: false, // Ineligible for ITC
+      );
+
+      expect(ineligibleMat.gstAmount, equals(360.0));
+      expect(ineligibleMat.isItcEligible, isFalse);
+      expect(ineligibleMat.signedItcEligible, equals(0.0));
+      expect(ineligibleMat.signedItcIneligible, equals(360.0));
+    });
+
+    // -------------------------------------------------------------------------
+    // 18. CONTRACTUAL SUB-VENDOR GST RECOVERY & OPTION A SETTLEMENT
+    // -------------------------------------------------------------------------
+    test('18. Contractual GST Recovery is recorded with Admin approval and deducted in settlement', () {
+      final recovery = VendorGstRecovery.calculate(
+        assignmentId: 'asg-gst-rec-1',
+        vendorId: 'vnd-1',
+        taxableValue: 10000.0,
+        gstRate: 18.0,
+        invoiceNumber: 'DN-2026-001',
+        recoveryStatus: 'Approved',
+        remarks: 'Agreed contractual recovery for installation works',
+      );
+
+      expect(recovery.taxableValue, equals(10000.0));
+      expect(recovery.gstRate, equals(18.0));
+      expect(recovery.gstAmount, equals(1800.0));
+      expect(recovery.totalRecovery, equals(11800.0));
+      expect(recovery.isApproved, isTrue);
+      expect(recovery.invoiceNumber, equals('DN-2026-001'));
+
+      // Option A Settlement math test with contractual recovery:
+      // Realized Collection: ₹1,80,000
+      // Material Cost: ₹1,05,000
+      // SIYA Platform Fee: ₹3,000
+      // Other Expenses: ₹2,000
+      // Approved GST Recovery: ₹11,800
+      // Advances already paid: ₹20,000
+      const realizedCollection = 180000.0;
+      const materialCost = 105000.0;
+      const vendorCharges = 3000.0;
+      const otherExpenses = 2000.0;
+      final approvedRecovery = recovery.totalRecovery;
+      const advancesPaid = 20000.0;
+
+      final netSubVendorEntitlement = realizedCollection - materialCost - vendorCharges - otherExpenses - approvedRecovery;
+      // 180,000 - 105,000 - 3,000 - 2,000 - 11,800 = 58,200
+      expect(netSubVendorEntitlement, equals(58200.0));
+
+      final finalPayable = netSubVendorEntitlement - advancesPaid;
+      // 58,200 - 20,000 = 38,200
+      expect(finalPayable, equals(38200.0));
+      expect(finalPayable, greaterThan(0.0));
+    });
   });
 }
 

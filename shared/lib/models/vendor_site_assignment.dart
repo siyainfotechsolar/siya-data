@@ -1,3 +1,5 @@
+import 'solar_quotation.dart';
+
 /// Represents a Site Assignment linking a Customer Site to a Sub-Vendor.
 class VendorSiteAssignment {
   final String id;
@@ -48,6 +50,22 @@ class VendorSiteAssignment {
   final double customerOutstanding;
   final String customerPaymentStatus; // 'Pending', 'Partial', 'Paid'
 
+  // Quotation & 70:30 GST Settlement Fields
+  final String? refQuotationNo;
+  final double? quotationTaxableAmount;
+  final double? quotationGstAmount;
+  final double? quotationTotalAmount;
+  final DateTime? quotationDate;
+  final double? expectedLoanAmount;
+  final double? remaining10Percent;
+  final double? customerMarginReceived;
+  final double? loanShortfall;
+  final double gstRatioGoods; // Default 70.0%
+  final double gstRatioServices; // Default 30.0%
+  final double gstRateGoods; // Default 5.0%
+  final double gstRateServices; // Default 18.0%
+  final double approvedGstRecoveryAmount;
+
   const VendorSiteAssignment({
     required this.id,
     required this.vendorId,
@@ -92,6 +110,20 @@ class VendorSiteAssignment {
     this.totalCustomerReceived = 0.0,
     this.customerOutstanding = 0.0,
     this.customerPaymentStatus = 'Pending',
+    this.refQuotationNo,
+    this.quotationTaxableAmount,
+    this.quotationGstAmount,
+    this.quotationTotalAmount,
+    this.quotationDate,
+    this.expectedLoanAmount,
+    this.remaining10Percent,
+    this.customerMarginReceived,
+    this.loanShortfall,
+    this.gstRatioGoods = 70.0,
+    this.gstRatioServices = 30.0,
+    this.gstRateGoods = 5.0,
+    this.gstRateServices = 18.0,
+    this.approvedGstRecoveryAmount = 0.0,
   });
 
   bool get isCompleted => status.toLowerCase() == 'completed' || status.toLowerCase() == 'settled';
@@ -102,7 +134,9 @@ class VendorSiteAssignment {
 
   /// Effective Site Amount
   double get effectiveSiteAmount =>
-      totalCustomerSiteAmount > 0 ? totalCustomerSiteAmount : customerTotalAmount;
+      (quotationTotalAmount != null && quotationTotalAmount! > 0)
+          ? quotationTotalAmount!
+          : (totalCustomerSiteAmount > 0 ? totalCustomerSiteAmount : customerTotalAmount);
 
   /// Effective Received from Customer
   double get effectiveReceivedAmount =>
@@ -114,6 +148,34 @@ class VendorSiteAssignment {
     final diff = effectiveSiteAmount - effectiveReceivedAmount;
     return diff > 0 ? diff : 0.0;
   }
+
+  /// Expected Loan (90% of Total Quotation or Site Amount)
+  double get expectedLoan =>
+      expectedLoanAmount != null && expectedLoanAmount! > 0
+          ? expectedLoanAmount!
+          : double.parse((effectiveSiteAmount * 0.90).toStringAsFixed(2));
+
+  /// Remaining 10% Margin
+  double get remaining10 =>
+      remaining10Percent != null && remaining10Percent! > 0
+          ? remaining10Percent!
+          : double.parse((effectiveSiteAmount * 0.10).toStringAsFixed(2));
+
+  /// Actual Loan Shortfall: max(0, expectedLoan - actual bank loan received)
+  double get loanShortfallCalc {
+    final diff = expectedLoan - totalLoanCredited;
+    return diff > 0 ? double.parse(diff.toStringAsFixed(2)) : 0.0;
+  }
+
+  /// Customer Margin Pending: max(0, remaining 10% - customer margin received)
+  double get customerMarginPending {
+    final diff = remaining10 - totalCashReceived;
+    return diff > 0 ? double.parse(diff.toStringAsFixed(2)) : 0.0;
+  }
+
+  /// Statutory 70:30 GST composite breakdown for this site quotation
+  SolarQuotationGstBreakdown get gstBreakdown =>
+      SolarQuotationGstBreakdown.calculate(effectiveSiteAmount);
 
   /// Whether site involves bank loan
   bool get isBankLoan =>
@@ -204,6 +266,23 @@ class VendorSiteAssignment {
       totalCustomerReceived: totCustRecv,
       customerOutstanding: custOut,
       customerPaymentStatus: json['customer_payment_status'] as String? ?? 'Pending',
+      // Quotation & 70:30 GST Settlement Fields
+      refQuotationNo: json['ref_quotation_no'] as String?,
+      quotationTaxableAmount: (json['quotation_taxable_amount'] as num?)?.toDouble(),
+      quotationGstAmount: (json['quotation_gst_amount'] as num?)?.toDouble(),
+      quotationTotalAmount: (json['quotation_total_amount'] as num?)?.toDouble(),
+      quotationDate: json['quotation_date'] != null
+          ? DateTime.tryParse(json['quotation_date'] as String)
+          : null,
+      expectedLoanAmount: (json['expected_loan_amount'] as num?)?.toDouble(),
+      remaining10Percent: (json['remaining_10_percent'] as num?)?.toDouble(),
+      customerMarginReceived: (json['customer_margin_received'] as num?)?.toDouble(),
+      loanShortfall: (json['loan_shortfall'] as num?)?.toDouble(),
+      gstRatioGoods: (json['gst_ratio_goods'] as num?)?.toDouble() ?? 70.0,
+      gstRatioServices: (json['gst_ratio_services'] as num?)?.toDouble() ?? 30.0,
+      gstRateGoods: (json['gst_rate_goods'] as num?)?.toDouble() ?? 5.0,
+      gstRateServices: (json['gst_rate_services'] as num?)?.toDouble() ?? 18.0,
+      approvedGstRecoveryAmount: (json['approved_gst_recovery_amount'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -244,6 +323,21 @@ class VendorSiteAssignment {
       'total_customer_received': totalCustomerReceived,
       'customer_outstanding': customerOutstanding,
       'customer_payment_status': customerPaymentStatus,
+      // Quotation & 70:30 GST Settlement Fields
+      if (refQuotationNo != null) 'ref_quotation_no': refQuotationNo,
+      if (quotationTaxableAmount != null) 'quotation_taxable_amount': quotationTaxableAmount,
+      if (quotationGstAmount != null) 'quotation_gst_amount': quotationGstAmount,
+      if (quotationTotalAmount != null) 'quotation_total_amount': quotationTotalAmount,
+      if (quotationDate != null) 'quotation_date': quotationDate!.toIso8601String().split('T').first,
+      if (expectedLoanAmount != null) 'expected_loan_amount': expectedLoanAmount,
+      if (remaining10Percent != null) 'remaining_10_percent': remaining10Percent,
+      if (customerMarginReceived != null) 'customer_margin_received': customerMarginReceived,
+      if (loanShortfall != null) 'loan_shortfall': loanShortfall,
+      'gst_ratio_goods': gstRatioGoods,
+      'gst_ratio_services': gstRatioServices,
+      'gst_rate_goods': gstRateGoods,
+      'gst_rate_services': gstRateServices,
+      'approved_gst_recovery_amount': approvedGstRecoveryAmount,
     };
   }
 
@@ -291,6 +385,20 @@ class VendorSiteAssignment {
     double? totalCustomerReceived,
     double? customerOutstanding,
     String? customerPaymentStatus,
+    String? refQuotationNo,
+    double? quotationTaxableAmount,
+    double? quotationGstAmount,
+    double? quotationTotalAmount,
+    DateTime? quotationDate,
+    double? expectedLoanAmount,
+    double? remaining10Percent,
+    double? customerMarginReceived,
+    double? loanShortfall,
+    double? gstRatioGoods,
+    double? gstRatioServices,
+    double? gstRateGoods,
+    double? gstRateServices,
+    double? approvedGstRecoveryAmount,
   }) {
     return VendorSiteAssignment(
       id: id ?? this.id,
@@ -336,6 +444,20 @@ class VendorSiteAssignment {
       totalCustomerReceived: totalCustomerReceived ?? this.totalCustomerReceived,
       customerOutstanding: customerOutstanding ?? this.customerOutstanding,
       customerPaymentStatus: customerPaymentStatus ?? this.customerPaymentStatus,
+      refQuotationNo: refQuotationNo ?? this.refQuotationNo,
+      quotationTaxableAmount: quotationTaxableAmount ?? this.quotationTaxableAmount,
+      quotationGstAmount: quotationGstAmount ?? this.quotationGstAmount,
+      quotationTotalAmount: quotationTotalAmount ?? this.quotationTotalAmount,
+      quotationDate: quotationDate ?? this.quotationDate,
+      expectedLoanAmount: expectedLoanAmount ?? this.expectedLoanAmount,
+      remaining10Percent: remaining10Percent ?? this.remaining10Percent,
+      customerMarginReceived: customerMarginReceived ?? this.customerMarginReceived,
+      loanShortfall: loanShortfall ?? this.loanShortfall,
+      gstRatioGoods: gstRatioGoods ?? this.gstRatioGoods,
+      gstRatioServices: gstRatioServices ?? this.gstRatioServices,
+      gstRateGoods: gstRateGoods ?? this.gstRateGoods,
+      gstRateServices: gstRateServices ?? this.gstRateServices,
+      approvedGstRecoveryAmount: approvedGstRecoveryAmount ?? this.approvedGstRecoveryAmount,
     );
   }
 }

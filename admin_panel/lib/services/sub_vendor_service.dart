@@ -854,5 +854,100 @@ class SubVendorService {
       rethrow;
     }
   }
+
+  // ============================================================================
+  // 6. CONTRACTUAL SUB-VENDOR GST RECOVERIES (ADMIN CONTROLLED)
+  // ============================================================================
+
+  /// Fetch all contractual GST recoveries for a vendor
+  static Future<List<VendorGstRecovery>> fetchVendorGstRecoveries(String vendorId) async {
+    try {
+      final response = await _client
+          .from('vendor_gst_recoveries')
+          .select('''
+            *,
+            vendor_site_assignments (
+              id,
+              consumer_records (id, name, consumer_no)
+            ),
+            sub_vendors (id, name, vendor_code)
+          ''')
+          .eq('vendor_id', vendorId)
+          .order('recovery_date', ascending: false);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data.map((json) {
+        final m = Map<String, dynamic>.from(json as Map);
+        final vsa = m['vendor_site_assignments'] as Map<String, dynamic>?;
+        if (vsa != null && vsa['consumer_records'] != null) {
+          m['consumer_records'] = vsa['consumer_records'];
+        }
+        return VendorGstRecovery.fromJson(m);
+      }).toList();
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.fetchVendorGstRecoveries: $e\n$stack');
+      return [];
+    }
+  }
+
+  /// Record an Admin-approved contractual GST recovery
+  static Future<VendorGstRecovery> recordVendorGstRecovery(
+    VendorGstRecovery recovery,
+  ) async {
+    try {
+      final insertData = recovery.toJson()..remove('id');
+      insertData['created_by'] = SupabaseService.currentUser?.id;
+      insertData['created_at'] = DateTime.now().toUtc().toIso8601String();
+
+      final response = await _client
+          .from('vendor_gst_recoveries')
+          .insert(insertData)
+          .select()
+          .single();
+
+      return VendorGstRecovery.fromJson(response as Map<String, dynamic>);
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.recordVendorGstRecovery: $e\n$stack');
+      rethrow;
+    }
+  }
+
+  /// Update contractual GST recovery status ('Approved', 'Collected', 'Pending')
+  static Future<void> updateVendorGstRecoveryStatus(
+    String recoveryId,
+    String status, {
+    DateTime? paymentDate,
+  }) async {
+    try {
+      final updateData = <String, dynamic>{
+        'recovery_status': status,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      };
+      if (paymentDate != null) {
+        updateData['payment_date'] = paymentDate.toIso8601String().split('T').first;
+      }
+
+      await _client
+          .from('vendor_gst_recoveries')
+          .update(updateData)
+          .eq('id', recoveryId);
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.updateVendorGstRecoveryStatus: $e\n$stack');
+      rethrow;
+    }
+  }
+
+  /// Delete contractual GST recovery record (Admin only)
+  static Future<void> deleteVendorGstRecovery(String recoveryId) async {
+    try {
+      await _client
+          .from('vendor_gst_recoveries')
+          .delete()
+          .eq('id', recoveryId);
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.deleteVendorGstRecovery: $e\n$stack');
+      rethrow;
+    }
+  }
 }
 

@@ -18,6 +18,9 @@ class VendorMaterialTransaction {
   final String? challanNumber;
   final String? serialNumbers;
   final String? remarks;
+  final String? supplierName;
+  final String? invoiceNumber;
+  final bool isItcEligible;
   final DateTime? createdAt;
   final String? createdBy;
 
@@ -40,6 +43,9 @@ class VendorMaterialTransaction {
     this.challanNumber,
     this.serialNumbers,
     this.remarks,
+    this.supplierName,
+    this.invoiceNumber,
+    this.isItcEligible = true,
     this.createdAt,
     this.createdBy,
   });
@@ -50,6 +56,8 @@ class VendorMaterialTransaction {
   double get signedTaxable => isReturn ? -taxableAmount : taxableAmount;
   double get signedGst => isReturn ? -gstAmount : gstAmount;
   double get signedTotal => isReturn ? -totalAmount : totalAmount;
+  double get signedItcEligible => isItcEligible ? (isReturn ? -gstAmount : gstAmount) : 0.0;
+  double get signedItcIneligible => !isItcEligible ? (isReturn ? -gstAmount : gstAmount) : 0.0;
 
   factory VendorMaterialTransaction.create({
     required String assignmentId,
@@ -66,6 +74,9 @@ class VendorMaterialTransaction {
     String? challanNumber,
     String? serialNumbers,
     String? remarks,
+    String? supplierName,
+    String? invoiceNumber,
+    bool isItcEligible = true,
     String? createdBy,
   }) {
     final effectiveGst = gstRate ??
@@ -93,6 +104,9 @@ class VendorMaterialTransaction {
       challanNumber: challanNumber,
       serialNumbers: serialNumbers,
       remarks: remarks,
+      supplierName: supplierName?.trim(),
+      invoiceNumber: invoiceNumber?.trim(),
+      isItcEligible: isItcEligible,
       createdBy: createdBy,
     );
   }
@@ -119,6 +133,9 @@ class VendorMaterialTransaction {
       challanNumber: json['challan_number'] as String?,
       serialNumbers: json['serial_numbers'] as String?,
       remarks: json['remarks'] as String?,
+      supplierName: json['supplier_name'] as String?,
+      invoiceNumber: json['invoice_number'] as String?,
+      isItcEligible: json['is_itc_eligible'] as bool? ?? true,
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'] as String) : null,
       createdBy: json['created_by'] as String?,
     );
@@ -144,6 +161,9 @@ class VendorMaterialTransaction {
       if (challanNumber != null) 'challan_number': challanNumber,
       if (serialNumbers != null) 'serial_numbers': serialNumbers,
       if (remarks != null) 'remarks': remarks,
+      if (supplierName != null && supplierName!.isNotEmpty) 'supplier_name': supplierName,
+      if (invoiceNumber != null && invoiceNumber!.isNotEmpty) 'invoice_number': invoiceNumber,
+      'is_itc_eligible': isItcEligible,
       if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
       if (createdBy != null) 'created_by': createdBy,
     };
