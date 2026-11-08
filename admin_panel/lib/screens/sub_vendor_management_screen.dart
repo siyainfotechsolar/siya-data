@@ -673,17 +673,28 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           color: Colors.blue.shade50,
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.info_outline, color: Colors.blue, size: 20),
-              SizedBox(width: 10),
-              Expanded(
+              const Icon(Icons.info_outline, color: Color(0xFF0D2B6F), size: 20),
+              const SizedBox(width: 10),
+              const Expanded(
                 child: Text(
-                  'Dynamic Material Tracking: Material costs update live when items are issued or returned. Solar Panels & Inverters are 5% GST; BOS is 18% GST.',
-                  style: TextStyle(fontSize: 12),
+                  'Dynamic Material Tracking: Material costs update live when items are issued or returned. Solar Panels & Inverters: 5% GST | BOS: 18% GST.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF1E3A8A)),
                 ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Issue Material to Site'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0D2B6F),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                ),
+                onPressed: _openQuickIssueDialog,
               ),
             ],
           ),
@@ -991,6 +1002,76 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
         ],
       ),
     );
+  }
+
+  void _openQuickIssueDialog() async {
+    if (_assignments.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please assign at least one site to a sub-vendor before issuing materials.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    VendorSiteAssignment? selected = _assignments.first;
+    final confirmed = await showDialog<VendorSiteAssignment>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.inventory, color: Color(0xFF0D2B6F)),
+              SizedBox(width: 8),
+              Text('Select Site to Issue Material'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Select the customer site assigned to a sub-vendor:', style: TextStyle(fontSize: 13)),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<VendorSiteAssignment>(
+                value: selected,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Assigned Site', border: OutlineInputBorder()),
+                items: _assignments.map((a) {
+                  return DropdownMenuItem(
+                    value: a,
+                    child: Text(
+                      '${a.customerName ?? "Customer"} (${a.siteCapacityKw} kW) - ${a.vendorName ?? "Vendor"}',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) setDialogState(() => selected = val);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, selected),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D2B6F), foregroundColor: Colors.white),
+              child: const Text('Continue to Issue'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != null && mounted) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (_) => IssueReturnMaterialDialog(assignment: confirmed, transactionType: 'ISSUE'),
+      );
+      if (ok == true) _loadAllData();
+    }
   }
 }
 
