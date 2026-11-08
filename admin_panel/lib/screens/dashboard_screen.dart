@@ -27,6 +27,7 @@ import 'commission_screen.dart';
 import 'sub_vendor_management_screen.dart';
 import 'document_enhancer_screen.dart';
 import 'solar_quotation_generator_screen.dart';
+import 'solar_site_cost_calculator_screen.dart';
 import '../models/user_profile.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -68,6 +69,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItem(id: 'reports', label: 'Reports', icon: Icons.bar_chart_outlined, selectedIcon: Icons.bar_chart, isMainBottomNav: false, moduleKey: 'reports'),
     _NavItem(id: 'doc_enhancer', label: 'Document Clear & A4 Print', icon: Icons.document_scanner_outlined, selectedIcon: Icons.document_scanner, isMainBottomNav: false, category: 'Tools'),
     _NavItem(id: 'solar_quotation_generator', label: 'Solar Quotation Generator', icon: Icons.solar_power_outlined, selectedIcon: Icons.solar_power, isMainBottomNav: false, category: 'Tools'),
+    _NavItem(id: 'solar_site_cost_calculator', label: 'Site Cost Calculator', icon: Icons.calculate_outlined, selectedIcon: Icons.calculate, isMainBottomNav: false, category: 'Tools'),
     _NavItem(id: 'history', label: 'History', icon: Icons.history_outlined, selectedIcon: Icons.history, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'audit', label: 'Audit', icon: Icons.shield_outlined, selectedIcon: Icons.shield, isMainBottomNav: false, moduleKey: 'settings'),
     _NavItem(id: 'duplicates', label: 'Duplicates', icon: Icons.find_in_page_outlined, selectedIcon: Icons.find_in_page, isMainBottomNav: false, moduleKey: 'customer'),
@@ -626,6 +628,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return const DocumentEnhancerScreen();
       case 'solar_quotation_generator':
         return const SolarQuotationGeneratorScreen();
+      case 'solar_site_cost_calculator':
+        return const SolarSiteCostCalculatorScreen();
       case 'history':
         return const HistoryScreen();
       case 'audit':
