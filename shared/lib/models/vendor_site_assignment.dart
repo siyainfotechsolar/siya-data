@@ -34,6 +34,20 @@ class VendorSiteAssignment {
   final String? vendorCode;
   final String? vendorName;
 
+  // Customer Payment & Bank Loan Tracking Fields
+  final String paymentType; // 'Cash Customer', 'Bank Loan Customer', 'Part Cash + Part Loan'
+  final double totalCustomerSiteAmount; // Overrides or mirrors consumer_records.total_amount
+  final String? loanBankName;
+  final String? loanApplicationId;
+  final double loanAppliedAmount;
+  final double loanSanctionedAmount;
+  final String loanStatus; // 'Not Required', 'Applied', 'Sanctioned', 'Partially Credited', 'Fully Credited'
+  final double totalCashReceived;
+  final double totalLoanCredited;
+  final double totalCustomerReceived; // totalCashReceived + totalLoanCredited
+  final double customerOutstanding;
+  final String customerPaymentStatus; // 'Pending', 'Partial', 'Paid'
+
   const VendorSiteAssignment({
     required this.id,
     required this.vendorId,
@@ -66,6 +80,18 @@ class VendorSiteAssignment {
     this.customerPaidAmount = 0.0,
     this.vendorCode,
     this.vendorName,
+    this.paymentType = 'Cash Customer',
+    this.totalCustomerSiteAmount = 0.0,
+    this.loanBankName,
+    this.loanApplicationId,
+    this.loanAppliedAmount = 0.0,
+    this.loanSanctionedAmount = 0.0,
+    this.loanStatus = 'Not Required',
+    this.totalCashReceived = 0.0,
+    this.totalLoanCredited = 0.0,
+    this.totalCustomerReceived = 0.0,
+    this.customerOutstanding = 0.0,
+    this.customerPaymentStatus = 'Pending',
   });
 
   bool get isCompleted => status.toLowerCase() == 'completed' || status.toLowerCase() == 'settled';
@@ -73,6 +99,34 @@ class VendorSiteAssignment {
 
   /// Total payment due to the sub-vendor for installation and approved expenses
   double get totalVendorDue => vendorCharges + otherExpenses;
+
+  /// Effective Site Amount
+  double get effectiveSiteAmount =>
+      totalCustomerSiteAmount > 0 ? totalCustomerSiteAmount : customerTotalAmount;
+
+  /// Effective Received from Customer
+  double get effectiveReceivedAmount =>
+      totalCustomerReceived > 0 ? totalCustomerReceived : customerPaidAmount;
+
+  /// Effective Outstanding Due from Customer
+  double get effectiveCustomerOutstanding {
+    if (customerOutstanding > 0) return customerOutstanding;
+    final diff = effectiveSiteAmount - effectiveReceivedAmount;
+    return diff > 0 ? diff : 0.0;
+  }
+
+  /// Whether site involves bank loan
+  bool get isBankLoan =>
+      paymentType == 'Bank Loan Customer' ||
+      paymentType == 'Part Cash + Part Loan' ||
+      loanSanctionedAmount > 0;
+
+  /// Pending Bank Loan credit amount
+  double get loanPendingCredit {
+    if (loanSanctionedAmount <= 0) return 0.0;
+    final pending = loanSanctionedAmount - totalLoanCredited;
+    return pending > 0 ? double.parse(pending.toStringAsFixed(2)) : 0.0;
+  }
 
   factory VendorSiteAssignment.fromJson(Map<String, dynamic> json) {
     // If joined customer record exists
@@ -82,6 +136,22 @@ class VendorSiteAssignment {
     final capKw = (json['site_capacity_kw'] as num?)?.toDouble() ?? 3.0;
     final rate = (json['rate_per_kw'] as num?)?.toDouble() ?? 1000.0;
     final charges = (json['vendor_charges'] as num?)?.toDouble() ?? (capKw * rate);
+
+    final custTot = (customer?['total_amount'] as num?)?.toDouble() ??
+        (json['customer_total_amount'] as num?)?.toDouble() ??
+        0.0;
+    final custPaid = (customer?['paid_amount'] as num?)?.toDouble() ??
+        (json['customer_paid_amount'] as num?)?.toDouble() ??
+        0.0;
+
+    final totCustSiteAmt = (json['total_customer_site_amount'] as num?)?.toDouble() ??
+        (custTot > 0 ? custTot : 0.0);
+    final totCashRecv = (json['total_cash_received'] as num?)?.toDouble() ?? 0.0;
+    final totLoanCredit = (json['total_loan_credited'] as num?)?.toDouble() ?? 0.0;
+    final totCustRecv = (json['total_customer_received'] as num?)?.toDouble() ??
+        (totCashRecv + totLoanCredit > 0 ? (totCashRecv + totLoanCredit) : custPaid);
+    final custOut = (json['customer_outstanding'] as num?)?.toDouble() ??
+        ((totCustSiteAmt - totCustRecv) > 0 ? (totCustSiteAmt - totCustRecv) : 0.0);
 
     return VendorSiteAssignment(
       id: json['id'] as String? ?? '',
@@ -117,20 +187,29 @@ class VendorSiteAssignment {
       customerMobile: json['customer_mobile'] as String? ?? customer?['mobile'] as String?,
       customerAddress: json['customer_address'] as String? ?? customer?['address'] as String?,
       customerVillageCity: (customer?['village_city'] ?? customer?['address']) as String?,
-      customerTotalAmount: (customer?['total_amount'] as num?)?.toDouble() ??
-          (json['customer_total_amount'] as num?)?.toDouble() ??
-          0.0,
-      customerPaidAmount: (customer?['paid_amount'] as num?)?.toDouble() ??
-          (json['customer_paid_amount'] as num?)?.toDouble() ??
-          0.0,
+      customerTotalAmount: custTot,
+      customerPaidAmount: custPaid,
       vendorCode: vendor?['vendor_code'] as String?,
       vendorName: vendor?['name'] as String?,
+      // Payment & Bank Loan Fields
+      paymentType: json['payment_type'] as String? ?? 'Cash Customer',
+      totalCustomerSiteAmount: totCustSiteAmt,
+      loanBankName: json['loan_bank_name'] as String?,
+      loanApplicationId: json['loan_application_id'] as String?,
+      loanAppliedAmount: (json['loan_applied_amount'] as num?)?.toDouble() ?? 0.0,
+      loanSanctionedAmount: (json['loan_sanctioned_amount'] as num?)?.toDouble() ?? 0.0,
+      loanStatus: json['loan_status'] as String? ?? 'Not Required',
+      totalCashReceived: totCashRecv,
+      totalLoanCredited: totLoanCredit,
+      totalCustomerReceived: totCustRecv,
+      customerOutstanding: custOut,
+      customerPaymentStatus: json['customer_payment_status'] as String? ?? 'Pending',
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      if (id.isNotEmpty) 'id': id,
       'vendor_id': vendorId,
       'customer_id': customerId,
       'assigned_date': assignedDate.toIso8601String().split('T').first,
@@ -152,6 +231,19 @@ class VendorSiteAssignment {
       if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
       if (createdBy != null) 'created_by': createdBy,
       if (updatedBy != null) 'updated_by': updatedBy,
+      // Payment & Bank Loan Fields
+      'payment_type': paymentType,
+      'total_customer_site_amount': totalCustomerSiteAmount,
+      if (loanBankName != null) 'loan_bank_name': loanBankName,
+      if (loanApplicationId != null) 'loan_application_id': loanApplicationId,
+      'loan_applied_amount': loanAppliedAmount,
+      'loan_sanctioned_amount': loanSanctionedAmount,
+      'loan_status': loanStatus,
+      'total_cash_received': totalCashReceived,
+      'total_loan_credited': totalLoanCredited,
+      'total_customer_received': totalCustomerReceived,
+      'customer_outstanding': customerOutstanding,
+      'customer_payment_status': customerPaymentStatus,
     };
   }
 
@@ -187,6 +279,18 @@ class VendorSiteAssignment {
     double? customerPaidAmount,
     String? vendorCode,
     String? vendorName,
+    String? paymentType,
+    double? totalCustomerSiteAmount,
+    String? loanBankName,
+    String? loanApplicationId,
+    double? loanAppliedAmount,
+    double? loanSanctionedAmount,
+    String? loanStatus,
+    double? totalCashReceived,
+    double? totalLoanCredited,
+    double? totalCustomerReceived,
+    double? customerOutstanding,
+    String? customerPaymentStatus,
   }) {
     return VendorSiteAssignment(
       id: id ?? this.id,
@@ -220,7 +324,18 @@ class VendorSiteAssignment {
       customerPaidAmount: customerPaidAmount ?? this.customerPaidAmount,
       vendorCode: vendorCode ?? this.vendorCode,
       vendorName: vendorName ?? this.vendorName,
+      paymentType: paymentType ?? this.paymentType,
+      totalCustomerSiteAmount: totalCustomerSiteAmount ?? this.totalCustomerSiteAmount,
+      loanBankName: loanBankName ?? this.loanBankName,
+      loanApplicationId: loanApplicationId ?? this.loanApplicationId,
+      loanAppliedAmount: loanAppliedAmount ?? this.loanAppliedAmount,
+      loanSanctionedAmount: loanSanctionedAmount ?? this.loanSanctionedAmount,
+      loanStatus: loanStatus ?? this.loanStatus,
+      totalCashReceived: totalCashReceived ?? this.totalCashReceived,
+      totalLoanCredited: totalLoanCredited ?? this.totalLoanCredited,
+      totalCustomerReceived: totalCustomerReceived ?? this.totalCustomerReceived,
+      customerOutstanding: customerOutstanding ?? this.customerOutstanding,
+      customerPaymentStatus: customerPaymentStatus ?? this.customerPaymentStatus,
     );
   }
 }
-

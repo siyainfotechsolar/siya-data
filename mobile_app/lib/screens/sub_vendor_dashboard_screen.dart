@@ -498,6 +498,63 @@ class _SubVendorMobileDashboardScreenState extends State<SubVendorMobileDashboar
                   _infoTile('Settlement', _currency.format(detail?.totalVendorPayable ?? a.vendorCharges)),
                 ],
               ),
+              const SizedBox(height: 8),
+              // Customer Payment & Loan Overview Banner (Read-Only)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: a.isBankLoan ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: a.isBankLoan ? const Color(0xFFBBF7D0) : const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              a.isBankLoan ? Icons.account_balance : Icons.payments_outlined,
+                              size: 13,
+                              color: a.isBankLoan ? const Color(0xFF047857) : const Color(0xFF0D2B6F),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              a.paymentType,
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                                color: a.isBankLoan ? const Color(0xFF047857) : const Color(0xFF0D2B6F),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          'Cust. Received: ${_currency.format(a.effectiveReceivedAmount)} / ${_currency.format(a.effectiveSiteAmount)}',
+                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    if (a.isBankLoan) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Loan Status: ${a.loanStatus}',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF047857)),
+                          ),
+                          Text(
+                            'Pending: ${_currency.format(a.loanPendingCredit)}',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFB45309)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
               if (a.financialApproved) ...[
                 const SizedBox(height: 8),
                 Container(
@@ -616,6 +673,50 @@ class _SubVendorMobileDashboardScreenState extends State<SubVendorMobileDashboar
                       _breakdownRow('Net Settlement Amount', _currency.format(detail?.totalVendorPayable ?? a.vendorCharges), isBold: true, color: const Color(0xFF0D2B6F)),
                       _breakdownRow('Amount Paid to Vendor', _currency.format(detail?.totalPaidToVendor ?? 0), color: const Color(0xFF047857)),
                       _breakdownRow('Remaining Settlement Balance', _currency.format(detail?.outstandingVendorPayable ?? a.vendorCharges), isBold: true, color: const Color(0xFFD97706)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Customer Payment & Loan Tracking Card (Read-Only)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: a.isBankLoan ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: a.isBankLoan ? const Color(0xFFBBF7D0) : const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('CUSTOMER PAYMENT & LOAN STATUS',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: a.isBankLoan ? const Color(0xFF047857) : const Color(0xFF0D2B6F))),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(4)),
+                            child: const Text('Admin Managed (View Only)', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black54)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _breakdownRow('Payment Category', a.paymentType),
+                      _breakdownRow('Total Site Contract Amount', _currency.format(a.effectiveSiteAmount)),
+                      _breakdownRow('Cash Payment Received', _currency.format(a.totalCashReceived)),
+                      if (a.isBankLoan) ...[
+                        _breakdownRow('Financing Bank', a.loanBankName ?? 'Not specified'),
+                        if (a.loanApplicationId != null && a.loanApplicationId!.isNotEmpty)
+                          _breakdownRow('Loan Application ID', a.loanApplicationId!),
+                        _breakdownRow('Loan Sanctioned Amount', _currency.format(a.loanSanctionedAmount)),
+                        _breakdownRow('Bank Loan Credited to SIYA', _currency.format(a.totalLoanCredited), color: const Color(0xFF047857)),
+                        _breakdownRow('Pending Loan Credit', _currency.format(a.loanPendingCredit), color: const Color(0xFFD97706)),
+                        _breakdownRow('Loan Credit Status', a.loanStatus, isBold: true, color: const Color(0xFF047857)),
+                      ],
+                      const Divider(height: 10),
+                      _breakdownRow('Total Customer Collection', _currency.format(a.effectiveReceivedAmount), isBold: true, color: const Color(0xFF047857)),
+                      _breakdownRow('Outstanding Due from Customer', _currency.format(a.effectiveCustomerOutstanding), isBold: true, color: const Color(0xFFDC2626)),
                     ],
                   ),
                 ),

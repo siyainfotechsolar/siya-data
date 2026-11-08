@@ -820,4 +820,390 @@ class SubVendorPdfService {
       ),
     );
   }
+
+  static pw.Widget _metaRow(String label, String value, {bool isBold = false, PdfColor? valueColor}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(label, style: const pw.TextStyle(fontSize: 7, color: slateMutedColor)),
+          pw.Text(
+            value,
+            style: pw.TextStyle(
+              fontSize: 7.2,
+              fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+              color: valueColor ?? (isBold ? navyColor : darkTextColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _th(String text, {pw.TextAlign align = pw.TextAlign.left}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: pw.Text(
+        text,
+        textAlign: align,
+        style: pw.TextStyle(
+          fontSize: 7,
+          fontWeight: pw.FontWeight.bold,
+          color: navyColor,
+        ),
+      ),
+    );
+  }
+
+  static pw.Widget _td(String text, {bool isBold = false, pw.TextAlign align = pw.TextAlign.left}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3.5),
+      child: pw.Text(
+        text,
+        textAlign: align,
+        style: pw.TextStyle(
+          fontSize: 6.8,
+          fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+          color: isBold ? navyColor : darkTextColor,
+        ),
+      ),
+    );
+  }
+
+  // ============================================================================
+  // 3. SITE CUSTOMER PAYMENT & BANK LOAN CREDIT LEDGER STATEMENT PDF
+  // ============================================================================
+
+  static Future<Uint8List> generateSitePaymentLedgerPdfBytes({
+    required VendorSiteAssignment assignment,
+    required List<VendorCustomerPayment> payments,
+    SubVendor? vendor,
+  }) async {
+    final pdfTheme = await SolarQuotationFontHelper.loadPdfTheme();
+    final pdf = pw.Document(theme: pdfTheme);
+
+    final siteAmount = assignment.effectiveSiteAmount;
+    final cashRecv = assignment.totalCashReceived;
+    final loanSanc = assignment.loanSanctionedAmount;
+    final loanCred = assignment.totalLoanCredited;
+    final loanPend = assignment.loanPendingCredit;
+    final totRecv = assignment.effectiveReceivedAmount;
+    final outstanding = assignment.effectiveCustomerOutstanding;
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Corporate Header
+              pw.Container(
+                padding: const pw.EdgeInsets.all(10),
+                decoration: pw.BoxDecoration(
+                  color: headerBgColor,
+                  border: pw.Border.all(color: borderDarkColor, width: 0.8),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'SIYA INFOTECH & SOLAR ENERGY',
+                          style: pw.TextStyle(
+                            color: navyColor,
+                            fontSize: 14,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          'EPC Solar Installation & Consumer Payment Ledger',
+                          style: const pw.TextStyle(fontSize: 7.8, color: slateMutedColor),
+                        ),
+                        pw.Text(
+                          'Betawad, Tal. Shindkheda, Dist. Dhule | Contact: 9673220315',
+                          style: const pw.TextStyle(fontSize: 7.2, color: slateMutedColor),
+                        ),
+                      ],
+                    ),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: const pw.BoxDecoration(
+                        color: navyColor,
+                        borderRadius: pw.BorderRadius.all(pw.Radius.circular(3)),
+                      ),
+                      child: pw.Text(
+                        'CUSTOMER PAYMENT & LOAN LEDGER',
+                        style: pw.TextStyle(
+                          color: PdfColors.white,
+                          fontSize: 8.5,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              pw.SizedBox(height: 8),
+
+              // Site & Customer Info
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(
+                    child: pw.Container(
+                      padding: const pw.EdgeInsets.all(8),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: borderDarkColor, width: 0.6),
+                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                      ),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('CUSTOMER & SITE DETAILS',
+                              style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                          pw.SizedBox(height: 3),
+                          _metaRow('Customer Name:', assignment.customerName ?? 'N/A', isBold: true),
+                          _metaRow('Consumer / CA No:', assignment.consumerNo ?? 'N/A'),
+                          _metaRow('Contact / Mobile:', assignment.customerMobile ?? 'N/A'),
+                          _metaRow('Site Capacity:', '${assignment.siteCapacityKw} kW'),
+                          _metaRow('Site Address:', assignment.customerAddress ?? 'N/A'),
+                        ],
+                      ),
+                    ),
+                  ),
+                  pw.SizedBox(width: 8),
+                  pw.Expanded(
+                    child: pw.Container(
+                      padding: const pw.EdgeInsets.all(8),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: borderDarkColor, width: 0.6),
+                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                      ),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('PAYMENT & LOAN SPECIFICATIONS',
+                              style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                          pw.SizedBox(height: 3),
+                          _metaRow('Payment Type:', assignment.paymentType, isBold: true),
+                          _metaRow('Sub-Vendor:', '${assignment.vendorCode ?? "VND"} - ${assignment.vendorName ?? "Sub-Vendor"}'),
+                          if (assignment.isBankLoan) ...[
+                            _metaRow('Loan Bank Name:', assignment.loanBankName ?? 'Not Specified'),
+                            _metaRow('Loan App ID / UTR:', assignment.loanApplicationId ?? 'N/A'),
+                            _metaRow('Sanctioned Loan:', _currency.format(assignment.loanSanctionedAmount)),
+                            _metaRow('Loan Status:', assignment.loanStatus, isBold: true, valueColor: emeraldColor),
+                          ] else ...[
+                            _metaRow('Payment Status:', assignment.customerPaymentStatus, isBold: true, valueColor: emeraldColor),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              pw.SizedBox(height: 8),
+
+              // KPI Cards Row
+              pw.Row(
+                children: [
+                  _kpiBox('Total Site Amount', _currency.format(siteAmount), navyColor),
+                  pw.SizedBox(width: 6),
+                  _kpiBox('Cash Received', _currency.format(cashRecv), darkTextColor),
+                  pw.SizedBox(width: 6),
+                  _kpiBox(
+                    'Bank Loan Credited',
+                    _currency.format(loanCred),
+                    emeraldColor,
+                    isHighlight: assignment.isBankLoan,
+                  ),
+                  pw.SizedBox(width: 6),
+                  _kpiBox('Total Received', _currency.format(totRecv), emeraldColor),
+                  pw.SizedBox(width: 6),
+                  _kpiBox('Customer Balance Due', _currency.format(outstanding), const PdfColor.fromInt(0xFFDC2626)),
+                ],
+              ),
+
+              if (assignment.isBankLoan && loanPend > 0) ...[
+                pw.SizedBox(height: 6),
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: pw.BoxDecoration(
+                    color: const PdfColor.fromInt(0xFFFEF3C7),
+                    border: pw.Border.all(color: const PdfColor.fromInt(0xFFF59E0B), width: 0.6),
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                  ),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'Bank Loan Sanctioned: ${_currency.format(loanSanc)} | Total Credited: ${_currency.format(loanCred)}',
+                        style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF92400E)),
+                      ),
+                      pw.Text(
+                        'Pending Bank Loan Credit: ${_currency.format(loanPend)}',
+                        style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFFB45309)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              pw.SizedBox(height: 10),
+
+              // Section Title
+              pw.Text(
+                'ITEMIZED TRANSACTION & BANK DISBURSEMENT LEDGER',
+                style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+              ),
+              pw.SizedBox(height: 4),
+
+              // Ledger Table
+              pw.Table(
+                border: pw.TableBorder.all(color: borderDarkColor, width: 0.6),
+                columnWidths: {
+                  0: const pw.FixedColumnWidth(24),
+                  1: const pw.FixedColumnWidth(55),
+                  2: const pw.FixedColumnWidth(55),
+                  3: const pw.FixedColumnWidth(60),
+                  4: const pw.FixedColumnWidth(65),
+                  5: const pw.FixedColumnWidth(60),
+                  6: const pw.FixedColumnWidth(90),
+                  7: const pw.FlexColumnWidth(),
+                },
+                children: [
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: headerBgColor),
+                    children: [
+                      _th('#'),
+                      _th('Date'),
+                      _th('Category'),
+                      _th('Stage'),
+                      _th('Amount'),
+                      _th('Mode'),
+                      _th('UTR / Ref No'),
+                      _th('Bank / Remarks'),
+                    ],
+                  ),
+                  ...payments.asMap().entries.map((entry) {
+                    final idx = entry.key + 1;
+                    final p = entry.value;
+                    final isBgZebra = idx % 2 == 0;
+                    final isLoan = p.isLoan;
+
+                    return pw.TableRow(
+                      decoration: pw.BoxDecoration(color: isBgZebra ? zebraBgColor : PdfColors.white),
+                      children: [
+                        _td('$idx', align: pw.TextAlign.center),
+                        _td(_dateFormat.format(p.paymentDate)),
+                        _td(isLoan ? 'BANK LOAN' : 'CASH', isBold: true),
+                        _td(p.paymentStage),
+                        _td(_currency.format(p.amount), isBold: true, align: pw.TextAlign.right),
+                        _td(p.paymentMode),
+                        _td(p.referenceNumber ?? '-'),
+                        _td([
+                          if (p.bankName != null && p.bankName!.isNotEmpty) p.bankName,
+                          if (p.remarks != null && p.remarks!.isNotEmpty) p.remarks,
+                        ].where((s) => s != null).join(' | ')),
+                      ],
+                    );
+                  }).toList(),
+                  if (payments.isEmpty)
+                    pw.TableRow(
+                      children: [
+                        pw.Container(
+                          padding: const pw.EdgeInsets.all(12),
+                          child: pw.Center(
+                            child: pw.Text('No payment or loan credit transactions recorded for this site.',
+                                style: const pw.TextStyle(fontSize: 8, color: slateMutedColor)),
+                          ),
+                        ),
+                        for (int i = 0; i < 7; i++) pw.Container(),
+                      ],
+                    ),
+                  // Totals Table Footer Row
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: headerBgColor),
+                    children: [
+                      _td(''),
+                      _td('TOTALS', isBold: true),
+                      _td(''),
+                      _td(''),
+                      _td(_currency.format(totRecv), isBold: true, align: pw.TextAlign.right),
+                      _td(''),
+                      _td(''),
+                      _td('Cash: ${_currency.format(cashRecv)} | Loan: ${_currency.format(loanCred)}', isBold: true),
+                    ],
+                  ),
+                ],
+              ),
+
+              pw.Spacer(),
+
+              // Certification & Signature Box
+              pw.Container(
+                padding: const pw.EdgeInsets.all(8),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: borderDarkColor, width: 0.6),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Authorized Verifier: SIYA INFOTECH & SOLAR ENERGY',
+                            style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                        pw.Text('Generated on ${_dateFormat.format(DateTime.now())} via Siya Data Management Software',
+                            style: const pw.TextStyle(fontSize: 6.5, color: slateMutedColor)),
+                        pw.Text('All Bank Loan credits are reconciled with official bank credit advice and UTR statements.',
+                            style: const pw.TextStyle(fontSize: 6.2, color: slateMutedColor)),
+                      ],
+                    ),
+                    pw.Column(
+                      children: [
+                        pw.Container(width: 90, height: 25),
+                        pw.Container(width: 90, height: 0.6, color: borderDarkColor),
+                        pw.SizedBox(height: 2),
+                        pw.Text('Authorized Signatory', style: const pw.TextStyle(fontSize: 7, color: slateMutedColor)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  /// Print or share Site Payment Ledger PDF directly
+  static Future<void> printOrShareSitePaymentLedger({
+    required VendorSiteAssignment assignment,
+    required List<VendorCustomerPayment> payments,
+    SubVendor? vendor,
+  }) async {
+    final bytes = await generateSitePaymentLedgerPdfBytes(
+      assignment: assignment,
+      payments: payments,
+      vendor: vendor,
+    );
+    final safeName = (assignment.customerName ?? 'Site').replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+    await Printing.layoutPdf(
+      onLayout: (format) async => bytes,
+      name: 'Customer_Payment_Ledger_${safeName}_${assignment.consumerNo ?? "CA"}.pdf',
+    );
+  }
 }

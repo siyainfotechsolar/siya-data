@@ -25,6 +25,7 @@ export 'models/sub_vendor.dart';
 export 'models/vendor_site_assignment.dart';
 export 'models/vendor_material_transaction.dart';
 export 'models/vendor_payout.dart';
+export 'models/vendor_customer_payment.dart';
 export 'models/vendor_financial_summary.dart';
 export 'models/work_completion_report_data.dart';
 

@@ -28,11 +28,20 @@ class SiteFinancialDetail {
   final double otherExpenses;
   final double totalVendorPayable; // vendorCharges + otherExpenses
 
-  // Customer Site Financials
+  // Customer Site Financials & Payment Tracking
   final double totalSiteAmount; // Total Contract Amount from Customer
   final double amountReceivedBySiya; // Paid by Customer to SIYA
+  final String paymentType; // 'Cash Customer', 'Bank Loan Customer', 'Part Cash + Part Loan'
+  final double cashReceived;
+  final double loanSanctioned;
+  final double loanCredited;
+  final double loanPendingCredit;
+  final double totalCustomerReceived; // cashReceived + loanCredited
+  final double customerOutstanding;
+  final String loanStatus;
+  final String customerPaymentStatus;
 
-  // Payouts & Settlement
+  // Payouts & Settlement to Sub-Vendor
   final double totalPaidToVendor;
   final double outstandingVendorPayable; // totalVendorPayable - totalPaidToVendor
 
@@ -54,6 +63,15 @@ class SiteFinancialDetail {
     required this.totalVendorPayable,
     required this.totalSiteAmount,
     required this.amountReceivedBySiya,
+    this.paymentType = 'Cash Customer',
+    this.cashReceived = 0.0,
+    this.loanSanctioned = 0.0,
+    this.loanCredited = 0.0,
+    this.loanPendingCredit = 0.0,
+    this.totalCustomerReceived = 0.0,
+    this.customerOutstanding = 0.0,
+    this.loanStatus = 'Not Required',
+    this.customerPaymentStatus = 'Pending',
     required this.totalPaidToVendor,
     required this.outstandingVendorPayable,
   });
@@ -96,8 +114,13 @@ class SiteFinancialDetail {
     final totVendorPayable = charges + expenses;
 
     // Site Amount & Received from Customer
-    final siteAmt = assignment.customerTotalAmount;
-    final siyaRecv = assignment.customerPaidAmount;
+    final siteAmt = assignment.effectiveSiteAmount;
+    final cashRecv = assignment.totalCashReceived;
+    final loanSanc = assignment.loanSanctionedAmount;
+    final loanCred = assignment.totalLoanCredited;
+    final loanPend = assignment.loanPendingCredit;
+    final custRecv = assignment.effectiveReceivedAmount;
+    final custOut = assignment.effectiveCustomerOutstanding;
 
     // Payouts made to sub-vendor for this site
     double paidToVendor = 0.0;
@@ -126,7 +149,16 @@ class SiteFinancialDetail {
       otherExpenses: double.parse(expenses.toStringAsFixed(2)),
       totalVendorPayable: double.parse(totVendorPayable.toStringAsFixed(2)),
       totalSiteAmount: double.parse(siteAmt.toStringAsFixed(2)),
-      amountReceivedBySiya: double.parse(siyaRecv.toStringAsFixed(2)),
+      amountReceivedBySiya: double.parse(custRecv.toStringAsFixed(2)),
+      paymentType: assignment.paymentType,
+      cashReceived: double.parse(cashRecv.toStringAsFixed(2)),
+      loanSanctioned: double.parse(loanSanc.toStringAsFixed(2)),
+      loanCredited: double.parse(loanCred.toStringAsFixed(2)),
+      loanPendingCredit: double.parse(loanPend.toStringAsFixed(2)),
+      totalCustomerReceived: double.parse(custRecv.toStringAsFixed(2)),
+      customerOutstanding: double.parse(custOut.toStringAsFixed(2)),
+      loanStatus: assignment.loanStatus,
+      customerPaymentStatus: assignment.customerPaymentStatus,
       totalPaidToVendor: double.parse(paidToVendor.toStringAsFixed(2)),
       outstandingVendorPayable: double.parse(outstanding.toStringAsFixed(2)),
     );
@@ -148,6 +180,14 @@ class VendorFinancialSummary {
   // Contract Amounts & Customer Collections
   final double totalSiteAmount;
   final double totalReceivedBySiya;
+  final double totalCashReceived;
+  final double totalLoanSanctioned;
+  final double totalLoanCredited;
+  final double totalLoanPendingCredit;
+  final double totalCustomerCollection;
+  final double totalCustomerOutstanding;
+
+  double get totalCustomerSiteAmount => totalSiteAmount;
 
   // Dynamic Material Costs Breakdown
   final double material5Taxable;
@@ -167,7 +207,7 @@ class VendorFinancialSummary {
   final double totalOtherExpenses;
   final double totalSettlementAmount; // totalVendorCharges + totalOtherExpenses
 
-  // Payments & Balance
+  // Payments & Balance to Vendor
   final double totalPaidAmount;
   final double outstandingSettlement; // totalSettlementAmount - totalPaidAmount
 
@@ -184,6 +224,12 @@ class VendorFinancialSummary {
     required this.totalCapacityKw,
     required this.totalSiteAmount,
     required this.totalReceivedBySiya,
+    this.totalCashReceived = 0.0,
+    this.totalLoanSanctioned = 0.0,
+    this.totalLoanCredited = 0.0,
+    this.totalLoanPendingCredit = 0.0,
+    this.totalCustomerCollection = 0.0,
+    this.totalCustomerOutstanding = 0.0,
     required this.material5Taxable,
     required this.material5Gst,
     required this.material5Total,
@@ -215,6 +261,11 @@ class VendorFinancialSummary {
     double totKw = 0.0;
     double totSiteAmt = 0.0;
     double totRecvSiya = 0.0;
+    double totCash = 0.0;
+    double totLoanSanc = 0.0;
+    double totLoanCred = 0.0;
+    double totLoanPend = 0.0;
+    double totCustOut = 0.0;
     double m5Tax = 0.0;
     double m5Gst = 0.0;
     double m18Tax = 0.0;
@@ -232,8 +283,13 @@ class VendorFinancialSummary {
       }
 
       totKw += assignment.siteCapacityKw;
-      totSiteAmt += assignment.customerTotalAmount;
-      totRecvSiya += assignment.customerPaidAmount;
+      totSiteAmt += assignment.effectiveSiteAmount;
+      totRecvSiya += assignment.effectiveReceivedAmount;
+      totCash += assignment.totalCashReceived;
+      totLoanSanc += assignment.loanSanctionedAmount;
+      totLoanCred += assignment.totalLoanCredited;
+      totLoanPend += assignment.loanPendingCredit;
+      totCustOut += assignment.effectiveCustomerOutstanding;
 
       final siteMaterials = allMaterials.where((m) => m.assignmentId == assignment.id).toList();
       final sitePayouts = allPayouts.where((p) => p.assignmentId == assignment.id).toList();
@@ -280,6 +336,12 @@ class VendorFinancialSummary {
       totalCapacityKw: double.parse(totKw.toStringAsFixed(2)),
       totalSiteAmount: double.parse(totSiteAmt.toStringAsFixed(2)),
       totalReceivedBySiya: double.parse(totRecvSiya.toStringAsFixed(2)),
+      totalCashReceived: double.parse(totCash.toStringAsFixed(2)),
+      totalLoanSanctioned: double.parse(totLoanSanc.toStringAsFixed(2)),
+      totalLoanCredited: double.parse(totLoanCred.toStringAsFixed(2)),
+      totalLoanPendingCredit: double.parse(totLoanPend.toStringAsFixed(2)),
+      totalCustomerCollection: double.parse(totRecvSiya.toStringAsFixed(2)),
+      totalCustomerOutstanding: double.parse(totCustOut.toStringAsFixed(2)),
       material5Taxable: double.parse(m5Tax.toStringAsFixed(2)),
       material5Gst: double.parse(m5Gst.toStringAsFixed(2)),
       material5Total: double.parse(m5Tot.toStringAsFixed(2)),
@@ -298,4 +360,3 @@ class VendorFinancialSummary {
     );
   }
 }
-

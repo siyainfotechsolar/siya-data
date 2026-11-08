@@ -1820,3 +1820,1198 @@ class _VendorSiteDetailDialogState extends State<VendorSiteDetailDialog> {
     );
   }
 }
+
+// ==============================================================================
+// 7. CONFIGURE SITE CUSTOMER PAYMENT & LOAN DIALOG
+// ==============================================================================
+
+class ConfigureSitePaymentDialog extends StatefulWidget {
+  final VendorSiteAssignment assignment;
+  const ConfigureSitePaymentDialog({super.key, required this.assignment});
+
+  @override
+  State<ConfigureSitePaymentDialog> createState() => _ConfigureSitePaymentDialogState();
+}
+
+class _ConfigureSitePaymentDialogState extends State<ConfigureSitePaymentDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late String _paymentType;
+  late final TextEditingController _siteAmountCtrl;
+  late final TextEditingController _bankNameCtrl;
+  late final TextEditingController _loanAppIdCtrl;
+  late final TextEditingController _loanAppliedCtrl;
+  late final TextEditingController _loanSanctionedCtrl;
+  bool _isLoading = false;
+
+  final List<String> _bankSuggestions = [
+    'State Bank of India',
+    'Bank of Maharashtra',
+    'Bank of Baroda',
+    'Punjab National Bank',
+    'Union Bank of India',
+    'Canara Bank',
+    'HDFC Bank',
+    'ICICI Bank',
+    'Axis Bank',
+    'Kotak Mahindra Bank',
+    'Other / Rural Bank',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final a = widget.assignment;
+    _paymentType = a.paymentType;
+    _siteAmountCtrl = TextEditingController(
+      text: (a.totalCustomerSiteAmount > 0 ? a.totalCustomerSiteAmount : a.customerTotalAmount).toStringAsFixed(2),
+    );
+    _bankNameCtrl = TextEditingController(text: a.loanBankName ?? '');
+    _loanAppIdCtrl = TextEditingController(text: a.loanApplicationId ?? '');
+    _loanAppliedCtrl = TextEditingController(
+      text: a.loanAppliedAmount > 0 ? a.loanAppliedAmount.toStringAsFixed(2) : '',
+    );
+    _loanSanctionedCtrl = TextEditingController(
+      text: a.loanSanctionedAmount > 0 ? a.loanSanctionedAmount.toStringAsFixed(2) : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _siteAmountCtrl.dispose();
+    _bankNameCtrl.dispose();
+    _loanAppIdCtrl.dispose();
+    _loanAppliedCtrl.dispose();
+    _loanSanctionedCtrl.dispose();
+    super.dispose();
+  }
+
+  bool get _isLoan =>
+      _paymentType == 'Bank Loan Customer' || _paymentType == 'Part Cash + Part Loan';
+
+  Future<void> _handleSave() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final siteAmt = double.tryParse(_siteAmountCtrl.text.trim()) ?? 0.0;
+      final applied = double.tryParse(_loanAppliedCtrl.text.trim()) ?? 0.0;
+      final sanctioned = double.tryParse(_loanSanctionedCtrl.text.trim()) ?? 0.0;
+
+      await SubVendorService.updateSitePaymentConfig(
+        assignmentId: widget.assignment.id,
+        paymentType: _paymentType,
+        totalCustomerSiteAmount: siteAmt,
+        loanBankName: _isLoan ? _bankNameCtrl.text.trim() : null,
+        loanApplicationId: _isLoan ? _loanAppIdCtrl.text.trim() : null,
+        loanAppliedAmount: _isLoan ? applied : 0.0,
+        loanSanctionedAmount: _isLoan ? sanctioned : 0.0,
+      );
+
+      if (mounted) {
+        Navigator.of(context).pop(true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Customer payment and loan configuration updated successfully!'),
+            backgroundColor: Color(0xFF047857),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update config: $e'), backgroundColor: Colors.red.shade700),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = widget.assignment;
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 580, maxHeight: 720),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Configure Payment & Loan Tracking',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D2B6F))),
+                          Text('${a.customerName ?? "Customer"} (CA: ${a.consumerNo ?? "-"}) | ${a.siteCapacityKw} kW',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                        ],
+                      ),
+                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+                    ],
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 8),
+
+                  // Payment Type Selector
+                  const Text('Customer Payment Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    value: _paymentType,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Cash Customer',
+                        child: Text('Cash Customer (100% Self-Funded)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Bank Loan Customer',
+                        child: Text('Bank Loan Customer (100% Bank Financed)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Part Cash + Part Loan',
+                        child: Text('Part Cash + Part Loan (Hybrid Split)'),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setState(() => _paymentType = val);
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Total Customer Site Amount
+                  const Text('Total Customer Site Amount (₹)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _siteAmountCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      prefixText: '₹ ',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      hintText: 'e.g. 200000.00',
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Enter total site amount';
+                      if ((double.tryParse(v) ?? -1) < 0) return 'Enter valid amount';
+                      return null;
+                    },
+                  ),
+
+                  if (_isLoan) ...[
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF86EFAC)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.account_balance, size: 18, color: Color(0xFF047857)),
+                              SizedBox(width: 6),
+                              Text('Bank Loan Lifecycle & Sanction Details',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF047857))),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+
+                          // Bank Name
+                          const Text('Financing Bank Name', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                          const SizedBox(height: 4),
+                          Autocomplete<String>(
+                            initialValue: TextEditingValue(text: _bankNameCtrl.text),
+                            optionsBuilder: (textEditingValue) {
+                              if (textEditingValue.text.isEmpty) return _bankSuggestions;
+                              return _bankSuggestions.where(
+                                (b) => b.toLowerCase().contains(textEditingValue.text.toLowerCase()),
+                              );
+                            },
+                            onSelected: (selection) => _bankNameCtrl.text = selection,
+                            fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                              return TextField(
+                                controller: controller,
+                                focusNode: focusNode,
+                                decoration: const InputDecoration(
+                                  hintText: 'e.g. State Bank of India',
+                                  border: OutlineInputBorder(),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                ),
+                                onChanged: (val) => _bankNameCtrl.text = val,
+                              );
+                            },
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          // Loan Application ID
+                          const Text('Loan Application / Sanction Number', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                          const SizedBox(height: 4),
+                          TextFormField(
+                            controller: _loanAppIdCtrl,
+                            decoration: const InputDecoration(
+                              hintText: 'e.g. SBI-SOLAR-2026-9812',
+                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            ),
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Loan Applied Amount (₹)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                                    const SizedBox(height: 4),
+                                    TextFormField(
+                                      controller: _loanAppliedCtrl,
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      decoration: const InputDecoration(
+                                        prefixText: '₹ ',
+                                        border: OutlineInputBorder(),
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Loan Sanctioned Amount (₹)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                                    const SizedBox(height: 4),
+                                    TextFormField(
+                                      controller: _loanSanctionedCtrl,
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      decoration: const InputDecoration(
+                                        prefixText: '₹ ',
+                                        border: OutlineInputBorder(),
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 16),
+
+                  // Realtime summary card
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Current Cash Received:', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                            Text(_currency.format(a.totalCashReceived), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Current Loan Credited:', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                            Text(_currency.format(a.totalLoanCredited), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF047857))),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Total Customer Received:', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                            Text(_currency.format(a.effectiveReceivedAmount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0D2B6F))),
+                          ],
+                        ),
+                        const Divider(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Outstanding Customer Due:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            Text(_currency.format(a.effectiveCustomerOutstanding), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.deepOrange)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Save Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0D2B6F),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: _isLoading ? null : _handleSave,
+                      child: _isLoading
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Text('Save Payment & Loan Configuration', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==============================================================================
+// 8. RECORD CUSTOMER PAYMENT / BANK LOAN CREDIT DIALOG (ADMIN ONLY)
+// ==============================================================================
+
+class RecordCustomerPaymentDialog extends StatefulWidget {
+  final VendorSiteAssignment assignment;
+  final String? initialCategory; // 'CASH' or 'BANK_LOAN'
+
+  const RecordCustomerPaymentDialog({
+    super.key,
+    required this.assignment,
+    this.initialCategory,
+  });
+
+  @override
+  State<RecordCustomerPaymentDialog> createState() => _RecordCustomerPaymentDialogState();
+}
+
+class _RecordCustomerPaymentDialogState extends State<RecordCustomerPaymentDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late String _category; // 'CASH' or 'BANK_LOAN'
+  String _paymentStage = 'PARTIAL'; // 'ADVANCE', 'PARTIAL', 'FINAL', 'LOAN_CREDIT'
+  DateTime _paymentDate = DateTime.now();
+  String _paymentMode = 'Bank Transfer';
+
+  late final TextEditingController _amountCtrl;
+  late final TextEditingController _refCtrl;
+  late final TextEditingController _bankNameCtrl;
+  late final TextEditingController _loanAppIdCtrl;
+  late final TextEditingController _attachmentCtrl;
+  late final TextEditingController _remarksCtrl;
+
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final a = widget.assignment;
+    _category = widget.initialCategory ?? (a.isBankLoan ? 'BANK_LOAN' : 'CASH');
+    if (_category == 'BANK_LOAN') {
+      _paymentStage = 'LOAN_CREDIT';
+    }
+
+    _amountCtrl = TextEditingController();
+    _refCtrl = TextEditingController();
+    _bankNameCtrl = TextEditingController(text: a.loanBankName ?? 'State Bank of India');
+    _loanAppIdCtrl = TextEditingController(text: a.loanApplicationId ?? '');
+    _attachmentCtrl = TextEditingController();
+    _remarksCtrl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    _refCtrl.dispose();
+    _bankNameCtrl.dispose();
+    _loanAppIdCtrl.dispose();
+    _attachmentCtrl.dispose();
+    _remarksCtrl.dispose();
+    super.dispose();
+  }
+
+  bool get _isLoan => _category == 'BANK_LOAN';
+
+  Future<void> _handleSave() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final amt = double.parse(_amountCtrl.text.trim());
+      final a = widget.assignment;
+
+      final payment = VendorCustomerPayment.create(
+        assignmentId: a.id,
+        vendorId: a.vendorId,
+        customerId: a.customerId,
+        paymentType: _category,
+        paymentStage: _paymentStage,
+        amount: amt,
+        paymentDate: _paymentDate,
+        paymentMode: _isLoan ? 'Bank Credit / Direct NEFT' : _paymentMode,
+        referenceNumber: _refCtrl.text.trim().isNotEmpty ? _refCtrl.text.trim() : null,
+        bankName: _isLoan ? _bankNameCtrl.text.trim() : null,
+        loanApplicationId: _isLoan ? _loanAppIdCtrl.text.trim() : null,
+        attachmentUrl: _attachmentCtrl.text.trim().isNotEmpty ? _attachmentCtrl.text.trim() : null,
+        remarks: _remarksCtrl.text.trim().isNotEmpty ? _remarksCtrl.text.trim() : null,
+        status: 'Approved',
+      );
+
+      await SubVendorService.recordCustomerPayment(payment);
+
+      if (mounted) {
+        Navigator.of(context).pop(true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _isLoan
+                  ? 'Bank Loan Credit Installment of ${_currency.format(amt)} recorded successfully!'
+                  : 'Cash payment of ${_currency.format(amt)} recorded successfully!',
+            ),
+            backgroundColor: const Color(0xFF047857),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to record payment: $e'), backgroundColor: Colors.red.shade700),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = widget.assignment;
+    final pendingCredit = a.loanPendingCredit;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 580, maxHeight: 720),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isLoan ? 'Record Bank Loan Credit Installment' : 'Record Customer Cash Payment',
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D2B6F)),
+                          ),
+                          Text('${a.customerName ?? "Customer"} (CA: ${a.consumerNo ?? "-"}) | Sub-Vendor: ${a.vendorName ?? "Vendor"}',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                        ],
+                      ),
+                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+                    ],
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 8),
+
+                  // Category Toggle: Cash Payment vs Bank Loan Credit
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Center(child: Text('Cash Payment (Self-Funded)', style: TextStyle(fontWeight: FontWeight.bold))),
+                          selected: _category == 'CASH',
+                          selectedColor: const Color(0xFF0D2B6F),
+                          labelStyle: TextStyle(color: _category == 'CASH' ? Colors.white : Colors.black87),
+                          onSelected: (sel) {
+                            if (sel) {
+                              setState(() {
+                                _category = 'CASH';
+                                _paymentStage = 'PARTIAL';
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Center(child: Text('Bank Loan Credit (Disbursal)', style: TextStyle(fontWeight: FontWeight.bold))),
+                          selected: _category == 'BANK_LOAN',
+                          selectedColor: const Color(0xFF047857),
+                          labelStyle: TextStyle(color: _category == 'BANK_LOAN' ? Colors.white : Colors.black87),
+                          onSelected: (sel) {
+                            if (sel) {
+                              setState(() {
+                                _category = 'BANK_LOAN';
+                                _paymentStage = 'LOAN_CREDIT';
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  if (_isLoan) ...[
+                    // Loan Context Banner
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFA7F3D0)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Loan Sanctioned: ${_currency.format(a.loanSanctionedAmount)}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF047857))),
+                              Text('Already Credited: ${_currency.format(a.totalLoanCredited)}',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF047857),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'Pending Credit: ${_currency.format(pendingCredit)}',
+                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Payment Stage & Date Row
+                  Row(
+                    children: [
+                      if (!_isLoan)
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Payment Stage', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                              const SizedBox(height: 4),
+                              DropdownButtonFormField<String>(
+                                value: _paymentStage,
+                                decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                                items: const [
+                                  DropdownMenuItem(value: 'ADVANCE', child: Text('Advance')),
+                                  DropdownMenuItem(value: 'PARTIAL', child: Text('Partial')),
+                                  DropdownMenuItem(value: 'FINAL', child: Text('Final')),
+                                ],
+                                onChanged: (v) => setState(() => _paymentStage = v ?? 'PARTIAL'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (!_isLoan) const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_isLoan ? 'Bank Credit Date' : 'Payment Date', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: () async {
+                                final d = await showDatePicker(
+                                  context: context,
+                                  initialDate: _paymentDate,
+                                  firstDate: DateTime(2023),
+                                  lastDate: DateTime(2030),
+                                );
+                                if (d != null) setState(() => _paymentDate = d);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.shade400),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(_dateFormat.format(_paymentDate)),
+                                    const Icon(Icons.calendar_today, size: 16),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Amount
+                  Text(_isLoan ? 'Credit Amount Received (₹)' : 'Payment Amount (₹)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  const SizedBox(height: 4),
+                  TextFormField(
+                    controller: _amountCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      prefixText: '₹ ',
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      hintText: _isLoan ? 'e.g. 50000.00 (Installment amount credited to SIYA)' : 'e.g. 50000.00',
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Enter amount';
+                      final parsed = double.tryParse(v);
+                      if (parsed == null || parsed <= 0) return 'Enter positive amount';
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Mode & Reference (UTR)
+                  Row(
+                    children: [
+                      if (!_isLoan)
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Payment Mode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                              const SizedBox(height: 4),
+                              DropdownButtonFormField<String>(
+                                value: _paymentMode,
+                                decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                                items: const ['Bank Transfer', 'UPI', 'Cash', 'Cheque', 'NEFT/RTGS']
+                                    .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                                    .toList(),
+                                onChanged: (v) => setState(() => _paymentMode = v ?? 'Bank Transfer'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (!_isLoan) const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _isLoan ? 'Bank UTR / Transaction ID *' : 'Transaction Ref / UTR / Cheque No',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                            const SizedBox(height: 4),
+                            TextFormField(
+                              controller: _refCtrl,
+                              decoration: InputDecoration(
+                                hintText: _isLoan ? 'e.g. SBIN202611089912' : 'Reference number',
+                                border: const OutlineInputBorder(),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              ),
+                              validator: (v) {
+                                if (_isLoan && (v == null || v.trim().isEmpty)) {
+                                  return 'UTR / Txn ID is required for bank loan credit';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  if (_isLoan) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Disbursing Bank Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                              const SizedBox(height: 4),
+                              TextFormField(
+                                controller: _bankNameCtrl,
+                                decoration: const InputDecoration(
+                                  hintText: 'e.g. State Bank of India',
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Loan Application ID', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                              const SizedBox(height: 4),
+                              TextFormField(
+                                controller: _loanAppIdCtrl,
+                                decoration: const InputDecoration(
+                                  hintText: 'e.g. SBI-APP-99881',
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text('Bank Credit Proof Attachment URL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    TextFormField(
+                      controller: _attachmentCtrl,
+                      decoration: const InputDecoration(
+                        hintText: 'https://... or bank statement file path',
+                        prefixIcon: Icon(Icons.link, size: 18),
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 12),
+                  const Text('Remarks / Notes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  const SizedBox(height: 4),
+                  TextFormField(
+                    controller: _remarksCtrl,
+                    decoration: InputDecoration(
+                      hintText: _isLoan ? 'e.g. 1st installment disbursement from SBI' : 'e.g. Advance paid via UPI',
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Submit
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isLoan ? const Color(0xFF047857) : const Color(0xFF0D2B6F),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: _isLoading ? null : _handleSave,
+                      child: _isLoading
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : Text(
+                              _isLoan ? 'Confirm & Record Bank Loan Credit' : 'Confirm & Record Cash Payment',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==============================================================================
+// 9. SITE PAYMENT & BANK LOAN LEDGER DIALOG
+// ==============================================================================
+
+class SitePaymentLedgerDialog extends StatefulWidget {
+  final VendorSiteAssignment assignment;
+  const SitePaymentLedgerDialog({super.key, required this.assignment});
+
+  @override
+  State<SitePaymentLedgerDialog> createState() => _SitePaymentLedgerDialogState();
+}
+
+class _SitePaymentLedgerDialogState extends State<SitePaymentLedgerDialog> {
+  late VendorSiteAssignment _assignment;
+  List<VendorCustomerPayment> _payments = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _assignment = widget.assignment;
+    _loadLedger();
+  }
+
+  Future<void> _loadLedger() async {
+    setState(() => _isLoading = true);
+    try {
+      final payments = await SubVendorService.fetchCustomerPayments(assignmentId: _assignment.id);
+      // Re-fetch assignment to ensure refreshed totals
+      final assignments = await SubVendorService.fetchAssignments(vendorId: _assignment.vendorId);
+      final refreshed = assignments.firstWhere((a) => a.id == _assignment.id, orElse: () => _assignment);
+
+      if (mounted) {
+        setState(() {
+          _payments = payments;
+          _assignment = refreshed;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleDeletePayment(String paymentId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Payment Record?'),
+        content: const Text('Are you sure you want to delete this payment record? The site balances will be automatically recalculated.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await SubVendorService.deleteCustomerPayment(paymentId);
+      await _loadLedger();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment deleted successfully.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete payment: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = _assignment;
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 880, maxHeight: 780),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text('Customer Payment Ledger: ${a.customerName ?? "Customer"}',
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D2B6F))),
+                          const SizedBox(width: 8),
+                          _paymentTypeChip(a.paymentType),
+                          if (a.isBankLoan) ...[
+                            const SizedBox(width: 6),
+                            _loanStatusChip(a.loanStatus),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text('CA No: ${a.consumerNo ?? "-"} | Sub-Vendor: ${a.vendorCode ?? "VND"} - ${a.vendorName ?? "Vendor"} | Capacity: ${a.siteCapacityKw} kW',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.settings, size: 16),
+                        label: const Text('Config'),
+                        onPressed: () async {
+                          final res = await showDialog<bool>(
+                            context: context,
+                            builder: (_) => ConfigureSitePaymentDialog(assignment: a),
+                          );
+                          if (res == true) _loadLedger();
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('+ Payment / Credit'),
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF047857), foregroundColor: Colors.white),
+                        onPressed: () async {
+                          final res = await showDialog<bool>(
+                            context: context,
+                            builder: (_) => RecordCustomerPaymentDialog(assignment: a),
+                          );
+                          if (res == true) _loadLedger();
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.picture_as_pdf, size: 16),
+                        label: const Text('PDF Ledger'),
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D2B6F), foregroundColor: Colors.white),
+                        onPressed: _payments.isEmpty
+                            ? null
+                            : () => SubVendorPdfService.printOrShareSitePaymentLedger(assignment: a, payments: _payments),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+                    ],
+                  ),
+                ],
+              ),
+              const Divider(),
+              const SizedBox(height: 6),
+
+              // KPI Row
+              Row(
+                children: [
+                  _kpiCard('Site Amount', _currency.format(a.effectiveSiteAmount), const Color(0xFF0D2B6F)),
+                  _kpiCard('Cash Received', _currency.format(a.totalCashReceived), Colors.blueGrey),
+                  _kpiCard(
+                    'Loan Credited',
+                    _currency.format(a.totalLoanCredited),
+                    const Color(0xFF047857),
+                    sub: a.isBankLoan ? 'Sanctioned: ${_currency.format(a.loanSanctionedAmount)}' : null,
+                  ),
+                  _kpiCard(
+                    'Balance Due',
+                    _currency.format(a.effectiveCustomerOutstanding),
+                    Colors.deepOrange,
+                    sub: a.isBankLoan && a.loanPendingCredit > 0 ? 'Pending Loan: ${_currency.format(a.loanPendingCredit)}' : null,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+              const Text('TRANSACTION LEDGER & BANK DISBURSEMENT ENTRIES',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F))),
+              const SizedBox(height: 6),
+
+              // Payments Table
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _payments.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.receipt_long_outlined, size: 48, color: Colors.grey.shade400),
+                                const SizedBox(height: 8),
+                                const Text('No payments or bank loan credits recorded yet.'),
+                                const SizedBox(height: 6),
+                                ElevatedButton(
+                                  onPressed: () async {
+                                    final res = await showDialog<bool>(
+                                      context: context,
+                                      builder: (_) => RecordCustomerPaymentDialog(assignment: a),
+                                    );
+                                    if (res == true) _loadLedger();
+                                  },
+                                  child: const Text('Record First Payment'),
+                                ),
+                              ],
+                            ),
+                          )
+                        : Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ListView.separated(
+                              itemCount: _payments.length,
+                              separatorBuilder: (_, __) => const Divider(height: 1),
+                              itemBuilder: (context, i) {
+                                final p = _payments[i];
+                                final isLoan = p.isLoan;
+                                return ListTile(
+                                  dense: true,
+                                  leading: CircleAvatar(
+                                    radius: 14,
+                                    backgroundColor: isLoan ? const Color(0xFFD1FAE5) : const Color(0xFFE0E7FF),
+                                    child: Icon(
+                                      isLoan ? Icons.account_balance : Icons.payments,
+                                      size: 16,
+                                      color: isLoan ? const Color(0xFF047857) : const Color(0xFF4338CA),
+                                    ),
+                                  ),
+                                  title: Row(
+                                    children: [
+                                      Text(
+                                        isLoan ? 'BANK LOAN CREDIT' : 'CASH PAYMENT (${p.paymentStage})',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: isLoan ? const Color(0xFF047857) : const Color(0xFF0D2B6F),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(_dateFormat.format(p.paymentDate), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                    ],
+                                  ),
+                                  subtitle: Text(
+                                    [
+                                      if (p.referenceNumber != null && p.referenceNumber!.isNotEmpty) 'UTR: ${p.referenceNumber}',
+                                      if (p.bankName != null && p.bankName!.isNotEmpty) 'Bank: ${p.bankName}',
+                                      if (p.loanApplicationId != null && p.loanApplicationId!.isNotEmpty) 'App ID: ${p.loanApplicationId}',
+                                      if (p.remarks != null && p.remarks!.isNotEmpty) 'Notes: ${p.remarks}',
+                                    ].join(' | '),
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        _currency.format(p.amount),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                          color: isLoan ? const Color(0xFF047857) : Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                                        tooltip: 'Delete Payment',
+                                        onPressed: () => _handleDeletePayment(p.id),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _kpiCard(String title, String value, Color color, {String? sub}) {
+    return Expanded(
+      child: Card(
+        color: color.withOpacity(0.08),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: color.withOpacity(0.2))),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              const SizedBox(height: 3),
+              Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
+              if (sub != null) ...[
+                const SizedBox(height: 2),
+                Text(sub, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _paymentTypeChip(String type) {
+    Color bg = const Color(0xFFE2E8F0);
+    Color fg = const Color(0xFF334155);
+    if (type.contains('Bank Loan')) {
+      bg = const Color(0xFFDCFCE7);
+      fg = const Color(0xFF166534);
+    } else if (type.contains('Part')) {
+      bg = const Color(0xFFFEF3C7);
+      fg = const Color(0xFF92400E);
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
+      child: Text(type, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: fg)),
+    );
+  }
+
+  Widget _loanStatusChip(String status) {
+    Color bg = const Color(0xFFE0E7FF);
+    Color fg = const Color(0xFF4338CA);
+    if (status == 'Fully Credited') {
+      bg = const Color(0xFFDCFCE7);
+      fg = const Color(0xFF166534);
+    } else if (status == 'Partially Credited') {
+      bg = const Color(0xFFFEF3C7);
+      fg = const Color(0xFF92400E);
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
+      child: Text(status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: fg)),
+    );
+  }
+}

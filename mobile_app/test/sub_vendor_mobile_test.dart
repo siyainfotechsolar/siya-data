@@ -367,5 +367,62 @@ void main() {
       expect(find.text('Payouts'), findsOneWidget);
       expect(find.text('Profile'), findsOneWidget);
     });
+
+    // -------------------------------------------------------------------------
+    // 6. CUSTOMER PAYMENT & BANK LOAN TRACKING (SUB-VENDOR VIEW-ONLY)
+    // -------------------------------------------------------------------------
+    test('6. Customer Payment & Bank Loan Tracking: Read-only visibility of Cash & Loan Credit Installments', () {
+      final hybridSite = VendorSiteAssignment(
+        id: 'asg-mob-hybrid-1',
+        vendorId: 'vnd_001',
+        customerId: 'cust_hybrid',
+        customerName: 'Shrikant Patil',
+        consumerNo: '1899002233',
+        customerVillageCity: 'Betawad',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 3.0,
+        ratePerKw: 1000.0,
+        paymentType: 'Part Cash + Part Loan',
+        totalCustomerSiteAmount: 200000.0,
+        loanBankName: 'State Bank of India',
+        loanApplicationId: 'SBI-2026-9911',
+        loanAppliedAmount: 150000.0,
+        loanSanctionedAmount: 150000.0,
+        loanStatus: 'Partially Credited',
+        totalCashReceived: 50000.0,
+        totalLoanCredited: 100000.0,
+        totalCustomerReceived: 150000.0,
+        customerOutstanding: 50000.0,
+        customerPaymentStatus: 'Partial',
+      );
+
+      // Verify calculated values
+      expect(hybridSite.isBankLoan, isTrue);
+      expect(hybridSite.effectiveSiteAmount, equals(200000.0));
+      expect(hybridSite.totalCashReceived, equals(50000.0));
+      expect(hybridSite.totalLoanCredited, equals(100000.0));
+      expect(hybridSite.loanPendingCredit, equals(50000.0)); // ₹1,50,000 - ₹1,00,000
+      expect(hybridSite.effectiveReceivedAmount, equals(150000.0));
+      expect(hybridSite.effectiveCustomerOutstanding, equals(50000.0));
+      expect(hybridSite.loanStatus, equals('Partially Credited'));
+
+      // Vendor summary calculation incorporates customer payment totals
+      final summary = VendorFinancialSummary.compute(
+        vendorId: 'vnd_001',
+        vendorCode: 'SIYA-VND-001',
+        vendorName: 'Omkar Solar Services',
+        assignments: [hybridSite],
+        allMaterials: [],
+        allPayouts: [],
+      );
+
+      expect(summary.totalCustomerSiteAmount, equals(200000.0));
+      expect(summary.totalCashReceived, equals(50000.0));
+      expect(summary.totalLoanSanctioned, equals(150000.0));
+      expect(summary.totalLoanCredited, equals(100000.0));
+      expect(summary.totalLoanPendingCredit, equals(50000.0));
+      expect(summary.totalCustomerCollection, equals(150000.0));
+      expect(summary.totalCustomerOutstanding, equals(50000.0));
+    });
   });
 }

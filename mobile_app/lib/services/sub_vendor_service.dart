@@ -247,4 +247,43 @@ class SubVendorService {
       rethrow;
     }
   }
+
+  // ============================================================================
+  // 6. CUSTOMER PAYMENT & BANK LOAN DISBURSEMENT TRACKING (READ-ONLY)
+  // ============================================================================
+
+  /// Fetch customer payments for assigned sites (Sub-Vendor View Only)
+  static Future<List<VendorCustomerPayment>> fetchCustomerPayments(
+    String vendorId, {
+    String? assignmentId,
+  }) async {
+    final client = _client;
+    if (client == null) return [];
+    try {
+      var query = client
+          .from('vendor_customer_payments')
+          .select('*, customer:consumer_records(name, consumer_no)')
+          .eq('vendor_id', vendorId);
+
+      if (assignmentId != null && assignmentId.isNotEmpty) {
+        query = query.eq('assignment_id', assignmentId);
+      }
+
+      final response = await query.order('payment_date', ascending: false);
+      final List<dynamic> data = response as List<dynamic>;
+
+      return data.map((json) {
+        final map = Map<String, dynamic>.from(json as Map);
+        if (map['customer'] != null && map['customer'] is Map) {
+          final cust = map['customer'] as Map;
+          map['customer_name'] = cust['name'] ?? cust['customer_name'];
+          map['consumer_number'] = cust['consumer_no'] ?? cust['consumer_number'];
+        }
+        return VendorCustomerPayment.fromJson(map);
+      }).toList();
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.fetchCustomerPayments: $e\n$stack');
+      return [];
+    }
+  }
 }

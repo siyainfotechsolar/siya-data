@@ -355,6 +355,317 @@ void main() {
       expect(detail.totalVendorPayable, equals(5500.0));
       expect(detail.outstandingVendorPayable, equals(5500.0));
     });
+
+    // -------------------------------------------------------------------------
+    // 7. CASH CUSTOMER RECORD & INSTALLMENT LIFECYCLE
+    // -------------------------------------------------------------------------
+    test('7. Cash Customer Payment Lifecycle: Advance, Partial, and Final Payments', () {
+      final cashSite = VendorSiteAssignment(
+        id: 'asg-cash-1',
+        vendorId: 'vnd-1',
+        customerId: 'cust-cash-1',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 3.0,
+        ratePerKw: 1000.0,
+        paymentType: 'Cash Customer',
+        totalCustomerSiteAmount: 200000.0,
+        totalCashReceived: 0.0,
+        totalCustomerReceived: 0.0,
+        customerOutstanding: 200000.0,
+        customerPaymentStatus: 'Pending',
+      );
+
+      // Advance payment: ₹50,000
+      final advance = VendorCustomerPayment.create(
+        assignmentId: cashSite.id,
+        vendorId: cashSite.vendorId,
+        customerId: cashSite.customerId,
+        paymentType: 'CASH',
+        paymentStage: 'ADVANCE',
+        amount: 50000.0,
+        paymentMode: 'UPI',
+        referenceNumber: 'UPI-ADV-98124',
+      );
+      expect(advance.isCash, isTrue);
+      expect(advance.isLoan, isFalse);
+      expect(advance.amount, equals(50000.0));
+
+      // Partial payment: ₹50,000
+      final partial = VendorCustomerPayment.create(
+        assignmentId: cashSite.id,
+        vendorId: cashSite.vendorId,
+        customerId: cashSite.customerId,
+        paymentType: 'CASH',
+        paymentStage: 'PARTIAL',
+        amount: 50000.0,
+        paymentMode: 'Bank Transfer',
+        referenceNumber: 'NEFT-PART-1122',
+      );
+
+      final totalCashPaid = advance.amount + partial.amount; // ₹1,00,000
+      final updatedCashSite = cashSite.copyWith(
+        totalCashReceived: totalCashPaid,
+        totalCustomerReceived: totalCashPaid,
+        customerOutstanding: cashSite.totalCustomerSiteAmount - totalCashPaid,
+        customerPaymentStatus: 'Partial',
+      );
+
+      expect(updatedCashSite.totalCashReceived, equals(100000.0));
+      expect(updatedCashSite.customerOutstanding, equals(100000.0));
+      expect(updatedCashSite.customerPaymentStatus, equals('Partial'));
+
+      // Final payment: ₹1,00,000
+      final finalPay = VendorCustomerPayment.create(
+        assignmentId: cashSite.id,
+        vendorId: cashSite.vendorId,
+        customerId: cashSite.customerId,
+        paymentType: 'CASH',
+        paymentStage: 'FINAL',
+        amount: 100000.0,
+        paymentMode: 'Bank Transfer',
+        referenceNumber: 'RTGS-FINAL-9900',
+      );
+
+      final fullyPaidTotal = totalCashPaid + finalPay.amount; // ₹2,00,000
+      final completedCashSite = updatedCashSite.copyWith(
+        totalCashReceived: fullyPaidTotal,
+        totalCustomerReceived: fullyPaidTotal,
+        customerOutstanding: cashSite.totalCustomerSiteAmount - fullyPaidTotal,
+        customerPaymentStatus: 'Paid',
+      );
+
+      expect(completedCashSite.totalCashReceived, equals(200000.0));
+      expect(completedCashSite.customerOutstanding, equals(0.0));
+      expect(completedCashSite.customerPaymentStatus, equals('Paid'));
+    });
+
+    // -------------------------------------------------------------------------
+    // 8. BANK LOAN TRACKING & MULTIPLE CREDIT INSTALLMENTS
+    // -------------------------------------------------------------------------
+    test('8. Bank Loan Lifecycle: Applied -> Sanctioned -> Multiple Credit Installments -> Fully Credited', () {
+      // Loan Site: Site ₹2,00,000 | Loan Sanctioned: ₹2,00,000
+      var loanSite = VendorSiteAssignment(
+        id: 'asg-loan-1',
+        vendorId: 'vnd-1',
+        customerId: 'cust-loan-1',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 3.0,
+        paymentType: 'Bank Loan Customer',
+        totalCustomerSiteAmount: 200000.0,
+        loanBankName: 'State Bank of India',
+        loanApplicationId: 'SBI-SOLAR-2026-9812',
+        loanAppliedAmount: 200000.0,
+        loanSanctionedAmount: 200000.0,
+        loanStatus: 'Sanctioned',
+        totalLoanCredited: 0.0,
+        totalCustomerReceived: 0.0,
+        customerOutstanding: 200000.0,
+      );
+
+      expect(loanSite.isBankLoan, isTrue);
+      expect(loanSite.loanPendingCredit, equals(200000.0));
+      expect(loanSite.loanStatus, equals('Sanctioned'));
+
+      // 1st Installment Credit: ₹1,00,000
+      final inst1 = VendorCustomerPayment.create(
+        assignmentId: loanSite.id,
+        vendorId: loanSite.vendorId,
+        customerId: loanSite.customerId,
+        paymentType: 'BANK_LOAN',
+        paymentStage: 'LOAN_CREDIT',
+        amount: 100000.0,
+        bankName: 'State Bank of India',
+        loanApplicationId: 'SBI-SOLAR-2026-9812',
+        referenceNumber: 'SBIN20261108001',
+        attachmentUrl: 'https://storage.siyasolar.com/loans/sbi_proof_1.pdf',
+        remarks: '1st disbursal credited to SIYA current account',
+      );
+      expect(inst1.isLoan, isTrue);
+      expect(inst1.referenceNumber, equals('SBIN20261108001'));
+
+      loanSite = loanSite.copyWith(
+        totalLoanCredited: inst1.amount,
+        totalCustomerReceived: inst1.amount,
+        customerOutstanding: loanSite.totalCustomerSiteAmount - inst1.amount,
+        loanStatus: 'Partially Credited',
+        customerPaymentStatus: 'Partial',
+      );
+      expect(loanSite.totalLoanCredited, equals(100000.0));
+      expect(loanSite.loanPendingCredit, equals(100000.0)); // ₹2,00,000 - ₹1,00,000 = ₹1,00,000 pending
+      expect(loanSite.customerOutstanding, equals(100000.0));
+      expect(loanSite.loanStatus, equals('Partially Credited'));
+
+      // 2nd Installment Credit: ₹50,000
+      final inst2 = VendorCustomerPayment.create(
+        assignmentId: loanSite.id,
+        vendorId: loanSite.vendorId,
+        customerId: loanSite.customerId,
+        paymentType: 'BANK_LOAN',
+        paymentStage: 'LOAN_CREDIT',
+        amount: 50000.0,
+        bankName: 'State Bank of India',
+        loanApplicationId: 'SBI-SOLAR-2026-9812',
+        referenceNumber: 'SBIN20261108002',
+        remarks: '2nd disbursal after structure erection',
+      );
+
+      final totalAfterInst2 = loanSite.totalLoanCredited + inst2.amount; // ₹1,50,000
+      loanSite = loanSite.copyWith(
+        totalLoanCredited: totalAfterInst2,
+        totalCustomerReceived: totalAfterInst2,
+        customerOutstanding: loanSite.totalCustomerSiteAmount - totalAfterInst2,
+        loanStatus: 'Partially Credited',
+      );
+      expect(loanSite.totalLoanCredited, equals(150000.0));
+      expect(loanSite.loanPendingCredit, equals(50000.0));
+      expect(loanSite.customerOutstanding, equals(50000.0));
+
+      // 3rd & Final Installment Credit: ₹50,000
+      final inst3 = VendorCustomerPayment.create(
+        assignmentId: loanSite.id,
+        vendorId: loanSite.vendorId,
+        customerId: loanSite.customerId,
+        paymentType: 'BANK_LOAN',
+        paymentStage: 'LOAN_CREDIT',
+        amount: 50000.0,
+        bankName: 'State Bank of India',
+        loanApplicationId: 'SBI-SOLAR-2026-9812',
+        referenceNumber: 'SBIN20261108003',
+        remarks: 'Final disbursal post net-meter commissioning',
+      );
+
+      final totalFullyCredited = totalAfterInst2 + inst3.amount; // ₹2,00,000
+      loanSite = loanSite.copyWith(
+        totalLoanCredited: totalFullyCredited,
+        totalCustomerReceived: totalFullyCredited,
+        customerOutstanding: loanSite.totalCustomerSiteAmount - totalFullyCredited,
+        loanStatus: 'Fully Credited',
+        customerPaymentStatus: 'Paid',
+      );
+      expect(loanSite.totalLoanCredited, equals(200000.0));
+      expect(loanSite.loanPendingCredit, equals(0.0));
+      expect(loanSite.customerOutstanding, equals(0.0));
+      expect(loanSite.loanStatus, equals('Fully Credited'));
+      expect(loanSite.customerPaymentStatus, equals('Paid'));
+    });
+
+    // -------------------------------------------------------------------------
+    // 9. PART CASH + PART LOAN HYBRID SPLIT CALCULATIONS
+    // -------------------------------------------------------------------------
+    test('9. Part Cash + Part Loan: Multiple cash & loan transactions against same Site ID', () {
+      // Contract: ₹2,00,000 | Cash: ₹50,000 | Loan: ₹1,50,000
+      final hybridSite = VendorSiteAssignment(
+        id: 'asg-hybrid-1',
+        vendorId: 'vnd-1',
+        customerId: 'cust-hybrid-1',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 3.3,
+        paymentType: 'Part Cash + Part Loan',
+        totalCustomerSiteAmount: 200000.0,
+        loanBankName: 'Bank of Maharashtra',
+        loanApplicationId: 'BOM-2026-SOLAR-09',
+        loanAppliedAmount: 150000.0,
+        loanSanctionedAmount: 150000.0,
+        loanStatus: 'Fully Credited',
+        totalCashReceived: 50000.0,
+        totalLoanCredited: 150000.0,
+        totalCustomerReceived: 200000.0,
+        customerOutstanding: 0.0,
+        customerPaymentStatus: 'Paid',
+      );
+
+      // Verify Total Received = Cash Received + Loan Credited
+      expect(hybridSite.totalCustomerReceived, equals(hybridSite.totalCashReceived + hybridSite.totalLoanCredited));
+      expect(hybridSite.totalCustomerReceived, equals(200000.0));
+
+      // Verify Outstanding = Total Site Amount - Total Received
+      expect(hybridSite.customerOutstanding, equals(hybridSite.totalCustomerSiteAmount - hybridSite.totalCustomerReceived));
+      expect(hybridSite.customerOutstanding, equals(0.0));
+      expect(hybridSite.loanPendingCredit, equals(0.0));
+
+      // Aggregate Summary check
+      final summary = VendorFinancialSummary.compute(
+        vendorId: 'vnd-1',
+        vendorCode: 'SIYA-VND-101',
+        vendorName: 'Patil Solar Works',
+        assignments: [hybridSite],
+        allMaterials: [],
+        allPayouts: [],
+      );
+
+      expect(summary.totalCustomerSiteAmount, equals(200000.0));
+      expect(summary.totalCashReceived, equals(50000.0));
+      expect(summary.totalLoanSanctioned, equals(150000.0));
+      expect(summary.totalLoanCredited, equals(150000.0));
+      expect(summary.totalLoanPendingCredit, equals(0.0));
+      expect(summary.totalCustomerCollection, equals(200000.0));
+      expect(summary.totalCustomerOutstanding, equals(0.0));
+    });
+
+    // -------------------------------------------------------------------------
+    // 10. SITE PAYMENT LEDGER PDF GENERATION
+    // -------------------------------------------------------------------------
+    test('10. SubVendorPdfService generates valid PDF bytes for Customer Payment Ledger', () async {
+      final assignment = VendorSiteAssignment(
+        id: 'asg-pdf-ledger-1',
+        vendorId: 'vnd-1',
+        customerId: 'cust-pdf-1',
+        customerName: 'Ganesh Shinde',
+        consumerNo: '1899201992',
+        customerMobile: '9822001122',
+        customerAddress: 'Betawad, Shindkheda',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 3.0,
+        paymentType: 'Part Cash + Part Loan',
+        totalCustomerSiteAmount: 200000.0,
+        loanBankName: 'State Bank of India',
+        loanApplicationId: 'SBI-APP-2026-99',
+        loanSanctionedAmount: 150000.0,
+        totalCashReceived: 50000.0,
+        totalLoanCredited: 100000.0,
+        totalCustomerReceived: 150000.0,
+        customerOutstanding: 50000.0,
+        loanStatus: 'Partially Credited',
+        customerPaymentStatus: 'Partial',
+      );
+
+      final payments = [
+        VendorCustomerPayment.create(
+          assignmentId: assignment.id,
+          vendorId: assignment.vendorId,
+          customerId: assignment.customerId,
+          paymentType: 'CASH',
+          paymentStage: 'ADVANCE',
+          amount: 50000.0,
+          paymentDate: DateTime(2026, 11, 2),
+          paymentMode: 'UPI',
+          referenceNumber: 'UPI-771199',
+          remarks: 'Initial advance booking payment',
+        ),
+        VendorCustomerPayment.create(
+          assignmentId: assignment.id,
+          vendorId: assignment.vendorId,
+          customerId: assignment.customerId,
+          paymentType: 'BANK_LOAN',
+          paymentStage: 'LOAN_CREDIT',
+          amount: 100000.0,
+          paymentDate: DateTime(2026, 11, 5),
+          paymentMode: 'Bank Transfer',
+          bankName: 'State Bank of India',
+          loanApplicationId: 'SBI-APP-2026-99',
+          referenceNumber: 'SBIN99001188',
+          remarks: '1st Loan Installment Disbursed',
+        ),
+      ];
+
+      final ledgerPdfBytes = await SubVendorPdfService.generateSitePaymentLedgerPdfBytes(
+        assignment: assignment,
+        payments: payments,
+      );
+
+      expect(ledgerPdfBytes, isNotEmpty);
+      expect(ledgerPdfBytes.length, greaterThan(1000));
+    });
   });
 }
 

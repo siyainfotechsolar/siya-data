@@ -595,5 +595,171 @@ class SubVendorService {
       rethrow;
     }
   }
+
+  // ============================================================================
+  // 6. CUSTOMER PAYMENT & BANK LOAN DISBURSEMENT TRACKING
+  // ============================================================================
+
+  /// Fetch customer payment transactions (Cash / Bank Loan credits)
+  static Future<List<VendorCustomerPayment>> fetchCustomerPayments({
+    String? assignmentId,
+    String? vendorId,
+    String? customerId,
+    String? paymentType,
+  }) async {
+    try {
+      var query = _client.from('vendor_customer_payments').select('''
+        *,
+        consumer_records!customer_id (
+          id,
+          consumer_no,
+          name,
+          mobile,
+          address
+        ),
+        sub_vendors!vendor_id (
+          id,
+          vendor_code,
+          name,
+          mobile
+        )
+      ''');
+
+      if (assignmentId != null && assignmentId.isNotEmpty) {
+        query = query.eq('assignment_id', assignmentId);
+      }
+      if (vendorId != null && vendorId.isNotEmpty) {
+        query = query.eq('vendor_id', vendorId);
+      }
+      if (customerId != null && customerId.isNotEmpty) {
+        query = query.eq('customer_id', customerId);
+      }
+      if (paymentType != null && paymentType.isNotEmpty && paymentType != 'All') {
+        query = query.eq('payment_type', paymentType.toUpperCase());
+      }
+
+      final response = await query.order('payment_date', ascending: false);
+      final List<dynamic> data = response as List<dynamic>;
+
+      return data.map((json) {
+        return VendorCustomerPayment.fromJson(json as Map<String, dynamic>);
+      }).toList();
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.fetchCustomerPayments: $e\n$stack');
+      return [];
+    }
+  }
+
+  /// Check if reference number (UTR/Txn ID) already exists for this site assignment
+  static Future<bool> checkDuplicateUtr({
+    required String assignmentId,
+    required String referenceNumber,
+    String? excludePaymentId,
+  }) async {
+    final cleanRef = referenceNumber.trim();
+    if (cleanRef.isEmpty) return false;
+
+    try {
+      var query = _client
+          .from('vendor_customer_payments')
+          .select('id')
+          .eq('assignment_id', assignmentId)
+          .eq('reference_number', cleanRef);
+
+      if (excludePaymentId != null && excludePaymentId.isNotEmpty) {
+        query = query.neq('id', excludePaymentId);
+      }
+
+      final response = await query;
+      final List<dynamic> list = response as List<dynamic>;
+      return list.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error in SubVendorService.checkDuplicateUtr: $e');
+      return false;
+    }
+  }
+
+  /// Record a customer payment (Cash installment or Bank Loan credit)
+  static Future<VendorCustomerPayment> recordCustomerPayment(
+    VendorCustomerPayment payment,
+  ) async {
+    try {
+      // Check duplicate UTR if present
+      if (payment.referenceNumber != null && payment.referenceNumber!.trim().isNotEmpty) {
+        final isDup = await checkDuplicateUtr(
+          assignmentId: payment.assignmentId,
+          referenceNumber: payment.referenceNumber!,
+        );
+        if (isDup) {
+          throw Exception('Duplicate Transaction/UTR number "${payment.referenceNumber}" already exists for this site!');
+        }
+      }
+
+      final insertData = payment.toJson()..remove('id');
+      insertData['created_by'] = SupabaseService.currentUser?.id;
+      insertData['created_at'] = DateTime.now().toUtc().toIso8601String();
+      if (payment.status == 'Approved') {
+        insertData['approved_by'] = SupabaseService.currentUser?.id;
+        insertData['approved_at'] = DateTime.now().toUtc().toIso8601String();
+      }
+
+      final response = await _client
+          .from('vendor_customer_payments')
+          .insert(insertData)
+          .select()
+          .single();
+
+      return VendorCustomerPayment.fromJson(response as Map<String, dynamic>);
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.recordCustomerPayment: $e\n$stack');
+      rethrow;
+    }
+  }
+
+  /// Delete customer payment record (Admin only)
+  static Future<void> deleteCustomerPayment(String paymentId) async {
+    try {
+      await _client
+          .from('vendor_customer_payments')
+          .delete()
+          .eq('id', paymentId);
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.deleteCustomerPayment: $e\n$stack');
+      rethrow;
+    }
+  }
+
+  /// Update Site Payment & Loan Configuration (Payment Type, Sanction Amount, Bank, etc.)
+  static Future<void> updateSitePaymentConfig({
+    required String assignmentId,
+    required String paymentType,
+    required double totalCustomerSiteAmount,
+    String? loanBankName,
+    String? loanApplicationId,
+    double? loanAppliedAmount,
+    double? loanSanctionedAmount,
+  }) async {
+    try {
+      final updateData = <String, dynamic>{
+        'payment_type': paymentType,
+        'total_customer_site_amount': totalCustomerSiteAmount,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+        'updated_by': SupabaseService.currentUser?.id,
+      };
+
+      if (loanBankName != null) updateData['loan_bank_name'] = loanBankName.trim();
+      if (loanApplicationId != null) updateData['loan_application_id'] = loanApplicationId.trim();
+      if (loanAppliedAmount != null) updateData['loan_applied_amount'] = loanAppliedAmount;
+      if (loanSanctionedAmount != null) updateData['loan_sanctioned_amount'] = loanSanctionedAmount;
+
+      await _client
+          .from('vendor_site_assignments')
+          .update(updateData)
+          .eq('id', assignmentId);
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.updateSitePaymentConfig: $e\n$stack');
+      rethrow;
+    }
+  }
 }
 

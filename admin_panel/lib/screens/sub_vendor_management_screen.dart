@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:csv/csv.dart';
 import 'package:siya_shared/siya_shared.dart';
 import '../services/sub_vendor_service.dart';
 import '../services/sub_vendor_pdf_service.dart';
@@ -25,17 +29,20 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   List<VendorSiteAssignment> _assignments = [];
   List<VendorMaterialTransaction> _allMaterials = [];
   List<VendorPayout> _allPayouts = [];
+  List<VendorCustomerPayment> _allCustomerPayments = [];
 
   bool _isLoading = true;
   String? _errorMessage;
   String? _selectedVendorFilter;
   String _assignmentStatusFilter = 'All';
   String _vendorSearchQuery = '';
+  String _customerPaymentCategoryFilter = 'All';
+  String _customerPaymentSearchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadAllData();
   }
 
@@ -60,12 +67,20 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
         materials = await SubVendorService.fetchVendorMaterials(vendors.first.id);
       }
 
+      List<VendorCustomerPayment> customerPayments = [];
+      try {
+        customerPayments = await SubVendorService.fetchCustomerPayments();
+      } catch (e) {
+        debugPrint('Customer payments fetch: $e');
+      }
+
       if (mounted) {
         setState(() {
           _vendors = vendors;
           _assignments = assignments;
           _allMaterials = materials;
           _allPayouts = payouts;
+          _allCustomerPayments = customerPayments;
           _errorMessage = null;
           _isLoading = false;
         });
@@ -187,6 +202,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
             Tab(icon: Icon(Icons.people, size: 18), text: 'Vendor Accounts'),
             Tab(icon: Icon(Icons.assignment, size: 18), text: 'Site Assignments'),
             Tab(icon: Icon(Icons.inventory, size: 18), text: 'Material Tracking'),
+            Tab(icon: Icon(Icons.account_balance, size: 18), text: 'Customer Payments & Loans'),
             Tab(icon: Icon(Icons.assessment, size: 18), text: 'Financial Summaries'),
           ],
         ),
@@ -199,6 +215,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                 _buildVendorsListTab(),
                 _buildAssignmentsTab(),
                 _buildMaterialTrackingTab(),
+                _buildCustomerPaymentsTab(),
                 _buildFinancialSummariesTab(),
               ],
             ),
@@ -583,12 +600,151 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                                   Text('Assigned: ${_dateFormat.format(a.assignedDate)}'),
                                 ],
                               ),
+                              const SizedBox(height: 8),
+                              // Customer Payment & Loan Lifecycle Overview Banner
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: a.isBankLoan ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: a.isBankLoan ? const Color(0xFFBBF7D0) : const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              a.isBankLoan ? Icons.account_balance : Icons.payments_outlined,
+                                              size: 15,
+                                              color: a.isBankLoan ? const Color(0xFF047857) : const Color(0xFF0D2B6F),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              a.paymentType,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                                color: a.isBankLoan ? const Color(0xFF047857) : const Color(0xFF0D2B6F),
+                                              ),
+                                            ),
+                                            if (a.isBankLoan) ...[
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: a.loanStatus == 'Fully Credited' ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  'Loan: ${a.loanStatus}',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: a.loanStatus == 'Fully Credited' ? const Color(0xFF166534) : const Color(0xFF92400E),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              'Site Total: ${_currency.format(a.effectiveSiteAmount)}',
+                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Text(
+                                              'Received: ${_currency.format(a.effectiveReceivedAmount)}',
+                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF047857)),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Text(
+                                              'Due: ${_currency.format(a.effectiveCustomerOutstanding)}',
+                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.deepOrange),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                    if (a.isBankLoan && (a.loanSanctionedAmount > 0 || a.totalLoanCredited > 0)) ...[
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            'Bank: ${a.loanBankName ?? "Not specified"} ${a.loanApplicationId != null && a.loanApplicationId!.isNotEmpty ? "(${a.loanApplicationId})" : ""}',
+                                            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                                          ),
+                                          Text(
+                                            'Sanctioned: ${_currency.format(a.loanSanctionedAmount)} | Credited: ${_currency.format(a.totalLoanCredited)} | Pending: ${_currency.format(a.loanPendingCredit)}',
+                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF047857)),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
                               const Divider(height: 16),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Row(
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
                                     children: [
+                                      // Customer Payment / Bank Credit Button
+                                      ElevatedButton.icon(
+                                        icon: const Icon(Icons.add_card, size: 14),
+                                        label: const Text('+ Payment / Credit'),
+                                        style: ElevatedButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                          backgroundColor: const Color(0xFF047857),
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        onPressed: () async {
+                                          final ok = await showDialog<bool>(
+                                            context: context,
+                                            builder: (_) => RecordCustomerPaymentDialog(assignment: a),
+                                          );
+                                          if (ok == true) _loadAllData();
+                                        },
+                                      ),
+                                      // Customer Payment Ledger Dialog Button
+                                      OutlinedButton.icon(
+                                        icon: const Icon(Icons.receipt, size: 14),
+                                        label: const Text('Ledger'),
+                                        style: OutlinedButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                          foregroundColor: const Color(0xFF0D2B6F),
+                                        ),
+                                        onPressed: () async {
+                                          await showDialog(
+                                            context: context,
+                                            builder: (_) => SitePaymentLedgerDialog(assignment: a),
+                                          );
+                                          _loadAllData();
+                                        },
+                                      ),
+                                      // Configure Payment & Loan Settings Button
+                                      OutlinedButton.icon(
+                                        icon: const Icon(Icons.settings, size: 14),
+                                        label: const Text('Config'),
+                                        style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                                        onPressed: () async {
+                                          final ok = await showDialog<bool>(
+                                            context: context,
+                                            builder: (_) => ConfigureSitePaymentDialog(assignment: a),
+                                          );
+                                          if (ok == true) _loadAllData();
+                                        },
+                                      ),
                                       // Issue Material Button
                                       ElevatedButton.icon(
                                         icon: const Icon(Icons.arrow_upward, size: 14),
@@ -606,7 +762,6 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                                           if (ok == true) _loadAllData();
                                         },
                                       ),
-                                      const SizedBox(width: 8),
                                       // Return Material Button
                                       OutlinedButton.icon(
                                         icon: const Icon(Icons.arrow_downward, size: 14),
@@ -768,7 +923,465 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   }
 
   // ============================================================================
-  // TAB 4: FINANCIAL SUMMARIES MATRIX
+  // TAB 4: CUSTOMER PAYMENTS & BANK LOAN DISBURSEMENT TRACKING
+  // ============================================================================
+
+  Widget _buildCustomerPaymentsTab() {
+    double totalCollection = 0.0;
+    double totalCash = 0.0;
+    double totalLoanCredited = 0.0;
+    double totalLoanSanctioned = 0.0;
+    double totalLoanPending = 0.0;
+    double totalOutstanding = 0.0;
+
+    for (final a in _assignments) {
+      totalCash += a.totalCashReceived;
+      totalLoanCredited += a.totalLoanCredited;
+      totalLoanSanctioned += a.loanSanctionedAmount;
+      totalLoanPending += a.loanPendingCredit;
+      totalCollection += a.effectiveReceivedAmount;
+      totalOutstanding += a.effectiveCustomerOutstanding;
+    }
+
+    final filtered = _allCustomerPayments.where((p) {
+      final matchesVendor = _selectedVendorFilter == null || p.vendorId == _selectedVendorFilter;
+      final matchesCat = _customerPaymentCategoryFilter == 'All' || p.paymentType == _customerPaymentCategoryFilter;
+      final q = _customerPaymentSearchQuery.toLowerCase();
+      final matchesSearch = q.isEmpty ||
+          (p.customerName ?? '').toLowerCase().contains(q) ||
+          (p.consumerNo ?? '').toLowerCase().contains(q) ||
+          (p.referenceNumber ?? '').toLowerCase().contains(q) ||
+          (p.bankName ?? '').toLowerCase().contains(q) ||
+          (p.vendorName ?? '').toLowerCase().contains(q);
+      return matchesVendor && matchesCat && matchesSearch;
+    }).toList();
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 4 KPI Summary Cards
+          Row(
+            children: [
+              _metricSummaryCard('Total Collection', _currency.format(totalCollection), const Color(0xFF0D2B6F), icon: Icons.savings),
+              _metricSummaryCard('Cash Received', _currency.format(totalCash), Colors.blueGrey, icon: Icons.payments),
+              _metricSummaryCard(
+                'Bank Loan Credited',
+                _currency.format(totalLoanCredited),
+                const Color(0xFF047857),
+                icon: Icons.account_balance,
+                subtitle: 'Sanctioned: ${_currency.format(totalLoanSanctioned)} | Pending: ${_currency.format(totalLoanPending)}',
+              ),
+              _metricSummaryCard('Customer Outstanding', _currency.format(totalOutstanding), Colors.deepOrange, icon: Icons.pending_actions),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Search, Filter & Quick Action Row
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search by Customer, CA No, Bank, or UTR / Txn ID...',
+                    prefixIcon: const Icon(Icons.search),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onChanged: (val) => setState(() => _customerPaymentSearchQuery = val),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: DropdownButtonFormField<String?>(
+                  value: _selectedVendorFilter,
+                  decoration: InputDecoration(
+                    labelText: 'Sub-Vendor',
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('All Sub-Vendors')),
+                    ..._vendors.map((v) => DropdownMenuItem(value: v.id, child: Text('${v.name} (${v.vendorCode})'))),
+                  ],
+                  onChanged: (v) => setState(() => _selectedVendorFilter = v),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: DropdownButtonFormField<String>(
+                  value: _customerPaymentCategoryFilter,
+                  decoration: InputDecoration(
+                    labelText: 'Category',
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'All', child: Text('All Categories')),
+                    DropdownMenuItem(value: 'CASH', child: Text('Cash Only')),
+                    DropdownMenuItem(value: 'BANK_LOAN', child: Text('Bank Loan Credit Only')),
+                  ],
+                  onChanged: (v) => setState(() => _customerPaymentCategoryFilter = v ?? 'All'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Record Payment / Credit'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF047857),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: _openQuickRecordPaymentDialog,
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.file_download, size: 16),
+                label: const Text('Export CSV'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () => _exportPaymentsCsv(filtered),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Table / List of Payments
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.account_balance_wallet_outlined, size: 48, color: Colors.grey.shade400),
+                        const SizedBox(height: 8),
+                        const Text('No customer payments or bank loan credits found.'),
+                        const SizedBox(height: 6),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.add),
+                          label: const Text('Record Payment / Loan Credit'),
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D2B6F), foregroundColor: Colors.white),
+                          onPressed: _openQuickRecordPaymentDialog,
+                        ),
+                      ],
+                    ),
+                  )
+                : Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: ListView.separated(
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, idx) {
+                        final p = filtered[idx];
+                        final isLoan = p.isLoan;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            radius: 16,
+                            backgroundColor: isLoan ? const Color(0xFFD1FAE5) : const Color(0xFFE0E7FF),
+                            child: Icon(
+                              isLoan ? Icons.account_balance : Icons.payments,
+                              size: 18,
+                              color: isLoan ? const Color(0xFF047857) : const Color(0xFF4338CA),
+                            ),
+                          ),
+                          title: Row(
+                            children: [
+                              Text(p.customerName ?? 'Customer', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text('CA: ${p.consumerNo ?? "-"}', style: const TextStyle(fontSize: 11)),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: isLoan ? const Color(0xFFDCFCE7) : const Color(0xFFEEF2FF),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  isLoan ? 'BANK LOAN' : 'CASH (${p.paymentStage})',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: isLoan ? const Color(0xFF166534) : const Color(0xFF3730A3),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Wrap(
+                              spacing: 14,
+                              children: [
+                                Text('Date: ${_dateFormat.format(p.paymentDate)}'),
+                                Text('Vendor: ${p.vendorCode ?? "VND"} - ${p.vendorName ?? "Sub-Vendor"}'),
+                                if (p.referenceNumber != null && p.referenceNumber!.isNotEmpty)
+                                  Text('UTR / Txn: ${p.referenceNumber}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                if (p.bankName != null && p.bankName!.isNotEmpty)
+                                  Text('Bank: ${p.bankName}'),
+                                if (p.remarks != null && p.remarks!.isNotEmpty)
+                                  Text('Remarks: ${p.remarks}'),
+                              ],
+                            ),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _currency.format(p.amount),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: isLoan ? const Color(0xFF047857) : const Color(0xFF0D2B6F),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              // Ledger button
+                              IconButton(
+                                icon: const Icon(Icons.receipt_long, color: Color(0xFF0D2B6F)),
+                                tooltip: 'View Customer Ledger',
+                                onPressed: () {
+                                  final match = _assignments.firstWhere(
+                                    (a) => a.id == p.assignmentId,
+                                    orElse: () => _assignments.first,
+                                  );
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => SitePaymentLedgerDialog(assignment: match),
+                                  ).then((_) => _loadAllData());
+                                },
+                              ),
+                              // Delete button
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                tooltip: 'Delete Payment Record',
+                                onPressed: () => _handleDeleteCustomerPayment(p.id),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openQuickRecordPaymentDialog() async {
+    if (_assignments.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please assign at least one site first.')),
+      );
+      return;
+    }
+
+    VendorSiteAssignment? selected = _assignments.first;
+    final pickedAssignment = await showDialog<VendorSiteAssignment>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDlgState) {
+            return AlertDialog(
+              title: const Text('Select Site for Payment Entry'),
+              content: SizedBox(
+                width: 480,
+                child: DropdownButtonFormField<VendorSiteAssignment>(
+                  value: selected,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Customer Site',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _assignments.map((a) {
+                    return DropdownMenuItem(
+                      value: a,
+                      child: Text('${a.customerName ?? "Customer"} (CA: ${a.consumerNo ?? "-"}) - ${a.vendorName ?? "Vendor"}'),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) setDlgState(() => selected = val);
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF047857), foregroundColor: Colors.white),
+                  onPressed: () => Navigator.of(ctx).pop(selected),
+                  child: const Text('Continue'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (pickedAssignment == null) return;
+
+    final recorded = await showDialog<bool>(
+      context: context,
+      builder: (_) => RecordCustomerPaymentDialog(assignment: pickedAssignment),
+    );
+    if (recorded == true) _loadAllData();
+  }
+
+  Future<void> _handleDeleteCustomerPayment(String paymentId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Payment Record?'),
+        content: const Text('Are you sure you want to delete this payment record? Recalculation will happen automatically.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await SubVendorService.deleteCustomerPayment(paymentId);
+      _loadAllData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment record deleted successfully.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete payment: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportPaymentsCsv(List<VendorCustomerPayment> payments) async {
+    try {
+      final rows = <List<dynamic>>[];
+      rows.add([
+        'Payment ID',
+        'Date',
+        'Customer Name',
+        'Consumer No',
+        'Sub-Vendor Code',
+        'Sub-Vendor Name',
+        'Category',
+        'Stage',
+        'Amount (INR)',
+        'Mode',
+        'UTR / Txn ID',
+        'Bank Name',
+        'Loan App ID',
+        'Status',
+        'Remarks',
+      ]);
+      for (final p in payments) {
+        rows.add([
+          p.id,
+          _dateFormat.format(p.paymentDate),
+          p.customerName ?? '',
+          p.consumerNo ?? '',
+          p.vendorCode ?? '',
+          p.vendorName ?? '',
+          p.paymentType,
+          p.paymentStage,
+          p.amount,
+          p.paymentMode,
+          p.referenceNumber ?? '',
+          p.bankName ?? '',
+          p.loanApplicationId ?? '',
+          p.status,
+          p.remarks ?? '',
+        ]);
+      }
+      final csvString = const ListToCsvConverter().convert(rows);
+      final bytes = utf8.encode(csvString);
+      final fileName = 'siya_customer_payments_${DateTime.now().millisecondsSinceEpoch}.csv';
+
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: 'Export Payments as CSV',
+        fileName: fileName,
+        bytes: Uint8List.fromList(bytes),
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+
+      if (result != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Exported CSV successfully: $fileName'), backgroundColor: const Color(0xFF047857)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to export CSV: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Widget _metricSummaryCard(String title, String value, Color color, {IconData? icon, String? subtitle}) {
+    return Expanded(
+      child: Card(
+        color: color.withOpacity(0.07),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: color.withOpacity(0.2)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(title, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+                  if (icon != null) Icon(icon, size: 18, color: color),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+              if (subtitle != null) ...[
+                const SizedBox(height: 4),
+                Text(subtitle, style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600)),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================================
+  // TAB 5: FINANCIAL SUMMARIES MATRIX
   // ============================================================================
 
   Widget _buildFinancialSummariesTab() {
@@ -962,8 +1575,8 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'To activate the Sub-Vendor Management module, apply the database schema in your Supabase project (Project: unueboqvasadiuvgcvvh):',
-                style: TextStyle(fontSize: 13, color: Color(0xFF334155)),
+                'To activate the Sub-Vendor and Customer Payment/Bank Loan modules, apply the database migrations in your Supabase project (Project: unueboqvasadiuvgcvvh):',
+                style: const TextStyle(fontSize: 13, color: Color(0xFF334155)),
               ),
               const SizedBox(height: 12),
               Container(
@@ -973,12 +1586,14 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const SelectableText(
-                  '1. Open Supabase Dashboard:\n'
+                  '1. Open Supabase Dashboard SQL Editor:\n'
                   '   https://supabase.com/dashboard/project/unueboqvasadiuvgcvvh/sql/new\n\n'
-                  '2. Open migration file in your codebase:\n'
+                  '2. Core Sub-Vendor Module Migration:\n'
                   '   supabase/migrations/20261108000036_sub_vendor_management_module.sql\n\n'
-                  '3. Paste the complete SQL contents into the Supabase SQL Editor and click "RUN".\n\n'
-                  '4. After successful run, return here and click "Refresh All".',
+                  '3. Customer Payments & Bank Loan Tracking Migration:\n'
+                  '   supabase/migrations/20261108000037_sub_vendor_customer_payments.sql\n\n'
+                  '4. Paste the SQL contents into the Supabase SQL Editor and click "RUN".\n\n'
+                  '5. After successful run, return here and click "Refresh All".',
                   style: TextStyle(color: Color(0xFF38BDF8), fontFamily: 'monospace', fontSize: 12, height: 1.4),
                 ),
               ),
