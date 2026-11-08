@@ -286,4 +286,27 @@ class SubVendorService {
       return [];
     }
   }
+
+  // ============================================================================
+  // 7. SUB-VENDOR FINAL SETTLEMENT STATEMENT (READ-ONLY)
+  // ============================================================================
+
+  /// Fetch approved settlement statement for a site (Sub-Vendor View Only)
+  static Future<SubVendorSettlement?> fetchSiteSettlement(String assignmentId) async {
+    final client = _client;
+    if (client == null) return null;
+    try {
+      final res = await client
+          .from('vendor_settlements')
+          .select('*')
+          .eq('assignment_id', assignmentId)
+          .maybeSingle();
+
+      if (res == null) return null;
+      return SubVendorSettlement.fromJson(res as Map<String, dynamic>);
+    } catch (e) {
+      debugPrint('Error in SubVendorService.fetchSiteSettlement: $e');
+      return null;
+    }
+  }
 }

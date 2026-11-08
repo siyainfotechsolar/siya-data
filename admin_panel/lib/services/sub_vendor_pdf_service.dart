@@ -1206,4 +1206,399 @@ class SubVendorPdfService {
       name: 'Customer_Payment_Ledger_${safeName}_${assignment.consumerNo ?? "CA"}.pdf',
     );
   }
+
+  // ============================================================================
+  // 4. SUB-VENDOR FINAL SETTLEMENT & PAYOUT STATEMENT PDF
+  // ============================================================================
+
+  static Future<Uint8List> generateFinalSettlementStatementPdfBytes(
+    SubVendorSettlement settlement, {
+    SubVendor? vendor,
+  }) async {
+    final pdfTheme = await SolarQuotationFontHelper.loadPdfTheme();
+    final pdf = pw.Document(theme: pdfTheme);
+
+    final s = settlement;
+    final isPayable = !s.isRecoverable;
+    final primaryBannerColor = isPayable ? emeraldColor : const PdfColor.fromInt(0xFFDC2626);
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Corporate Header
+              pw.Container(
+                padding: const pw.EdgeInsets.all(10),
+                decoration: pw.BoxDecoration(
+                  color: headerBgColor,
+                  border: pw.Border.all(color: borderDarkColor, width: 0.8),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'SIYA INFOTECH & SOLAR ENERGY',
+                          style: pw.TextStyle(
+                            color: navyColor,
+                            fontSize: 14,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          'EPC Sub-Vendor Final Settlement & Payout Statement',
+                          style: const pw.TextStyle(fontSize: 7.8, color: slateMutedColor),
+                        ),
+                        pw.Text(
+                          'Betawad, Tal. Shindkheda, Dist. Dhule | Contact: 9673220315',
+                          style: const pw.TextStyle(fontSize: 7.2, color: slateMutedColor),
+                        ),
+                      ],
+                    ),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: const pw.BoxDecoration(
+                        color: navyColor,
+                        borderRadius: pw.BorderRadius.all(pw.Radius.circular(3)),
+                      ),
+                      child: pw.Text(
+                        'FINAL PAYOUT STATEMENT',
+                        style: pw.TextStyle(
+                          color: PdfColors.white,
+                          fontSize: 8.5,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              pw.SizedBox(height: 8),
+
+              // Sub-Vendor & Site Details
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(
+                    child: pw.Container(
+                      padding: const pw.EdgeInsets.all(8),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: borderDarkColor, width: 0.6),
+                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                      ),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('SUB-VENDOR INFORMATION',
+                              style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                          pw.SizedBox(height: 3),
+                          _metaRow('Vendor Name:', s.vendorName ?? vendor?.name ?? 'Sub-Vendor', isBold: true),
+                          _metaRow('Vendor Code:', s.vendorCode ?? vendor?.vendorCode ?? 'VND'),
+                          _metaRow('Settlement Mode:', s.settlementMode.code, isBold: true),
+                          _metaRow('Statement Date:', _dateFormat.format(s.calculationDate)),
+                          _metaRow('Approval Status:', s.isApproved ? 'Approved by Admin' : 'Draft / Pending', isBold: true, valueColor: s.isApproved ? emeraldColor : const PdfColor.fromInt(0xFFD97706)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  pw.SizedBox(width: 8),
+                  pw.Expanded(
+                    child: pw.Container(
+                      padding: const pw.EdgeInsets.all(8),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: borderDarkColor, width: 0.6),
+                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                      ),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('CUSTOMER SITE SPECIFICATIONS',
+                              style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                          pw.SizedBox(height: 3),
+                          _metaRow('Customer Name:', s.customerName ?? 'Site Customer', isBold: true),
+                          _metaRow('Consumer / CA No:', s.consumerNo ?? 'CA-N/A'),
+                          _metaRow('Installed Capacity:', '${s.siteCapacityKw} kW'),
+                          _metaRow('Total Site Quotation:', _currency.format(s.totalQuotation), isBold: true),
+                          _metaRow('Actual Collections:', _currency.format(s.totalActualCollected), valueColor: emeraldColor),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              pw.SizedBox(height: 8),
+
+              // Comprehensive Settlement Ledger Table
+              pw.Table(
+                border: pw.TableBorder.all(color: borderDarkColor, width: 0.6),
+                columnWidths: {
+                  0: const pw.FixedColumnWidth(28),
+                  1: const pw.FlexColumnWidth(3),
+                  2: const pw.FlexColumnWidth(1.2),
+                  3: const pw.FlexColumnWidth(1.2),
+                },
+                children: [
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: headerBgColor),
+                    children: [
+                      _th('#'),
+                      _th('FINANCIAL COMPONENT & AUDIT BREAKDOWN'),
+                      _th('CREDIT (INR)', align: pw.TextAlign.right),
+                      _th('DEBIT (INR)', align: pw.TextAlign.right),
+                    ],
+                  ),
+
+                  // Section 1: Collections
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: zebraBgColor),
+                    children: [
+                      _td('1', align: pw.TextAlign.center),
+                      _td('Total Actual Customer & Bank Loan Collections Credited to SIYA', isBold: true),
+                      _td(_currency.format(s.totalActualCollected), isBold: true, align: pw.TextAlign.right),
+                      _td('-'),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      _td(''),
+                      _td('  - Actual Bank Loan Credited to SIYA (Expected 90%: ${_currency.format(s.expectedLoanAmount)})'),
+                      _td(_currency.format(s.actualLoanCredited), align: pw.TextAlign.right),
+                      _td('-'),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      _td(''),
+                      _td('  - Actual Customer Contribution / Advance (Expected 10%: ${_currency.format(s.loanDifferenceAmount)})'),
+                      _td(_currency.format(s.actualCustomerContribution), align: pw.TextAlign.right),
+                      _td('-'),
+                    ],
+                  ),
+
+                  // Section 2: Statutory Net GST (No Double Deduction)
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: zebraBgColor),
+                    children: [
+                      _td('2', align: pw.TextAlign.center),
+                      _td('Net GST Payable to Govt (Output GST ${_currency.format(s.outputGstLiability)} - Eligible Material Input Credit ${_currency.format(s.eligibleInputGstCredit)})', isBold: true),
+                      _td('-'),
+                      _td(_currency.format(s.netGstLiability), isBold: true, align: pw.TextAlign.right),
+                    ],
+                  ),
+
+                  // Section 3: Dynamic Material Costs
+                  pw.TableRow(
+                    children: [
+                      _td('3', align: pw.TextAlign.center),
+                      _td('Actual Dynamic Material Costs (Panels, Inverters & BOS issued minus returns)', isBold: true),
+                      _td('-'),
+                      _td(_currency.format(s.materialCost), isBold: true, align: pw.TextAlign.right),
+                    ],
+                  ),
+
+                  // Section 4: SIYA Vendor Charges
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: zebraBgColor),
+                    children: [
+                      _td('4', align: pw.TextAlign.center),
+                      _td('SIYA Company Vendor Charges (${s.siteCapacityKw} kW × Rs. 1,000/kW)', isBold: true),
+                      _td('-'),
+                      _td(_currency.format(s.siyaVendorCharges), isBold: true, align: pw.TextAlign.right),
+                    ],
+                  ),
+
+                  // Section 5: Other Approved Expenses
+                  pw.TableRow(
+                    children: [
+                      _td('5', align: pw.TextAlign.center),
+                      _td('Other Approved Company / Site Operational Expenses'),
+                      _td('-'),
+                      _td(_currency.format(s.otherApprovedExpenses), align: pw.TextAlign.right),
+                    ],
+                  ),
+
+                  // Section 6: Gross Sub-Vendor Entitlement
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: headerBgColor),
+                    children: [
+                      _td('6', align: pw.TextAlign.center),
+                      _td('SUB-VENDOR GROSS CONTRACTUAL ENTITLEMENT (${s.settlementMode.code})', isBold: true),
+                      _td(_currency.format(s.subVendorGrossEntitlement), isBold: true, align: pw.TextAlign.right),
+                      _td('-'),
+                    ],
+                  ),
+
+                  // Section 7: Previous Advances & Disbursements
+                  pw.TableRow(
+                    children: [
+                      _td('7', align: pw.TextAlign.center),
+                      _td('Previous Advances / Partial Payouts Already Paid to Sub-Vendor'),
+                      _td('-'),
+                      _td(_currency.format(s.previousPayoutsPaid), align: pw.TextAlign.right),
+                    ],
+                  ),
+
+                  // Section 8: Approved Adjustments
+                  if (s.approvedAdjustments.abs() > 0.01)
+                    pw.TableRow(
+                      decoration: const pw.BoxDecoration(color: zebraBgColor),
+                      children: [
+                        _td('8', align: pw.TextAlign.center),
+                        _td('Approved Adjustments: ${s.adjustmentRemarks ?? "Adjustments"}'),
+                        _td(s.approvedAdjustments > 0 ? _currency.format(s.approvedAdjustments) : '-', align: pw.TextAlign.right),
+                        _td(s.approvedAdjustments < 0 ? _currency.format(s.approvedAdjustments.abs()) : '-', align: pw.TextAlign.right),
+                      ],
+                    ),
+                ],
+              ),
+
+              pw.SizedBox(height: 8),
+
+              // PROMINENT FINAL AMOUNT BANNER
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: pw.BoxDecoration(
+                  color: primaryBannerColor,
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          isPayable
+                              ? 'FINAL AMOUNT PAYABLE TO SUB-VENDOR'
+                              : 'AMOUNT RECOVERABLE FROM SUB-VENDOR',
+                          style: pw.TextStyle(
+                            color: PdfColors.white,
+                            fontSize: 10,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          'Calculated strictly from actual realized collections | Admin authorization required',
+                          style: const pw.TextStyle(color: PdfColors.white, fontSize: 6.8),
+                        ),
+                      ],
+                    ),
+                    pw.Text(
+                      _currency.format(isPayable ? s.amountPayableToVendor : s.amountRecoverableFromVendor),
+                      style: pw.TextStyle(
+                        color: PdfColors.white,
+                        fontSize: 16,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Pending Receivables Information Note
+              if (s.pendingCustomerReceivable > 0) ...[
+                pw.SizedBox(height: 6),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(6),
+                  decoration: pw.BoxDecoration(
+                    color: const PdfColor.fromInt(0xFFFEF3C7),
+                    border: pw.Border.all(color: const PdfColor.fromInt(0xFFF59E0B), width: 0.6),
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                  ),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'Pending Customer/Bank Balance: ${_currency.format(s.pendingCustomerReceivable)} (10% Difference: ${_currency.format(s.pendingCustomerContribution)} | Loan: ${_currency.format(s.pendingLoanDisbursement)})',
+                        style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF92400E)),
+                      ),
+                      pw.Text(
+                        'Potential Full Payout: ${_currency.format(s.potentialFuturePayoutUponFullCollection)}',
+                        style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFFB45309)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              pw.Spacer(),
+
+              // Signatures & Approval Block
+              pw.Container(
+                padding: const pw.EdgeInsets.all(8),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: borderDarkColor, width: 0.6),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Sub-Vendor Acceptance & Acknowledgment',
+                            style: const pw.TextStyle(fontSize: 7, color: slateMutedColor)),
+                        pw.SizedBox(height: 20),
+                        pw.Text(s.vendorName ?? vendor?.name ?? 'Sub-Vendor Partner',
+                            style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                      ],
+                    ),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        pw.Text('Accounts Department Verification',
+                            style: const pw.TextStyle(fontSize: 7, color: slateMutedColor)),
+                        pw.SizedBox(height: 20),
+                        pw.Text('SIYA Accounts & Tax Division',
+                            style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                      ],
+                    ),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      children: [
+                        pw.Text('SIYA Management Approval',
+                            style: const pw.TextStyle(fontSize: 7, color: slateMutedColor)),
+                        pw.SizedBox(height: 20),
+                        pw.Text('Siya Infotech & Solar Energy',
+                            style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  /// Print or share Final Settlement Statement PDF directly
+  static Future<void> printOrShareFinalSettlementStatement(
+    SubVendorSettlement settlement, {
+    SubVendor? vendor,
+  }) async {
+    final bytes = await generateFinalSettlementStatementPdfBytes(
+      settlement,
+      vendor: vendor,
+    );
+    final safeName = (settlement.customerName ?? 'Site').replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+    await Printing.layoutPdf(
+      onLayout: (format) async => bytes,
+      name: 'Sub_Vendor_Final_Settlement_${safeName}_${settlement.consumerNo ?? "CA"}.pdf',
+    );
+  }
 }

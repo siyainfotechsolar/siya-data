@@ -11,6 +11,10 @@
 --   5. Prevents duplicate transaction UTR entries.
 -- ==============================================================================
 
+-- 0. Ensure consumer_records has village_city and district columns so queries never fail
+ALTER TABLE public.consumer_records ADD COLUMN IF NOT EXISTS village_city TEXT;
+ALTER TABLE public.consumer_records ADD COLUMN IF NOT EXISTS district TEXT;
+
 -- 1. Add Payment Type & Loan tracking fields to vendor_site_assignments
 ALTER TABLE public.vendor_site_assignments
     ADD COLUMN IF NOT EXISTS payment_type TEXT NOT NULL DEFAULT 'Cash Customer',
@@ -240,3 +244,4 @@ GRANT ALL ON public.vendor_site_assignments TO authenticated, anon, service_role
 
 -- Reload schema cache in PostgREST
 NOTIFY pgrst, 'reload schema';
+

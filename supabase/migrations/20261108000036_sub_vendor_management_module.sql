@@ -18,6 +18,14 @@ EXCEPTION
     WHEN others THEN null;
 END $$;
 
+-- 0.1 Ensure consumer_records has all joined columns so frontend queries never fail
+ALTER TABLE public.consumer_records ADD COLUMN IF NOT EXISTS village_city TEXT;
+ALTER TABLE public.consumer_records ADD COLUMN IF NOT EXISTS district TEXT;
+ALTER TABLE public.consumer_records ADD COLUMN IF NOT EXISTS installation_status TEXT DEFAULT 'Not Started';
+ALTER TABLE public.consumer_records ADD COLUMN IF NOT EXISTS system_capacity TEXT DEFAULT '3 kW';
+ALTER TABLE public.consumer_records ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12, 2) DEFAULT 0.00;
+ALTER TABLE public.consumer_records ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(12, 2) DEFAULT 0.00;
+
 -- 1. Create Sub-Vendors Table (Sub-Vendor Master)
 CREATE TABLE IF NOT EXISTS public.sub_vendors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

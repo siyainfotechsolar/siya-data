@@ -2821,6 +2821,22 @@ class _SitePaymentLedgerDialogState extends State<SitePaymentLedgerDialog> {
                             : () => SubVendorPdfService.printOrShareSitePaymentLedger(assignment: a, payments: _payments),
                       ),
                       const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.calculate, size: 16),
+                        label: const Text('Settlement Calculator'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF047857),
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () async {
+                          await showDialog(
+                            context: context,
+                            builder: (_) => SubVendorFinalSettlementCalculatorDialog(assignment: a),
+                          );
+                          _loadLedger();
+                        },
+                      ),
+                      const SizedBox(width: 8),
                       IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
                     ],
                   ),
@@ -3012,6 +3028,803 @@ class _SitePaymentLedgerDialogState extends State<SitePaymentLedgerDialog> {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
       child: Text(status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: fg)),
+    );
+  }
+}
+
+// ==============================================================================
+// 10. SUB-VENDOR FINAL SETTLEMENT & PAYOUT CALCULATOR DIALOG
+// ==============================================================================
+
+class SubVendorFinalSettlementCalculatorDialog extends StatefulWidget {
+  final VendorSiteAssignment assignment;
+  final SubVendor? vendor;
+
+  const SubVendorFinalSettlementCalculatorDialog({
+    super.key,
+    required this.assignment,
+    this.vendor,
+  });
+
+  @override
+  State<SubVendorFinalSettlementCalculatorDialog> createState() =>
+      _SubVendorFinalSettlementCalculatorDialogState();
+}
+
+class _SubVendorFinalSettlementCalculatorDialogState
+    extends State<SubVendorFinalSettlementCalculatorDialog> {
+  late VendorSiteAssignment _assignment;
+  List<VendorMaterialTransaction> _materials = [];
+  List<VendorPayout> _previousPayouts = [];
+  List<VendorCustomerPayment> _customerPayments = [];
+
+  SubVendorSettlementMode _mode = SubVendorSettlementMode.netBalance;
+  double _expectedLoanPercent = 90.0;
+  double _outputGstRate = 13.8;
+
+  late final TextEditingController _fixedFeeCtrl;
+  late final TextEditingController _profitShareCtrl;
+  late final TextEditingController _adjustmentsCtrl;
+  late final TextEditingController _adjustmentRemarksCtrl;
+  late final TextEditingController _notesCtrl;
+
+  SubVendorSettlement? _settlement;
+  bool _isLoading = true;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _assignment = widget.assignment;
+    _fixedFeeCtrl = TextEditingController(text: _assignment.vendorCharges.toStringAsFixed(0));
+    _profitShareCtrl = TextEditingController(text: '70');
+    _adjustmentsCtrl = TextEditingController(text: '0');
+    _adjustmentRemarksCtrl = TextEditingController();
+    _notesCtrl = TextEditingController();
+
+    _loadDataAndCalculate();
+  }
+
+  @override
+  void dispose() {
+    _fixedFeeCtrl.dispose();
+    _profitShareCtrl.dispose();
+    _adjustmentsCtrl.dispose();
+    _adjustmentRemarksCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDataAndCalculate() async {
+    setState(() => _isLoading = true);
+    try {
+      final materials = await SubVendorService.fetchSiteMaterials(_assignment.id);
+      final allPayouts = await SubVendorService.fetchVendorPayouts(_assignment.vendorId);
+      final payments = await SubVendorService.fetchCustomerPayments(assignmentId: _assignment.id);
+      final saved = await SubVendorService.fetchSavedSettlement(_assignment.id);
+
+      final sitePayouts = allPayouts.where((p) => p.assignmentId == _assignment.id || p.assignmentId == null).toList();
+
+      if (saved != null) {
+        _mode = saved.settlementMode;
+        _expectedLoanPercent = saved.expectedLoanPercent;
+        _outputGstRate = saved.outputGstRate;
+        _fixedFeeCtrl.text = saved.fixedAgreedFee.toStringAsFixed(0);
+        _profitShareCtrl.text = saved.vendorProfitSharePercent.toStringAsFixed(0);
+        _adjustmentsCtrl.text = saved.approvedAdjustments.toStringAsFixed(0);
+        _adjustmentRemarksCtrl.text = saved.adjustmentRemarks ?? '';
+        _notesCtrl.text = saved.notes ?? '';
+      }
+
+      _materials = materials;
+      _previousPayouts = sitePayouts;
+      _customerPayments = payments;
+
+      _recalculate();
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _recalculate() {
+    final fixedFee = double.tryParse(_fixedFeeCtrl.text.trim()) ?? 0.0;
+    final profitShare = double.tryParse(_profitShareCtrl.text.trim()) ?? 70.0;
+    final adj = double.tryParse(_adjustmentsCtrl.text.trim()) ?? 0.0;
+
+    _settlement = SubVendorSettlement.compute(
+      assignment: _assignment,
+      materials: _materials,
+      previousPayouts: _previousPayouts,
+      customerPayments: _customerPayments,
+      settlementMode: _mode,
+      expectedLoanPercent: _expectedLoanPercent,
+      outputGstRate: _outputGstRate,
+      fixedAgreedFee: fixedFee,
+      vendorProfitSharePercent: profitShare,
+      approvedAdjustments: adj,
+      adjustmentRemarks: _adjustmentRemarksCtrl.text.trim().isNotEmpty
+          ? _adjustmentRemarksCtrl.text.trim()
+          : null,
+      notes: _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
+    );
+  }
+
+  Future<void> _handleSaveOrApprove({bool approve = false}) async {
+    if (_settlement == null) return;
+    setState(() => _isSaving = true);
+    try {
+      final saved = await SubVendorService.saveOrApproveSettlement(
+        _settlement!,
+        approve: approve,
+      );
+
+      if (mounted) {
+        setState(() {
+          _settlement = saved;
+          _isSaving = false;
+        });
+        Navigator.of(context).pop(true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              approve
+                  ? 'Sub-Vendor final settlement successfully APPROVED!'
+                  : 'Settlement calculation draft saved.',
+            ),
+            backgroundColor: approve ? const Color(0xFF047857) : const Color(0xFF0D2B6F),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save settlement: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleDisbursePayout() async {
+    if (_settlement == null) return;
+    final amt = _settlement!.amountPayableToVendor;
+    if (amt <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No positive payout amount payable to disburse.')),
+      );
+      return;
+    }
+
+    final modeCtrl = TextEditingController(text: 'Bank Transfer');
+    final refCtrl = TextEditingController();
+    final remarksCtrl = TextEditingController(text: 'Final Site Settlement Payout');
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Disburse Settlement Payout'),
+          content: SizedBox(
+            width: 440,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Vendor: ${_assignment.vendorName ?? "Sub-Vendor"} (${_assignment.vendorCode ?? "VND"})',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text('Site: ${_assignment.customerName} (CA: ${_assignment.consumerNo ?? "-"})'),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(8)),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Disbursement Amount:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(_currency.format(amt),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF047857))),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: refCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Bank UTR / Transaction ID *',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: remarksCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Remarks',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF047857), foregroundColor: Colors.white),
+              onPressed: () {
+                if (refCtrl.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Please enter bank UTR / Txn ID.')),
+                  );
+                  return;
+                }
+                Navigator.of(ctx).pop(true);
+              },
+              child: const Text('Confirm Disbursal'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final payout = VendorPayout(
+        id: '',
+        vendorId: _assignment.vendorId,
+        assignmentId: _assignment.id,
+        payoutDate: DateTime.now(),
+        amount: amt,
+        paymentMode: modeCtrl.text.trim(),
+        referenceNumber: refCtrl.text.trim(),
+        remarks: remarksCtrl.text.trim(),
+        status: 'Paid',
+      );
+
+      await SubVendorService.recordVendorPayout(payout);
+      // Auto-approve settlement
+      await _handleSaveOrApprove(approve: true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to record payout: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = _assignment;
+    final s = _settlement;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 960, maxHeight: 840),
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: _isLoading || s == null
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.calculate_rounded, color: Color(0xFF0D2B6F), size: 24),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'Sub-Vendor Final Settlement & Payout Calculator',
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D2B6F)),
+                                ),
+                                const SizedBox(width: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: s.isApproved ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: s.isApproved ? const Color(0xFF86EFAC) : const Color(0xFFFDE68A),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    s.isApproved ? 'APPROVED SETTLEMENT' : 'CALCULATION DRAFT',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: s.isApproved ? const Color(0xFF166534) : const Color(0xFF92400E),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Site: ${a.customerName} (CA: ${a.consumerNo ?? "-"}) | Sub-Vendor: ${a.vendorName} (${a.vendorCode}) | ${a.siteCapacityKw} kW',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.picture_as_pdf, size: 16),
+                              label: const Text('Export Statement PDF'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF0D2B6F),
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: () => SubVendorPdfService.printOrShareFinalSettlementStatement(s),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 16),
+
+                    // Scrollable content
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 1. SETTLEMENT MODE SELECTOR (OPTIONS A, B, C)
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFFCBD5E1)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'निवडा: Sub-Vendor चा हिस्सा ठरवण्याची पद्धत (Settlement Method):',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D2B6F)),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _modeOptionRadio(
+                                          mode: SubVendorSettlementMode.netBalance,
+                                          title: 'पर्याय A (शिफारस)',
+                                          subtitle: 'उरलेली रक्कम पूर्ण Sub-Vendor ची (Net Balance)',
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: _modeOptionRadio(
+                                          mode: SubVendorSettlementMode.fixedFee,
+                                          title: 'पर्याय B',
+                                          subtitle: 'आधी ठरवलेली रक्कम (Fixed Agreed Amount)',
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: _modeOptionRadio(
+                                          mode: SubVendorSettlementMode.profitShare,
+                                          title: 'पर्याय C',
+                                          subtitle: 'उरलेल्या नफ्यातील % (Profit Sharing)',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (_mode == SubVendorSettlementMode.fixedFee) ...[
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        const Text('Agreed Fixed Installation Fee: ₹ ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                        SizedBox(
+                                          width: 150,
+                                          height: 36,
+                                          child: TextField(
+                                            controller: _fixedFeeCtrl,
+                                            keyboardType: TextInputType.number,
+                                            decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10)),
+                                            onChanged: (_) => setState(_recalculate),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Text('Default: ${a.siteCapacityKw} kW × ₹${a.ratePerKw.toStringAsFixed(0)} = ₹${(a.siteCapacityKw * a.ratePerKw).toStringAsFixed(0)}',
+                                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                      ],
+                                    ),
+                                  ] else if (_mode == SubVendorSettlementMode.profitShare) ...[
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        const Text('Sub-Vendor Profit Share %: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                        SizedBox(
+                                          width: 90,
+                                          height: 36,
+                                          child: TextField(
+                                            controller: _profitShareCtrl,
+                                            keyboardType: TextInputType.number,
+                                            decoration: const InputDecoration(suffixText: '%', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10)),
+                                            onChanged: (_) => setState(_recalculate),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Text('SIYA retains remainder ${(100 - (double.tryParse(_profitShareCtrl.text) ?? 70)).toStringAsFixed(0)}% of net profit',
+                                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 14),
+
+                            // 2. PROMINENT FINAL AMOUNT BANNER
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                              decoration: BoxDecoration(
+                                color: s.isRecoverable ? const Color(0xFFDC2626) : const Color(0xFF047857),
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: (s.isRecoverable ? Colors.red : Colors.green).withOpacity(0.2),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        s.isRecoverable
+                                            ? 'AMOUNT RECOVERABLE FROM SUB-VENDOR'
+                                            : 'FINAL PAYOUT PAYABLE TO SUB-VENDOR',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Calculated strictly from actual realized collection (₹${_currency.format(s.totalActualCollected)})',
+                                        style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    _currency.format(s.isRecoverable ? s.amountRecoverableFromVendor : s.amountPayableToVendor),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 26,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Future Retained / Receivable alert
+                            if (s.pendingCustomerReceivable > 0) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF3C7),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFFF59E0B)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.info_outline, size: 16, color: Color(0xFF92400E)),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Pending Customer/Loan Balance: ${_currency.format(s.pendingCustomerReceivable)} (10% Difference: ${_currency.format(s.pendingCustomerContribution)} | Loan: ${_currency.format(s.pendingLoanDisbursement)})',
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF92400E)),
+                                        ),
+                                      ],
+                                    ),
+                                    Text(
+                                      'Potential Full Payout: ${_currency.format(s.potentialFuturePayoutUponFullCollection)}',
+                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFB45309)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
+                            const SizedBox(height: 14),
+
+                            // 3. STEP-BY-STEP CALCULATION AUDIT GRID
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Left Column: Collections & GST
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      _auditCard(
+                                        title: '1. Actual Collections Credited to SIYA',
+                                        icon: Icons.savings,
+                                        iconColor: const Color(0xFF047857),
+                                        items: [
+                                          _auditItem('Total Site Quotation (100%)', _currency.format(s.totalQuotation), isBold: true),
+                                          _auditItem('Actual Bank Loan Credited', _currency.format(s.actualLoanCredited), color: const Color(0xFF047857)),
+                                          _auditItem('Actual Customer Advance/Cash', _currency.format(s.actualCustomerContribution)),
+                                          _auditDivider(),
+                                          _auditItem('Total Actual Realized Collection', _currency.format(s.totalActualCollected), isBold: true, color: const Color(0xFF0D2B6F)),
+                                          _auditItem('Pending Receivable', _currency.format(s.pendingCustomerReceivable), color: Colors.deepOrange),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _auditCard(
+                                        title: '2. Statutory GST (Zero Double Deduction)',
+                                        icon: Icons.receipt_long,
+                                        iconColor: Colors.blueGrey,
+                                        items: [
+                                          _auditItem('Output GST (${s.outputGstRate.toStringAsFixed(1)}%)', _currency.format(s.outputGstLiability)),
+                                          _auditItem('Eligible Material Input GST Credit', _currency.format(s.eligibleInputGstCredit), color: const Color(0xFF047857)),
+                                          _auditDivider(),
+                                          _auditItem('Net GST Payable to Govt', _currency.format(s.netGstLiability), isBold: true),
+                                          _auditNote('Note: Material cost already includes GST. Net GST is deducted so tax is never subtracted twice.'),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                const SizedBox(width: 14),
+
+                                // Right Column: Deductions & Payout Entitlement
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      _auditCard(
+                                        title: '3. Dynamic Material & SIYA Deductions',
+                                        icon: Icons.inventory_2,
+                                        iconColor: const Color(0xFF0D2B6F),
+                                        items: [
+                                          _auditItem('Actual Dynamic Material Cost', _currency.format(s.materialCost), isBold: true, color: const Color(0xFFDC2626)),
+                                          _auditItem('SIYA Vendor Charges (${a.siteCapacityKw} kW × ₹1k)', _currency.format(s.siyaVendorCharges), isBold: true),
+                                          _auditItem('Other Approved Expenses', _currency.format(s.otherApprovedExpenses)),
+                                          _auditItem('Net GST Liability', _currency.format(s.netGstLiability)),
+                                          _auditDivider(),
+                                          _auditItem('Total Deductions from Collection', _currency.format(s.totalDeductions), isBold: true, color: const Color(0xFFDC2626)),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _auditCard(
+                                        title: '4. Sub-Vendor Payout Entitlement',
+                                        icon: Icons.payments,
+                                        iconColor: const Color(0xFF047857),
+                                        items: [
+                                          _auditItem('Gross Sub-Vendor Entitlement', _currency.format(s.subVendorGrossEntitlement), isBold: true, color: const Color(0xFF047857)),
+                                          _auditItem('Advances / Payouts Already Paid', '- ${_currency.format(s.previousPayoutsPaid)}', color: Colors.red.shade700),
+                                          if (s.approvedAdjustments.abs() > 0.01)
+                                            _auditItem('Approved Adjustments', _currency.format(s.approvedAdjustments)),
+                                          _auditDivider(),
+                                          _auditItem(
+                                            s.isRecoverable ? 'Amount Recoverable from Vendor' : 'Net Final Amount Payable Now',
+                                            _currency.format(s.isRecoverable ? s.amountRecoverableFromVendor : s.amountPayableToVendor),
+                                            isBold: true,
+                                            color: s.isRecoverable ? Colors.red : const Color(0xFF047857),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 14),
+
+                            // 4. Adjustments & Notes Accordion
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _adjustmentsCtrl,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Approved Adjustment Amount (₹ +/-)',
+                                      hintText: 'e.g. -500 for damage penalty or +1000 for bonus',
+                                      border: OutlineInputBorder(),
+                                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    ),
+                                    onChanged: (_) => setState(_recalculate),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  flex: 2,
+                                  child: TextField(
+                                    controller: _adjustmentRemarksCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Adjustment Reason / Audit Remarks',
+                                      hintText: 'e.g. Structure modification cost adjustment',
+                                      border: OutlineInputBorder(),
+                                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    ),
+                                    onChanged: (_) => setState(_recalculate),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const Divider(height: 16),
+
+                    // Actions Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Last updated: ${_dateFormat.format(DateTime.now())} | Admin approval locks settlement.',
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        ),
+                        Row(
+                          children: [
+                            OutlinedButton(
+                              onPressed: _isSaving ? null : () => _handleSaveOrApprove(approve: false),
+                              child: const Text('Save Draft Calculation'),
+                            ),
+                            const SizedBox(width: 10),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.check_circle_outline, size: 16),
+                              label: const Text('Approve Final Settlement'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF0D2B6F),
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: _isSaving ? null : () => _handleSaveOrApprove(approve: true),
+                            ),
+                            if (!s.isRecoverable && s.amountPayableToVendor > 0) ...[
+                              const SizedBox(width: 10),
+                              ElevatedButton.icon(
+                                icon: const Icon(Icons.send_rounded, size: 16),
+                                label: const Text('Disburse Payout'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF047857),
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: _isSaving ? null : _handleDisbursePayout,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _modeOptionRadio({
+    required SubVendorSettlementMode mode,
+    required String title,
+    required String subtitle,
+  }) {
+    final isSelected = _mode == mode;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _mode = mode;
+          _recalculate();
+        });
+      },
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF1D4ED8) : Colors.grey.shade300,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                  size: 16,
+                  color: isSelected ? const Color(0xFF1D4ED8) : Colors.grey,
+                ),
+                const SizedBox(width: 6),
+                Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isSelected ? const Color(0xFF1D4ED8) : Colors.black87)),
+              ],
+            ),
+            const SizedBox(height: 3),
+            Text(subtitle, style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _auditCard({
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    required List<Widget> items,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: iconColor),
+              const SizedBox(width: 6),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0D2B6F))),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...items,
+        ],
+      ),
+    );
+  }
+
+  Widget _auditItem(String label, String value, {bool isBold = false, Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontSize: 11, fontWeight: isBold ? FontWeight.bold : FontWeight.normal, color: Colors.grey.shade800)),
+          Text(value, style: TextStyle(fontSize: 12, fontWeight: isBold ? FontWeight.bold : FontWeight.w600, color: color ?? Colors.black87)),
+        ],
+      ),
+    );
+  }
+
+  Widget _auditDivider() {
+    return const Divider(height: 10);
+  }
+
+  Widget _auditNote(String note) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4.0),
+      child: Text(note, style: TextStyle(fontSize: 9.5, fontStyle: FontStyle.italic, color: Colors.grey.shade600)),
     );
   }
 }

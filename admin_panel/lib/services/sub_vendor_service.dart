@@ -761,5 +761,98 @@ class SubVendorService {
       rethrow;
     }
   }
+
+  // ============================================================================
+  // 7. SUB-VENDOR FINAL SETTLEMENT & PAYOUT CALCULATOR
+  // ============================================================================
+
+  /// Calculates dynamic final settlement for a site assignment
+  static Future<SubVendorSettlement> calculateSiteSettlement({
+    required VendorSiteAssignment assignment,
+    SubVendorSettlementMode settlementMode = SubVendorSettlementMode.netBalance,
+    double expectedLoanPercent = 90.0,
+    double outputGstRate = 13.8,
+    double fixedAgreedFee = 0.0,
+    double vendorProfitSharePercent = 70.0,
+    double approvedAdjustments = 0.0,
+    String? adjustmentRemarks,
+  }) async {
+    try {
+      final materials = await fetchSiteMaterials(assignment.id);
+      final payouts = await fetchVendorPayouts(assignment.vendorId);
+      final payments = await fetchCustomerPayments(assignmentId: assignment.id);
+
+      return SubVendorSettlement.compute(
+        assignment: assignment,
+        materials: materials,
+        previousPayouts: payouts.where((p) => p.assignmentId == assignment.id).toList(),
+        customerPayments: payments,
+        settlementMode: settlementMode,
+        expectedLoanPercent: expectedLoanPercent,
+        outputGstRate: outputGstRate,
+        fixedAgreedFee: fixedAgreedFee,
+        vendorProfitSharePercent: vendorProfitSharePercent,
+        approvedAdjustments: approvedAdjustments,
+        adjustmentRemarks: adjustmentRemarks,
+      );
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.calculateSiteSettlement: $e\n$stack');
+      rethrow;
+    }
+  }
+
+  /// Fetch saved settlement from database if exists
+  static Future<SubVendorSettlement?> fetchSavedSettlement(String assignmentId) async {
+    try {
+      final res = await _client
+          .from('vendor_settlements')
+          .select('*')
+          .eq('assignment_id', assignmentId)
+          .maybeSingle();
+
+      if (res == null) return null;
+      return SubVendorSettlement.fromJson(res as Map<String, dynamic>);
+    } catch (e) {
+      debugPrint('SubVendorService.fetchSavedSettlement: $e');
+      return null;
+    }
+  }
+
+  /// Save or Approve a final settlement record
+  static Future<SubVendorSettlement> saveOrApproveSettlement(
+    SubVendorSettlement settlement, {
+    bool approve = false,
+  }) async {
+    try {
+      final data = settlement.toJson();
+      data.remove('id');
+      data['updated_at'] = DateTime.now().toUtc().toIso8601String();
+      data['created_by'] = SupabaseService.currentUser?.id;
+
+      if (approve) {
+        data['status'] = 'Approved';
+        data['is_approved'] = true;
+        data['approved_by'] = SupabaseService.currentUser?.id;
+        data['approved_at'] = DateTime.now().toUtc().toIso8601String();
+      }
+
+      // Upsert using unique constraint on assignment_id
+      final res = await _client
+          .from('vendor_settlements')
+          .upsert(data, onConflict: 'assignment_id')
+          .select()
+          .single();
+
+      // If approved, update assignment settlement flag
+      if (approve) {
+        await approveSettlement(settlement.assignmentId);
+      }
+
+      return SubVendorSettlement.fromJson(res as Map<String, dynamic>);
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.saveOrApproveSettlement: $e\n$stack');
+      rethrow;
+    }
+  }
 }
 

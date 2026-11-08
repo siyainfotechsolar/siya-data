@@ -666,6 +666,293 @@ void main() {
       expect(ledgerPdfBytes, isNotEmpty);
       expect(ledgerPdfBytes.length, greaterThan(1000));
     });
+
+    // -------------------------------------------------------------------------
+    // 11. SUB-VENDOR FINAL SETTLEMENT CALCULATOR (USER'S ₹2 LAKH SITE SPECIFICATION)
+    // -------------------------------------------------------------------------
+    test('11. Final Settlement Calculator: User ₹2,00,000 Site Example with 90% Loan & 10% Diff', () {
+      final assignment = VendorSiteAssignment(
+        id: 'asg-settle-1',
+        vendorId: 'vnd-1',
+        customerId: 'cust-1',
+        customerName: 'Sanjay Patil',
+        consumerNo: '1899203344',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 3.0,
+        ratePerKw: 1000.0, // SIYA Vendor Charges: 3 kW × ₹1,000 = ₹3,000
+        vendorCharges: 3000.0,
+        totalCustomerSiteAmount: 200000.0,
+        loanBankName: 'State Bank of India',
+        loanApplicationId: 'SBI-2026-99',
+        loanSanctionedAmount: 180000.0, // 90% expected
+        totalCashReceived: 20000.0, // 10% difference customer contribution received
+        totalLoanCredited: 150000.0, // ₹1,50,000 actually credited (₹30,000 pending)
+        totalCustomerReceived: 170000.0,
+        customerOutstanding: 30000.0,
+      );
+
+      // Material Issued: Total ₹1,50,000 (Taxable ₹1,36,000, Input GST ₹14,000)
+      final panelMat = VendorMaterialTransaction(
+        id: 'mat-1',
+        assignmentId: assignment.id,
+        vendorId: assignment.vendorId,
+        customerId: assignment.customerId,
+        transactionDate: DateTime(2026, 11, 1),
+        transactionType: 'ISSUE',
+        itemName: 'TopCon Modules & Inverter',
+        itemCategory: 'SOLAR_PANEL',
+        gstRate: 5.0,
+        quantity: 1,
+        unit: 'Set',
+        unitRate: 120000.0,
+        taxableAmount: 120000.0,
+        gstAmount: 6000.0,
+        totalAmount: 126000.0,
+      );
+
+      final bosMat = VendorMaterialTransaction(
+        id: 'mat-2',
+        assignmentId: assignment.id,
+        vendorId: assignment.vendorId,
+        customerId: assignment.customerId,
+        transactionDate: DateTime(2026, 11, 1),
+        transactionType: 'ISSUE',
+        itemName: 'BOS Structure & Cables',
+        itemCategory: 'BOS',
+        gstRate: 18.0,
+        quantity: 1,
+        unit: 'Set',
+        unitRate: 20338.98,
+        taxableAmount: 20338.98,
+        gstAmount: 3661.02,
+        totalAmount: 24000.0,
+      );
+
+      final List<VendorMaterialTransaction> materials = [panelMat, bosMat];
+      // Total Material Cost = ₹1,26,000 + ₹24,000 = ₹1,50,000 (Taxable = ₹1,40,338.98, Input GST = ₹9,661.02)
+
+      // Previous advance paid to Sub-Vendor: ₹5,000
+      final previousPayout = VendorPayout(
+        id: 'payout-1',
+        vendorId: assignment.vendorId,
+        assignmentId: assignment.id,
+        payoutDate: DateTime(2026, 11, 2),
+        amount: 5000.0,
+      );
+
+      // Compute Settlement under Option A (Net Balance)
+      final settlement = SubVendorSettlement.compute(
+        assignment: assignment,
+        materials: materials,
+        previousPayouts: [previousPayout],
+        settlementMode: SubVendorSettlementMode.netBalance,
+        expectedLoanPercent: 90.0,
+        outputGstRate: 13.8,
+      );
+
+      // 1. Quotation & Planning Checks
+      expect(settlement.totalQuotation, equals(200000.0));
+      expect(settlement.expectedLoanAmount, equals(180000.0));
+      expect(settlement.loanDifferenceAmount, equals(20000.0));
+
+      // 2. Actual Collections Checks (Strictly from actual money received, not loan sanctioned)
+      expect(settlement.actualLoanCredited, equals(150000.0));
+      expect(settlement.actualCustomerContribution, equals(20000.0));
+      expect(settlement.totalActualCollected, equals(170000.0));
+      expect(settlement.pendingCustomerReceivable, equals(30000.0));
+      expect(settlement.pendingLoanDisbursement, equals(30000.0));
+      expect(settlement.pendingCustomerContribution, equals(0.0));
+
+      // 3. Material & GST Checks (Zero double deduction of GST)
+      expect(settlement.materialCost, equals(150000.0));
+      expect(settlement.siyaVendorCharges, equals(3000.0)); // 3 kW × ₹1,000 deducted once only
+      expect(settlement.eligibleInputGstCredit, equals(9661.02));
+      expect(settlement.outputGstLiability, greaterThan(0.0));
+      // Net GST = Output GST on collected amount minus Input GST on materials
+      expect(settlement.netGstLiability, equals(double.parse((settlement.outputGstLiability - settlement.eligibleInputGstCredit).clamp(0, 999999).toStringAsFixed(2))));
+
+      // 4. Previous Advances & Net Payable
+      expect(settlement.previousPayoutsPaid, equals(5000.0));
+      expect(settlement.finalPayoutPayable, equals(double.parse((settlement.subVendorGrossEntitlement - 5000.0).toStringAsFixed(2))));
+      expect(settlement.potentialFuturePayoutUponFullCollection, greaterThan(settlement.finalPayoutPayable));
+    });
+
+    // -------------------------------------------------------------------------
+    // 12. SETTLEMENT MODES COMPARISON (OPTION A, OPTION B, OPTION C)
+    // -------------------------------------------------------------------------
+    test('12. Comparison of Option A (Net Balance), Option B (Fixed Fee), and Option C (Profit Sharing)', () {
+      final assignment = VendorSiteAssignment(
+        id: 'asg-modes-1',
+        vendorId: 'vnd-1',
+        customerId: 'cust-modes-1',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 4.0,
+        ratePerKw: 1000.0,
+        vendorCharges: 4000.0,
+        otherExpenses: 1000.0,
+        totalCustomerSiteAmount: 200000.0,
+        totalCustomerReceived: 200000.0, // Fully collected
+      );
+
+      final material = VendorMaterialTransaction(
+        id: 'mat-mode',
+        assignmentId: assignment.id,
+        vendorId: assignment.vendorId,
+        customerId: assignment.customerId,
+        transactionDate: DateTime(2026, 11, 1),
+        transactionType: 'ISSUE',
+        itemName: 'Modules',
+        itemCategory: 'SOLAR_PANEL',
+        gstRate: 5.0,
+        quantity: 1,
+        unit: 'Set',
+        unitRate: 140000.0,
+        taxableAmount: 140000.0,
+        gstAmount: 7000.0,
+        totalAmount: 147000.0,
+      );
+
+      // Mode A: Net Balance (उरलेली रक्कम पूर्ण Sub-Vendor ची)
+      final modeA = SubVendorSettlement.compute(
+        assignment: assignment,
+        materials: [material],
+        previousPayouts: [],
+        settlementMode: SubVendorSettlementMode.netBalance,
+      );
+      expect(modeA.settlementMode, equals(SubVendorSettlementMode.netBalance));
+      expect(modeA.subVendorGrossEntitlement, equals(double.parse((modeA.totalActualCollected - modeA.totalDeductions).toStringAsFixed(2))));
+
+      // Mode B: Fixed Fee (आधी ठरवलेली रक्कम ₹15,000 + extra expenses ₹1,000)
+      final modeB = SubVendorSettlement.compute(
+        assignment: assignment,
+        materials: [material],
+        previousPayouts: [],
+        settlementMode: SubVendorSettlementMode.fixedFee,
+        fixedAgreedFee: 15000.0,
+      );
+      expect(modeB.settlementMode, equals(SubVendorSettlementMode.fixedFee));
+      expect(modeB.subVendorGrossEntitlement, equals(15000.0 + 1000.0)); // Fixed fee + approved expenses
+
+      // Mode C: Profit Share (70% of Net Profit)
+      final modeC = SubVendorSettlement.compute(
+        assignment: assignment,
+        materials: [material],
+        previousPayouts: [],
+        settlementMode: SubVendorSettlementMode.profitShare,
+        vendorProfitSharePercent: 70.0,
+      );
+      expect(modeC.settlementMode, equals(SubVendorSettlementMode.profitShare));
+      expect(modeC.subVendorGrossEntitlement, equals(double.parse((modeC.netProfit * 0.70).toStringAsFixed(2))));
+    });
+
+    // -------------------------------------------------------------------------
+    // 13. NEGATIVE SETTLEMENT RECOVERY (AMOUNT RECOVERABLE FROM SUB-VENDOR)
+    // -------------------------------------------------------------------------
+    test('13. Negative Settlement: Shows Amount Recoverable when advances exceed entitlement', () {
+      final assignment = VendorSiteAssignment(
+        id: 'asg-neg-1',
+        vendorId: 'vnd-1',
+        customerId: 'cust-neg-1',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 3.0,
+        ratePerKw: 1000.0,
+        vendorCharges: 3000.0,
+        totalCustomerSiteAmount: 200000.0,
+        totalCustomerReceived: 100000.0, // Partial collection so far
+      );
+
+      final material = VendorMaterialTransaction(
+        id: 'mat-neg',
+        assignmentId: assignment.id,
+        vendorId: assignment.vendorId,
+        customerId: assignment.customerId,
+        transactionDate: DateTime(2026, 11, 1),
+        transactionType: 'ISSUE',
+        itemName: 'Panels & BOS',
+        itemCategory: 'SOLAR_PANEL',
+        gstRate: 5.0,
+        quantity: 1,
+        unit: 'Set',
+        unitRate: 90000.0,
+        taxableAmount: 90000.0,
+        gstAmount: 4500.0,
+        totalAmount: 94500.0,
+      );
+
+      // Advance already given to Sub-Vendor: ₹25,000
+      final advance = VendorPayout(
+        id: 'payout-adv-large',
+        vendorId: assignment.vendorId,
+        assignmentId: assignment.id,
+        payoutDate: DateTime(2026, 11, 2),
+        amount: 25000.0,
+      );
+
+      final settlement = SubVendorSettlement.compute(
+        assignment: assignment,
+        materials: [material],
+        previousPayouts: [advance],
+        settlementMode: SubVendorSettlementMode.netBalance,
+      );
+
+      // Entitlement is small because only ₹1,00,000 collected and material was ₹94,500.
+      // Advance of ₹25,000 exceeds entitlement -> Result is negative!
+      expect(settlement.finalPayoutPayable, lessThan(0.0));
+      expect(settlement.isRecoverable, isTrue);
+      expect(settlement.amountPayableToVendor, equals(0.0));
+      expect(settlement.amountRecoverableFromVendor, greaterThan(0.0));
+      expect(settlement.amountRecoverableFromVendor, equals(settlement.finalPayoutPayable.abs()));
+    });
+
+    // -------------------------------------------------------------------------
+    // 14. PDF FINAL SETTLEMENT STATEMENT GENERATION
+    // -------------------------------------------------------------------------
+    test('14. SubVendorPdfService generates valid PDF bytes for Final Settlement Statement', () async {
+      final assignment = VendorSiteAssignment(
+        id: 'asg-pdf-settle-1',
+        vendorId: 'vnd-1',
+        customerId: 'cust-pdf-1',
+        customerName: 'Sanjay Patil',
+        consumerNo: '1899203344',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 3.0,
+        ratePerKw: 1000.0,
+        vendorCharges: 3000.0,
+        totalCustomerSiteAmount: 200000.0,
+        totalCustomerReceived: 170000.0,
+        settlementApproved: true,
+      );
+
+      final material = VendorMaterialTransaction(
+        id: 'mat-pdf-settle',
+        assignmentId: assignment.id,
+        vendorId: assignment.vendorId,
+        customerId: assignment.customerId,
+        transactionDate: DateTime(2026, 11, 1),
+        transactionType: 'ISSUE',
+        itemName: 'TopCon Modules 550Wp',
+        itemCategory: 'SOLAR_PANEL',
+        gstRate: 5.0,
+        quantity: 6,
+        unit: 'Nos',
+        unitRate: 12000.0,
+        taxableAmount: 72000.0,
+        gstAmount: 3600.0,
+        totalAmount: 75600.0,
+      );
+
+      final settlement = SubVendorSettlement.compute(
+        assignment: assignment,
+        materials: [material],
+        previousPayouts: [],
+        settlementMode: SubVendorSettlementMode.netBalance,
+        isApproved: true,
+      );
+
+      final pdfBytes = await SubVendorPdfService.generateFinalSettlementStatementPdfBytes(settlement);
+      expect(pdfBytes, isNotEmpty);
+      expect(pdfBytes.length, greaterThan(1500));
+    });
   });
 }
 

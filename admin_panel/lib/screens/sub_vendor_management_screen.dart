@@ -745,6 +745,23 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                                           if (ok == true) _loadAllData();
                                         },
                                       ),
+                                      // Final Settlement Calculator Dialog Button
+                                      ElevatedButton.icon(
+                                        icon: const Icon(Icons.calculate, size: 14),
+                                        label: const Text('Settlement Calculator'),
+                                        style: ElevatedButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                          backgroundColor: const Color(0xFF0D2B6F),
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        onPressed: () async {
+                                          final ok = await showDialog<bool>(
+                                            context: context,
+                                            builder: (_) => SubVendorFinalSettlementCalculatorDialog(assignment: a),
+                                          );
+                                          if (ok == true) _loadAllData();
+                                        },
+                                      ),
                                       // Issue Material Button
                                       ElevatedButton.icon(
                                         icon: const Icon(Icons.arrow_upward, size: 14),
@@ -1592,8 +1609,10 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                   '   supabase/migrations/20261108000036_sub_vendor_management_module.sql\n\n'
                   '3. Customer Payments & Bank Loan Tracking Migration:\n'
                   '   supabase/migrations/20261108000037_sub_vendor_customer_payments.sql\n\n'
-                  '4. Paste the SQL contents into the Supabase SQL Editor and click "RUN".\n\n'
-                  '5. After successful run, return here and click "Refresh All".',
+                  '4. Final Settlement & Payout Calculator Migration:\n'
+                  '   supabase/migrations/20261108000038_sub_vendor_settlement_calculator.sql\n\n'
+                  '5. Paste the SQL contents into the Supabase SQL Editor and click "RUN".\n\n'
+                  '6. After successful run, return here and click "Refresh All".',
                   style: TextStyle(color: Color(0xFF38BDF8), fontFamily: 'monospace', fontSize: 12, height: 1.4),
                 ),
               ),
