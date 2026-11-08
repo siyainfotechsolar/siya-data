@@ -6,6 +6,7 @@ import '../services/sub_vendor_pdf_service.dart';
 import '../services/supabase_service.dart';
 import '../widgets/sub_vendor_dialogs.dart';
 import 'login_screen.dart';
+import 'sub_vendor_complete_financial_dashboard_screen.dart';
 
 final _currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 2);
 final _dateFormat = DateFormat('dd-MM-yyyy');
@@ -161,6 +162,31 @@ class _SubVendorDashboardScreenState extends State<SubVendorDashboardScreen>
             tooltip: 'Refresh Data',
             onPressed: _loadDashboardData,
           ),
+          if (_summary != null && _vendor != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.dashboard, size: 16),
+                label: const Text('Complete Financial Dashboard'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFF59E0B),
+                  foregroundColor: Colors.black87,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SubVendorCompleteFinancialDashboardScreen(
+                        vendor: _vendor!,
+                        isAdmin: false,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           if (_summary != null)
             IconButton(
               icon: const Icon(Icons.picture_as_pdf),

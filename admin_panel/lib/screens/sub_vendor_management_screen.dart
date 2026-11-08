@@ -8,6 +8,7 @@ import 'package:siya_shared/siya_shared.dart';
 import '../services/sub_vendor_service.dart';
 import '../services/sub_vendor_pdf_service.dart';
 import '../widgets/sub_vendor_dialogs.dart';
+import 'sub_vendor_complete_financial_dashboard_screen.dart';
 
 final _currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 2);
 final _dateFormat = DateFormat('dd-MM-yyyy');
@@ -375,123 +376,248 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                     itemBuilder: (context, index) {
                       final v = _filteredVendors[index];
                       final isBlocked = v.isBlocked;
+
+                      // Live aggregated metrics for this vendor across all sites
+                      final vendorAssignments = _assignments.where((a) => a.vendorId == v.id).toList();
+                      final totalSites = vendorAssignments.length;
+                      final totalKw = vendorAssignments.fold<double>(0.0, (sum, a) => sum + a.siteCapacityKw);
+                      final totalQuotation = vendorAssignments.fold<double>(0.0, (sum, a) => sum + a.effectiveSiteAmount);
+                      final totalReceivable = vendorAssignments.fold<double>(0.0, (sum, a) => sum + a.effectiveReceivedAmount);
+                      final totalLoanCredited = vendorAssignments.fold<double>(0.0, (sum, a) => sum + a.totalLoanCredited);
+                      final totalPending = vendorAssignments.fold<double>(0.0, (sum, a) => sum + a.effectiveCustomerOutstanding);
+
                       return Card(
                         elevation: 0,
-                        margin: const EdgeInsets.only(bottom: 10),
+                        margin: const EdgeInsets.only(bottom: 12),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                           side: BorderSide(color: isBlocked ? Colors.red.shade200 : Colors.grey.shade300),
                         ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          leading: CircleAvatar(
-                            backgroundColor: isBlocked ? Colors.red.shade100 : const Color(0xFFE0F2FE),
-                            child: Icon(
-                              isBlocked ? Icons.block : Icons.business,
-                              color: isBlocked ? Colors.red : const Color(0xFF0D2B6F),
-                            ),
-                          ),
-                          title: Row(
-                            children: [
-                              Text(v.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.blueGrey.shade50,
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: Colors.blueGrey.shade200),
-                                ),
-                                child: Text(v.vendorCode, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: isBlocked ? Colors.red.shade50 : Colors.green.shade50,
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: isBlocked ? Colors.red.shade200 : Colors.green.shade200),
-                                ),
-                                child: Text(
-                                  v.status,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: isBlocked ? Colors.red.shade800 : Colors.green.shade800,
-                                  ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => SubVendorCompleteFinancialDashboardScreen(
+                                  vendor: v,
+                                  isAdmin: true,
                                 ),
                               ),
-                            ],
-                          ),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 4.0),
-                            child: Wrap(
-                              spacing: 16,
+                            );
+                            _loadAllData();
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Mobile: ${v.mobile}'),
-                                Text('Rate: ${_currency.format(v.defaultRatePerKw)}/kW'),
-                                if (v.contactPerson != null) Text('Contact: ${v.contactPerson}'),
-                                if (v.bankName != null) Text('Bank: ${v.bankName} (${v.accountNumber ?? ""})'),
+                                // Top Header Row: Vendor Info & Administrative Controls
+                                Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 20,
+                                      backgroundColor: isBlocked ? Colors.red.shade100 : const Color(0xFFE0F2FE),
+                                      child: Icon(
+                                        isBlocked ? Icons.block : Icons.business,
+                                        color: isBlocked ? Colors.red : const Color(0xFF0D2B6F),
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  v.name,
+                                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.blueGrey.shade50,
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(color: Colors.blueGrey.shade200),
+                                                ),
+                                                child: Text(
+                                                  'ID: ${v.vendorCode}',
+                                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: isBlocked ? Colors.red.shade50 : Colors.green.shade50,
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(color: isBlocked ? Colors.red.shade200 : Colors.green.shade200),
+                                                ),
+                                                child: Text(
+                                                  v.status,
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: isBlocked ? Colors.red.shade800 : Colors.green.shade800,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Wrap(
+                                            spacing: 12,
+                                            children: [
+                                              Text('📱 ${v.mobile}', style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
+                                              Text('⚡ Rate: ${_currency.format(v.defaultRatePerKw)}/kW', style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
+                                              if (v.bankName != null)
+                                                Text('🏦 ${v.bankName}', style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    // Quick Admin Action Icons
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.payment, color: Color(0xFF047857), size: 20),
+                                          tooltip: 'Record Payout',
+                                          onPressed: () async {
+                                            final recorded = await showDialog<bool>(
+                                              context: context,
+                                              builder: (_) => RecordVendorPayoutDialog(
+                                                vendor: v,
+                                                assignments: vendorAssignments,
+                                              ),
+                                            );
+                                            if (recorded == true) _loadAllData();
+                                          },
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                                          tooltip: 'Edit Vendor Details',
+                                          onPressed: () async {
+                                            final updated = await showDialog<bool>(
+                                              context: context,
+                                              builder: (_) => AddEditSubVendorDialog(vendor: v),
+                                            );
+                                            if (updated == true) _loadAllData();
+                                          },
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.lock_reset, color: Colors.orange, size: 20),
+                                          tooltip: 'Reset Password',
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (_) => ResetVendorPasswordDialog(vendor: v),
+                                            );
+                                          },
+                                        ),
+                                        Switch(
+                                          value: !isBlocked,
+                                          activeColor: const Color(0xFF047857),
+                                          onChanged: (val) async {
+                                            final newStatus = val ? 'Active' : 'Blocked';
+                                            await SubVendorService.toggleVendorStatus(v.id, newStatus);
+                                            _loadAllData();
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                const Divider(height: 20),
+
+                                // 6 Aggregated Metrics Row (Live Aggregation)
+                                Wrap(
+                                  spacing: 16,
+                                  runSpacing: 8,
+                                  children: [
+                                    _buildVendorCardKpi('Total Sites', '$totalSites Sites', Icons.layers, const Color(0xFF0D2B6F)),
+                                    _buildVendorCardKpi('Installed Capacity', '${totalKw.toStringAsFixed(1)} kW', Icons.solar_power, const Color(0xFF0284C7)),
+                                    _buildVendorCardKpi('Total Quotation', _currency.format(totalQuotation), Icons.receipt, const Color(0xFF1E3A8A)),
+                                    _buildVendorCardKpi('Total Receivable', _currency.format(totalReceivable), Icons.payments, const Color(0xFF0D9488)),
+                                    _buildVendorCardKpi('Loan Credited', _currency.format(totalLoanCredited), Icons.account_balance, const Color(0xFF047857)),
+                                    _buildVendorCardKpi(
+                                      'Pending Amount',
+                                      _currency.format(totalPending),
+                                      Icons.hourglass_bottom,
+                                      totalPending > 0 ? const Color(0xFFD97706) : Colors.grey,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+
+                                // Click to Open Complete Dashboard Banner Button
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    ElevatedButton.icon(
+                                      icon: const Icon(Icons.dashboard, size: 16),
+                                      label: const Text('Open Complete Financial Dashboard →'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF0D2B6F),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                        textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+                                      ),
+                                      onPressed: () async {
+                                        await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => SubVendorCompleteFinancialDashboardScreen(
+                                              vendor: v,
+                                              isAdmin: true,
+                                            ),
+                                          ),
+                                        );
+                                        _loadAllData();
+                                      },
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Payout Button
-                              IconButton(
-                                icon: const Icon(Icons.payment, color: Color(0xFF047857)),
-                                tooltip: 'Record Payout',
-                                onPressed: () async {
-                                  final recorded = await showDialog<bool>(
-                                    context: context,
-                                    builder: (_) => RecordVendorPayoutDialog(
-                                      vendor: v,
-                                      assignments: _assignments.where((a) => a.vendorId == v.id).toList(),
-                                    ),
-                                  );
-                                  if (recorded == true) _loadAllData();
-                                },
-                              ),
-                              // Edit Button
-                              IconButton(
-                                icon: const Icon(Icons.edit, color: Colors.blue),
-                                tooltip: 'Edit Vendor Details',
-                                onPressed: () async {
-                                  final updated = await showDialog<bool>(
-                                    context: context,
-                                    builder: (_) => AddEditSubVendorDialog(vendor: v),
-                                  );
-                                  if (updated == true) _loadAllData();
-                                },
-                              ),
-                              // Reset Password Button
-                              IconButton(
-                                icon: const Icon(Icons.lock_reset, color: Colors.orange),
-                                tooltip: 'Reset Password',
-                                onPressed: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (_) => ResetVendorPasswordDialog(vendor: v),
-                                  );
-                                },
-                              ),
-                              // Block / Activate Switch
-                              Switch(
-                                value: !isBlocked,
-                                activeColor: const Color(0xFF047857),
-                                onChanged: (val) async {
-                                  final newStatus = val ? 'Active' : 'Blocked';
-                                  await SubVendorService.toggleVendorStatus(v.id, newStatus);
-                                  _loadAllData();
-                                },
-                              ),
-                            ],
                           ),
                         ),
                       );
                     },
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVendorCardKpi(String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+              Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+            ],
           ),
         ],
       ),
