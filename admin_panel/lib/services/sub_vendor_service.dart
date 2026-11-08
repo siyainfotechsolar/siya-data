@@ -845,7 +845,7 @@ class SubVendorService {
 
       // If approved, update assignment settlement flag
       if (approve) {
-        await approveSettlement(settlement.assignmentId);
+        await approveSiteSettlement(settlement.assignmentId, true);
       }
 
       return SubVendorSettlement.fromJson(res as Map<String, dynamic>);

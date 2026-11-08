@@ -190,6 +190,17 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
               if (assigned == true) _loadAllData();
             },
           ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.calculate, size: 16),
+            label: const Text('Settlement Calculator'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            ),
+            onPressed: _openQuickSettlementCalculatorDialog,
+          ),
           const SizedBox(width: 16),
         ],
         bottom: TabBar(
@@ -1067,6 +1078,18 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                 ),
                 onPressed: () => _exportPaymentsCsv(filtered),
               ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.calculate, size: 16),
+                label: const Text('Settlement Calculator'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: _openQuickSettlementCalculatorDialog,
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -1185,6 +1208,21 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                                   ).then((_) => _loadAllData());
                                 },
                               ),
+                              // Settlement Calculator button
+                              IconButton(
+                                icon: const Icon(Icons.calculate, color: Color(0xFF2563EB)),
+                                tooltip: 'Sub-Vendor Settlement Calculator',
+                                onPressed: () {
+                                  final match = _assignments.firstWhere(
+                                    (a) => a.id == p.assignmentId,
+                                    orElse: () => _assignments.first,
+                                  );
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => SubVendorFinalSettlementCalculatorDialog(assignment: match),
+                                  ).then((_) => _loadAllData());
+                                },
+                              ),
                               // Delete button
                               IconButton(
                                 icon: const Icon(Icons.delete_outline, color: Colors.red),
@@ -1296,6 +1334,67 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
         );
       }
     }
+  }
+
+  void _openQuickSettlementCalculatorDialog() {
+    if (_assignments.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No site assignments found to calculate settlement.')),
+      );
+      return;
+    }
+
+    if (_assignments.length == 1) {
+      showDialog(
+        context: context,
+        builder: (_) => SubVendorFinalSettlementCalculatorDialog(assignment: _assignments.first),
+      ).then((_) => _loadAllData());
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.calculate, color: Color(0xFF0D2B6F)),
+            SizedBox(width: 8),
+            Text('Select Site for Settlement Calculation'),
+          ],
+        ),
+        content: SizedBox(
+          width: 520,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: _assignments.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (_, i) {
+              final a = _assignments[i];
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: const Color(0xFFE0F2FE),
+                  child: Text('${a.siteCapacityKw.toStringAsFixed(0)}k',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0D2B6F))),
+                ),
+                title: Text(a.customerName ?? 'Customer', style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text('Vendor: ${a.vendorName ?? "Sub-Vendor"} (${a.vendorCode ?? "VND"}) | CA: ${a.consumerNo ?? "-"}'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  showDialog(
+                    context: context,
+                    builder: (_) => SubVendorFinalSettlementCalculatorDialog(assignment: a),
+                  ).then((_) => _loadAllData());
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+        ],
+      ),
+    );
   }
 
   Future<void> _exportPaymentsCsv(List<VendorCustomerPayment> payments) async {
