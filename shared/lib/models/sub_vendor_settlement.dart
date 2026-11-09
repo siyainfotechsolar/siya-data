@@ -3,6 +3,7 @@ import 'vendor_site_assignment.dart';
 import 'vendor_material_transaction.dart';
 import 'vendor_payout.dart';
 import 'vendor_customer_payment.dart';
+import 'solar_quotation.dart';
 
 /// Settlement Calculation Modes supported by SIYA INFOTECH & SOLAR ENERGY
 enum SubVendorSettlementMode {
@@ -77,9 +78,14 @@ class SubVendorSettlement {
   final double pendingCustomerContribution; // loanDifferenceAmount - actualCustomerContribution
 
   // 3. GST Calculation & Prevention of Double Deduction
-  final double outputGstRate; // Composite solar rate (e.g. 13.8%) or invoice GST
-  final double taxableRevenue; // totalActualCollected / (1 + outputGstRate/100)
-  final double outputGstLiability; // totalActualCollected - taxableRevenue
+  final bool use7030GstRule; // True: Statutory 70:30 Rule (70% @ 5% + 30% @ 18%), False: Flat Rate
+  final double goodsTaxable70; // 70% Goods portion taxable (for 70:30 rule)
+  final double goodsGst5; // 5% GST included in Goods portion
+  final double servicesTaxable30; // 30% Services/BOS portion taxable
+  final double servicesGst18; // 18% GST included in Services portion
+  final double outputGstRate; // Composite solar rate (e.g. 13.8% or 8.59%) or invoice GST
+  final double taxableRevenue; // totalActualCollected / (1 + outputGstRate/100) or 70:30 taxable
+  final double outputGstLiability; // totalActualCollected - taxableRevenue or 70:30 output GST
   final double materialTaxable;
   final double eligibleInputGstCredit; // 5% Panels/Inverters + 18% BOS
   final double netGstLiability; // max(0, outputGstLiability - eligibleInputGstCredit)
@@ -145,6 +151,11 @@ class SubVendorSettlement {
     required this.pendingCustomerReceivable,
     required this.pendingLoanDisbursement,
     required this.pendingCustomerContribution,
+    this.use7030GstRule = true,
+    this.goodsTaxable70 = 0.0,
+    this.goodsGst5 = 0.0,
+    this.servicesTaxable30 = 0.0,
+    this.servicesGst18 = 0.0,
     required this.outputGstRate,
     required this.taxableRevenue,
     required this.outputGstLiability,
@@ -189,7 +200,8 @@ class SubVendorSettlement {
     List<VendorCustomerPayment> customerPayments = const [],
     SubVendorSettlementMode settlementMode = SubVendorSettlementMode.netBalance,
     double expectedLoanPercent = 90.0,
-    double outputGstRate = 13.8, // Standard 13.8% composite solar GST
+    bool use7030GstRule = true, // Default to true: Statutory 70:30 Split (70% @ 5% Goods + 30% @ 18% Services)
+    double outputGstRate = 13.8, // Flat fallback if use7030GstRule is false
     double fixedAgreedFee = 0.0,
     double vendorProfitSharePercent = 70.0,
     double approvedAdjustments = 0.0,
@@ -271,9 +283,35 @@ class SubVendorSettlement {
     final double eligibleInputGst = m5Gst + m18Gst;
     final double totalMaterialCost = matTaxable + eligibleInputGst;
 
-    // Output GST Liability on actual collection
-    final double taxableRev = totalCollected / (1.0 + (outputGstRate / 100.0));
-    final double outputGst = totalCollected - taxableRev;
+    // Output GST Liability calculated on Total Quotation Amount (even if collection is partial e.g. ₹2,00,000 on ₹2,22,222 quotation)
+    // As per user specification: Quotation amount is the statutory invoice basis for Output GST.
+    final double gstBasisAmount = totalQuotation > 0 ? totalQuotation : totalCollected;
+
+    double taxableRev;
+    double outputGst;
+    double gTaxable70 = 0.0;
+    double gGst5 = 0.0;
+    double sTaxable30 = 0.0;
+    double sGst18 = 0.0;
+    double effectiveGstRate = outputGstRate;
+
+    if (use7030GstRule) {
+      final gst7030 = SolarQuotationGstBreakdown.calculate(gstBasisAmount);
+      outputGst = gst7030.totalGstIncluded;
+      taxableRev = gst7030.totalTaxableValue;
+      gTaxable70 = gst7030.taxable70;
+      gGst5 = gst7030.gst5;
+      sTaxable30 = gst7030.taxable30;
+      sGst18 = gst7030.gst18;
+      effectiveGstRate = gstBasisAmount > 0 && taxableRev > 0
+          ? double.parse(((outputGst / taxableRev) * 100.0).toStringAsFixed(2))
+          : 8.59;
+    } else {
+      taxableRev = gstBasisAmount / (1.0 + (outputGstRate / 100.0));
+      outputGst = gstBasisAmount - taxableRev;
+      gTaxable70 = gstBasisAmount * 0.70;
+      sTaxable30 = gstBasisAmount * 0.30;
+    }
 
     // Net GST Liability = Output GST minus Input GST Credit (No Double Deduction!)
     final double netGst = (outputGst - eligibleInputGst) > 0
@@ -322,8 +360,16 @@ class SubVendorSettlement {
     final double amtRecoverable = isRecov ? finalPayable.abs() : 0.0;
 
     // Calculate potential full entitlement upon 100% quotation collection
-    final double fullTaxableRev = totalQuotation / (1.0 + (outputGstRate / 100.0));
-    final double fullOutputGst = totalQuotation - fullTaxableRev;
+    double fullTaxableRev;
+    double fullOutputGst;
+    if (use7030GstRule) {
+      final fullGst7030 = SolarQuotationGstBreakdown.calculate(totalQuotation);
+      fullOutputGst = fullGst7030.totalGstIncluded;
+      fullTaxableRev = fullGst7030.totalTaxableValue;
+    } else {
+      fullTaxableRev = totalQuotation / (1.0 + (outputGstRate / 100.0));
+      fullOutputGst = totalQuotation - fullTaxableRev;
+    }
     final double fullNetGst = (fullOutputGst - eligibleInputGst) > 0 ? (fullOutputGst - eligibleInputGst) : 0.0;
     final double fullDeductions = totalMaterialCost + fullNetGst + charges + otherExpenses;
     double fullEntitlement = 0.0;
@@ -353,7 +399,12 @@ class SubVendorSettlement {
       pendingCustomerReceivable: _round(pendingReceivable),
       pendingLoanDisbursement: _round(pendingLoan),
       pendingCustomerContribution: _round(pendingCash),
-      outputGstRate: _round(outputGstRate),
+      use7030GstRule: use7030GstRule,
+      goodsTaxable70: _round(gTaxable70),
+      goodsGst5: _round(gGst5),
+      servicesTaxable30: _round(sTaxable30),
+      servicesGst18: _round(sGst18),
+      outputGstRate: _round(effectiveGstRate),
       taxableRevenue: _round(taxableRev),
       outputGstLiability: _round(outputGst),
       materialTaxable: _round(matTaxable),
@@ -412,7 +463,12 @@ class SubVendorSettlement {
       pendingCustomerReceivable: (json['pending_customer_receivable'] as num?)?.toDouble() ?? 0.0,
       pendingLoanDisbursement: (json['pending_loan_disbursement'] as num?)?.toDouble() ?? 0.0,
       pendingCustomerContribution: (json['pending_customer_contribution'] as num?)?.toDouble() ?? 0.0,
-      outputGstRate: (json['output_gst_rate'] as num?)?.toDouble() ?? 13.8,
+      use7030GstRule: json['use_70_30_gst_rule'] as bool? ?? true,
+      goodsTaxable70: (json['goods_taxable_70'] as num?)?.toDouble() ?? 0.0,
+      goodsGst5: (json['goods_gst_5'] as num?)?.toDouble() ?? 0.0,
+      servicesTaxable30: (json['services_taxable_30'] as num?)?.toDouble() ?? 0.0,
+      servicesGst18: (json['services_gst_18'] as num?)?.toDouble() ?? 0.0,
+      outputGstRate: (json['output_gst_rate'] as num?)?.toDouble() ?? 8.59,
       taxableRevenue: (json['taxable_revenue'] as num?)?.toDouble() ?? 0.0,
       outputGstLiability: (json['output_gst_liability'] as num?)?.toDouble() ?? 0.0,
       materialTaxable: (json['material_taxable'] as num?)?.toDouble() ?? 0.0,
@@ -468,6 +524,11 @@ class SubVendorSettlement {
       'pending_customer_receivable': pendingCustomerReceivable,
       'pending_loan_disbursement': pendingLoanDisbursement,
       'pending_customer_contribution': pendingCustomerContribution,
+      'use_70_30_gst_rule': use7030GstRule,
+      'goods_taxable_70': goodsTaxable70,
+      'goods_gst_5': goodsGst5,
+      'services_taxable_30': servicesTaxable30,
+      'services_gst_18': servicesGst18,
       'output_gst_rate': outputGstRate,
       'taxable_revenue': taxableRevenue,
       'output_gst_liability': outputGstLiability,

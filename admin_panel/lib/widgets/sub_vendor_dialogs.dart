@@ -3060,6 +3060,7 @@ class _SubVendorFinalSettlementCalculatorDialogState
 
   SubVendorSettlementMode _mode = SubVendorSettlementMode.netBalance;
   double _expectedLoanPercent = 90.0;
+  bool _use7030GstRule = true; // Default to Statutory 70:30 Split (70% @ 5% + 30% @ 18%)
   double _outputGstRate = 13.8;
 
   late final TextEditingController _fixedFeeCtrl;
@@ -3108,6 +3109,7 @@ class _SubVendorFinalSettlementCalculatorDialogState
       if (saved != null) {
         _mode = saved.settlementMode;
         _expectedLoanPercent = saved.expectedLoanPercent;
+        _use7030GstRule = saved.use7030GstRule;
         _outputGstRate = saved.outputGstRate;
         _fixedFeeCtrl.text = saved.fixedAgreedFee.toStringAsFixed(0);
         _profitShareCtrl.text = saved.vendorProfitSharePercent.toStringAsFixed(0);
@@ -3144,6 +3146,7 @@ class _SubVendorFinalSettlementCalculatorDialogState
       customerPayments: _customerPayments,
       settlementMode: _mode,
       expectedLoanPercent: _expectedLoanPercent,
+      use7030GstRule: _use7030GstRule,
       outputGstRate: _outputGstRate,
       fixedAgreedFee: fixedFee,
       vendorProfitSharePercent: profitShare,
@@ -3468,6 +3471,54 @@ class _SubVendorFinalSettlementCalculatorDialogState
                                       ],
                                     ),
                                   ],
+                                  const SizedBox(height: 10),
+                                  // GST Calculation Mode Selector
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.receipt_long, size: 16, color: Color(0xFF0D2B6F)),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'GST नियम:',
+                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0D2B6F)),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        ChoiceChip(
+                                          label: const Text('Statutory 70:30 Split (70% @ 5% + 30% @ 18%)', style: TextStyle(fontSize: 11)),
+                                          selected: _use7030GstRule,
+                                          selectedColor: const Color(0xFFDBEAFE),
+                                          onSelected: (val) {
+                                            if (val) {
+                                              setState(() {
+                                                _use7030GstRule = true;
+                                                _recalculate();
+                                              });
+                                            }
+                                          },
+                                        ),
+                                        const SizedBox(width: 8),
+                                        ChoiceChip(
+                                          label: const Text('Flat 13.8% Composite Rate', style: TextStyle(fontSize: 11)),
+                                          selected: !_use7030GstRule,
+                                          selectedColor: const Color(0xFFFEF3C7),
+                                          onSelected: (val) {
+                                            if (val) {
+                                              setState(() {
+                                                _use7030GstRule = false;
+                                                _recalculate();
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -3585,11 +3636,19 @@ class _SubVendorFinalSettlementCalculatorDialogState
                                         icon: Icons.receipt_long,
                                         iconColor: Colors.blueGrey,
                                         items: [
-                                          _auditItem('Output GST (${s.outputGstRate.toStringAsFixed(1)}%)', _currency.format(s.outputGstLiability)),
+                                          if (s.use7030GstRule) ...[
+                                            _auditItem('Output GST (70:30 on Quotation ${_currency.format(s.totalQuotation)})', _currency.format(s.outputGstLiability), isBold: true),
+                                            _auditItem('  • Goods Portion (70% @ 5% GST)', _currency.format(s.goodsGst5)),
+                                            _auditItem('  • Services Portion (30% @ 18% GST)', _currency.format(s.servicesGst18)),
+                                          ] else ...[
+                                            _auditItem('Output GST (${s.outputGstRate.toStringAsFixed(1)}% on Quotation)', _currency.format(s.outputGstLiability)),
+                                          ],
                                           _auditItem('Eligible Material Input GST Credit', _currency.format(s.eligibleInputGstCredit), color: const Color(0xFF047857)),
                                           _auditDivider(),
                                           _auditItem('Net GST Payable to Govt', _currency.format(s.netGstLiability), isBold: true),
-                                          _auditNote('Note: Material cost already includes GST. Net GST is deducted so tax is never subtracted twice.'),
+                                          _auditNote(s.use7030GstRule
+                                              ? 'Statutory 70:30 Rule: Output GST is calculated on full quotation (${_currency.format(s.totalQuotation)}) [70% Goods @ 5% + 30% Services @ 18%]. Net GST = Output GST minus Eligible Input GST.'
+                                              : 'Note: Material cost already includes GST. Net GST is deducted so tax is never subtracted twice.'),
                                         ],
                                       ),
                                     ],

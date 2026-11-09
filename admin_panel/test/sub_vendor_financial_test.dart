@@ -1106,6 +1106,132 @@ void main() {
       expect(finalPayable, equals(38200.0));
       expect(finalPayable, greaterThan(0.0));
     });
+
+    // -------------------------------------------------------------------------
+    // 19. STATUTORY 70:30 GST SETTLEMENT (SHRI PANDURANG KSHIRSAGAR ACTUAL SITE)
+    // -------------------------------------------------------------------------
+    test('19. Statutory 70:30 GST Settlement matches Pandurang Kshirsagar site with 70:30 GST rule', () async {
+      // Customer: SHRI PANDURANG BHIVSAN SHIRSAGAR | Vendor: Dhanshree solar | 3.5 kW
+      final assignment = VendorSiteAssignment(
+        id: 'asg-pandurang-1',
+        vendorId: 'vnd-dhanshree-1',
+        customerId: 'cust-pandurang-1',
+        customerName: 'SHRI PANDURANG BHIVSAN SHIRSAGAR',
+        consumerNo: '097030010608',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 3.5,
+        ratePerKw: 1000.0, // SIYA Vendor Charges: 3.5 kW × ₹1,000 = ₹3,500
+        vendorCharges: 3500.0,
+        totalCustomerSiteAmount: 222222.0,
+        loanSanctionedAmount: 200000.0,
+        totalLoanCredited: 200000.0, // ₹2,00,000 bank loan credited
+        totalCashReceived: 0.0,      // Customer margin ₹22,222 pending
+        totalCustomerReceived: 200000.0,
+        customerOutstanding: 22222.0,
+      );
+
+      // Issued Material: Total ₹1,37,887 (5% Material ₹1,02,900 + 18% Material ₹34,987)
+      // Input GST = ₹4,900 (5%) + ₹5,337 (18%) = ₹10,237.00
+      final panelMat = VendorMaterialTransaction(
+        id: 'mat-p-1',
+        assignmentId: assignment.id,
+        vendorId: assignment.vendorId,
+        customerId: assignment.customerId,
+        transactionDate: DateTime(2026, 11, 1),
+        transactionType: 'ISSUE',
+        itemName: 'Solar Modules & Inverter (5% GST)',
+        itemCategory: 'SOLAR_PANEL',
+        gstRate: 5.0,
+        quantity: 1,
+        unit: 'Set',
+        unitRate: 98000.0,
+        taxableAmount: 98000.0,
+        gstAmount: 4900.0,
+        totalAmount: 102900.0,
+        isItcEligible: true,
+      );
+
+      final bosMat = VendorMaterialTransaction(
+        id: 'mat-p-2',
+        assignmentId: assignment.id,
+        vendorId: assignment.vendorId,
+        customerId: assignment.customerId,
+        transactionDate: DateTime(2026, 11, 1),
+        transactionType: 'ISSUE',
+        itemName: 'BOS Structure & Cables (18% GST)',
+        itemCategory: 'BOS',
+        gstRate: 18.0,
+        quantity: 1,
+        unit: 'Set',
+        unitRate: 29650.0,
+        taxableAmount: 29650.0,
+        gstAmount: 5337.0,
+        totalAmount: 34987.0,
+        isItcEligible: true,
+      );
+
+      // Payouts already disbursed to Sub-Vendor: ₹4,100
+      final previousPayout = VendorPayout(
+        id: 'payout-p-1',
+        vendorId: assignment.vendorId,
+        assignmentId: assignment.id,
+        payoutDate: DateTime(2026, 11, 2),
+        amount: 4100.0,
+      );
+
+      // Compute Settlement with Statutory 70:30 Rule (Default)
+      final settlement = SubVendorSettlement.compute(
+        assignment: assignment,
+        materials: [panelMat, bosMat],
+        previousPayouts: [previousPayout],
+        settlementMode: SubVendorSettlementMode.netBalance,
+        use7030GstRule: true,
+      );
+
+      expect(settlement.use7030GstRule, isTrue);
+      expect(settlement.totalQuotation, equals(222222.0));
+      expect(settlement.totalActualCollected, equals(200000.0));
+
+      // 70:30 Output GST strictly calculated on Full Quotation (₹2,22,222.00):
+      // 70% portion = ₹1,55,555.40 -> 5% GST = ₹7,407.40
+      expect(settlement.goodsGst5, closeTo(7407.40, 0.01));
+      // 30% portion = ₹66,666.60 -> 18% GST = ₹10,169.48
+      expect(settlement.servicesGst18, closeTo(10169.48, 0.01));
+      // Total Output GST on Quotation = ₹17,576.88
+      expect(settlement.outputGstLiability, closeTo(17576.88, 0.01));
+
+      // Material Input GST = ₹10,237.00
+      expect(settlement.eligibleInputGstCredit, equals(10237.0));
+      expect(settlement.materialCost, equals(137887.0));
+
+      // Net GST Liability = ₹17,576.88 - ₹10,237.00 = ₹7,339.88
+      expect(settlement.netGstLiability, closeTo(7339.88, 0.01));
+
+      // SIYA Vendor Charges = 3.5 kW × ₹1,000 = ₹3,500.00
+      expect(settlement.siyaVendorCharges, equals(3500.0));
+
+      // Total Deductions = ₹1,37,887 + ₹3,500 + ₹7,339.88 = ₹1,48,726.88
+      expect(settlement.totalDeductions, closeTo(148726.88, 0.01));
+
+      // Gross Entitlement from actual collection ₹2,00,000:
+      // ₹2,00,000 - ₹1,48,726.88 = ₹51,273.12
+      expect(settlement.subVendorGrossEntitlement, closeTo(51273.12, 0.01));
+
+      // Net Final Amount Payable Now = ₹51,273.12 - ₹4,100.00 = ₹47,173.12
+      expect(settlement.previousPayoutsPaid, equals(4100.0));
+      expect(settlement.finalPayoutPayable, closeTo(47173.12, 0.01));
+      expect(settlement.amountPayableToVendor, closeTo(47173.12, 0.01));
+      expect(settlement.isRecoverable, isFalse);
+
+      // Potential Full Payout upon full collection of pending 10% (₹22,222.00):
+      // Full Entitlement ₹73,495.12 - Paid ₹4,100 = ₹69,395.12
+      expect(settlement.potentialFuturePayoutUponFullCollection, closeTo(69395.12, 0.01));
+
+      // Verify PDF Statement Generation
+      final pdfBytes = await SubVendorPdfService.generateFinalSettlementStatementPdfBytes(settlement);
+      expect(pdfBytes, isNotEmpty);
+      expect(pdfBytes.length, greaterThan(1500));
+    });
   });
 }
 

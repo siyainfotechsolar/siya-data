@@ -1411,7 +1411,12 @@ class SubVendorPdfService {
                     decoration: const pw.BoxDecoration(color: zebraBgColor),
                     children: [
                       _td('2', align: pw.TextAlign.center),
-                      _td('Net GST Payable to Govt (Output GST ${_currency.format(s.outputGstLiability)} - Eligible Material Input Credit ${_currency.format(s.eligibleInputGstCredit)})', isBold: true),
+                      _td(
+                        s.use7030GstRule
+                            ? 'Net GST Payable to Govt (70:30 Output GST ${_currency.format(s.outputGstLiability)} on Quotation ${_currency.format(s.totalQuotation)} [Goods 5%: ${_currency.format(s.goodsGst5)} + Services 18%: ${_currency.format(s.servicesGst18)}] - Eligible Material Input Credit ${_currency.format(s.eligibleInputGstCredit)})'
+                            : 'Net GST Payable to Govt (Output GST ${_currency.format(s.outputGstLiability)} on Quotation ${_currency.format(s.totalQuotation)} - Eligible Material Input Credit ${_currency.format(s.eligibleInputGstCredit)})',
+                        isBold: true,
+                      ),
                       _td('-'),
                       _td(_currency.format(s.netGstLiability), isBold: true, align: pw.TextAlign.right),
                     ],
