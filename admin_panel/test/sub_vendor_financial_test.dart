@@ -1223,9 +1223,14 @@ void main() {
       expect(settlement.amountPayableToVendor, closeTo(47173.12, 0.01));
       expect(settlement.isRecoverable, isFalse);
 
-      // Potential Full Payout upon full collection of pending 10% (₹22,222.00):
-      // Full Entitlement ₹73,495.12 - Paid ₹4,100 = ₹69,395.12
-      expect(settlement.potentialFuturePayoutUponFullCollection, closeTo(69395.12, 0.01));
+      // 10% Margin Money is Bank Paper Receipt Only - Excluded from cashflow & customer receivables
+      expect(settlement.isMarginReceiptOnly, isTrue);
+      expect(settlement.pendingCustomerContribution, equals(0.0));
+      expect(settlement.pendingLoanDisbursement, equals(0.0));
+      expect(settlement.pendingCustomerReceivable, equals(0.0));
+
+      // With 10% paper margin receipt excluded, the site is fully settled with bank loan realized:
+      expect(settlement.potentialFuturePayoutUponFullCollection, closeTo(47173.12, 0.01));
 
       // Verify PDF Statement Generation
       final pdfBytes = await SubVendorPdfService.generateFinalSettlementStatementPdfBytes(settlement);

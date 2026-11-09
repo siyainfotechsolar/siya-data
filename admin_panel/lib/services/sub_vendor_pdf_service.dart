@@ -1400,8 +1400,10 @@ class SubVendorPdfService {
                   pw.TableRow(
                     children: [
                       _td(''),
-                      _td('  - Actual Customer Contribution / Advance (Expected 10%: ${_currency.format(s.loanDifferenceAmount)})'),
-                      _td(_currency.format(s.actualCustomerContribution), align: pw.TextAlign.right),
+                      _td(s.isMarginReceiptOnly
+                          ? '  - 10% Margin Money: Paper Receipt Only for Bank (No Customer Cash Collection) -> Rs. 0.00'
+                          : '  - Actual Customer Contribution / Advance (Expected 10%: ${_currency.format(s.loanDifferenceAmount)})'),
+                      _td(s.isMarginReceiptOnly ? 'Rs. 0.00' : _currency.format(s.actualCustomerContribution), align: pw.TextAlign.right),
                       _td('-'),
                     ],
                   ),
@@ -1532,7 +1534,7 @@ class SubVendorPdfService {
                 ),
               ),
 
-              // Pending Receivables Information Note
+              // Pending Receivables Information Note or Full Settlement Banner
               if (s.pendingCustomerReceivable > 0) ...[
                 pw.SizedBox(height: 6),
                 pw.Container(
@@ -1552,6 +1554,29 @@ class SubVendorPdfService {
                       pw.Text(
                         'Potential Full Payout: ${_currency.format(s.potentialFuturePayoutUponFullCollection)}',
                         style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFFB45309)),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (s.isMarginReceiptOnly) ...[
+                pw.SizedBox(height: 6),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(6),
+                  decoration: pw.BoxDecoration(
+                    color: const PdfColor.fromInt(0xFFECFDF5),
+                    border: pw.Border.all(color: const PdfColor.fromInt(0xFFA7F3D0), width: 0.6),
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                  ),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'Bank Loan Fully Realized | 10% Margin Money is Bank Paper Receipt Only (No pending customer debt | Fully Settled)',
+                        style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF065F46)),
+                      ),
+                      pw.Text(
+                        'Final Realized Settlement: ${_currency.format(s.amountPayableToVendor)}',
+                        style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF065F46)),
                       ),
                     ],
                   ),

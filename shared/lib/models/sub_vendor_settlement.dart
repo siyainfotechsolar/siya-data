@@ -68,6 +68,7 @@ class SubVendorSettlement {
   final double expectedLoanAmount; // e.g. ₹1,80,000
   final double loanDifferencePercent; // 10%
   final double loanDifferenceAmount; // e.g. ₹20,000
+  final bool isMarginReceiptOnly; // True: 10% Margin is paper receipt only for bank compliance; not counted in cash calculation
 
   // 2. Actual Collections
   final double actualLoanCredited; // Credited from Bank
@@ -145,6 +146,7 @@ class SubVendorSettlement {
     required this.expectedLoanAmount,
     required this.loanDifferencePercent,
     required this.loanDifferenceAmount,
+    this.isMarginReceiptOnly = true,
     required this.actualLoanCredited,
     required this.actualCustomerContribution,
     required this.totalActualCollected,
@@ -200,6 +202,7 @@ class SubVendorSettlement {
     List<VendorCustomerPayment> customerPayments = const [],
     SubVendorSettlementMode settlementMode = SubVendorSettlementMode.netBalance,
     double expectedLoanPercent = 90.0,
+    bool isMarginReceiptOnly = true, // Default true: 10% Margin is paper receipt only for bank compliance; not counted in cash calculation
     bool use7030GstRule = true, // Default to true: Statutory 70:30 Split (70% @ 5% Goods + 30% @ 18% Services)
     double outputGstRate = 13.8, // Flat fallback if use7030GstRule is false
     double fixedAgreedFee = 0.0,
@@ -246,17 +249,18 @@ class SubVendorSettlement {
         ? (actualLoan + actualCash)
         : assignment.effectiveReceivedAmount;
 
-    final double pendingReceivable = (totalQuotation - totalCollected) > 0
-        ? (totalQuotation - totalCollected)
-        : 0.0;
-
     final double pendingLoan = (expectedLoanAmt - actualLoan) > 0
         ? (expectedLoanAmt - actualLoan)
         : 0.0;
 
-    final double pendingCash = (loanDiffAmt - actualCash) > 0
-        ? (loanDiffAmt - actualCash)
-        : 0.0;
+    // 10% Margin Money is only a paper receipt for the bank; do NOT count as real pending cash if isMarginReceiptOnly is true
+    final double pendingCash = isMarginReceiptOnly
+        ? 0.0
+        : ((loanDiffAmt - actualCash) > 0 ? (loanDiffAmt - actualCash) : 0.0);
+
+    final double pendingReceivable = isMarginReceiptOnly
+        ? pendingLoan
+        : ((totalQuotation - totalCollected) > 0 ? (totalQuotation - totalCollected) : 0.0);
 
     // Dynamic Material Costs & GST Breakdown
     double m5Taxable = 0.0;
@@ -380,7 +384,9 @@ class SubVendorSettlement {
     } else {
       fullEntitlement = (totalQuotation - fullDeductions) * (vendorProfitSharePercent / 100.0);
     }
-    final double potentialFuturePayout = (fullEntitlement - paidToVendor + approvedAdjustments);
+    final double potentialFuturePayout = isMarginReceiptOnly && pendingLoan <= 0.01
+        ? finalPayable
+        : (fullEntitlement - paidToVendor + approvedAdjustments);
 
     return SubVendorSettlement(
       id: '',
@@ -393,6 +399,7 @@ class SubVendorSettlement {
       expectedLoanAmount: _round(expectedLoanAmt),
       loanDifferencePercent: _round(loanDiffPercent),
       loanDifferenceAmount: _round(loanDiffAmt),
+      isMarginReceiptOnly: isMarginReceiptOnly,
       actualLoanCredited: _round(actualLoan),
       actualCustomerContribution: _round(actualCash),
       totalActualCollected: _round(totalCollected),
@@ -457,6 +464,7 @@ class SubVendorSettlement {
       expectedLoanAmount: (json['expected_loan_amount'] as num?)?.toDouble() ?? 0.0,
       loanDifferencePercent: (json['loan_difference_percent'] as num?)?.toDouble() ?? 10.0,
       loanDifferenceAmount: (json['loan_difference_amount'] as num?)?.toDouble() ?? 0.0,
+      isMarginReceiptOnly: json['is_margin_receipt_only'] as bool? ?? true,
       actualLoanCredited: (json['actual_loan_credited'] as num?)?.toDouble() ?? 0.0,
       actualCustomerContribution: (json['actual_customer_contribution'] as num?)?.toDouble() ?? 0.0,
       totalActualCollected: (json['total_actual_collected'] as num?)?.toDouble() ?? 0.0,
@@ -518,6 +526,7 @@ class SubVendorSettlement {
       'expected_loan_amount': expectedLoanAmount,
       'loan_difference_percent': loanDifferencePercent,
       'loan_difference_amount': loanDifferenceAmount,
+      'is_margin_receipt_only': isMarginReceiptOnly,
       'actual_loan_credited': actualLoanCredited,
       'actual_customer_contribution': actualCustomerContribution,
       'total_actual_collected': totalActualCollected,

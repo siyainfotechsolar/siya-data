@@ -3060,6 +3060,7 @@ class _SubVendorFinalSettlementCalculatorDialogState
 
   SubVendorSettlementMode _mode = SubVendorSettlementMode.netBalance;
   double _expectedLoanPercent = 90.0;
+  bool _isMarginReceiptOnly = true; // 10% Margin Money is only a bank receipt; excluded from calculation
   bool _use7030GstRule = true; // Default to Statutory 70:30 Split (70% @ 5% + 30% @ 18%)
   double _outputGstRate = 13.8;
 
@@ -3110,6 +3111,7 @@ class _SubVendorFinalSettlementCalculatorDialogState
         _mode = saved.settlementMode;
         _expectedLoanPercent = saved.expectedLoanPercent;
         _use7030GstRule = saved.use7030GstRule;
+        _isMarginReceiptOnly = saved.isMarginReceiptOnly;
         _outputGstRate = saved.outputGstRate;
         _fixedFeeCtrl.text = saved.fixedAgreedFee.toStringAsFixed(0);
         _profitShareCtrl.text = saved.vendorProfitSharePercent.toStringAsFixed(0);
@@ -3146,6 +3148,7 @@ class _SubVendorFinalSettlementCalculatorDialogState
       customerPayments: _customerPayments,
       settlementMode: _mode,
       expectedLoanPercent: _expectedLoanPercent,
+      isMarginReceiptOnly: _isMarginReceiptOnly,
       use7030GstRule: _use7030GstRule,
       outputGstRate: _outputGstRate,
       fixedAgreedFee: fixedFee,
@@ -3519,6 +3522,51 @@ class _SubVendorFinalSettlementCalculatorDialogState
                                       ],
                                     ),
                                   ),
+                                  const SizedBox(height: 8),
+                                  // 10% Margin Money Compliance Policy Switch
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: _isMarginReceiptOnly ? const Color(0xFFF0FDF4) : const Color(0xFFFFFBEB),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: _isMarginReceiptOnly ? const Color(0xFF86EFAC) : const Color(0xFFFDE68A),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          _isMarginReceiptOnly ? Icons.check_circle_rounded : Icons.info_outline,
+                                          size: 16,
+                                          color: _isMarginReceiptOnly ? const Color(0xFF166534) : const Color(0xFFB45309),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            _isMarginReceiptOnly
+                                                ? '10% Margin Money ही फक्त बँक पावती आहे (हिशोबात ग्राहकाकडून येणे बाकी धरू नये)'
+                                                : '10% Margin ग्राहकाकडून प्रत्यक्ष रोख येणे बाकी म्हणून धरावे',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: _isMarginReceiptOnly ? const Color(0xFF166534) : const Color(0xFF92400E),
+                                            ),
+                                          ),
+                                        ),
+                                        Switch(
+                                          value: _isMarginReceiptOnly,
+                                          activeColor: const Color(0xFF047857),
+                                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          onChanged: (val) {
+                                            setState(() {
+                                              _isMarginReceiptOnly = val;
+                                              _recalculate();
+                                            });
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -3575,7 +3623,7 @@ class _SubVendorFinalSettlementCalculatorDialogState
                               ),
                             ),
 
-                            // Future Retained / Receivable alert
+                            // Future Retained / Receivable alert or Settled Notification
                             if (s.pendingCustomerReceivable > 0) ...[
                               const SizedBox(height: 8),
                               Container(
@@ -3605,6 +3653,28 @@ class _SubVendorFinalSettlementCalculatorDialogState
                                   ],
                                 ),
                               ),
+                            ] else if (s.isMarginReceiptOnly) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFECFDF5),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFFA7F3D0)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.verified, size: 16, color: Color(0xFF047857)),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'बँक कर्ज पूर्ण जमा (₹${_currency.format(s.actualLoanCredited)}) | 10% Margin Money ही केवळ बँकेसाठी Margin Receipt आहे — हिशोब पूर्ण सेटल झाला आहे (Pending: ₹0.00).',
+                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF065F46)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ],
 
                             const SizedBox(height: 14),
@@ -3624,10 +3694,13 @@ class _SubVendorFinalSettlementCalculatorDialogState
                                         items: [
                                           _auditItem('Total Site Quotation (100%)', _currency.format(s.totalQuotation), isBold: true),
                                           _auditItem('Actual Bank Loan Credited', _currency.format(s.actualLoanCredited), color: const Color(0xFF047857)),
-                                          _auditItem('Actual Customer Advance/Cash', _currency.format(s.actualCustomerContribution)),
+                                          if (s.isMarginReceiptOnly)
+                                            _auditItem('10% Margin Receipt (Bank Paper Only)', '₹0.00 (Exempt)', color: Colors.grey.shade600)
+                                          else
+                                            _auditItem('Actual Customer Advance/Cash', _currency.format(s.actualCustomerContribution)),
                                           _auditDivider(),
                                           _auditItem('Total Actual Realized Collection', _currency.format(s.totalActualCollected), isBold: true, color: const Color(0xFF0D2B6F)),
-                                          _auditItem('Pending Receivable', _currency.format(s.pendingCustomerReceivable), color: Colors.deepOrange),
+                                          _auditItem('Pending Receivable', _currency.format(s.pendingCustomerReceivable), color: s.pendingCustomerReceivable > 0 ? Colors.deepOrange : const Color(0xFF047857)),
                                         ],
                                       ),
                                       const SizedBox(height: 12),
