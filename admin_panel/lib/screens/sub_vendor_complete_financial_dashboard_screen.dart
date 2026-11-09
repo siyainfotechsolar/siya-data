@@ -401,12 +401,17 @@ class _SubVendorCompleteFinancialDashboardScreenState
     final totalMaterialCost = s?.totalMaterialCost ?? 0.0;
     final vendorCharges = s?.totalVendorCharges ?? 0.0;
     final otherExpenses = s?.totalOtherExpenses ?? 0.0;
+    final totalCustomerOutputGst = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.totalGstIncluded);
+    final totalEligibleItc = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcEligible);
+    final netGstLiability = (totalCustomerOutputGst - totalEligibleItc) > 0
+        ? (totalCustomerOutputGst - totalEligibleItc)
+        : 0.0;
     final approvedGstRecovery = _gstRecoveries
         .where((r) => r.isApproved || r.isCollected)
         .fold<double>(0.0, (acc, r) => acc + r.totalRecovery);
     final previousPayments = s?.totalPaidAmount ?? 0.0;
 
-    final netSubVendorEntitlement = totalCollection - totalMaterialCost - vendorCharges - otherExpenses - approvedGstRecovery;
+    final netSubVendorEntitlement = totalCollection - totalMaterialCost - vendorCharges - otherExpenses - netGstLiability - approvedGstRecovery;
     final finalBalance = netSubVendorEntitlement - previousPayments;
 
     final rows = <List<dynamic>>[
@@ -420,6 +425,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
       ['Total Actual Realized Collections (Loan Credited + Cash Received)', totalCollection],
       ['Less: Total Material Issued (Net of Returns)', -totalMaterialCost],
       ['Less: SIYA Vendor Platform Fee (₹1,000/kW)', -vendorCharges],
+      ['Less: Statutory Net GST Liability (70:30 Rule - Eligible ITC)', -netGstLiability],
       ['Less: Other Approved Site Expenses', -otherExpenses],
       ['Less: Approved Contractual GST Recovery', -approvedGstRecovery],
       ['Net Sub-Vendor Contract Entitlement', netSubVendorEntitlement],
@@ -805,9 +811,12 @@ class _SubVendorCompleteFinancialDashboardScreenState
     final previousPayments = s.totalPaidAmount;
 
     // Option A Final Net Balance:
-    // Realized Collection - Material Cost - SIYA Platform Charges (₹1,000/kW) - Other Expenses - Approved GST Recovery - Previous Advances
+    // Realized Collection - Material Cost - SIYA Platform Charges (₹1,000/kW) - Net GST Liability - Other Expenses - Approved GST Recovery - Previous Advances
     final effectiveCollection = totalRealizedCollection > 0 ? totalRealizedCollection : totalQuotation;
-    final netSubVendorEntitlement = effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - approvedGstRecovery;
+    final netGstLiability = (totalCustomerOutputGst - totalEligibleItc) > 0
+        ? (totalCustomerOutputGst - totalEligibleItc)
+        : 0.0;
+    final netSubVendorEntitlement = effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - netGstLiability - approvedGstRecovery;
     final finalBalance = netSubVendorEntitlement - previousPayments;
 
     final isPayable = finalBalance >= 0;
@@ -903,8 +912,11 @@ class _SubVendorCompleteFinancialDashboardScreenState
                     _buildBannerFormulaChip('Realized Collection', _currency.format(effectiveCollection), Colors.white),
                     _buildBannerFormulaChip('Material Cost', '- ${_currency.format(totalMaterialCost)}', const Color(0xFFFECACA)),
                     _buildBannerFormulaChip('SIYA Fee (₹1,000/kW)', '- ${_currency.format(vendorCharges)}', const Color(0xFFFED7AA)),
-                    _buildBannerFormulaChip('Approved Expenses', '- ${_currency.format(otherExpenses)}', const Color(0xFFE9D5FF)),
-                    _buildBannerFormulaChip('Approved GST Recovery', '- ${_currency.format(approvedGstRecovery)}', const Color(0xFFFDE68A)),
+                    _buildBannerFormulaChip('Net GST Liability', '- ${_currency.format(netGstLiability)}', const Color(0xFFFDE68A)),
+                    if (approvedGstRecovery > 0)
+                      _buildBannerFormulaChip('Approved GST Recovery', '- ${_currency.format(approvedGstRecovery)}', const Color(0xFFFDE68A)),
+                    if (otherExpenses > 0)
+                      _buildBannerFormulaChip('Approved Expenses', '- ${_currency.format(otherExpenses)}', const Color(0xFFE9D5FF)),
                     _buildBannerFormulaChip('Previous Advances', '- ${_currency.format(previousPayments)}', const Color(0xFFBFDBFE)),
                   ],
                 ),
@@ -2024,12 +2036,20 @@ class _SubVendorCompleteFinancialDashboardScreenState
     final totalMaterialCost = s.totalMaterialCost;
     final vendorCharges = s.totalVendorCharges;
     final otherExpenses = s.totalOtherExpenses;
+
+    // Statutory Net GST Liability (70:30 Output GST on quotation - Eligible Material Input GST Credit)
+    final totalCustomerOutputGst = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.totalGstIncluded);
+    final totalEligibleItc = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcEligible);
+    final netGstLiability = (totalCustomerOutputGst - totalEligibleItc) > 0
+        ? (totalCustomerOutputGst - totalEligibleItc)
+        : 0.0;
+
     final approvedGstRecovery = _gstRecoveries
         .where((r) => r.isApproved || r.isCollected)
         .fold<double>(0.0, (acc, r) => acc + r.totalRecovery);
     final previousPayments = s.totalPaidAmount;
 
-    final netEntitlement = effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - approvedGstRecovery;
+    final netEntitlement = effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - netGstLiability - approvedGstRecovery;
     final finalAmount = netEntitlement - previousPayments;
 
     return SingleChildScrollView(
@@ -2069,8 +2089,11 @@ class _SubVendorCompleteFinancialDashboardScreenState
                   _buildSettlementRow('Total Realized Collections (Loan Credited + Cash Received)', _currency.format(effectiveCollection), isPositive: true),
                   _buildSettlementRow('Less: Total Material Issued (Net of Returns)', '- ${_currency.format(totalMaterialCost)}', isPositive: false),
                   _buildSettlementRow('Less: SIYA Vendor Charges (₹1,000/kW)', '- ${_currency.format(vendorCharges)}', isPositive: false),
-                  _buildSettlementRow('Less: Approved Contractual GST Recovery', '- ${_currency.format(approvedGstRecovery)}', isPositive: false),
-                  _buildSettlementRow('Less: Other Approved Site Expenses', '- ${_currency.format(otherExpenses)}', isPositive: false),
+                  _buildSettlementRow('Less: Statutory Net GST Liability (70:30 Rule - Eligible ITC)', '- ${_currency.format(netGstLiability)}', isPositive: false),
+                  if (approvedGstRecovery > 0)
+                    _buildSettlementRow('Less: Approved Contractual GST Recovery', '- ${_currency.format(approvedGstRecovery)}', isPositive: false),
+                  if (otherExpenses > 0)
+                    _buildSettlementRow('Less: Other Approved Site Expenses', '- ${_currency.format(otherExpenses)}', isPositive: false),
                   const Divider(height: 20),
                   _buildSettlementRow('Sub-Vendor Net Entitlement', _currency.format(netEntitlement), isBold: true),
                   _buildSettlementRow('Less: Previous Advances & Disbursals Paid', '- ${_currency.format(previousPayments)}', isPositive: false),
@@ -2739,7 +2762,9 @@ class _SiteComprehensiveDrillDownModal extends StatelessWidget {
                             _buildMiniSummaryRow('Effective Realized Collection', _currency.format(detail.effectiveCollection), isPositive: true),
                             _buildMiniSummaryRow('Less: Material Cost Deducted', '- ${_currency.format(detail.totalMaterialCost)}', isPositive: false),
                             _buildMiniSummaryRow('Less: SIYA Vendor Charges (₹1,000/kW)', '- ${_currency.format(detail.vendorCharges)}', isPositive: false),
-                            _buildMiniSummaryRow('Less: Other Site Expenses', '- ${_currency.format(detail.otherExpenses)}', isPositive: false),
+                            _buildMiniSummaryRow('Less: Statutory Net GST Liability', '- ${_currency.format(detail.netGstLiability)}', isPositive: false),
+                            if (detail.otherExpenses > 0)
+                              _buildMiniSummaryRow('Less: Other Site Expenses', '- ${_currency.format(detail.otherExpenses)}', isPositive: false),
                             _buildMiniSummaryRow('Less: Paid to Sub-Vendor', '- ${_currency.format(detail.totalPaidToVendor)}', isPositive: false),
                             const Divider(height: 16),
                             Row(

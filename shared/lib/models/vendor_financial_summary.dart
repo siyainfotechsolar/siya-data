@@ -23,6 +23,9 @@ class SiteFinancialDetail {
   final double totalEligibleInputGst;
   final double totalMaterialCost;
 
+  // Statutory Net GST Liability (70:30 Output GST on quotation - Eligible Input GST)
+  final double netGstLiability;
+
   // Vendor Charges & Expenses
   final double vendorCharges; // Capacity × ₹1,000/kW
   final double otherExpenses;
@@ -49,10 +52,10 @@ class SiteFinancialDetail {
   double get effectiveCollection => amountReceivedBySiya > 0 ? amountReceivedBySiya : totalSiteAmount;
 
   /// Net balance payable to Sub-Vendor under Net Balance model:
-  /// (Collection - Material Cost - SIYA Charges - Expenses - Paid to Vendor)
+  /// (Collection - Material Cost - SIYA Charges - Expenses - Net GST Liability - Paid to Vendor)
   double get netSubVendorBalance {
     if (effectiveCollection > 0) {
-      return double.parse((effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - totalPaidToVendor).toStringAsFixed(2));
+      return double.parse((effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - netGstLiability - totalPaidToVendor).toStringAsFixed(2));
     }
     return outstandingVendorPayable;
   } // totalVendorPayable - totalPaidToVendor
@@ -70,6 +73,7 @@ class SiteFinancialDetail {
     required this.totalMaterialTaxable,
     required this.totalEligibleInputGst,
     required this.totalMaterialCost,
+    this.netGstLiability = 0.0,
     required this.vendorCharges,
     required this.otherExpenses,
     required this.totalVendorPayable,
@@ -120,6 +124,12 @@ class SiteFinancialDetail {
     final totEligibleInputGst = m5Gst + m18Gst;
     final totMaterialCost = m5Total + m18Total;
 
+    // Statutory Net GST Liability = Output GST on quotation (70:30 rule) - Eligible Material Input GST Credit
+    final outputGstOnQuotation = assignment.gstBreakdown.totalGstIncluded;
+    final netGst = (outputGstOnQuotation - totEligibleInputGst) > 0
+        ? (outputGstOnQuotation - totEligibleInputGst)
+        : 0.0;
+
     // Vendor charges: Installed Capacity × ₹1,000/kW (or assigned rate)
     final charges = assignment.siteCapacityKw * assignment.ratePerKw;
     final expenses = assignment.otherExpenses;
@@ -157,6 +167,7 @@ class SiteFinancialDetail {
       totalMaterialTaxable: double.parse(totMaterialTaxable.toStringAsFixed(2)),
       totalEligibleInputGst: double.parse(totEligibleInputGst.toStringAsFixed(2)),
       totalMaterialCost: double.parse(totMaterialCost.toStringAsFixed(2)),
+      netGstLiability: double.parse(netGst.toStringAsFixed(2)),
       vendorCharges: double.parse(charges.toStringAsFixed(2)),
       otherExpenses: double.parse(expenses.toStringAsFixed(2)),
       totalVendorPayable: double.parse(totVendorPayable.toStringAsFixed(2)),
@@ -214,6 +225,9 @@ class VendorFinancialSummary {
   final double totalEligibleInputGst;
   final double totalMaterialCost;
 
+  // Statutory Net GST Liability (70:30 Output GST on quotation - Eligible Input GST)
+  final double totalNetGstLiability;
+
   // SIYA Vendor Charges (Installed Capacity × ₹1,000/kW)
   final double totalVendorCharges;
   final double totalOtherExpenses;
@@ -226,11 +240,11 @@ class VendorFinancialSummary {
   /// Total customer collection realized (or site quotations if pending collection)
   double get effectiveTotalCollection => totalCustomerCollection > 0 ? totalCustomerCollection : totalSiteAmount;
 
-  /// Net Sub-Vendor settlement balance after deducting Material Cost and SIYA Charges from Collections:
-  /// (Total Collections - Total Material Cost - Total SIYA Charges - Expenses - Total Paid)
+  /// Net Sub-Vendor settlement balance after deducting Material Cost, SIYA Charges, and Net GST from Collections:
+  /// (Total Collections - Total Material Cost - Total SIYA Charges - Expenses - Net GST - Total Paid)
   double get netSettlementPayable {
     if (effectiveTotalCollection > 0 && totalMaterialCost > 0) {
-      return double.parse((effectiveTotalCollection - totalMaterialCost - totalVendorCharges - totalOtherExpenses - totalPaidAmount).toStringAsFixed(2));
+      return double.parse((effectiveTotalCollection - totalMaterialCost - totalVendorCharges - totalOtherExpenses - totalNetGstLiability - totalPaidAmount).toStringAsFixed(2));
     }
     return outstandingSettlement;
   }
@@ -263,6 +277,7 @@ class VendorFinancialSummary {
     required this.totalMaterialTaxable,
     required this.totalEligibleInputGst,
     required this.totalMaterialCost,
+    this.totalNetGstLiability = 0.0,
     required this.totalVendorCharges,
     required this.totalOtherExpenses,
     required this.totalSettlementAmount,
@@ -343,6 +358,7 @@ class VendorFinancialSummary {
     final totMatTaxable = m5Tax + m18Tax;
     final totInputGst = m5Gst + m18Gst;
     final totMatCost = m5Tot + m18Tot;
+    final totNetGst = siteDetails.fold<double>(0.0, (acc, d) => acc + d.netGstLiability);
 
     final settlement = charges + expenses;
 
@@ -379,6 +395,7 @@ class VendorFinancialSummary {
       totalMaterialTaxable: double.parse(totMatTaxable.toStringAsFixed(2)),
       totalEligibleInputGst: double.parse(totInputGst.toStringAsFixed(2)),
       totalMaterialCost: double.parse(totMatCost.toStringAsFixed(2)),
+      totalNetGstLiability: double.parse(totNetGst.toStringAsFixed(2)),
       totalVendorCharges: double.parse(charges.toStringAsFixed(2)),
       totalOtherExpenses: double.parse(expenses.toStringAsFixed(2)),
       totalSettlementAmount: double.parse(settlement.toStringAsFixed(2)),
