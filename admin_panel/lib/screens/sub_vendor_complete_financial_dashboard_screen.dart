@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:csv/csv.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:siya_shared/siya_shared.dart';
 import '../services/sub_vendor_service.dart';
 import '../services/sub_vendor_pdf_service.dart';
@@ -57,11 +59,15 @@ class _SubVendorCompleteFinancialDashboardScreenState
 
   // Search & filter
   String _siteSearch = '';
+  String? _selectedLedgerSiteId;
+  DateTime? _ledgerFromDate;
+  DateTime? _ledgerToDate;
+  String _ledgerSearch = '';
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 7, vsync: this);
+    _tabController = TabController(length: 8, vsync: this);
     _loadAllVendorData();
   }
 
@@ -559,9 +565,16 @@ class _SubVendorCompleteFinancialDashboardScreenState
             onSelected: (val) async {
               switch (val) {
                 case 'pdf_ledger':
+                  final ledger = _buildCurrentLedgerSummary();
+                  await SubVendorPdfService.printOrShareSubVendorFullLedger(summary: ledger, vendor: widget.vendor);
+                  break;
+                case 'pdf_master_statement':
                   if (_summary != null) {
                     await SubVendorPdfService.printOrShareVendorOverallStatement(_summary!, vendor: widget.vendor);
                   }
+                  break;
+                case 'csv_ledger':
+                  await _exportChronologicalLedgerCsv();
                   break;
                 case 'csv_quotation':
                   _exportSiteQuotationCsv();
@@ -588,9 +601,29 @@ class _SubVendorCompleteFinancialDashboardScreenState
                 value: 'pdf_ledger',
                 child: Row(
                   children: [
+                    Icon(Icons.menu_book, color: Colors.green, size: 18),
+                    SizedBox(width: 8),
+                    Text('Full Chronological Ledger (PDF)'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'pdf_master_statement',
+                child: Row(
+                  children: [
                     Icon(Icons.picture_as_pdf, color: Colors.red, size: 18),
                     SizedBox(width: 8),
-                    Text('Complete Vendor Ledger (PDF)'),
+                    Text('Vendor Master Statement (PDF)'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'csv_ledger',
+                child: Row(
+                  children: [
+                    Icon(Icons.table_chart, color: Colors.teal, size: 18),
+                    SizedBox(width: 8),
+                    Text('Account Ledger with Debits/Credits (CSV)'),
                   ],
                 ),
               ),
@@ -710,6 +743,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
             Tab(icon: Icon(Icons.bolt_outlined, size: 18), text: 'SIYA Charges'),
             Tab(icon: Icon(Icons.payments_outlined, size: 18), text: 'Payment & Settlement'),
             Tab(icon: Icon(Icons.layers_outlined, size: 18), text: 'Site Drill Down'),
+            Tab(icon: Icon(Icons.menu_book_outlined, size: 18), text: 'Account Ledger'),
           ],
         ),
       ),
@@ -727,6 +761,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
                     _buildVendorChargesTab(),
                     _buildPaymentSettlementTab(),
                     _buildSiteDrillDownTab(),
+                    _buildAccountLedgerTab(),
                   ],
                 ),
     );
@@ -2471,6 +2506,457 @@ class _SubVendorCompleteFinancialDashboardScreenState
           ),
         ),
       ],
+    );
+  }
+
+  // ============================================================================
+  // TAB 8: FULL CHRONOLOGICAL ACCOUNT LEDGER (WITH DATES, DEBIT & CREDIT)
+  // ============================================================================
+
+  SubVendorLedgerSummary _buildCurrentLedgerSummary() {
+    return SubVendorLedgerBuilder.buildLedger(
+      vendorId: widget.vendor.id,
+      vendorName: widget.vendor.name,
+      vendorCode: widget.vendor.vendorCode,
+      assignments: _assignments,
+      materials: _materials,
+      payouts: _payouts,
+      customerPayments: _customerPayments,
+      gstRecoveries: _gstRecoveries,
+      filterAssignmentId: _selectedLedgerSiteId,
+      fromDate: _ledgerFromDate,
+      toDate: _ledgerToDate,
+    );
+  }
+
+  List<SubVendorLedgerEntry> _filterLedgerEntries(List<SubVendorLedgerEntry> entries) {
+    if (_ledgerSearch.trim().isEmpty) return entries;
+    final q = _ledgerSearch.trim().toLowerCase();
+    return entries.where((e) {
+      return e.particulars.toLowerCase().contains(q) ||
+          e.voucherType.toLowerCase().contains(q) ||
+          (e.referenceNo?.toLowerCase().contains(q) ?? false) ||
+          (e.consumerNo?.toLowerCase().contains(q) ?? false) ||
+          (e.siteName?.toLowerCase().contains(q) ?? false);
+    }).toList();
+  }
+
+  Color _getVoucherColor(String voucherType) {
+    switch (voucherType) {
+      case 'Bank Loan Credit':
+      case 'Customer Cash Credit':
+      case 'Customer Collection':
+      case 'Material Return':
+        return const Color(0xFF047857);
+      case 'Material Issue':
+        return const Color(0xFFDC2626);
+      case 'SIYA Platform Fee':
+        return const Color(0xFF0D2B6F);
+      case 'Statutory Net GST':
+        return const Color(0xFFD97706);
+      case 'Vendor Payout / Advance':
+        return const Color(0xFF7C3AED);
+      case 'Contractual GST Recovery':
+        return const Color(0xFF4C1D95);
+      default:
+        return const Color(0xFF475569);
+    }
+  }
+
+  Future<void> _exportChronologicalLedgerCsv() async {
+    final ledger = _buildCurrentLedgerSummary();
+    final rows = <List<dynamic>>[
+      ['SIYA INFOTECH & SOLAR ENERGY - SUB-VENDOR ACCOUNT LEDGER'],
+      ['Vendor Name', widget.vendor.name, 'Vendor Code', widget.vendor.vendorCode],
+      ['Statement Generated On', _dateFormat.format(DateTime.now())],
+      ['Total Credits (Collections + Returns)', ledger.totalCredit],
+      ['Total Debits (Materials + Fee + GST + Advances)', ledger.totalDebit],
+      ['Closing Net Balance', ledger.closingBalance, ledger.isPayable ? 'Payable' : 'Recoverable'],
+      [],
+      ['#', 'Date', 'Voucher Type', 'Particulars', 'Site / CA No', 'Ref / UTR', 'Payment Mode', 'Debit (INR)', 'Credit (INR)', 'Running Balance (INR)'],
+      for (int i = 0; i < ledger.entries.length; i++)
+        [
+          i + 1,
+          _dateFormat.format(ledger.entries[i].date),
+          ledger.entries[i].voucherType,
+          ledger.entries[i].particulars,
+          ledger.entries[i].consumerNo ?? ledger.entries[i].siteName ?? '-',
+          ledger.entries[i].referenceNo ?? '-',
+          ledger.entries[i].paymentMode ?? '-',
+          ledger.entries[i].debit > 0 ? ledger.entries[i].debit : 0.0,
+          ledger.entries[i].credit > 0 ? ledger.entries[i].credit : 0.0,
+          ledger.entries[i].runningBalance,
+        ],
+    ];
+    await _exportCsv(
+      fileName: 'Sub_Vendor_Ledger_${widget.vendor.vendorCode}_${DateFormat("yyyyMMdd").format(DateTime.now())}',
+      rows: rows,
+    );
+  }
+
+  void _shareLedgerViaWhatsApp(SubVendorLedgerSummary ledger) async {
+    final cleanMob = (widget.vendor.mobile ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+    final msg = '''*SIYA INFOTECH & SOLAR ENERGY*
+*Sub-Vendor Account Ledger Statement*
+----------------------------------------
+*Vendor:* ${widget.vendor.name} (${widget.vendor.vendorCode})
+*Date:* ${_dateFormat.format(DateTime.now())}
+*Entries:* ${ledger.entries.length} Transactions
+----------------------------------------
+*Account Summary:*
+• Total Credits (Deposit): ${_currency.format(ledger.totalCredit)}
+• Total Debits (Deduction): - ${_currency.format(ledger.totalDebit)}
+----------------------------------------
+*FINAL NET BALANCE:* *${_currency.format(ledger.closingBalance.abs())}* ${ledger.isPayable ? "(Payable to Vendor)" : "(Recoverable)"}
+----------------------------------------
+_Statement generated by Siya Data Management Software._''';
+
+    final uri = Uri.parse(cleanMob.isNotEmpty
+        ? 'https://wa.me/$cleanMob?text=${Uri.encodeComponent(msg)}'
+        : 'https://wa.me/?text=${Uri.encodeComponent(msg)}');
+
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        await Clipboard.setData(ClipboardData(text: msg));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ledger summary copied to clipboard!')),
+          );
+        }
+      }
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: msg));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ledger summary copied to clipboard!')),
+        );
+      }
+    }
+  }
+
+  Widget _buildAccountLedgerTab() {
+    final ledger = _buildCurrentLedgerSummary();
+    final entries = _filterLedgerEntries(ledger.entries);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. TOP FINANCIAL RECONCILIATION SUMMARY BANNER
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: ledger.isPayable ? const Color(0xFF047857) : const Color(0xFFDC2626),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: (ledger.isPayable ? Colors.green : Colors.red).withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ledger.isPayable
+                          ? 'FINAL OUTSTANDING SETTLEMENT PAYABLE TO SUB-VENDOR'
+                          : 'AMOUNT RECOVERABLE FROM SUB-VENDOR',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Reconciled from ${ledger.entries.length} chronological ledger entries | 70:30 Statutory GST & Loan Margin Exempt applied',
+                      style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12),
+                    ),
+                  ],
+                ),
+                Text(
+                  _currency.format(ledger.closingBalance.abs()),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 26),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 2. METRIC TILES ROW
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildMetricCard('Total Realized Credits (जमा)', _currency.format(ledger.totalCredit), Icons.arrow_downward, const Color(0xFF047857)),
+              _buildMetricCard('Total Deductions (नावे)', '- ${_currency.format(ledger.totalDebit)}', Icons.arrow_upward, const Color(0xFFDC2626)),
+              _buildMetricCard('Total Transactions', '${ledger.entries.length} Entries', Icons.receipt_long, const Color(0xFF0D2B6F)),
+              _buildMetricCard('Closing Net Balance', _currency.format(ledger.closingBalance), Icons.account_balance_wallet, ledger.isPayable ? const Color(0xFF047857) : Colors.red.shade800),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // 3. FILTER & ACTION BAR
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                alignment: WrapAlignment.spaceBetween,
+                children: [
+                  // Site Selector Dropdown
+                  Container(
+                    width: 280,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String?>(
+                        value: _selectedLedgerSiteId,
+                        isExpanded: true,
+                        hint: const Text('All Assigned Sites (सर्व साइट्स)', style: TextStyle(fontSize: 12)),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('All Assigned Sites (Consolidated)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                          ..._assignments.map((a) {
+                            return DropdownMenuItem<String?>(
+                              value: a.id,
+                              child: Text(
+                                '${a.customerName ?? "Site"} (${a.consumerNo ?? "CA"}) - ${a.siteCapacityKw} kW',
+                                style: const TextStyle(fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }),
+                        ],
+                        onChanged: (val) {
+                          setState(() => _selectedLedgerSiteId = val);
+                        },
+                      ),
+                    ),
+                  ),
+
+                  // Search box
+                  Container(
+                    width: 200,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search ledger...',
+                        hintStyle: TextStyle(fontSize: 11),
+                        prefixIcon: Icon(Icons.search, size: 16),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 9),
+                      ),
+                      style: const TextStyle(fontSize: 12),
+                      onChanged: (val) => setState(() => _ledgerSearch = val),
+                    ),
+                  ),
+
+                  // Action Buttons (Print/Share PDF, WhatsApp Share, Export CSV)
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.picture_as_pdf, size: 15),
+                        label: const Text('Export Ledger PDF'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0D2B6F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          textStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: () => SubVendorPdfService.printOrShareSubVendorFullLedger(
+                          summary: ledger,
+                          vendor: widget.vendor,
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.chat, size: 15),
+                        label: const Text('Share WhatsApp'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF16A34A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          textStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: () => _shareLedgerViaWhatsApp(ledger),
+                      ),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.table_chart_outlined, size: 15),
+                        label: const Text('Export Excel/CSV'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          textStyle: const TextStyle(fontSize: 11.5),
+                        ),
+                        onPressed: _exportChronologicalLedgerCsv,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 4. CHRONOLOGICAL LEDGER TABLE
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'SUB-VENDOR TRANSACTION & PAYMENT LEDGER (खातावही)',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A)),
+                      ),
+                      Text(
+                        'Showing ${entries.length} Entries',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (entries.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      alignment: Alignment.center,
+                      child: const Text('No ledger entries match current filter.', style: TextStyle(color: Colors.grey)),
+                    )
+                  else
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        headingRowColor: MaterialStateProperty.all(const Color(0xFFF1F5F9)),
+                        dataRowMinHeight: 38,
+                        dataRowMaxHeight: 52,
+                        horizontalMargin: 12,
+                        columnSpacing: 16,
+                        columns: const [
+                          DataColumn(label: Text('#', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5))),
+                          DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5))),
+                          DataColumn(label: Text('Voucher Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5))),
+                          DataColumn(label: Text('Particulars / Description', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5))),
+                          DataColumn(label: Text('Ref / UTR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5))),
+                          DataColumn(label: Text('Debit (नावे)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFFDC2626)))),
+                          DataColumn(label: Text('Credit (जमा)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF047857)))),
+                          DataColumn(label: Text('Running Balance (शिल्लक)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0D2B6F)))),
+                        ],
+                        rows: [
+                          for (int i = 0; i < entries.length; i++)
+                            DataRow(
+                              color: MaterialStateProperty.all(i % 2 == 1 ? const Color(0xFFF8FAFC) : Colors.white),
+                              cells: [
+                                DataCell(Text('${i + 1}', style: const TextStyle(fontSize: 11))),
+                                DataCell(Text(_dateFormat.format(entries[i].date), style: const TextStyle(fontSize: 11))),
+                                DataCell(
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: _getVoucherColor(entries[i].voucherType).withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      entries[i].voucherType,
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: _getVoucherColor(entries[i].voucherType),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  SizedBox(
+                                    width: 320,
+                                    child: Text(
+                                      entries[i].particulars,
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: entries[i].isCredit ? FontWeight.bold : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(Text(entries[i].referenceNo ?? '-', style: const TextStyle(fontSize: 11))),
+                                DataCell(
+                                  Text(
+                                    entries[i].debit > 0 ? _currency.format(entries[i].debit) : '-',
+                                    style: const TextStyle(fontSize: 11.5, color: Color(0xFFDC2626), fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                DataCell(
+                                  Text(
+                                    entries[i].credit > 0 ? _currency.format(entries[i].credit) : '-',
+                                    style: const TextStyle(fontSize: 11.5, color: Color(0xFF047857), fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                DataCell(
+                                  Text(
+                                    _currency.format(entries[i].runningBalance),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                      color: entries[i].runningBalance >= 0 ? const Color(0xFF047857) : Colors.red.shade800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          // Totals Row
+                          DataRow(
+                            color: MaterialStateProperty.all(const Color(0xFFEFF6FF)),
+                            cells: [
+                              const DataCell(Text('')),
+                              const DataCell(Text('')),
+                              const DataCell(Text('')),
+                              const DataCell(Text('TOTALS & FINAL NET BALANCE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0D2B6F)))),
+                              const DataCell(Text('')),
+                              DataCell(Text(_currency.format(ledger.totalDebit), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFFDC2626)))),
+                              DataCell(Text(_currency.format(ledger.totalCredit), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF047857)))),
+                              DataCell(
+                                Text(
+                                  _currency.format(ledger.closingBalance),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 13,
+                                    color: ledger.closingBalance >= 0 ? const Color(0xFF047857) : Colors.red.shade800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

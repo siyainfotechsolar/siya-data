@@ -1709,6 +1709,22 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                           ),
                           onPressed: () => SubVendorPdfService.printOrShareVendorOverallStatement(summary, vendor: v),
                         ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.menu_book, size: 14),
+                          label: const Text('Full Ledger'),
+                          style: ElevatedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            backgroundColor: const Color(0xFF047857),
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (_) => SubVendorFullLedgerDialog(vendor: v),
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ],

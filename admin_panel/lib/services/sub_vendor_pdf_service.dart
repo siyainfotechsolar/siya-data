@@ -1014,7 +1014,7 @@ class SubVendorPdfService {
     );
   }
 
-  static pw.Widget _td(String text, {bool isBold = false, pw.TextAlign align = pw.TextAlign.left}) {
+  static pw.Widget _td(String text, {bool isBold = false, pw.TextAlign align = pw.TextAlign.left, PdfColor? color}) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3.5),
       child: pw.Text(
@@ -1023,7 +1023,7 @@ class SubVendorPdfService {
         style: pw.TextStyle(
           fontSize: 6.8,
           fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
-          color: isBold ? navyColor : darkTextColor,
+          color: color ?? (isBold ? navyColor : darkTextColor),
         ),
       ),
     );
@@ -1787,6 +1787,364 @@ class SubVendorPdfService {
     await Printing.layoutPdf(
       onLayout: (format) async => bytes,
       name: 'Sub_Vendor_Final_Settlement_${safeName}_${settlement.consumerNo ?? "CA"}.pdf',
+    );
+  }
+
+  // ============================================================================
+  // 5. SUB-VENDOR FULL CHRONOLOGICAL ACCOUNT LEDGER PDF (WITH DATES, DEBIT & CREDIT)
+  // ============================================================================
+
+  static Future<Uint8List> generateVendorFullChronologicalLedgerPdfBytes({
+    required SubVendorLedgerSummary summary,
+    SubVendor? vendor,
+  }) async {
+    final pdfTheme = await SolarQuotationFontHelper.loadPdfTheme();
+    final pdf = pw.Document(theme: pdfTheme);
+
+    final isPayable = summary.isPayable;
+    final primaryBannerColor = isPayable ? emeraldColor : const PdfColor.fromInt(0xFFDC2626);
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+        header: (context) {
+          return pw.Container(
+            margin: const pw.EdgeInsets.only(bottom: 6),
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(
+              color: headerBgColor,
+              border: pw.Border.all(color: borderDarkColor, width: 0.8),
+              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'SIYA INFOTECH & SOLAR ENERGY',
+                      style: pw.TextStyle(
+                        color: navyColor,
+                        fontSize: 13,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      'Sub-Vendor Partner Financial Account Statement & Chronological Ledger',
+                      style: const pw.TextStyle(fontSize: 7.2, color: slateMutedColor),
+                    ),
+                    pw.Text(
+                      'Betawad, Tal. Shindkheda, Dist. Dhule | Contact: 9673220315',
+                      style: const pw.TextStyle(fontSize: 6.8, color: slateMutedColor),
+                    ),
+                  ],
+                ),
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: const pw.BoxDecoration(
+                    color: navyColor,
+                    borderRadius: pw.BorderRadius.all(pw.Radius.circular(3)),
+                  ),
+                  child: pw.Text(
+                    'TRANSACTION LEDGER',
+                    style: pw.TextStyle(
+                      color: PdfColors.white,
+                      fontSize: 8,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+        footer: (context) {
+          return pw.Container(
+            margin: const pw.EdgeInsets.only(top: 6),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'Siya Data Management System | Confidential Sub-Vendor Account Ledger',
+                  style: const pw.TextStyle(fontSize: 6.5, color: slateMutedColor),
+                ),
+                pw.Text(
+                  'Page ${context.pageNumber} of ${context.pagesCount}',
+                  style: const pw.TextStyle(fontSize: 6.8, color: slateMutedColor),
+                ),
+              ],
+            ),
+          );
+        },
+        build: (context) {
+          return [
+            // Vendor KYC & Account Information
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  flex: 3,
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(6),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: borderDarkColor, width: 0.6),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('SUB-VENDOR DETAILS', style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                        pw.Divider(color: borderDarkColor, thickness: 0.4, height: 4),
+                        _infoRow('Vendor Name:', summary.vendorName),
+                        _infoRow('Vendor Code:', summary.vendorCode),
+                        _infoRow('Mobile No.:', vendor?.mobile ?? '-'),
+                        _infoRow('Bank & A/C:', '${vendor?.bankName ?? "-"} | ${vendor?.accountNumber ?? "-"}'),
+                        _infoRow('IFSC Code:', vendor?.ifscCode ?? '-'),
+                      ],
+                    ),
+                  ),
+                ),
+                pw.SizedBox(width: 6),
+                pw.Expanded(
+                  flex: 2,
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(6),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: borderDarkColor, width: 0.6),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('STATEMENT PERIOD & SUMMARY', style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                        pw.Divider(color: borderDarkColor, thickness: 0.4, height: 4),
+                        _infoRow('Generated On:', _dateFormat.format(DateTime.now())),
+                        _infoRow('Total Entries:', '${summary.entries.length} Transactions'),
+                        _infoRow('Total Credits (Deposit):', _currency.format(summary.totalCredit)),
+                        _infoRow('Total Debits (Deductions):', '- ${_currency.format(summary.totalDebit)}'),
+                        _infoRow(
+                          isPayable ? 'Net Payable Balance:' : 'Net Recoverable:',
+                          _currency.format(summary.closingBalance.abs()),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            pw.SizedBox(height: 6),
+
+            // Prominent Closing Balance Banner
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: pw.BoxDecoration(
+                color: primaryBannerColor,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    isPayable
+                        ? 'FINAL OUTSTANDING NET BALANCE PAYABLE TO SUB-VENDOR:'
+                        : 'NET AMOUNT RECOVERABLE FROM SUB-VENDOR:',
+                    style: pw.TextStyle(
+                      color: PdfColors.white,
+                      fontSize: 8.5,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.Text(
+                    _currency.format(summary.closingBalance.abs()),
+                    style: pw.TextStyle(
+                      color: PdfColors.white,
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            pw.SizedBox(height: 6),
+
+            // Chronological Ledger Table
+            pw.Table(
+              border: pw.TableBorder.all(color: borderDarkColor, width: 0.5),
+              columnWidths: {
+                0: const pw.FixedColumnWidth(18), // #
+                1: const pw.FixedColumnWidth(48), // Date
+                2: const pw.FixedColumnWidth(68), // Voucher Type
+                3: const pw.FlexColumnWidth(3.2), // Particulars
+                4: const pw.FixedColumnWidth(48), // Ref / UTR
+                5: const pw.FixedColumnWidth(54), // Debit
+                6: const pw.FixedColumnWidth(54), // Credit
+                7: const pw.FixedColumnWidth(58), // Balance
+              },
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: headerBgColor),
+                  children: [
+                    _th('#'),
+                    _th('DATE'),
+                    _th('VOUCHER TYPE'),
+                    _th('PARTICULARS & TRANSACTION DETAILS'),
+                    _th('REF / UTR'),
+                    _th('DEBIT (Rs.)', align: pw.TextAlign.right),
+                    _th('CREDIT (Rs.)', align: pw.TextAlign.right),
+                    _th('BALANCE (Rs.)', align: pw.TextAlign.right),
+                  ],
+                ),
+                if (summary.entries.isEmpty)
+                  pw.TableRow(
+                    children: [
+                      _td('-'),
+                      _td('-'),
+                      _td('-'),
+                      _td('No financial ledger transactions recorded for this vendor.'),
+                      _td('-'),
+                      _td('-'),
+                      _td('-'),
+                      _td('-'),
+                    ],
+                  )
+                else
+                  ...summary.entries.asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final tx = entry.value;
+                    final isZebra = i % 2 == 1;
+                    return pw.TableRow(
+                      decoration: pw.BoxDecoration(color: isZebra ? zebraBgColor : PdfColors.white),
+                      children: [
+                        _td('${i + 1}', align: pw.TextAlign.center),
+                        _td(_dateFormat.format(tx.date)),
+                        _td(tx.voucherType),
+                        _td(tx.particulars, isBold: tx.isCredit),
+                        _td(tx.referenceNo ?? '-'),
+                        _td(
+                          tx.debit > 0 ? _currency.format(tx.debit) : '-',
+                          align: pw.TextAlign.right,
+                          color: tx.debit > 0 ? PdfColors.red800 : null,
+                        ),
+                        _td(
+                          tx.credit > 0 ? _currency.format(tx.credit) : '-',
+                          align: pw.TextAlign.right,
+                          color: tx.credit > 0 ? emeraldColor : null,
+                          isBold: tx.credit > 0,
+                        ),
+                        _td(
+                          _currency.format(tx.runningBalance),
+                          align: pw.TextAlign.right,
+                          isBold: true,
+                          color: tx.runningBalance >= 0 ? emeraldColor : PdfColors.red800,
+                        ),
+                      ],
+                    );
+                  }),
+                // Total Summary Row
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: headerBgColor),
+                  children: [
+                    _td(''),
+                    _td(''),
+                    _td(''),
+                    _td('TOTALS & CLOSING NET BALANCE', isBold: true),
+                    _td(''),
+                    _td(_currency.format(summary.totalDebit), isBold: true, align: pw.TextAlign.right, color: PdfColors.red800),
+                    _td(_currency.format(summary.totalCredit), isBold: true, align: pw.TextAlign.right, color: emeraldColor),
+                    _td(
+                      _currency.format(summary.closingBalance),
+                      isBold: true,
+                      align: pw.TextAlign.right,
+                      color: summary.closingBalance >= 0 ? emeraldColor : PdfColors.red800,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+
+            pw.SizedBox(height: 8),
+
+            // Compliance & Statutory Note
+            pw.Container(
+              padding: const pw.EdgeInsets.all(5),
+              decoration: pw.BoxDecoration(
+                color: const PdfColor.fromInt(0xFFF8FAFC),
+                border: pw.Border.all(color: borderDarkColor, width: 0.5),
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+              ),
+              child: pw.Row(
+                children: [
+                  pw.Expanded(
+                    child: pw.Text(
+                      'Accounting Notes: 1. Customer Collections include Bank Loans and Cash credited to SIYA. 2. Dynamic Material issued is debited net of returns. 3. Statutory Net GST liability is computed under Notification No. 24/2018 (70:30 Split on site quotation minus eligible material ITC). 4. 10% Loan Margin Paper Receipt is bank-processing compliance only and is excluded from cash calculation.',
+                      style: const pw.TextStyle(fontSize: 6.2, color: slateMutedColor),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            pw.SizedBox(height: 12),
+
+            // Signatures Block
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Container(width: 130, height: 0.8, color: borderDarkColor),
+                    pw.SizedBox(height: 2),
+                    pw.Text('Sub-Vendor Acceptance & Sign', style: const pw.TextStyle(fontSize: 6.8, color: slateMutedColor)),
+                    pw.Text(summary.vendorName, style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold)),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Container(width: 130, height: 0.8, color: borderDarkColor),
+                    pw.SizedBox(height: 2),
+                    pw.Text('Accounts Verification', style: const pw.TextStyle(fontSize: 6.8, color: slateMutedColor)),
+                    pw.Text('SIYA Accounts & Tax Division', style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold)),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Container(width: 130, height: 0.8, color: borderDarkColor),
+                    pw.SizedBox(height: 2),
+                    pw.Text('Authorized Signatory & Stamp', style: const pw.TextStyle(fontSize: 6.8, color: slateMutedColor)),
+                    pw.Text('Siya Infotech & Solar Energy', style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                  ],
+                ),
+              ],
+            ),
+          ];
+        },
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  /// Print or share Sub-Vendor Full Chronological Ledger PDF directly
+  static Future<void> printOrShareSubVendorFullLedger({
+    required SubVendorLedgerSummary summary,
+    SubVendor? vendor,
+  }) async {
+    final bytes = await generateVendorFullChronologicalLedgerPdfBytes(
+      summary: summary,
+      vendor: vendor,
+    );
+    final safeName = summary.vendorName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+    await Printing.layoutPdf(
+      onLayout: (format) async => bytes,
+      name: 'Sub_Vendor_Full_Ledger_${safeName}_${summary.vendorCode}.pdf',
     );
   }
 }

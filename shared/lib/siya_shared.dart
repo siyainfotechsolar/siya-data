@@ -29,6 +29,7 @@ export 'models/vendor_customer_payment.dart';
 export 'models/vendor_gst_recovery.dart';
 export 'models/sub_vendor_settlement.dart';
 export 'models/vendor_financial_summary.dart';
+export 'models/sub_vendor_ledger_entry.dart';
 export 'models/solar_site_cost_models.dart';
 export 'models/work_completion_report_data.dart';
 

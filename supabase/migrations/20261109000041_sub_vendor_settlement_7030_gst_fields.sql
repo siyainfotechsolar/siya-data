@@ -19,3 +19,4 @@ ALTER TABLE public.vendor_settlements
     ADD COLUMN IF NOT EXISTS services_gst_18 NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
 
 NOTIFY pgrst, 'reload schema';
+

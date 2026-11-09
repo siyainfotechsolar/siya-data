@@ -1352,6 +1352,235 @@ void main() {
       expect(masterPdfBytes, isNotEmpty);
       expect(masterPdfBytes.length, greaterThan(1500));
     });
+
+    // -------------------------------------------------------------------------
+    // 21. FULL CHRONOLOGICAL LEDGER SYSTEM (WITH DATES, DEBIT & CREDIT)
+    // -------------------------------------------------------------------------
+    test('21. SubVendorLedgerBuilder builds chronological debit/credit ledger with running balance matching Rs. 47,173.12', () {
+      final vendor = SubVendor(
+        id: 'vnd-dhanshree',
+        vendorCode: 'SIYA-VND',
+        name: 'Dhanshree solar',
+        mobile: '8600952048',
+        email: 'dhanshree@solar.com',
+        bankName: 'State Bank of India',
+        accountNumber: '38192849182',
+        ifscCode: 'SBIN0001234',
+        status: 'Active',
+        createdAt: DateTime(2026, 11, 1),
+      );
+
+      final assignment = VendorSiteAssignment(
+        id: 'asg-pandurang',
+        vendorId: vendor.id,
+        customerId: 'cust-pandurang',
+        consumerNo: '097030010608',
+        customerName: 'SHRI PANDURANG BHIVSAN SHIRSAGAR',
+        customerMobile: '9876543210',
+        siteCapacityKw: 3.5,
+        ratePerKw: 1000.0,
+        assignedDate: DateTime(2026, 11, 2),
+        paymentType: 'Bank Loan Customer',
+        quotationTotalAmount: 222222.0,
+        expectedLoanAmount: 200000.0,
+        remaining10Percent: 22222.0,
+        totalLoanCredited: 200000.0,
+        totalCustomerReceived: 200000.0,
+        status: 'In_Progress',
+      );
+
+      final customerPayments = [
+        VendorCustomerPayment(
+          id: 'cp-1',
+          assignmentId: assignment.id,
+          vendorId: vendor.id,
+          customerId: assignment.customerId,
+          paymentType: 'BANK_LOAN',
+          paymentStage: 'LOAN_CREDIT',
+          amount: 200000.0,
+          paymentDate: DateTime(2026, 11, 3),
+          paymentMode: 'Bank Transfer',
+          referenceNumber: 'SBI-DISB-98765',
+          status: 'Approved',
+          customerName: assignment.customerName,
+          consumerNo: assignment.consumerNo,
+        ),
+      ];
+
+      final materials = [
+        VendorMaterialTransaction(
+          id: 'mat-panels',
+          assignmentId: assignment.id,
+          vendorId: vendor.id,
+          customerId: assignment.customerId,
+          transactionType: 'ISSUE',
+          transactionDate: DateTime(2026, 11, 4),
+          itemName: '540W Mono Bifacial Solar Panels (8 Nos)',
+          itemCategory: 'SOLAR_PANEL',
+          gstRate: 5.0,
+          quantity: 8.0,
+          unit: 'Nos',
+          unitRate: 12250.0,
+          taxableAmount: 98000.0,
+          gstAmount: 4900.0,
+          totalAmount: 102900.0,
+        ),
+        VendorMaterialTransaction(
+          id: 'mat-bos',
+          assignmentId: assignment.id,
+          vendorId: vendor.id,
+          customerId: assignment.customerId,
+          transactionType: 'ISSUE',
+          transactionDate: DateTime(2026, 11, 5),
+          itemName: 'Solar BOS & Structure Mounting Kit',
+          itemCategory: 'BOS',
+          gstRate: 18.0,
+          quantity: 1.0,
+          unit: 'Sets',
+          unitRate: 29650.0,
+          taxableAmount: 29650.0,
+          gstAmount: 5337.0,
+          totalAmount: 34987.0,
+        ),
+      ];
+
+      final payouts = [
+        VendorPayout(
+          id: 'pay-advance-1',
+          vendorId: vendor.id,
+          assignmentId: assignment.id,
+          payoutDate: DateTime(2026, 11, 8),
+          amount: 4100.0,
+          paymentMode: 'Bank Transfer',
+          referenceNumber: 'NEFT-VND-4100',
+          status: 'Paid',
+          customerName: assignment.customerName,
+          siteConsumerNo: assignment.consumerNo,
+        ),
+      ];
+
+      final ledger = SubVendorLedgerBuilder.buildLedger(
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        vendorCode: vendor.vendorCode,
+        assignments: [assignment],
+        materials: materials,
+        payouts: payouts,
+        customerPayments: customerPayments,
+      );
+
+      // Verify entries exist and are sorted chronologically
+      expect(ledger.entries, isNotEmpty);
+      for (int i = 0; i < ledger.entries.length - 1; i++) {
+        expect(ledger.entries[i].date.isAfter(ledger.entries[i + 1].date), isFalse);
+      }
+
+      // Check Total Credits = Bank Loan Credited (Rs. 2,00,000.00)
+      expect(ledger.totalCredit, equals(200000.0));
+
+      // Check Total Debits = Material (137,887) + SIYA Fee (3,500) + Net GST (7,339.88) + Payout (4,100) = Rs. 1,52,826.88
+      expect(ledger.totalDebit, closeTo(152826.88, 0.01));
+
+      // Check Closing Net Balance = 200,000 - 152,826.88 = Rs. 47,173.12 (Payable to Sub-Vendor)
+      expect(ledger.closingBalance, closeTo(47173.12, 0.01));
+      expect(ledger.isPayable, isTrue);
+      expect(ledger.netPayableAmount, closeTo(47173.12, 0.01));
+
+      // Verify final entry running balance matches closing balance
+      expect(ledger.entries.last.runningBalance, closeTo(47173.12, 0.01));
+    });
+
+    // -------------------------------------------------------------------------
+    // 22. SUB-VENDOR FULL CHRONOLOGICAL LEDGER PDF GENERATION
+    // -------------------------------------------------------------------------
+    test('22. SubVendorPdfService generates valid non-empty PDF for Sub-Vendor Full Chronological Ledger', () async {
+      final vendor = SubVendor(
+        id: 'vnd-dhanshree',
+        vendorCode: 'SIYA-VND',
+        name: 'Dhanshree solar',
+        mobile: '8600952048',
+        email: 'dhanshree@solar.com',
+        bankName: 'State Bank of India',
+        accountNumber: '38192849182',
+        ifscCode: 'SBIN0001234',
+        status: 'Active',
+        createdAt: DateTime(2026, 11, 1),
+      );
+
+      final assignment = VendorSiteAssignment(
+        id: 'asg-pandurang',
+        vendorId: vendor.id,
+        customerId: 'cust-pandurang',
+        consumerNo: '097030010608',
+        customerName: 'SHRI PANDURANG BHIVSAN SHIRSAGAR',
+        siteCapacityKw: 3.5,
+        ratePerKw: 1000.0,
+        assignedDate: DateTime(2026, 11, 2),
+        paymentType: 'Bank Loan Customer',
+        quotationTotalAmount: 222222.0,
+        totalLoanCredited: 200000.0,
+        totalCustomerReceived: 200000.0,
+      );
+
+      final ledger = SubVendorLedgerBuilder.buildLedger(
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        vendorCode: vendor.vendorCode,
+        assignments: [assignment],
+        materials: [
+          VendorMaterialTransaction(
+            id: 'm1',
+            assignmentId: assignment.id,
+            vendorId: vendor.id,
+            customerId: assignment.customerId,
+            transactionType: 'ISSUE',
+            transactionDate: DateTime(2026, 11, 4),
+            itemName: 'Solar Panels 540W',
+            itemCategory: 'SOLAR_PANEL',
+            quantity: 8.0,
+            unit: 'Nos',
+            unitRate: 12250.0,
+            taxableAmount: 98000.0,
+            gstAmount: 4900.0,
+            totalAmount: 102900.0,
+          ),
+        ],
+        payouts: [
+          VendorPayout(
+            id: 'p1',
+            vendorId: vendor.id,
+            assignmentId: assignment.id,
+            payoutDate: DateTime(2026, 11, 8),
+            amount: 4100.0,
+          ),
+        ],
+        customerPayments: [
+          VendorCustomerPayment(
+            id: 'cp1',
+            assignmentId: assignment.id,
+            vendorId: vendor.id,
+            customerId: assignment.customerId,
+            paymentType: 'BANK_LOAN',
+            paymentStage: 'LOAN_CREDIT',
+            amount: 200000.0,
+            paymentDate: DateTime(2026, 11, 3),
+          ),
+        ],
+      );
+
+      final pdfBytes = await SubVendorPdfService.generateVendorFullChronologicalLedgerPdfBytes(
+        summary: ledger,
+        vendor: vendor,
+      );
+
+      expect(pdfBytes, isNotEmpty);
+      expect(pdfBytes.length, greaterThan(1500));
+      // PDF starts with %PDF magic header
+      expect(pdfBytes[0], equals(0x25)); // %
+      expect(pdfBytes[1], equals(0x50)); // P
+      expect(pdfBytes[2], equals(0x44)); // D
+      expect(pdfBytes[3], equals(0x46)); // F
+    });
   });
 }
 
