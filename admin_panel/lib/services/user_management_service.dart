@@ -270,6 +270,40 @@ class UserManagementService {
     }).eq('id', userId);
   }
 
+  /// Update granular module permissions for a user
+  static Future<void> updateUserPermissions({
+    required String userId,
+    required Map<String, List<String>> permissions,
+    String? targetUserName,
+  }) async {
+    try {
+      final currentAdmin = SupabaseService.currentUser;
+
+      // Sync can_delete if customer record delete is toggled
+      final customerActions = permissions['customer'] ?? [];
+      final hasCustomerDelete = customerActions.contains('delete') || customerActions.contains('*');
+
+      await _client.from('profiles').update({
+        'permissions': permissions,
+        'can_delete': hasCustomerDelete,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', userId);
+
+      await _logAudit(
+        action: 'PERMISSIONS_UPDATED',
+        targetUser: targetUserName ?? userId,
+        fieldName: 'permissions',
+        oldVal: null,
+        newVal: 'Updated module permissions matrix (${permissions.length} modules configured)',
+        changedBy: currentAdmin?.id,
+      );
+    } catch (e, stack) {
+      // ignore: avoid_print
+      print('Error in UserManagementService.updateUserPermissions: $e\n$stack');
+      rethrow;
+    }
+  }
+
   /// Trigger secure password reset link via Supabase Auth
   static Future<void> sendPasswordResetEmail(String email) async {
     if (email.trim().isEmpty) {

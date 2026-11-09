@@ -56,34 +56,48 @@ class UserRole {
       case 'admin':
         return {
           'customer': ['view', 'create', 'edit', 'delete'],
-          'loan': ['view', 'update'],
-          'installation': ['view', 'update'],
-          'rts': ['view', 'update'],
-          'subsidy': ['view', 'update'],
-          'payment': ['view', 'create', 'edit'],
-          'followup': ['view', 'create', 'complete'],
-          'general_issue': ['view', 'create', 'update', 'close'],
+          'loan': ['view', 'create', 'edit', 'delete'],
+          'installation': ['view', 'create', 'edit', 'delete'],
+          'rts': ['view', 'create', 'edit', 'delete'],
+          'subsidy': ['view', 'create', 'edit', 'delete'],
+          'payment': ['view', 'create', 'edit', 'delete'],
+          'invoices': ['view', 'create', 'edit', 'delete'],
+          'customer_hishob': ['view', 'create', 'edit', 'delete'],
+          'sub_vendor': ['view', 'create', 'edit', 'delete'],
+          'commission': ['view', 'create', 'edit', 'delete', 'approve', 'pay'],
+          'solar_quotation': ['view', 'create', 'edit', 'delete'],
+          'solar_cost_calculator': ['view', 'create', 'edit', 'delete'],
+          'followup': ['view', 'create', 'edit', 'complete'],
+          'general_issue': ['view', 'create', 'edit', 'close'],
+          'leads': ['view', 'create', 'edit', 'delete'],
+          'whatsapp': ['view', 'create', 'edit', 'delete'],
           'misc': ['view', 'create', 'complete'],
           'import': ['view', 'create'],
           'export_excel': ['view'],
           'export_pdf': ['view'],
           'reports': ['view'],
           'user_management': ['view', 'create', 'edit', 'delete'],
-          'settings': ['view', 'edit'],
-          'commission': ['view', 'create', 'edit', 'delete', 'approve', 'pay'],
+          'settings': ['view', 'edit', 'delete'],
         };
 
       case 'office_staff':
         return {
           'customer': ['view', 'create', 'edit'],
-          'loan': ['view', 'update'],
+          'loan': ['view', 'edit'],
           'installation': ['view'],
-          'rts': ['view', 'update'],
-          'subsidy': ['view', 'update'],
+          'rts': ['view', 'edit'],
+          'subsidy': ['view', 'edit'],
           'payment': ['view', 'create'],
+          'invoices': ['view', 'create'],
+          'customer_hishob': ['view'],
+          'sub_vendor': ['view'],
           'commission': ['view', 'create'],
+          'solar_quotation': ['view', 'create', 'edit'],
+          'solar_cost_calculator': ['view'],
+          'leads': ['view', 'create', 'edit'],
+          'whatsapp': ['view', 'create', 'edit'],
           'followup': ['view', 'create', 'complete'],
-          'general_issue': ['view', 'create', 'update', 'close'],
+          'general_issue': ['view', 'create', 'edit', 'close'],
           'misc': ['view', 'create', 'complete'],
           'export_excel': ['view'],
           'reports': ['view'],
@@ -92,6 +106,10 @@ class UserRole {
       case 'sales':
         return {
           'customer': ['view', 'create', 'edit'],
+          'leads': ['view', 'create', 'edit'],
+          'solar_quotation': ['view', 'create', 'edit'],
+          'solar_cost_calculator': ['view', 'create', 'edit'],
+          'whatsapp': ['view', 'create', 'edit'],
           'followup': ['view', 'create', 'complete'],
           'general_issue': ['view', 'create'],
           'misc': ['view', 'create'],
@@ -101,17 +119,17 @@ class UserRole {
       case 'loan_staff':
         return {
           'customer': ['view'],
-          'loan': ['view', 'update'],
+          'loan': ['view', 'edit'],
           'followup': ['view', 'create', 'complete'],
-          'general_issue': ['view', 'create', 'update'],
+          'general_issue': ['view', 'create', 'edit'],
           'misc': ['view', 'create'],
         };
 
       case 'installation_staff':
         return {
           'customer': ['view'],
-          'installation': ['view', 'update'],
-          'general_issue': ['view', 'create', 'update'],
+          'installation': ['view', 'edit'],
+          'general_issue': ['view', 'create', 'edit'],
           'misc': ['view', 'create'],
         };
 
@@ -119,8 +137,11 @@ class UserRole {
         return {
           'customer': ['view'],
           'payment': ['view', 'create', 'edit'],
+          'invoices': ['view', 'create', 'edit'],
+          'customer_hishob': ['view', 'create', 'edit'],
+          'sub_vendor': ['view', 'create', 'edit'],
           'commission': ['view', 'create', 'pay'],
-          'subsidy': ['view', 'update'],
+          'subsidy': ['view', 'edit'],
           'export_excel': ['view'],
           'reports': ['view'],
         };
@@ -133,6 +154,13 @@ class UserRole {
           'rts': ['view'],
           'subsidy': ['view'],
           'payment': ['view'],
+          'invoices': ['view'],
+          'customer_hishob': ['view'],
+          'sub_vendor': ['view'],
+          'commission': ['view'],
+          'solar_quotation': ['view'],
+          'solar_cost_calculator': ['view'],
+          'leads': ['view'],
           'followup': ['view'],
           'general_issue': ['view'],
           'misc': ['view'],
@@ -141,6 +169,7 @@ class UserRole {
 
       case 'sub_vendor':
         return {
+          'sub_vendor': ['view', 'edit'],
           'vendor_dashboard': ['view'],
           'assigned_sites': ['view', 'update_status'],
           'materials': ['view'],
@@ -203,12 +232,70 @@ class UserProfile {
   bool get isSuspended => status.toUpperCase() == 'SUSPENDED';
   bool get isInactive => status.toUpperCase() == 'INACTIVE' || !isActive;
 
-  /// Check if user has granular permission (e.g. module: 'customer', action: 'edit')
+  /// Check if user has granular permission (e.g. module: 'customer', action: 'view' | 'edit' | 'delete')
   bool hasPermission(String module, String action) {
     if (isAdmin) return true;
-    final actions = permissions[module.toLowerCase()];
+    final mKey = module.toLowerCase();
+    final act = action.toLowerCase();
+
+    List<String>? actions = permissions[mKey];
+
+    // Fallbacks for legacy keys or aliases
+    if (actions == null) {
+      if (mKey == 'sub_vendor' && permissions.containsKey('commission')) {
+        actions = permissions['commission'];
+      } else if (mKey == 'solar_quotation' && permissions.containsKey('customer')) {
+        actions = permissions['customer'];
+      } else if (mKey == 'solar_cost_calculator' && permissions.containsKey('customer')) {
+        actions = permissions['customer'];
+      } else if (mKey == 'customer_hishob' && permissions.containsKey('payment')) {
+        actions = permissions['payment'];
+      } else if (mKey == 'invoices' && permissions.containsKey('payment')) {
+        actions = permissions['payment'];
+      } else if (mKey == 'leads' && permissions.containsKey('customer')) {
+        actions = permissions['customer'];
+      } else if (mKey == 'whatsapp' && permissions.containsKey('customer')) {
+        actions = permissions['customer'];
+      }
+    }
+
     if (actions == null) return false;
-    return actions.contains(action.toLowerCase()) || actions.contains('*');
+    if (actions.contains('*')) return true;
+
+    // View action
+    if (act == 'view') {
+      return actions.contains('view') || actions.isNotEmpty;
+    }
+
+    // Edit action maps to edit, create, or update
+    if (act == 'edit' || act == 'update' || act == 'create') {
+      return actions.contains('edit') ||
+          actions.contains('create') ||
+          actions.contains('update');
+    }
+
+    // Delete action
+    if (act == 'delete') {
+      if (actions.contains('delete')) return true;
+      // If legacy global canDelete is enabled and staff has view access to this module
+      if (canDelete && actions.contains('view')) return true;
+      return false;
+    }
+
+    return actions.contains(act);
+  }
+
+  bool canView(String module) => hasPermission(module, 'view');
+  bool canEdit(String module) => hasPermission(module, 'edit');
+  bool canDeleteFrom(String module) => hasPermission(module, 'delete');
+
+  /// Total distinct modules where user has at least View access
+  int get allowedModulesCount {
+    if (isAdmin) return 20;
+    return permissions.keys.where((k) {
+      final acts = permissions[k];
+      return acts != null && acts.isNotEmpty;
+    }).length;
   }
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {

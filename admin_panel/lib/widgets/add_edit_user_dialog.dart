@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
+import '../models/app_module_permission.dart';
 import '../services/user_management_service.dart';
 
 class AddEditUserDialog extends StatefulWidget {
@@ -534,72 +535,173 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> with SingleTicker
   }
 
   Widget _buildPermissionsTab(ThemeData theme) {
-    final modules = [
-      {'key': 'customer', 'label': 'Customer Records', 'actions': ['View', 'Create', 'Edit', 'Delete']},
-      {'key': 'loan', 'label': 'Loan Management', 'actions': ['View', 'Update']},
-      {'key': 'installation', 'label': 'Installation & Teams', 'actions': ['View', 'Update']},
-      {'key': 'rts', 'label': 'RTS / Net Metering', 'actions': ['View', 'Update']},
-      {'key': 'subsidy', 'label': 'Govt. Subsidy Processing', 'actions': ['View', 'Update']},
-      {'key': 'payment', 'label': 'Payments & Receipts', 'actions': ['View', 'Create', 'Edit']},
-      {'key': 'followup', 'label': 'Follow-ups & Schedules', 'actions': ['View', 'Create', 'Complete']},
-      {'key': 'general_issue', 'label': 'Customer Issues & Complaints', 'actions': ['View', 'Create', 'Update', 'Close']},
-      {'key': 'misc', 'label': 'MISC Operations', 'actions': ['View', 'Create', 'Complete']},
-      {'key': 'import', 'label': 'Import Data (Excel/CSV)', 'actions': ['View', 'Create']},
-      {'key': 'export_excel', 'label': 'Global Export Excel', 'actions': ['View']},
-      {'key': 'export_pdf', 'label': 'Export PDF Reports', 'actions': ['View']},
-      {'key': 'reports', 'label': 'Reports & Analytics', 'actions': ['View']},
-      {'key': 'user_management', 'label': 'User Management & Roles', 'actions': ['View', 'Create', 'Edit', 'Delete']},
-      {'key': 'settings', 'label': 'System Settings & Audit', 'actions': ['View', 'Edit']},
-    ];
+    final modules = AppModuleRegistry.allModules;
 
-    return ListView.builder(
-      itemCount: modules.length,
-      itemBuilder: (ctx, i) {
-        final mod = modules[i];
-        final key = mod['key'] as String;
-        final label = mod['label'] as String;
-        final actions = mod['actions'] as List<String>;
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 10),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: BorderSide(color: theme.colorScheme.outlineVariant),
+    return Column(
+      children: [
+        // Presets toolbar
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(8),
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
+            children: [
+              const Text('Presets:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _permissions = AppModuleRegistry.fullAccessPermissions();
+                  });
+                },
+                icon: const Icon(Icons.check_circle_outline, size: 14, color: Colors.green),
+                label: const Text('Full Access', style: TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(width: 4),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _permissions = AppModuleRegistry.readOnlyPermissions();
+                  });
+                },
+                icon: const Icon(Icons.visibility_outlined, size: 14, color: Colors.blue),
+                label: const Text('Read Only', style: TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(width: 4),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _permissions = UserRole.defaultPermissions(_selectedRole);
+                  });
+                },
+                icon: const Icon(Icons.refresh, size: 14, color: Colors.orange),
+                label: const Text('Reset to Role Default', style: TextStyle(fontSize: 12)),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _permissions.clear();
+                  });
+                },
+                icon: const Icon(Icons.clear_all, size: 14, color: Colors.red),
+                label: const Text('Clear All', style: TextStyle(fontSize: 12, color: Colors.red)),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Modules List
+        Expanded(
+          child: ListView.builder(
+            itemCount: modules.length,
+            itemBuilder: (ctx, i) {
+              final mod = modules[i];
+              final hasView = AppModuleRegistry.hasView(_permissions, mod.key);
+              final hasEdit = AppModuleRegistry.hasEdit(_permissions, mod.key);
+              final hasDelete = AppModuleRegistry.hasDelete(_permissions, mod.key);
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(
+                    color: hasView
+                        ? theme.colorScheme.primary.withValues(alpha: 0.4)
+                        : theme.colorScheme.outlineVariant,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  child: Row(
                     children: [
-                      Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      Text('Module ID: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      Icon(mod.icon, size: 20, color: theme.colorScheme.primary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 4,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              mod.nameMr,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            Text(
+                              '${mod.nameEn} (${mod.category})',
+                              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        flex: 5,
+                        child: Wrap(
+                          spacing: 8,
+                          alignment: WrapAlignment.end,
+                          children: [
+                            FilterChip(
+                              selected: hasView,
+                              avatar: Icon(Icons.visibility, size: 14, color: hasView ? Colors.green.shade900 : null),
+                              label: const Text('View (पाहणे)', style: TextStyle(fontSize: 11)),
+                              selectedColor: Colors.green.shade100,
+                              onSelected: (val) {
+                                setState(() {
+                                  _permissions = AppModuleRegistry.setModulePermission(
+                                    currentPerms: _permissions,
+                                    moduleKey: mod.key,
+                                    action: 'view',
+                                    enabled: val,
+                                  );
+                                });
+                              },
+                            ),
+                            FilterChip(
+                              selected: hasEdit,
+                              avatar: Icon(Icons.edit, size: 14, color: hasEdit ? Colors.blue.shade900 : null),
+                              label: const Text('Edit (बदलणे)', style: TextStyle(fontSize: 11)),
+                              selectedColor: Colors.blue.shade100,
+                              onSelected: (val) {
+                                setState(() {
+                                  _permissions = AppModuleRegistry.setModulePermission(
+                                    currentPerms: _permissions,
+                                    moduleKey: mod.key,
+                                    action: 'edit',
+                                    enabled: val,
+                                  );
+                                });
+                              },
+                            ),
+                            FilterChip(
+                              selected: hasDelete,
+                              avatar: Icon(Icons.delete_outline, size: 14, color: hasDelete ? Colors.red.shade900 : null),
+                              label: const Text('Delete (हटवणे)', style: TextStyle(fontSize: 11)),
+                              selectedColor: Colors.red.shade100,
+                              onSelected: (val) {
+                                setState(() {
+                                  _permissions = AppModuleRegistry.setModulePermission(
+                                    currentPerms: _permissions,
+                                    moduleKey: mod.key,
+                                    action: 'delete',
+                                    enabled: val,
+                                  );
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                Expanded(
-                  flex: 5,
-                  child: Wrap(
-                    spacing: 12,
-                    children: actions.map((act) {
-                      final has = _hasPerm(key, act);
-                      return FilterChip(
-                        selected: has,
-                        label: Text(act, style: const TextStyle(fontSize: 12)),
-                        onSelected: (selected) => _togglePerm(key, act, selected),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
+              );
+            },
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:admin_panel/models/user_profile.dart';
+import 'package:admin_panel/models/app_module_permission.dart';
 
 void main() {
   group('Phase 9: User & Permission Management Tests', () {
@@ -101,6 +102,148 @@ void main() {
       expect(admin.hasPermission('customer', 'delete'), isTrue);
       expect(admin.hasPermission('user_management', 'create'), isTrue);
       expect(admin.hasPermission('settings', 'edit'), isTrue);
+    });
+
+    test('AppModuleRegistry catalogs all 20 ERP modules with categories and bilingual labels', () {
+      final all = AppModuleRegistry.allModules;
+      expect(all.length, 20);
+
+      final keys = all.map((m) => m.key).toSet();
+      expect(keys.contains('customer'), isTrue);
+      expect(keys.contains('loan'), isTrue);
+      expect(keys.contains('installation'), isTrue);
+      expect(keys.contains('rts'), isTrue);
+      expect(keys.contains('subsidy'), isTrue);
+      expect(keys.contains('payment'), isTrue);
+      expect(keys.contains('invoices'), isTrue);
+      expect(keys.contains('customer_hishob'), isTrue);
+      expect(keys.contains('sub_vendor'), isTrue);
+      expect(keys.contains('commission'), isTrue);
+      expect(keys.contains('solar_quotation'), isTrue);
+      expect(keys.contains('solar_cost_calculator'), isTrue);
+      expect(keys.contains('followup'), isTrue);
+      expect(keys.contains('general_issue'), isTrue);
+      expect(keys.contains('leads'), isTrue);
+      expect(keys.contains('whatsapp'), isTrue);
+      expect(keys.contains('import'), isTrue);
+      expect(keys.contains('reports'), isTrue);
+      expect(keys.contains('user_management'), isTrue);
+      expect(keys.contains('settings'), isTrue);
+
+      for (final mod in all) {
+        expect(mod.nameMr.isNotEmpty, isTrue);
+        expect(mod.nameEn.isNotEmpty, isTrue);
+        expect(mod.descriptionMr.isNotEmpty, isTrue);
+        expect(mod.descriptionEn.isNotEmpty, isTrue);
+        expect(
+          ['Operations', 'Finance', 'Tools', 'System'].contains(mod.category),
+          isTrue,
+          reason: '${mod.key} has invalid category ${mod.category}',
+        );
+      }
+    });
+
+    test('AppModuleRegistry Presets: Full Access, Read Only, No Access, and Role Default', () {
+      // 1. Full Access
+      final full = AppModuleRegistry.fullAccessPermissions();
+      expect(full.length, 20);
+      for (final mod in AppModuleRegistry.allModules) {
+        expect(AppModuleRegistry.hasView(full, mod.key), isTrue);
+        expect(AppModuleRegistry.hasEdit(full, mod.key), isTrue);
+        expect(AppModuleRegistry.hasDelete(full, mod.key), isTrue);
+      }
+
+      // 2. Read Only
+      final ro = AppModuleRegistry.readOnlyPermissions();
+      expect(ro.length, 20);
+      for (final mod in AppModuleRegistry.allModules) {
+        expect(AppModuleRegistry.hasView(ro, mod.key), isTrue);
+        expect(AppModuleRegistry.hasEdit(ro, mod.key), isFalse);
+        expect(AppModuleRegistry.hasDelete(ro, mod.key), isFalse);
+      }
+
+      // 3. No Access
+      final noAcc = AppModuleRegistry.noAccessPermissions();
+      expect(noAcc.isEmpty, isTrue);
+      for (final mod in AppModuleRegistry.allModules) {
+        expect(AppModuleRegistry.hasView(noAcc, mod.key), isFalse);
+        expect(AppModuleRegistry.hasEdit(noAcc, mod.key), isFalse);
+        expect(AppModuleRegistry.hasDelete(noAcc, mod.key), isFalse);
+      }
+    });
+
+    test('Permission toggle logic: turning off View cascades to Edit & Delete; turning on Edit/Delete grants View', () {
+      var perms = <String, List<String>>{};
+
+      // Initially no access
+      expect(AppModuleRegistry.hasView(perms, 'sub_vendor'), isFalse);
+      expect(AppModuleRegistry.hasEdit(perms, 'sub_vendor'), isFalse);
+      expect(AppModuleRegistry.hasDelete(perms, 'sub_vendor'), isFalse);
+
+      // Turn ON Edit directly -> should also automatically grant View
+      perms = AppModuleRegistry.setModulePermission(
+        currentPerms: perms,
+        moduleKey: 'sub_vendor',
+        action: 'edit',
+        enabled: true,
+      );
+      expect(AppModuleRegistry.hasView(perms, 'sub_vendor'), isTrue);
+      expect(AppModuleRegistry.hasEdit(perms, 'sub_vendor'), isTrue);
+      expect(AppModuleRegistry.hasDelete(perms, 'sub_vendor'), isFalse);
+
+      // Turn ON Delete directly -> should grant Delete while keeping View & Edit
+      perms = AppModuleRegistry.setModulePermission(
+        currentPerms: perms,
+        moduleKey: 'sub_vendor',
+        action: 'delete',
+        enabled: true,
+      );
+      expect(AppModuleRegistry.hasView(perms, 'sub_vendor'), isTrue);
+      expect(AppModuleRegistry.hasEdit(perms, 'sub_vendor'), isTrue);
+      expect(AppModuleRegistry.hasDelete(perms, 'sub_vendor'), isTrue);
+
+      // Turn OFF View -> should automatically revoke all actions
+      perms = AppModuleRegistry.setModulePermission(
+        currentPerms: perms,
+        moduleKey: 'sub_vendor',
+        action: 'view',
+        enabled: false,
+      );
+      expect(AppModuleRegistry.hasView(perms, 'sub_vendor'), isFalse);
+      expect(AppModuleRegistry.hasEdit(perms, 'sub_vendor'), isFalse);
+      expect(AppModuleRegistry.hasDelete(perms, 'sub_vendor'), isFalse);
+      expect(perms.containsKey('sub_vendor'), isFalse);
+    });
+
+    test('Granular permissions across newly introduced modules (sub_vendor, solar_quotation, etc.)', () {
+      final customStaff = UserProfile(
+        id: 'u-vendor-officer',
+        email: 'officer@siya.com',
+        role: 'staff',
+        permissions: {
+          'sub_vendor': ['view', 'edit'],
+          'solar_quotation': ['view'],
+          'solar_cost_calculator': ['view', 'edit', 'delete'],
+        },
+      );
+
+      // sub_vendor checks
+      expect(customStaff.canView('sub_vendor'), isTrue);
+      expect(customStaff.canEdit('sub_vendor'), isTrue);
+      expect(customStaff.canDeleteFrom('sub_vendor'), isFalse);
+
+      // solar_quotation checks
+      expect(customStaff.canView('solar_quotation'), isTrue);
+      expect(customStaff.canEdit('solar_quotation'), isFalse);
+      expect(customStaff.canDeleteFrom('solar_quotation'), isFalse);
+
+      // solar_cost_calculator checks
+      expect(customStaff.canView('solar_cost_calculator'), isTrue);
+      expect(customStaff.canEdit('solar_cost_calculator'), isTrue);
+      expect(customStaff.canDeleteFrom('solar_cost_calculator'), isTrue);
+
+      // unassigned module
+      expect(customStaff.canView('customer_hishob'), isFalse);
     });
   });
 }
