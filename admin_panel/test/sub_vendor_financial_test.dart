@@ -1237,6 +1237,121 @@ void main() {
       expect(pdfBytes, isNotEmpty);
       expect(pdfBytes.length, greaterThan(1500));
     });
+
+    test('20. VendorFinancialSummary & SiteFinancialDetail sync Net GST liability and Net Settlement Payable', () async {
+      final vendor = SubVendor(
+        id: 'vnd-dhanshree',
+        vendorCode: 'SIYA-VND-001',
+        name: 'Dhanshree solar',
+        mobile: '8600952048',
+        email: 'dhanshree@vendor.siyasolar.com',
+        defaultRatePerKw: 1000.0,
+      );
+
+      final assignment = VendorSiteAssignment(
+        id: 'asg-pandurang',
+        vendorId: vendor.id,
+        customerId: 'cust-pandurang',
+        customerName: 'SHRI PANDURANG BHIVSAN SHIRSAGAR',
+        consumerNo: '097030010608',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 3.5,
+        ratePerKw: 1000.0,
+        vendorCharges: 3500.0,
+        totalCustomerSiteAmount: 222222.0,
+        loanSanctionedAmount: 200000.0,
+        totalLoanCredited: 200000.0,
+        totalCashReceived: 0.0,
+        totalCustomerReceived: 200000.0,
+        customerOutstanding: 0.0,
+        paymentType: 'Bank Loan Customer',
+      );
+
+      final List<VendorMaterialTransaction> materials = [
+        VendorMaterialTransaction(
+          id: 'mat-1',
+          assignmentId: assignment.id,
+          vendorId: vendor.id,
+          customerId: assignment.customerId,
+          itemName: '550W Mono PERC Solar Panels',
+          itemCategory: 'SOLAR_PANEL',
+          transactionType: 'ISSUE',
+          quantity: 6,
+          unit: 'Nos',
+          unitRate: 17150.0,
+          taxableAmount: 98000.0,
+          gstRate: 5.0,
+          gstAmount: 4900.0,
+          totalAmount: 102900.0,
+          isItcEligible: true,
+          transactionDate: DateTime(2026, 11, 1),
+        ),
+        VendorMaterialTransaction(
+          id: 'mat-2',
+          assignmentId: assignment.id,
+          vendorId: vendor.id,
+          customerId: assignment.customerId,
+          itemName: 'Solar BOS & Structure Materials',
+          itemCategory: 'STRUCTURE_MATERIAL',
+          transactionType: 'ISSUE',
+          quantity: 1,
+          unit: 'Set',
+          unitRate: 29650.0,
+          taxableAmount: 29650.0,
+          gstRate: 18.0,
+          gstAmount: 5337.0,
+          totalAmount: 34987.0,
+          isItcEligible: true,
+          transactionDate: DateTime(2026, 11, 2),
+        ),
+      ];
+
+      final List<VendorPayout> payouts = [
+        VendorPayout(
+          id: 'pay-1',
+          vendorId: vendor.id,
+          assignmentId: assignment.id,
+          amount: 4100.0,
+          payoutDate: DateTime(2026, 11, 8),
+          paymentMode: 'Bank Transfer',
+        ),
+      ];
+
+      final detail = SiteFinancialDetail.compute(
+        assignment: assignment,
+        materials: materials,
+        payouts: payouts,
+      );
+
+      // Total material = 102,900 + 34,987 = ₹1,37,887.00
+      expect(detail.totalMaterialCost, equals(137887.0));
+      // Eligible input GST = 4,900 + 5,337 = ₹10,237.00
+      expect(detail.totalEligibleInputGst, equals(10237.0));
+      // Output GST on ₹2,22,222.00 using 70:30 = ₹17,576.88
+      // Net GST = 17,576.88 - 10,237 = ₹7,339.88
+      expect(detail.netGstLiability, closeTo(7339.88, 0.01));
+      // SIYA charges = 3.5 * 1000 = ₹3,500.00
+      expect(detail.vendorCharges, equals(3500.0));
+      // Net Balance = 2,00,000 - 1,37,887 - 3,500 - 7,339.88 - 4,100 = ₹47,173.12
+      expect(detail.netSubVendorBalance, closeTo(47173.12, 0.01));
+
+      final summary = VendorFinancialSummary.compute(
+        vendorId: vendor.id,
+        vendorCode: vendor.vendorCode,
+        vendorName: vendor.name,
+        assignments: [assignment],
+        allMaterials: materials,
+        allPayouts: payouts,
+      );
+
+      expect(summary.totalNetGstLiability, closeTo(7339.88, 0.01));
+      expect(summary.netSettlementPayable, closeTo(47173.12, 0.01));
+
+      // Verify Master PDF Generation
+      final masterPdfBytes = await SubVendorPdfService.generateVendorOverallStatementPdfBytes(summary, vendor: vendor);
+      expect(masterPdfBytes, isNotEmpty);
+      expect(masterPdfBytes.length, greaterThan(1500));
+    });
   });
 }
 

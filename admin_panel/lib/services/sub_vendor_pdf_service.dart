@@ -17,6 +17,7 @@ class SubVendorPdfService {
   static const PdfColor headerBgColor = PdfColor.fromInt(0xFFF1F5F9);
   static const PdfColor zebraBgColor = PdfColor.fromInt(0xFFF8FAFC);
   static const PdfColor accentBannerBg = PdfColor.fromInt(0xFFE0F2FE);
+  static const PdfColor amberColor = PdfColor.fromInt(0xFFD97706);
 
   static final _currency = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. ', decimalDigits: 2);
   static final _dateFormat = DateFormat('dd-MM-yyyy');
@@ -517,11 +518,13 @@ class SubVendorPdfService {
               pw.Row(
                 children: [
                   _kpiBox('Total Collection', _currency.format(summary.effectiveTotalCollection), emeraldColor),
-                  pw.SizedBox(width: 6),
+                  pw.SizedBox(width: 5),
                   _kpiBox('Less: Material Cost', '- ${_currency.format(summary.totalMaterialCost)}', PdfColors.red800),
-                  pw.SizedBox(width: 6),
+                  pw.SizedBox(width: 5),
                   _kpiBox('Less: SIYA Charges', '- ${_currency.format(summary.totalVendorCharges)}', navyColor),
-                  pw.SizedBox(width: 6),
+                  pw.SizedBox(width: 5),
+                  _kpiBox('Less: Net GST', '- ${_currency.format(summary.totalNetGstLiability)}', amberColor),
+                  pw.SizedBox(width: 5),
                   _kpiBox(
                     summary.netSettlementPayable >= 0 ? 'Net Sub-Vendor Due' : 'Amount Recoverable',
                     _currency.format(summary.netSettlementPayable.abs()),
@@ -543,18 +546,19 @@ class SubVendorPdfService {
                   children: [
                     pw.Container(
                       color: headerBgColor,
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3.5),
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3.5),
                       child: pw.Row(
                         children: [
-                          pw.SizedBox(width: 16, child: pw.Text('#', style: _thStyle)),
-                          pw.SizedBox(width: 60, child: pw.Text('CA / Site ID', style: _thStyle)),
+                          pw.SizedBox(width: 14, child: pw.Text('#', style: _thStyle)),
+                          pw.SizedBox(width: 55, child: pw.Text('CA / Site ID', style: _thStyle)),
                           pw.Expanded(child: pw.Text('Customer Name', style: _thStyle)),
-                          pw.SizedBox(width: 35, child: pw.Text('kW', style: _thStyle)),
-                          pw.SizedBox(width: 62, child: pw.Text('Collection', style: _thStyle)),
-                          pw.SizedBox(width: 62, child: pw.Text('Material Cost', style: _thStyle)),
-                          pw.SizedBox(width: 50, child: pw.Text('SIYA Fee', style: _thStyle)),
-                          pw.SizedBox(width: 45, child: pw.Text('Paid', style: _thStyle)),
-                          pw.SizedBox(width: 65, child: pw.Text('Net Balance', style: _thStyle, textAlign: pw.TextAlign.right)),
+                          pw.SizedBox(width: 30, child: pw.Text('kW', style: _thStyle)),
+                          pw.SizedBox(width: 56, child: pw.Text('Collection', style: _thStyle)),
+                          pw.SizedBox(width: 56, child: pw.Text('Material Cost', style: _thStyle)),
+                          pw.SizedBox(width: 44, child: pw.Text('SIYA Fee', style: _thStyle)),
+                          pw.SizedBox(width: 44, child: pw.Text('Net GST', style: _thStyle)),
+                          pw.SizedBox(width: 40, child: pw.Text('Paid', style: _thStyle)),
+                          pw.SizedBox(width: 58, child: pw.Text('Net Balance', style: _thStyle, textAlign: pw.TextAlign.right)),
                         ],
                       ),
                     ),
@@ -571,11 +575,11 @@ class SubVendorPdfService {
                         final s = entry.value;
                         return pw.Container(
                           color: i % 2 == 1 ? zebraBgColor : PdfColors.white,
-                          padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
                           child: pw.Row(
                             children: [
-                              pw.SizedBox(width: 16, child: pw.Text('${i + 1}', style: _tdStyle)),
-                              pw.SizedBox(width: 60, child: pw.Text(s.assignment.consumerNo ?? '-', style: _tdStyle)),
+                              pw.SizedBox(width: 14, child: pw.Text('${i + 1}', style: _tdStyle)),
+                              pw.SizedBox(width: 55, child: pw.Text(s.assignment.consumerNo ?? '-', style: _tdStyle)),
                               pw.Expanded(
                                 child: pw.Text(
                                   s.assignment.customerName ?? '-',
@@ -586,29 +590,30 @@ class SubVendorPdfService {
                                   ),
                                 ),
                               ),
-                              pw.SizedBox(width: 35, child: pw.Text('${s.assignment.siteCapacityKw} kW', style: _tdStyle)),
+                              pw.SizedBox(width: 30, child: pw.Text('${s.assignment.siteCapacityKw} kW', style: _tdStyle)),
                               pw.SizedBox(
-                                width: 62,
+                                width: 56,
                                 child: pw.Text(
                                   _currency.format(s.effectiveCollection),
-                                  style: pw.TextStyle(fontSize: 7.0, color: emeraldColor, fontWeight: pw.FontWeight.bold),
+                                  style: pw.TextStyle(fontSize: 6.8, color: emeraldColor, fontWeight: pw.FontWeight.bold),
                                 ),
                               ),
                               pw.SizedBox(
-                                width: 62,
+                                width: 56,
                                 child: pw.Text(
                                   '- ${_currency.format(s.totalMaterialCost)}',
-                                  style: const pw.TextStyle(fontSize: 7.0, color: PdfColors.red800),
+                                  style: const pw.TextStyle(fontSize: 6.8, color: PdfColors.red800),
                                 ),
                               ),
-                              pw.SizedBox(width: 50, child: pw.Text('- ${_currency.format(s.vendorCharges)}', style: _tdStyle)),
-                              pw.SizedBox(width: 45, child: pw.Text(_currency.format(s.totalPaidToVendor), style: _tdStyle)),
+                              pw.SizedBox(width: 44, child: pw.Text('- ${_currency.format(s.vendorCharges)}', style: _tdStyle)),
+                              pw.SizedBox(width: 44, child: pw.Text('- ${_currency.format(s.netGstLiability)}', style: _tdStyle)),
+                              pw.SizedBox(width: 40, child: pw.Text(_currency.format(s.totalPaidToVendor), style: _tdStyle)),
                               pw.SizedBox(
-                                width: 65,
+                                width: 58,
                                 child: pw.Text(
                                   _currency.format(s.netSubVendorBalance),
                                   style: pw.TextStyle(
-                                    fontSize: 7.2,
+                                    fontSize: 7.0,
                                     fontWeight: pw.FontWeight.bold,
                                     color: s.netSubVendorBalance >= 0 ? emeraldColor : PdfColors.red800,
                                   ),
@@ -640,6 +645,7 @@ class SubVendorPdfService {
                     _subSummary('5% GST Material Total:', _currency.format(summary.material5Total)),
                     _subSummary('18% GST BOS Total:', _currency.format(summary.material18Total)),
                     _subSummary('Total Input GST:', _currency.format(summary.totalEligibleInputGst)),
+                    _subSummary('Statutory Net GST:', _currency.format(summary.totalNetGstLiability)),
                     _subSummary('Total Payouts Made:', _currency.format(summary.totalPaidAmount)),
                     _subSummary(
                       summary.netSettlementPayable >= 0 ? 'Net Sub-Vendor Due:' : 'Amount Recoverable:',

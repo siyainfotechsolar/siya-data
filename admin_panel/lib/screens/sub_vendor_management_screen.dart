@@ -1721,6 +1721,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                     _sumBox('Collection', _currency.format(summary.effectiveTotalCollection)),
                     _sumBox('Material Cost', '- ${_currency.format(summary.totalMaterialCost)}'),
                     _sumBox('SIYA Fee', '- ${_currency.format(summary.totalVendorCharges)}'),
+                    _sumBox('Net GST', '- ${_currency.format(summary.totalNetGstLiability)}'),
                     _sumBox('Net Due', _currency.format(summary.netSettlementPayable), isHighlight: true),
                   ],
                 ),
