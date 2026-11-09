@@ -1581,6 +1581,108 @@ void main() {
       expect(pdfBytes[2], equals(0x44)); // D
       expect(pdfBytes[3], equals(0x46)); // F
     });
+
+    // -------------------------------------------------------------------------
+    // 23. BANK-STYLE MASTER PASSBOOK STATEMENT PDF & PROPERTIES TEST
+    // -------------------------------------------------------------------------
+    test('23. SubVendorPdfService generates valid Bank-Style Master Passbook PDF and bank narration properties', () async {
+      final vendor = SubVendor(
+        id: 'vnd-dhanshree',
+        vendorCode: 'SIYA-VND',
+        name: 'Dhanshree solar',
+        mobile: '8600952048',
+        email: 'dhanshree@solar.com',
+        bankName: 'HDFC Bank',
+        accountNumber: '50200012345678',
+        ifscCode: 'HDFC0001234',
+        status: 'Active',
+        createdAt: DateTime(2026, 11, 1),
+      );
+
+      final assignment = VendorSiteAssignment(
+        id: 'asg-pandurang',
+        vendorId: vendor.id,
+        customerId: 'cust-pandurang',
+        consumerNo: '097030010608',
+        customerName: 'SHRI PANDURANG BHIVSAN SHIRSAGAR',
+        siteCapacityKw: 3.5,
+        ratePerKw: 1000.0,
+        assignedDate: DateTime(2026, 11, 2),
+        paymentType: 'Bank Loan Customer',
+        quotationTotalAmount: 222222.0,
+        totalLoanCredited: 200000.0,
+        totalCustomerReceived: 200000.0,
+      );
+
+      final ledger = SubVendorLedgerBuilder.buildLedger(
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        vendorCode: vendor.vendorCode,
+        assignments: [assignment],
+        materials: [
+          VendorMaterialTransaction(
+            id: 'm1',
+            assignmentId: assignment.id,
+            vendorId: vendor.id,
+            customerId: assignment.customerId,
+            transactionType: 'ISSUE',
+            transactionDate: DateTime(2026, 11, 4),
+            itemName: 'Solar Panels 540W',
+            itemCategory: 'SOLAR_PANEL',
+            quantity: 8.0,
+            unit: 'Nos',
+            unitRate: 12250.0,
+            taxableAmount: 98000.0,
+            gstAmount: 4900.0,
+            totalAmount: 102900.0,
+          ),
+        ],
+        payouts: [
+          VendorPayout(
+            id: 'p1',
+            vendorId: vendor.id,
+            assignmentId: assignment.id,
+            payoutDate: DateTime(2026, 11, 8),
+            amount: 4100.0,
+          ),
+        ],
+        customerPayments: [
+          VendorCustomerPayment(
+            id: 'cp1',
+            assignmentId: assignment.id,
+            vendorId: vendor.id,
+            customerId: assignment.customerId,
+            paymentType: 'BANK_LOAN',
+            paymentStage: 'LOAN_CREDIT',
+            amount: 200000.0,
+            paymentDate: DateTime(2026, 11, 3),
+          ),
+        ],
+      );
+
+      // Verify Banking Properties
+      expect(ledger.closingBalanceIndicator, equals('Cr'));
+      final creditEntry = ledger.entries.firstWhere((e) => e.isCredit);
+      expect(creditEntry.isCredit, isTrue);
+      expect(creditEntry.bankNarration.startsWith('BY '), isTrue);
+      final debitEntry = ledger.entries.firstWhere((e) => e.isDebit);
+      expect(debitEntry.isDebit, isTrue);
+      expect(debitEntry.bankNarration.startsWith('TO '), isTrue);
+
+      // Generate Bank Passbook Master Ledger PDF
+      final passbookPdf = await SubVendorPdfService.generateBankPassbookMasterLedgerPdfBytes(
+        summary: ledger,
+        vendor: vendor,
+      );
+
+      expect(passbookPdf, isNotEmpty);
+      expect(passbookPdf.length, greaterThan(2000));
+      // PDF starts with %PDF magic header
+      expect(passbookPdf[0], equals(0x25)); // %
+      expect(passbookPdf[1], equals(0x50)); // P
+      expect(passbookPdf[2], equals(0x44)); // D
+      expect(passbookPdf[3], equals(0x46)); // F
+    });
   });
 }
 

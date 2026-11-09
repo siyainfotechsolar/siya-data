@@ -41,6 +41,21 @@ class SubVendorLedgerEntry {
   bool get isDebit => debit > 0.001;
   double get netEffect => credit - debit;
 
+  /// Value date (standard banking passbook field, defaults to transaction date)
+  DateTime get valueDate => date;
+
+  /// Bank indicator for running balance: 'Cr' for positive/payable, 'Dr' for negative/recoverable
+  String get balanceIndicator => runningBalance >= -0.001 ? 'Cr' : 'Dr';
+
+  /// Bank passbook style transaction narration (e.g. 'BY LOAN...', 'TO MATERIAL...')
+  String get bankNarration {
+    final clean = particulars.trim();
+    if (clean.toUpperCase().startsWith('BY ') || clean.toUpperCase().startsWith('TO ')) {
+      return clean;
+    }
+    return isCredit ? 'BY $clean' : 'TO $clean';
+  }
+
   SubVendorLedgerEntry copyWithRunningBalance(double balance) {
     return SubVendorLedgerEntry(
       id: id,
@@ -76,6 +91,7 @@ class SubVendorLedgerSummary {
   bool get isPayable => closingBalance >= 0.0;
   double get netPayableAmount => closingBalance >= 0.0 ? closingBalance : 0.0;
   double get netRecoverableAmount => closingBalance < 0.0 ? closingBalance.abs() : 0.0;
+  String get closingBalanceIndicator => closingBalance >= -0.001 ? 'Cr' : 'Dr';
 
   const SubVendorLedgerSummary({
     required this.vendorId,
@@ -358,3 +374,4 @@ class SubVendorLedgerBuilder {
     );
   }
 }
+

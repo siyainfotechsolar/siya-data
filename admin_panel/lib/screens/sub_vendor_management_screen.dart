@@ -1711,11 +1711,11 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                         ),
                         const SizedBox(width: 8),
                         ElevatedButton.icon(
-                          icon: const Icon(Icons.menu_book, size: 14),
-                          label: const Text('Full Ledger'),
+                          icon: const Icon(Icons.account_balance, size: 14),
+                          label: const Text('Bank Master Ledger'),
                           style: ElevatedButton.styleFrom(
                             visualDensity: VisualDensity.compact,
-                            backgroundColor: const Color(0xFF047857),
+                            backgroundColor: const Color(0xFF0D2B6F),
                             foregroundColor: Colors.white,
                           ),
                           onPressed: () {

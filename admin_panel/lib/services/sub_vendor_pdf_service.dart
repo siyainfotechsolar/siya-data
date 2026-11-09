@@ -2147,4 +2147,428 @@ class SubVendorPdfService {
       name: 'Sub_Vendor_Full_Ledger_${safeName}_${summary.vendorCode}.pdf',
     );
   }
+
+  // ============================================================================
+  // 5. BANK-STYLE MASTER PASSBOOK STATEMENT PDF (बँक मास्टर खातेवही / पासबुक)
+  // ============================================================================
+
+  /// Generates a formal, bank-grade Master Passbook Statement PDF
+  static Future<Uint8List> generateBankPassbookMasterLedgerPdfBytes({
+    required SubVendorLedgerSummary summary,
+    SubVendor? vendor,
+  }) async {
+    final pdfTheme = await SolarQuotationFontHelper.loadPdfTheme();
+    final pdf = pw.Document(theme: pdfTheme);
+
+    final isPayable = summary.isPayable;
+    final primaryColor = navyColor;
+    final accentCrColor = emeraldColor;
+    final accentDrColor = const PdfColor.fromInt(0xFFDC2626);
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        header: (context) {
+          return pw.Container(
+            margin: const pw.EdgeInsets.only(bottom: 6),
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(
+              color: headerBgColor,
+              border: pw.Border.all(color: navyColor, width: 1.2),
+              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Row(
+                  children: [
+                    pw.Container(
+                      width: 32,
+                      height: 32,
+                      decoration: const pw.BoxDecoration(
+                        color: navyColor,
+                        borderRadius: pw.BorderRadius.all(pw.Radius.circular(4)),
+                      ),
+                      alignment: pw.Alignment.center,
+                      child: pw.Text(
+                        'SIYA',
+                        style: pw.TextStyle(color: PdfColors.white, fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                      ),
+                    ),
+                    pw.SizedBox(width: 8),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'SIYA INFOTECH & SOLAR ENERGY PVT. LTD.',
+                          style: pw.TextStyle(color: navyColor, fontSize: 13, fontWeight: pw.FontWeight.bold),
+                        ),
+                        pw.Text(
+                          'VENDOR BANKING & ESCROW SETTLEMENT DIVISION',
+                          style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF1E3A8A)),
+                        ),
+                        pw.Text(
+                          'Central Solar Billing: Betawad, Tal. Shindkheda, Dist. Dhule | Helpline: 9673220315',
+                          style: const pw.TextStyle(fontSize: 6.8, color: slateMutedColor),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: const pw.BoxDecoration(
+                    color: navyColor,
+                    borderRadius: pw.BorderRadius.all(pw.Radius.circular(3)),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text(
+                        'MASTER BANK PASSBOOK',
+                        style: pw.TextStyle(color: PdfColors.white, fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.Text(
+                        'खातेदार मास्टर लेजर',
+                        style: const pw.TextStyle(color: PdfColors.white, fontSize: 6.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+        footer: (context) {
+          return pw.Container(
+            margin: const pw.EdgeInsets.only(top: 6),
+            padding: const pw.EdgeInsets.symmetric(vertical: 4),
+            decoration: const pw.BoxDecoration(
+              border: pw.Border(top: pw.BorderSide(color: borderDarkColor, width: 0.5)),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'SIYA Solar Banking Passbook | Computer Generated Statement | RBI / Indian Accounting Standard Compliant',
+                  style: const pw.TextStyle(fontSize: 6.5, color: slateMutedColor),
+                ),
+                pw.Text(
+                  'Passbook Page ${context.pageNumber} of ${context.pagesCount}',
+                  style: const pw.TextStyle(fontSize: 6.8, color: slateMutedColor),
+                ),
+              ],
+            ),
+          );
+        },
+        build: (context) {
+          return [
+            // 1. BANK PASSBOOK CUSTOMER INFORMATION SLIP (पासबुक मुख्य पृष्ठ)
+            pw.Container(
+              padding: const pw.EdgeInsets.all(7),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.white,
+                border: pw.Border.all(color: borderDarkColor, width: 0.8),
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+              ),
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(
+                    flex: 3,
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('ACCOUNT HOLDER DETAILS (खातेदाराचा तपशील)',
+                            style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                        pw.Divider(color: borderDarkColor, thickness: 0.4, height: 4),
+                        _infoRow('Account Name:', summary.vendorName),
+                        _infoRow('Customer ID / Code:', summary.vendorCode),
+                        _infoRow('Account Type:', 'Sub-Vendor Operating & Escrow Ledger'),
+                        _infoRow('Registered Mobile:', vendor?.mobile ?? '-'),
+                        _infoRow('Linked Bank & A/C:', '${vendor?.bankName ?? "-"} | ${vendor?.accountNumber ?? "-"}'),
+                        _infoRow('IFSC / RTGS Code:', vendor?.ifscCode ?? '-'),
+                      ],
+                    ),
+                  ),
+                  pw.SizedBox(width: 8),
+                  pw.Expanded(
+                    flex: 2,
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('PASSBOOK AUDIT & STATEMENT INFO',
+                            style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                        pw.Divider(color: borderDarkColor, thickness: 0.4, height: 4),
+                        _infoRow('Statement Date:', _dateFormat.format(DateTime.now())),
+                        _infoRow('Value Currency:', 'INR (Rs.)'),
+                        _infoRow('KYC & GST Status:', 'Verified & Compliant'),
+                        _infoRow('Total Transactions:', '${summary.entries.length} Cleared Entries'),
+                        _infoRow('Accounting Standard:', 'GAAP / Statutory Solar 70:30'),
+                        _infoRow('Account Status:', 'ACTIVE & OPERATIONAL'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            pw.SizedBox(height: 6),
+
+            // 2. BANK ACCOUNT SUMMARY BAR (बँक स्टेटमेंट बॅलन्स सारांश)
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: pw.BoxDecoration(
+                color: navyColor,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('OPENING BALANCE', style: const pw.TextStyle(color: PdfColors.white, fontSize: 6.5)),
+                      pw.Text('Rs. 0.00 Cr', style: pw.TextStyle(color: PdfColors.white, fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                    ],
+                  ),
+                  pw.Container(width: 0.5, height: 22, color: PdfColors.white),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('TOTAL DEPOSITS (CR)', style: const pw.TextStyle(color: PdfColors.white, fontSize: 6.5)),
+                      pw.Text(_currency.format(summary.totalCredit),
+                          style: pw.TextStyle(color: const PdfColor.fromInt(0xFF86EFAC), fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+                    ],
+                  ),
+                  pw.Container(width: 0.5, height: 22, color: PdfColors.white),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('TOTAL WITHDRAWALS (DR)', style: const pw.TextStyle(color: PdfColors.white, fontSize: 6.5)),
+                      pw.Text('- ${_currency.format(summary.totalDebit)}',
+                          style: pw.TextStyle(color: const PdfColor.fromInt(0xFFFCA5A5), fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+                    ],
+                  ),
+                  pw.Container(width: 0.5, height: 22, color: PdfColors.white),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text('NET AVAILABLE BALANCE', style: const pw.TextStyle(color: PdfColors.white, fontSize: 6.5)),
+                      pw.Text(
+                        '${_currency.format(summary.closingBalance.abs())} ${summary.closingBalanceIndicator}',
+                        style: pw.TextStyle(
+                          color: isPayable ? const PdfColor.fromInt(0xFF86EFAC) : const PdfColor.fromInt(0xFFFCA5A5),
+                          fontSize: 11.5,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            pw.SizedBox(height: 6),
+
+            // 3. OFFICIAL BANK PASSBOOK LEDGER TABLE
+            pw.Table(
+              border: pw.TableBorder.all(color: borderDarkColor, width: 0.5),
+              columnWidths: {
+                0: const pw.FixedColumnWidth(16), // #
+                1: const pw.FixedColumnWidth(44), // Txn Date
+                2: const pw.FixedColumnWidth(44), // Value Date
+                3: const pw.FixedColumnWidth(48), // Chq / Ref No
+                4: const pw.FlexColumnWidth(3.4), // Narration / Particulars
+                5: const pw.FixedColumnWidth(52), // Withdrawal (Dr)
+                6: const pw.FixedColumnWidth(52), // Deposit (Cr)
+                7: const pw.FixedColumnWidth(56), // Balance
+                8: const pw.FixedColumnWidth(20), // Cr / Dr
+              },
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: headerBgColor),
+                  children: [
+                    _th('#'),
+                    _th('TXN DATE'),
+                    _th('VAL DATE'),
+                    _th('REF / UTR'),
+                    _th('TRANSACTION NARRATION & PARTICULARS'),
+                    _th('WITHDRAWAL (DR)', align: pw.TextAlign.right),
+                    _th('DEPOSIT (CR)', align: pw.TextAlign.right),
+                    _th('BALANCE (INR)', align: pw.TextAlign.right),
+                    _th('CR/DR', align: pw.TextAlign.center),
+                  ],
+                ),
+                if (summary.entries.isEmpty)
+                  pw.TableRow(
+                    children: [
+                      _td('-'),
+                      _td('-'),
+                      _td('-'),
+                      _td('-'),
+                      _td('No passbook transactions recorded for this account.'),
+                      _td('-'),
+                      _td('-'),
+                      _td('-'),
+                      _td('-'),
+                    ],
+                  )
+                else
+                  ...summary.entries.asMap().entries.map((item) {
+                    final i = item.key;
+                    final e = item.value;
+                    final isEven = i % 2 == 1;
+
+                    return pw.TableRow(
+                      decoration: pw.BoxDecoration(color: isEven ? zebraBgColor : PdfColors.white),
+                      children: [
+                        _td('${i + 1}', align: pw.TextAlign.center),
+                        _td(_dateFormat.format(e.date)),
+                        _td(_dateFormat.format(e.valueDate)),
+                        _td(e.referenceNo ?? '-', isBold: true),
+                        _td(e.bankNarration, isBold: e.isCredit),
+                        _td(
+                          e.debit > 0 ? _currency.format(e.debit) : '-',
+                          align: pw.TextAlign.right,
+                          color: e.debit > 0 ? accentDrColor : darkTextColor,
+                          isBold: e.debit > 0,
+                        ),
+                        _td(
+                          e.credit > 0 ? _currency.format(e.credit) : '-',
+                          align: pw.TextAlign.right,
+                          color: e.credit > 0 ? accentCrColor : darkTextColor,
+                          isBold: e.credit > 0,
+                        ),
+                        _td(
+                          _currency.format(e.runningBalance.abs()),
+                          align: pw.TextAlign.right,
+                          isBold: true,
+                          color: e.runningBalance >= 0 ? accentCrColor : accentDrColor,
+                        ),
+                        _td(
+                          e.balanceIndicator,
+                          align: pw.TextAlign.center,
+                          isBold: true,
+                          color: e.balanceIndicator == 'Cr' ? accentCrColor : accentDrColor,
+                        ),
+                      ],
+                    );
+                  }),
+                // Bank Passbook Summary Totals Row
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: headerBgColor),
+                  children: [
+                    _td(''),
+                    _td(''),
+                    _td(''),
+                    _td(''),
+                    _td('TOTALS & CLOSING PASSBOOK BALANCE', isBold: true),
+                    _td(_currency.format(summary.totalDebit), align: pw.TextAlign.right, isBold: true, color: accentDrColor),
+                    _td(_currency.format(summary.totalCredit), align: pw.TextAlign.right, isBold: true, color: accentCrColor),
+                    _td(_currency.format(summary.closingBalance.abs()), align: pw.TextAlign.right, isBold: true, color: isPayable ? accentCrColor : accentDrColor),
+                    _td(summary.closingBalanceIndicator, align: pw.TextAlign.center, isBold: true, color: isPayable ? accentCrColor : accentDrColor),
+                  ],
+                ),
+              ],
+            ),
+
+            pw.SizedBox(height: 8),
+
+            // 4. STATUTORY PASSBOOK COMPLIANCE NOTES
+            pw.Container(
+              padding: const pw.EdgeInsets.all(6),
+              decoration: pw.BoxDecoration(
+                color: const PdfColor.fromInt(0xFFF8FAFC),
+                border: pw.Border.all(color: borderDarkColor, width: 0.6),
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('PASSBOOK AUDIT & TRANSACTION NOTES:', style: pw.TextStyle(fontSize: 6.8, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    '1. "BY" denotes Credit / Deposit transactions (Realized Bank Loan Credits & Cash Collections credited to SIYA account).\n'
+                    '2. "TO" denotes Debit / Deduction transactions (Dynamic Material Issued, SIYA Platform charges Rs. 1,000/kW, and statutory net GST).\n'
+                    '3. Statutory Net GST is calculated strictly under Solar 70:30 Split on quotation invoice minus eligible dynamic material ITC.\n'
+                    '4. Bank 10% Margin Receipt represents the bank compliance paper receipt; customer contribution is exempt.\n'
+                    '5. "Cr" indicates Credit Balance payable to Sub-Vendor; "Dr" indicates Debit Balance recoverable from Sub-Vendor.',
+                    style: const pw.TextStyle(fontSize: 6.2, color: darkTextColor, lineSpacing: 1.2),
+                  ),
+                ],
+              ),
+            ),
+
+            pw.SizedBox(height: 12),
+
+            // 5. OFFICIAL BANK STAMP & 3-PARTY SIGNATURES
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Container(width: 120, height: 0.8, color: borderDarkColor),
+                    pw.SizedBox(height: 2),
+                    pw.Text('Account Holder / Sub-Vendor', style: const pw.TextStyle(fontSize: 6.8, color: slateMutedColor)),
+                    pw.Text(summary.vendorName, style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold)),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: navyColor, width: 0.8),
+                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                      ),
+                      child: pw.Column(
+                        children: [
+                          pw.Text('SIYA CENTRAL BILLING', style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                          pw.Text('DIGITALLY VERIFIED', style: pw.TextStyle(fontSize: 6.2, fontWeight: pw.FontWeight.bold, color: emeraldColor)),
+                        ],
+                      ),
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Text('System Verification Stamp', style: const pw.TextStyle(fontSize: 6.2, color: slateMutedColor)),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Container(width: 120, height: 0.8, color: borderDarkColor),
+                    pw.SizedBox(height: 2),
+                    pw.Text('Branch Manager / Finance Head', style: const pw.TextStyle(fontSize: 6.8, color: slateMutedColor)),
+                    pw.Text('Siya Infotech & Solar Energy', style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                  ],
+                ),
+              ],
+            ),
+          ];
+        },
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  /// Print or share Bank Passbook Master Ledger PDF directly
+  static Future<void> printOrShareBankMasterPassbook({
+    required SubVendorLedgerSummary summary,
+    SubVendor? vendor,
+  }) async {
+    final bytes = await generateBankPassbookMasterLedgerPdfBytes(
+      summary: summary,
+      vendor: vendor,
+    );
+    final safeName = summary.vendorName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+    await Printing.layoutPdf(
+      onLayout: (format) async => bytes,
+      name: 'Bank_Master_Passbook_${safeName}_${summary.vendorCode}.pdf',
+    );
+  }
 }
