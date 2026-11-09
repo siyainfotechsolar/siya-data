@@ -599,6 +599,9 @@ class _SubVendorCompleteFinancialDashboardScreenState
                 case 'csv_settlement':
                   _exportFinalSettlementCsv();
                   break;
+                case 'clear_trial_data':
+                  _showClearTrialDataDialog();
+                  break;
               }
             },
             itemBuilder: (ctx) => [
@@ -700,6 +703,17 @@ class _SubVendorCompleteFinancialDashboardScreenState
                     Icon(Icons.payments, color: Colors.green, size: 18),
                     SizedBox(width: 8),
                     Text('6. Final Settlement Report (CSV)'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'clear_trial_data',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_forever, color: Colors.red, size: 18),
+                    SizedBox(width: 8),
+                    Text('Clear Trial Records (चाचणी डेटा पुसा)', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -2270,14 +2284,16 @@ class _SubVendorCompleteFinancialDashboardScreenState
                 scrollDirection: Axis.horizontal,
                 child: DataTable(
                   headingRowColor: MaterialStateProperty.all(const Color(0xFFF1F5F9)),
-                  columns: const [
-                    DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Site / Assignment', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Amount (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Payment Mode', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Reference / UTR', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Notes', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                  columns: [
+                    const DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                    const DataColumn(label: Text('Site / Assignment', style: TextStyle(fontWeight: FontWeight.bold))),
+                    const DataColumn(label: Text('Amount (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    const DataColumn(label: Text('Payment Mode', style: TextStyle(fontWeight: FontWeight.bold))),
+                    const DataColumn(label: Text('Reference / UTR', style: TextStyle(fontWeight: FontWeight.bold))),
+                    const DataColumn(label: Text('Notes', style: TextStyle(fontWeight: FontWeight.bold))),
+                    const DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                    if (widget.isAdmin)
+                      const DataColumn(label: Text('Action', style: TextStyle(fontWeight: FontWeight.bold))),
                   ],
                   rows: _payouts.map((p) {
                     return DataRow(
@@ -2298,6 +2314,14 @@ class _SubVendorCompleteFinancialDashboardScreenState
                             child: Text(p.status, style: TextStyle(color: Colors.green.shade800, fontSize: 11, fontWeight: FontWeight.bold)),
                           ),
                         ),
+                        if (widget.isAdmin)
+                          DataCell(
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                              tooltip: 'Delete this payout / advance',
+                              onPressed: () => _deletePayoutConfirm(p),
+                            ),
+                          ),
                       ],
                     );
                   }).toList(),
@@ -3327,6 +3351,125 @@ ${ledger.isPayable ? "(Final Payment Payable to Sub-Vendor)" : "(Amount Recovera
       ],
     );
   }
+
+  void _deletePayoutConfirm(VendorPayout payout) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.delete_outline, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Delete Payout Record'),
+          ],
+        ),
+        content: Text('Are you sure you want to delete this payout of ${_currency.format(payout.amount)} (Date: ${_dateFormat.format(payout.payoutDate)})?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await SubVendorService.deleteVendorPayout(payout.id);
+                await _loadAllVendorData();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Payout deleted successfully!'), backgroundColor: Colors.red),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to delete payout: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showClearTrialDataDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 24),
+            SizedBox(width: 8),
+            Text('चाचणी डेटा पुसून टाका (Clear Trial Data)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'तुम्ही चाचणीसाठी (Trial) भरलेला डेटा सिस्टीममधून पुसून टाकू शकता:',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('खालील चाचणी नोंदी कायमस्वरूपी नष्ट होतील:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF991B1B))),
+                    SizedBox(height: 6),
+                    Text('• या व्हेंडरचे सर्व मटेरियल इश्यू/रिटर्न ट्रान्झॅक्शन्स\n• सर्व ग्राहक कर्जाची व रोख जमा नोंदी\n• सर्व व्हेंडर ॲडव्हान्स/पेआउट नोंदी\n• अंतिम सेव्ह/ॲप्रूव्ह केलेले सेटलमेंट्स\n• सर्व साईट असाइनमेंट्स', style: TextStyle(fontSize: 11.5, color: Color(0xFF7F1D1D))),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text('टीप: हा डेटा पुसल्यावर व्हेंडरचे लेजर बॅलन्स पुन्हा ₹०.०० होईल.', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('रद्द करा (Cancel)'),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.delete_forever, size: 16),
+            label: const Text('होय, चाचणी डेटा पुसा (Wipe Trial Records)'),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await SubVendorService.clearVendorTrialData(widget.vendor.id);
+                await _loadAllVendorData();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('या Sub-Vendor चा संपूर्ण चाचणी डेटा यशस्वीरीत्या साफ केला गेला! शिल्लक ₹०.०० झाली आहे.'),
+                      backgroundColor: Color(0xFF047857),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('डेटा पुसण्यात त्रुटी आली: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   // ============================================================================

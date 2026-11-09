@@ -56,6 +56,37 @@ class SubVendorLedgerEntry {
     return isCredit ? 'BY $clean' : 'TO $clean';
   }
 
+  /// Tally Prime standard voucher type: Receipt, Payment, Journal, Purchase, Debit Note
+  String get tallyVoucherType {
+    switch (voucherType) {
+      case 'Bank Loan Credit':
+      case 'Customer Cash Credit':
+      case 'Customer Collection':
+        return 'Receipt';
+      case 'Vendor Payout / Advance':
+        return 'Payment';
+      case 'Material Return':
+        return 'Debit Note';
+      case 'Material Issue':
+        return 'Purchase';
+      case 'SIYA Platform Fee':
+      case 'Statutory Net GST':
+      case 'Contractual GST Recovery':
+      case 'Approved Site Expense':
+      default:
+        return 'Journal';
+    }
+  }
+
+  /// Tally Prime double-entry particulars format ('To ...' for Debit, 'By ...' for Credit)
+  String get tallyParticulars {
+    final clean = particulars.trim();
+    if (clean.startsWith('To ') || clean.startsWith('By ')) {
+      return clean;
+    }
+    return isCredit ? 'By $clean' : 'To $clean';
+  }
+
   SubVendorLedgerEntry copyWithRunningBalance(double balance) {
     return SubVendorLedgerEntry(
       id: id,

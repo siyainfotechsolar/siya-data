@@ -552,6 +552,61 @@ class SubVendorService {
     }
   }
 
+  /// Delete an individual vendor payout / advance record
+  static Future<void> deleteVendorPayout(String payoutId) async {
+    try {
+      await _client.from('vendor_payouts').delete().eq('id', payoutId);
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.deleteVendorPayout: $e\n$stack');
+      rethrow;
+    }
+  }
+
+  /// Clear / delete all trial records for a specific site assignment
+  static Future<void> clearSiteTrialData(String assignmentId) async {
+    try {
+      await _client.from('vendor_payouts').delete().eq('assignment_id', assignmentId);
+      await _client.from('vendor_settlements').delete().eq('assignment_id', assignmentId);
+      await _client.from('vendor_customer_payments').delete().eq('assignment_id', assignmentId);
+      await _client.from('vendor_material_transactions').delete().eq('assignment_id', assignmentId);
+      await _client.from('vendor_gst_recoveries').delete().eq('assignment_id', assignmentId);
+      await _client.from('vendor_site_assignments').delete().eq('id', assignmentId);
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.clearSiteTrialData: $e\n$stack');
+      rethrow;
+    }
+  }
+
+  /// Reset / wipe all trial records for an entire sub-vendor (resets vendor balance to ₹0)
+  static Future<void> clearVendorTrialData(String vendorId) async {
+    try {
+      await _client.from('vendor_payouts').delete().eq('vendor_id', vendorId);
+      await _client.from('vendor_settlements').delete().eq('vendor_id', vendorId);
+      await _client.from('vendor_customer_payments').delete().eq('vendor_id', vendorId);
+      await _client.from('vendor_material_transactions').delete().eq('vendor_id', vendorId);
+      await _client.from('vendor_gst_recoveries').delete().eq('vendor_id', vendorId);
+      await _client.from('vendor_site_assignments').delete().eq('vendor_id', vendorId);
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.clearVendorTrialData: $e\n$stack');
+      rethrow;
+    }
+  }
+
+  /// Complete reset of entire Sub-Vendor trial module (all test data wiped)
+  static Future<void> clearEntireSubVendorModuleTrialData() async {
+    try {
+      await _client.from('vendor_payouts').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await _client.from('vendor_settlements').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await _client.from('vendor_customer_payments').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await _client.from('vendor_material_transactions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await _client.from('vendor_gst_recoveries').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await _client.from('vendor_site_assignments').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.clearEntireSubVendorModuleTrialData: $e\n$stack');
+      rethrow;
+    }
+  }
+
   // ============================================================================
   // 5. FINANCIAL CALCULATIONS & SUMMARY ENGINE
   // ============================================================================
