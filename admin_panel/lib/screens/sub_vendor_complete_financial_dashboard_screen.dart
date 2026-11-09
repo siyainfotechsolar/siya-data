@@ -2039,6 +2039,10 @@ class _SubVendorCompleteFinancialDashboardScreenState
 
     // Statutory Net GST Liability (70:30 Output GST on quotation - Eligible Material Input GST Credit)
     final totalCustomerOutputGst = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.totalGstIncluded);
+    final totalGoodTaxable70 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.taxable70);
+    final totalGoodsGst5 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.gst5);
+    final totalServicesTaxable30 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.taxable30);
+    final totalServicesGst18 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.gst18);
     final totalEligibleItc = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcEligible);
     final netGstLiability = (totalCustomerOutputGst - totalEligibleItc) > 0
         ? (totalCustomerOutputGst - totalEligibleItc)
@@ -2057,6 +2061,47 @@ class _SubVendorCompleteFinancialDashboardScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // STATUTORY 70:30 GST CALCULATION (ON QUOTATION)
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'STATUTORY 70:30 GST CALCULATION (ON QUOTATION)',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0D2B6F)),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF93C5FD)),
+                        ),
+                        child: const Text('Notification No. 24/2018 Statutory Rule', style: TextStyle(fontSize: 10, color: Color(0xFF1D4ED8), fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSettlementRow('Total Site Quotation (Statutory Output GST Basis)', _currency.format(s.totalSiteAmount), isPositive: true),
+                  _buildSettlementRow('  • 70% Goods Taxable (${_currency.format(totalGoodTaxable70)}) @ 5% GST', _currency.format(totalGoodsGst5)),
+                  _buildSettlementRow('  • 30% Services Taxable (${_currency.format(totalServicesTaxable30)}) @ 18% GST', _currency.format(totalServicesGst18)),
+                  _buildSettlementRow('Total Customer Statutory Output GST (70:30)', _currency.format(totalCustomerOutputGst), isBold: true),
+                  _buildSettlementRow('Less: Eligible Material Input GST Credit (ITC)', '- ${_currency.format(totalEligibleItc)}', isPositive: false),
+                  const Divider(height: 16),
+                  _buildSettlementRow('Statutory Net GST Payable to Govt (Deducted from Settlement Below)', _currency.format(netGstLiability), isBold: true),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // CONTRACTUAL DEDUCTIONS AUDIT CARD
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -2748,7 +2793,7 @@ class _SiteComprehensiveDrillDownModal extends StatelessWidget {
                       const SizedBox(height: 16),
 
                       // 4. SITE FINAL SETTLEMENT SUMMARY
-                      const Text('4. SITE CONTRACTUAL SETTLEMENT LEDGER', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      const Text('4. SITE CONTRACTUAL SETTLEMENT & STATUTORY GST LEDGER', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.all(14),
@@ -2759,13 +2804,19 @@ class _SiteComprehensiveDrillDownModal extends StatelessWidget {
                         ),
                         child: Column(
                           children: [
-                            _buildMiniSummaryRow('Effective Realized Collection', _currency.format(detail.effectiveCollection), isPositive: true),
+                            _buildMiniSummaryRow('Total Site Quotation (Statutory Base)', _currency.format(detail.assignment.effectiveSiteAmount), isPositive: true),
+                            _buildMiniSummaryRow('  • Statutory 70:30 Output GST', _currency.format(detail.assignment.gstBreakdown.totalGstIncluded)),
+                            _buildMiniSummaryRow('  • Less: Material Input GST Credit (ITC)', '- ${_currency.format(detail.totalEligibleInputGst)}', isPositive: false),
+                            _buildMiniSummaryRow('  • Net GST Liability (Govt Payable)', _currency.format(detail.netGstLiability)),
+                            const Divider(height: 14),
+                            _buildMiniSummaryRow('Effective Realized Collection (Credited)', _currency.format(detail.effectiveCollection), isPositive: true),
                             _buildMiniSummaryRow('Less: Material Cost Deducted', '- ${_currency.format(detail.totalMaterialCost)}', isPositive: false),
                             _buildMiniSummaryRow('Less: SIYA Vendor Charges (₹1,000/kW)', '- ${_currency.format(detail.vendorCharges)}', isPositive: false),
                             _buildMiniSummaryRow('Less: Statutory Net GST Liability', '- ${_currency.format(detail.netGstLiability)}', isPositive: false),
                             if (detail.otherExpenses > 0)
                               _buildMiniSummaryRow('Less: Other Site Expenses', '- ${_currency.format(detail.otherExpenses)}', isPositive: false),
-                            _buildMiniSummaryRow('Less: Paid to Sub-Vendor', '- ${_currency.format(detail.totalPaidToVendor)}', isPositive: false),
+                            _buildMiniSummaryRow('Sub-Vendor Gross Entitlement', _currency.format(detail.effectiveCollection - detail.totalMaterialCost - detail.vendorCharges - detail.netGstLiability - detail.otherExpenses), isPositive: true),
+                            _buildMiniSummaryRow('Less: Disbursed Advances Paid to Date', '- ${_currency.format(detail.totalPaidToVendor)}', isPositive: false),
                             const Divider(height: 16),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,

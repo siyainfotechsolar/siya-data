@@ -293,8 +293,8 @@ class SubVendorPdfService {
 
               pw.SizedBox(height: 8),
 
-              // Section 2: Financial Calculation & Settlement
-              _sectionHeader('2. VENDOR CHARGES & FINAL SETTLEMENT BREAKDOWN'),
+              // Section 2: Statutory 70:30 GST Accounting on Site Quotation
+              _sectionHeader('2. STATUTORY GST ACCOUNTING (70:30 SOLAR SPLIT ON QUOTATION)'),
               pw.Container(
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: borderDarkColor, width: 0.8),
@@ -303,24 +303,124 @@ class SubVendorPdfService {
                 child: pw.Column(
                   children: [
                     _settlementRow(
-                      'Vendor Installation Charges (${a.siteCapacityKw} kW @ ${_currency.format(a.ratePerKw)}/kW):',
-                      _currency.format(detail.vendorCharges),
-                    ),
-                    _settlementRow(
-                      'Approved Other Expenses / Transportation:',
-                      _currency.format(detail.otherExpenses),
-                      isZebra: true,
-                    ),
-                    _settlementRow(
-                      'Total Vendor Settlement Amount Payable:',
-                      _currency.format(detail.totalVendorPayable),
+                      'Approved Site Quotation (Statutory Output GST Basis):',
+                      _currency.format(a.effectiveSiteAmount),
                       isBold: true,
                     ),
                     _settlementRow(
-                      'Disbursed Payouts Received to Date:',
-                      '- ${_currency.format(detail.totalPaidToVendor)}',
+                      '  - 70% Goods Taxable (${_currency.format(a.gstBreakdown.taxable70)}) @ 5% GST:',
+                      _currency.format(a.gstBreakdown.gst5),
                       isZebra: true,
+                    ),
+                    _settlementRow(
+                      '  - 30% Services Taxable (${_currency.format(a.gstBreakdown.taxable30)}) @ 18% GST:',
+                      _currency.format(a.gstBreakdown.gst18),
+                    ),
+                    _settlementRow(
+                      'Total Statutory Output GST Liability (Quotation Basis):',
+                      _currency.format(a.gstBreakdown.totalGstIncluded),
+                      isZebra: true,
+                      isBold: true,
+                    ),
+                    _settlementRow(
+                      'Less: Eligible Dynamic Material Input GST Credit (ITC):',
+                      '- ${_currency.format(detail.totalEligibleInputGst)}',
                       valueColor: emeraldColor,
+                    ),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      color: headerBgColor,
+                      child: pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            'NET STATUTORY GST PAYABLE TO GOVT:',
+                            style: pw.TextStyle(
+                              fontSize: 8.2,
+                              fontWeight: pw.FontWeight.bold,
+                              color: amberColor,
+                            ),
+                          ),
+                          pw.Text(
+                            _currency.format(detail.netGstLiability),
+                            style: pw.TextStyle(
+                              fontSize: 9.0,
+                              fontWeight: pw.FontWeight.bold,
+                              color: amberColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              pw.SizedBox(height: 8),
+
+              // Section 3: Final Contractual Settlement Breakdown (Option A - Net Balance)
+              _sectionHeader('3. CONTRACTUAL FINAL SETTLEMENT BREAKDOWN (OPTION A - NET BALANCE)'),
+              pw.Container(
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: borderDarkColor, width: 0.8),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                ),
+                child: pw.Column(
+                  children: [
+                    _settlementRow(
+                      'Total Realized Collections Credited to SIYA (Bank Loan / Cash Received):',
+                      _currency.format(detail.effectiveCollection),
+                      isBold: true,
+                      valueColor: emeraldColor,
+                    ),
+                    _settlementRow(
+                      '  [Compliance Note: 10% Loan Margin Paper Receipt is exempt from cash calculation]',
+                      'Rs. 0.00 (Exempt)',
+                      isZebra: true,
+                    ),
+                    _settlementRow(
+                      'Less: Total Dynamic Material Issued (Net of Returns):',
+                      '- ${_currency.format(detail.totalMaterialCost)}',
+                      valueColor: PdfColors.red800,
+                    ),
+                    _settlementRow(
+                      'Less: SIYA Platform Charges (${a.siteCapacityKw} kW @ Rs. 1,000/kW):',
+                      '- ${_currency.format(detail.vendorCharges)}',
+                      isZebra: true,
+                      valueColor: navyColor,
+                    ),
+                    _settlementRow(
+                      'Less: Statutory Net GST Liability (Output GST - Eligible ITC):',
+                      '- ${_currency.format(detail.netGstLiability)}',
+                      valueColor: amberColor,
+                    ),
+                    if (detail.otherExpenses > 0)
+                      _settlementRow(
+                        'Less: Approved Other Expenses / Transportation:',
+                        '- ${_currency.format(detail.otherExpenses)}',
+                        isZebra: true,
+                      ),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      color: headerBgColor,
+                      child: pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            'Sub-Vendor Gross Entitlement:',
+                            style: pw.TextStyle(fontSize: 8.2, fontWeight: pw.FontWeight.bold, color: navyColor),
+                          ),
+                          pw.Text(
+                            _currency.format(detail.effectiveCollection - detail.totalMaterialCost - detail.vendorCharges - detail.netGstLiability - detail.otherExpenses),
+                            style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _settlementRow(
+                      'Less: Previous Advances & Disbursals Paid to Date:',
+                      '- ${_currency.format(detail.totalPaidToVendor)}',
+                      valueColor: PdfColors.red800,
                     ),
                     pw.Container(
                       padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -329,19 +429,21 @@ class SubVendorPdfService {
                         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                         children: [
                           pw.Text(
-                            'NET OUTSTANDING SETTLEMENT BALANCE:',
+                            detail.netSubVendorBalance >= 0
+                                ? 'FINAL NET SETTLEMENT PAYABLE TO SUB-VENDOR:'
+                                : 'AMOUNT RECOVERABLE FROM SUB-VENDOR:',
                             style: pw.TextStyle(
-                              fontSize: 8.5,
+                              fontSize: 8.8,
                               fontWeight: pw.FontWeight.bold,
-                              color: navyColor,
+                              color: detail.netSubVendorBalance >= 0 ? emeraldColor : PdfColors.red800,
                             ),
                           ),
                           pw.Text(
-                            _currency.format(detail.outstandingVendorPayable),
+                            _currency.format(detail.netSubVendorBalance.abs()),
                             style: pw.TextStyle(
-                              fontSize: 10,
+                              fontSize: 10.5,
                               fontWeight: pw.FontWeight.bold,
-                              color: detail.outstandingVendorPayable > 0 ? navyColor : emeraldColor,
+                              color: detail.netSubVendorBalance >= 0 ? emeraldColor : PdfColors.red800,
                             ),
                           ),
                         ],
@@ -349,6 +451,21 @@ class SubVendorPdfService {
                     ),
                   ],
                 ),
+              ),
+
+              pw.SizedBox(height: 3),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    'Option B Reference (Fixed Charges): ${_currency.format(detail.vendorCharges)} - Paid ${_currency.format(detail.totalPaidToVendor)} = ${_currency.format(detail.outstandingVendorPayable)}',
+                    style: const pw.TextStyle(fontSize: 6.8, color: slateMutedColor),
+                  ),
+                  pw.Text(
+                    'Statutory 70:30 Rule under Notification No. 24/2018 applied.',
+                    style: const pw.TextStyle(fontSize: 6.8, color: slateMutedColor),
+                  ),
+                ],
               ),
 
               pw.Spacer(),
@@ -630,27 +747,41 @@ class SubVendorPdfService {
 
               pw.SizedBox(height: 8),
 
-              // Section 2: Consolidated Summary
-              _sectionHeader('2. CONSOLIDATED FINANCIAL SUMMARY'),
+              // Section 2: Consolidated Financial & GST Summary
+              _sectionHeader('2. CONSOLIDATED FINANCIAL & STATUTORY GST SUMMARY'),
               pw.Container(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(6),
                 decoration: pw.BoxDecoration(
                   color: headerBgColor,
                   border: pw.Border.all(color: borderDarkColor, width: 0.8),
                   borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
                 ),
-                child: pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                child: pw.Column(
                   children: [
-                    _subSummary('5% GST Material Total:', _currency.format(summary.material5Total)),
-                    _subSummary('18% GST BOS Total:', _currency.format(summary.material18Total)),
-                    _subSummary('Total Input GST:', _currency.format(summary.totalEligibleInputGst)),
-                    _subSummary('Statutory Net GST:', _currency.format(summary.totalNetGstLiability)),
-                    _subSummary('Total Payouts Made:', _currency.format(summary.totalPaidAmount)),
-                    _subSummary(
-                      summary.netSettlementPayable >= 0 ? 'Net Sub-Vendor Due:' : 'Amount Recoverable:',
-                      _currency.format(summary.netSettlementPayable.abs()),
-                      isBold: true,
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        _subSummary('Site Quotation Base:', _currency.format(summary.totalSiteAmount)),
+                        _subSummary('Output GST (70:30):', _currency.format(summary.siteDetails.fold<double>(0.0, (acc, s) => acc + s.assignment.gstBreakdown.totalGstIncluded))),
+                        _subSummary('Eligible Input ITC:', '- ${_currency.format(summary.totalEligibleInputGst)}'),
+                        _subSummary('Statutory Net GST:', _currency.format(summary.totalNetGstLiability), isBold: true),
+                      ],
+                    ),
+                    pw.Divider(color: borderDarkColor, thickness: 0.4, height: 6),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        _subSummary('Total Realized Collections:', _currency.format(summary.effectiveTotalCollection)),
+                        _subSummary('Material Cost:', '- ${_currency.format(summary.totalMaterialCost)}'),
+                        _subSummary('SIYA Platform Fee:', '- ${_currency.format(summary.totalVendorCharges)}'),
+                        _subSummary('Statutory Net GST:', '- ${_currency.format(summary.totalNetGstLiability)}'),
+                        _subSummary('Advances Paid:', '- ${_currency.format(summary.totalPaidAmount)}'),
+                        _subSummary(
+                          summary.netSettlementPayable >= 0 ? 'Net Sub-Vendor Due:' : 'Amount Recoverable:',
+                          _currency.format(summary.netSettlementPayable.abs()),
+                          isBold: true,
+                        ),
+                      ],
                     ),
                   ],
                 ),
