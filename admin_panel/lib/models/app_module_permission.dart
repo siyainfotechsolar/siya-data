@@ -145,6 +145,15 @@ class AppModuleRegistry {
       category: 'Finance',
       icon: Icons.monetization_on_outlined,
     ),
+    AppModuleDefinition(
+      key: 'sales_commission',
+      nameEn: 'Sales Commission Management',
+      nameMr: 'विक्रेता कमिशन व्यवस्थापन (kW × Rate & Direct)',
+      descriptionEn: 'Sales person commissions, direct customers, pending commission tracking & 5-sheet Excel reports',
+      descriptionMr: 'विक्रेता कमिशन ट्रॅकिंग, थेट ग्राहक, बाकी कमिशन व ५-शीट एक्सेल अहवाल',
+      category: 'Finance',
+      icon: Icons.price_check_rounded,
+    ),
 
     // --- 3. TOOLS ---
     AppModuleDefinition(

@@ -29,6 +29,7 @@ import 'document_enhancer_screen.dart';
 import 'solar_quotation_generator_screen.dart';
 import 'solar_site_cost_calculator_screen.dart';
 import 'team_expense_calculator_screen.dart';
+import 'sales_commission_screen.dart';
 import '../models/user_profile.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -62,6 +63,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItem(id: 'quotations', label: 'Quotations', icon: Icons.request_quote_outlined, selectedIcon: Icons.request_quote, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'margin_receipts', label: 'Margin Receipts', icon: Icons.description_outlined, selectedIcon: Icons.description, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'commissions', label: 'Commissions', icon: Icons.monetization_on_outlined, selectedIcon: Icons.monetization_on, isMainBottomNav: false, moduleKey: 'commission'),
+    _NavItem(id: 'sales_commissions', label: 'Sales Commission', icon: Icons.price_check_outlined, selectedIcon: Icons.price_check, isMainBottomNav: false, moduleKey: 'sales_commission'),
     _NavItem(id: 'sub_vendors', label: 'Sub-Vendors', icon: Icons.engineering_outlined, selectedIcon: Icons.engineering, isMainBottomNav: false, moduleKey: 'sub_vendor'),
     _NavItem(id: 'office_tasks', label: 'Office Tasks', icon: Icons.assignment_ind_outlined, selectedIcon: Icons.assignment_ind, isMainBottomNav: false),
     _NavItem(id: 'whatsapp', label: 'WhatsApp', icon: Icons.share_rounded, selectedIcon: Icons.share, isMainBottomNav: false, moduleKey: 'whatsapp'),
@@ -634,6 +636,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return const SolarSiteCostCalculatorScreen();
       case 'team_expenses':
         return const TeamExpenseCalculatorScreen();
+      case 'sales_commissions':
+        return const SalesCommissionScreen();
       case 'history':
         return const HistoryScreen();
       case 'audit':

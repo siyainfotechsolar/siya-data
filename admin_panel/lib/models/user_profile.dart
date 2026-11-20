@@ -68,6 +68,7 @@ class UserRole {
           'solar_quotation': ['view', 'create', 'edit', 'delete'],
           'solar_cost_calculator': ['view', 'create', 'edit', 'delete'],
           'team_expenses': ['view', 'create', 'edit', 'delete'],
+          'sales_commission': ['view', 'create', 'edit', 'delete'],
           'followup': ['view', 'create', 'edit', 'complete'],
           'general_issue': ['view', 'create', 'edit', 'close'],
           'leads': ['view', 'create', 'edit', 'delete'],
@@ -96,6 +97,7 @@ class UserRole {
           'solar_quotation': ['view', 'create', 'edit'],
           'solar_cost_calculator': ['view'],
           'team_expenses': ['view', 'create', 'edit'],
+          'sales_commission': ['view', 'create', 'edit'],
           'leads': ['view', 'create', 'edit'],
           'whatsapp': ['view', 'create', 'edit'],
           'followup': ['view', 'create', 'complete'],
@@ -111,6 +113,7 @@ class UserRole {
           'leads': ['view', 'create', 'edit'],
           'solar_quotation': ['view', 'create', 'edit'],
           'solar_cost_calculator': ['view', 'create', 'edit'],
+          'sales_commission': ['view', 'create', 'edit'],
           'whatsapp': ['view', 'create', 'edit'],
           'followup': ['view', 'create', 'complete'],
           'general_issue': ['view', 'create'],
@@ -132,6 +135,7 @@ class UserRole {
           'customer': ['view'],
           'installation': ['view', 'edit'],
           'team_expenses': ['view', 'create', 'edit'],
+          'sales_commission': ['view', 'create', 'edit'],
           'general_issue': ['view', 'create', 'edit'],
           'misc': ['view', 'create'],
         };
@@ -146,6 +150,7 @@ class UserRole {
           'commission': ['view', 'create', 'pay'],
           'subsidy': ['view', 'edit'],
           'team_expenses': ['view', 'create', 'edit'],
+          'sales_commission': ['view', 'create', 'edit'],
           'export_excel': ['view'],
           'reports': ['view'],
         };
@@ -165,6 +170,7 @@ class UserRole {
           'solar_quotation': ['view'],
           'solar_cost_calculator': ['view'],
           'team_expenses': ['view'],
+          'sales_commission': ['view'],
           'leads': ['view'],
           'followup': ['view'],
           'general_issue': ['view'],
@@ -266,6 +272,12 @@ class UserProfile {
           actions = permissions['installation'];
         } else if (permissions.containsKey('solar_cost_calculator')) {
           actions = permissions['solar_cost_calculator'];
+        } else if (permissions.containsKey('customer')) {
+          actions = permissions['customer'];
+        }
+      } else if (mKey == 'sales_commission') {
+        if (permissions.containsKey('commission')) {
+          actions = permissions['commission'];
         } else if (permissions.containsKey('customer')) {
           actions = permissions['customer'];
         }
