@@ -166,6 +166,15 @@ class AppModuleRegistry {
       icon: Icons.calculate_outlined,
     ),
     AppModuleDefinition(
+      key: 'team_expenses',
+      nameEn: 'Team Expense Calculator',
+      nameMr: 'टीम खर्च कॅल्क्युलेटर (Wiring, Civil, Structure)',
+      descriptionEn: 'Site-wise team expenses with 3-sheet Excel export & summaries',
+      descriptionMr: 'वायरिंग, सिव्हिल व स्ट्रक्चर टीम साईट खर्च आणि एक्सेल रिपोर्ट',
+      category: 'Tools',
+      icon: Icons.group_work_outlined,
+    ),
+    AppModuleDefinition(
       key: 'whatsapp',
       nameEn: 'WhatsApp Automation',
       nameMr: 'व्हॉट्सॲप ऑटोमेशन व मेसेजिंग',
@@ -317,3 +326,4 @@ class AppModuleRegistry {
     return UserRole.defaultPermissions(role);
   }
 }
+

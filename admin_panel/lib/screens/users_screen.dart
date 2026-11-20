@@ -722,7 +722,7 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
                                         ),
                                         backgroundColor: u.isAdmin ? Colors.blue.shade50 : Colors.indigo.shade50,
                                         label: Text(
-                                          u.isAdmin ? 'Full Control' : '${u.allowedModulesCount} / 20 Modules',
+                                          u.isAdmin ? 'Full Control' : '${u.allowedModulesCount} / ${AppModuleRegistry.allModules.length} Modules',
                                           style: TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.bold,
@@ -857,7 +857,7 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
                       avatar: const Icon(Icons.security, size: 12, color: Colors.indigo),
                       backgroundColor: Colors.indigo.shade50,
                       label: Text(
-                        u.isAdmin ? 'Full Access' : '${u.allowedModulesCount}/20 Modules',
+                        u.isAdmin ? 'Full Access' : '${u.allowedModulesCount}/${AppModuleRegistry.allModules.length} Modules',
                         style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.indigo.shade900),
                       ),
                       onPressed: () => _openPermissionsMatrixForUser(u),
@@ -1057,7 +1057,7 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
                         border: Border.all(color: Colors.blue.shade200),
                       ),
                       child: Text(
-                        'एकूण मॉड्यूल्स: 20',
+                        'एकूण मॉड्यूल्स: ${allModules.length}',
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
                       ),
                     ),
@@ -1074,7 +1074,7 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
                           const Icon(Icons.visibility, size: 14, color: Colors.green),
                           const SizedBox(width: 4),
                           Text(
-                            'पाहण्याची परवानगी (View): $viewCount / 20',
+                            'पाहण्याची परवानगी (View): $viewCount / ${allModules.length}',
                             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade900),
                           ),
                         ],
@@ -1093,7 +1093,7 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
                           const Icon(Icons.edit, size: 14, color: Colors.indigo),
                           const SizedBox(width: 4),
                           Text(
-                            'बदलण्याची परवानगी (Edit): $editCount / 20',
+                            'बदलण्याची परवानगी (Edit): $editCount / ${allModules.length}',
                             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade900),
                           ),
                         ],
@@ -1112,7 +1112,7 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
                           const Icon(Icons.delete_outline, size: 14, color: Colors.red),
                           const SizedBox(width: 4),
                           Text(
-                            'हटवण्याची परवानगी (Delete): $deleteCount / 20',
+                            'हटवण्याची परवानगी (Delete): $deleteCount / ${allModules.length}',
                             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade900),
                           ),
                         ],

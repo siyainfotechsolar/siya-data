@@ -67,6 +67,7 @@ class UserRole {
           'commission': ['view', 'create', 'edit', 'delete', 'approve', 'pay'],
           'solar_quotation': ['view', 'create', 'edit', 'delete'],
           'solar_cost_calculator': ['view', 'create', 'edit', 'delete'],
+          'team_expenses': ['view', 'create', 'edit', 'delete'],
           'followup': ['view', 'create', 'edit', 'complete'],
           'general_issue': ['view', 'create', 'edit', 'close'],
           'leads': ['view', 'create', 'edit', 'delete'],
@@ -94,6 +95,7 @@ class UserRole {
           'commission': ['view', 'create'],
           'solar_quotation': ['view', 'create', 'edit'],
           'solar_cost_calculator': ['view'],
+          'team_expenses': ['view', 'create', 'edit'],
           'leads': ['view', 'create', 'edit'],
           'whatsapp': ['view', 'create', 'edit'],
           'followup': ['view', 'create', 'complete'],
@@ -129,6 +131,7 @@ class UserRole {
         return {
           'customer': ['view'],
           'installation': ['view', 'edit'],
+          'team_expenses': ['view', 'create', 'edit'],
           'general_issue': ['view', 'create', 'edit'],
           'misc': ['view', 'create'],
         };
@@ -142,6 +145,7 @@ class UserRole {
           'sub_vendor': ['view', 'create', 'edit'],
           'commission': ['view', 'create', 'pay'],
           'subsidy': ['view', 'edit'],
+          'team_expenses': ['view', 'create', 'edit'],
           'export_excel': ['view'],
           'reports': ['view'],
         };
@@ -160,6 +164,7 @@ class UserRole {
           'commission': ['view'],
           'solar_quotation': ['view'],
           'solar_cost_calculator': ['view'],
+          'team_expenses': ['view'],
           'leads': ['view'],
           'followup': ['view'],
           'general_issue': ['view'],
@@ -256,6 +261,14 @@ class UserProfile {
         actions = permissions['customer'];
       } else if (mKey == 'whatsapp' && permissions.containsKey('customer')) {
         actions = permissions['customer'];
+      } else if (mKey == 'team_expenses') {
+        if (permissions.containsKey('installation')) {
+          actions = permissions['installation'];
+        } else if (permissions.containsKey('solar_cost_calculator')) {
+          actions = permissions['solar_cost_calculator'];
+        } else if (permissions.containsKey('customer')) {
+          actions = permissions['customer'];
+        }
       }
     }
 
@@ -291,7 +304,7 @@ class UserProfile {
 
   /// Total distinct modules where user has at least View access
   int get allowedModulesCount {
-    if (isAdmin) return 20;
+    if (isAdmin) return 21;
     return permissions.keys.where((k) {
       final acts = permissions[k];
       return acts != null && acts.isNotEmpty;

@@ -104,9 +104,9 @@ void main() {
       expect(admin.hasPermission('settings', 'edit'), isTrue);
     });
 
-    test('AppModuleRegistry catalogs all 20 ERP modules with categories and bilingual labels', () {
+    test('AppModuleRegistry catalogs all 21 ERP modules with categories and bilingual labels', () {
       final all = AppModuleRegistry.allModules;
-      expect(all.length, 20);
+      expect(all.length, 21);
 
       final keys = all.map((m) => m.key).toSet();
       expect(keys.contains('customer'), isTrue);
@@ -121,6 +121,7 @@ void main() {
       expect(keys.contains('commission'), isTrue);
       expect(keys.contains('solar_quotation'), isTrue);
       expect(keys.contains('solar_cost_calculator'), isTrue);
+      expect(keys.contains('team_expenses'), isTrue);
       expect(keys.contains('followup'), isTrue);
       expect(keys.contains('general_issue'), isTrue);
       expect(keys.contains('leads'), isTrue);
@@ -146,7 +147,7 @@ void main() {
     test('AppModuleRegistry Presets: Full Access, Read Only, No Access, and Role Default', () {
       // 1. Full Access
       final full = AppModuleRegistry.fullAccessPermissions();
-      expect(full.length, 20);
+      expect(full.length, 21);
       for (final mod in AppModuleRegistry.allModules) {
         expect(AppModuleRegistry.hasView(full, mod.key), isTrue);
         expect(AppModuleRegistry.hasEdit(full, mod.key), isTrue);
@@ -155,7 +156,7 @@ void main() {
 
       // 2. Read Only
       final ro = AppModuleRegistry.readOnlyPermissions();
-      expect(ro.length, 20);
+      expect(ro.length, 21);
       for (final mod in AppModuleRegistry.allModules) {
         expect(AppModuleRegistry.hasView(ro, mod.key), isTrue);
         expect(AppModuleRegistry.hasEdit(ro, mod.key), isFalse);
