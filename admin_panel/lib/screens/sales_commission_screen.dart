@@ -71,11 +71,55 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
         SalesCommissionService.fetchAvailableStaff(),
       ]);
 
+      var commissions = results[0] as List<SalesCommission>;
+      final consumers = results[1] as List<ConsumerRecord>;
+      final staff = results[2] as List<UserProfile>;
+
+      // Ensure that ALL unique customers from Customer Master (324) are present
+      if (consumers.isNotEmpty) {
+        final existingNos = commissions
+            .map((c) => ConsumerNoNormalizer.normalize(c.consumerNo))
+            .where((s) => s.isNotEmpty)
+            .toSet();
+
+        final toAdd = <SalesCommission>[];
+        for (final cust in consumers) {
+          final norm = ConsumerNoNormalizer.normalize(cust.consumerNo);
+          if (norm.isNotEmpty && !existingNos.contains(norm)) {
+            existingNos.add(norm);
+            final capKw = cust.capacityKw > 0 ? cust.capacityKw : 3.0;
+            final hasStaff = cust.assignedStaff != null && cust.assignedStaff!.trim().isNotEmpty;
+            toAdd.add(SalesCommission(
+              id: 'init-${cust.id ?? cust.consumerNo}',
+              consumerId: cust.id ?? '',
+              consumerNo: cust.consumerNo,
+              customerName: cust.name,
+              siteLocation: cust.address ?? cust.village ?? '',
+              solarCapacity: cust.systemCapacity?.isNotEmpty == true
+                  ? cust.systemCapacity!
+                  : '${capKw.toStringAsFixed(1)} kW',
+              capacityKw: capKw,
+              customerSource: hasStaff ? 'Sales Person' : 'Sales Person',
+              salesPersonId: null,
+              salesPersonName: hasStaff ? cust.assignedStaff : null,
+              commissionRatePerKw: hasStaff ? 500.0 : 0.0,
+              totalCommission: hasStaff ? (capKw * 500.0) : 0.0,
+              commissionStatus: 'Pending',
+              commissionDate: cust.createdAt ?? DateTime.now(),
+              remarks: 'Imported from Customer Master',
+            ));
+          }
+        }
+        if (toAdd.isNotEmpty) {
+          commissions = [...commissions, ...toAdd];
+        }
+      }
+
       if (mounted) {
         setState(() {
-          _allCommissions = results[0] as List<SalesCommission>;
-          _availableConsumers = results[1] as List<ConsumerRecord>;
-          _availableStaff = results[2] as List<UserProfile>;
+          _allCommissions = commissions;
+          _availableConsumers = consumers;
+          _availableStaff = staff;
           _isLoading = false;
         });
       }

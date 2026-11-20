@@ -15,19 +15,30 @@ class SalesCommissionService {
   /// so that ALL customers (Sales Person + Direct) appear together by default.
   static Future<List<SalesCommission>> fetchCommissions() async {
     try {
-      final List<dynamic> dbRecords = await _client
-          .from('sales_commissions')
-          .select('*')
-          .order('commission_date', ascending: false)
-          .order('created_at', ascending: false);
+      List<SalesCommission> existingList = [];
+      try {
+        final List<dynamic> dbRecords = await _client
+            .from('sales_commissions')
+            .select('*')
+            .order('commission_date', ascending: false)
+            .order('created_at', ascending: false);
 
-      final existingList = dbRecords
-          .map((json) => SalesCommission.fromJson(json as Map<String, dynamic>))
-          .toList();
+        existingList = dbRecords
+            .map((json) => SalesCommission.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } catch (dbErr) {
+        // ignore: avoid_print
+        print('SalesCommissionService: DB sales_commissions table query fallback: $dbErr');
+        // Preserve any previously saved in-memory commission records
+        existingList = _inMemoryCache.where((c) => !c.id.startsWith('init-')).toList();
+      }
 
       // Fetch active, non-merged customers to guarantee ALL real customers are represented
       final customers = await fetchAvailableCustomers();
-      final existingConsumerNos = existingList.map((c) => ConsumerNoNormalizer.normalize(c.consumerNo)).toSet();
+      final existingConsumerNos = existingList
+          .map((c) => ConsumerNoNormalizer.normalize(c.consumerNo))
+          .where((s) => s.isNotEmpty)
+          .toSet();
 
       final merged = <SalesCommission>[...existingList];
 
@@ -39,8 +50,8 @@ class SalesCommissionService {
           final hasStaff = cust.assignedStaff != null && cust.assignedStaff!.trim().isNotEmpty;
           final capKw = cust.capacityKw > 0 ? cust.capacityKw : 3.0;
           final defaultRate = hasStaff ? 500.0 : 0.0;
-          final source = hasStaff ? 'Sales Person' : 'Direct Customer';
-          final status = hasStaff ? 'Pending' : 'Not Applicable';
+          final source = hasStaff ? 'Sales Person' : 'Sales Person';
+          final status = 'Pending';
 
           final newCommission = SalesCommission(
             id: 'init-${cust.id ?? cust.consumerNo}',
