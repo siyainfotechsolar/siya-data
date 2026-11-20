@@ -5,6 +5,7 @@ import '../models/site_team_expense.dart';
 import '../models/consumer_record.dart';
 import '../services/site_team_expense_service.dart';
 import '../services/team_expense_excel_service.dart';
+import '../utils/consumer_no_utils.dart';
 import '../utils/responsive.dart';
 
 enum ExpenseViewMode { recorded, pending, all }
@@ -49,12 +50,12 @@ class _TeamExpenseCalculatorScreenState extends State<TeamExpenseCalculatorScree
   }
 
   Set<String> get _recordedConsumerNos =>
-      _allExpenses.map((e) => e.consumerNo.trim().toLowerCase()).toSet();
+      _allExpenses.map((e) => ConsumerNoNormalizer.normalize(e.consumerNo)).where((s) => s.isNotEmpty).toSet();
 
   List<ConsumerRecord> get _allPendingConsumers {
     final recorded = _recordedConsumerNos;
     return _availableConsumers
-        .where((c) => !recorded.contains(c.consumerNo.trim().toLowerCase()))
+        .where((c) => !recorded.contains(ConsumerNoNormalizer.normalize(c.consumerNo)))
         .toList();
   }
 
@@ -1706,7 +1707,7 @@ class _AddEditTeamExpenseDialogState extends State<_AddEditTeamExpenseDialog> {
     // Check duplicate record
     final targetNo = _consumerNoCtrl.text.trim();
     final existingWithSameNo = widget.allExpenses.where(
-      (e) => e.consumerNo.trim() == targetNo && e.id != (widget.existing?.id ?? ''),
+      (e) => (ConsumerNoNormalizer.isDuplicate(e.consumerNo, targetNo) || e.consumerNo.trim() == targetNo) && e.id != (widget.existing?.id ?? ''),
     );
     if (existingWithSameNo.isNotEmpty) {
       setState(() {

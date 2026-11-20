@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/sales_commission.dart';
 import '../models/consumer_record.dart';
 import '../models/user_profile.dart';
+import '../utils/consumer_no_utils.dart';
 import 'supabase_service.dart';
 
 class SalesCommissionService {
@@ -24,14 +25,16 @@ class SalesCommissionService {
           .map((json) => SalesCommission.fromJson(json as Map<String, dynamic>))
           .toList();
 
-      // Fetch active customers to guarantee ALL customers are represented
+      // Fetch active, non-merged customers to guarantee ALL real customers are represented
       final customers = await fetchAvailableCustomers();
-      final existingConsumerNos = existingList.map((c) => c.consumerNo.trim().toLowerCase()).toSet();
+      final existingConsumerNos = existingList.map((c) => ConsumerNoNormalizer.normalize(c.consumerNo)).toSet();
 
       final merged = <SalesCommission>[...existingList];
 
       for (final cust in customers) {
-        if (!existingConsumerNos.contains(cust.consumerNo.trim().toLowerCase())) {
+        final custNorm = ConsumerNoNormalizer.normalize(cust.consumerNo);
+        if (custNorm.isNotEmpty && !existingConsumerNos.contains(custNorm)) {
+          existingConsumerNos.add(custNorm);
           // Initialize customer in module
           final hasStaff = cust.assignedStaff != null && cust.assignedStaff!.trim().isNotEmpty;
           final capKw = cust.capacityKw > 0 ? cust.capacityKw : 3.0;
@@ -76,7 +79,7 @@ class SalesCommissionService {
   static Future<SalesCommission> saveCommission(SalesCommission commission) async {
     // 1. Duplicate check: prevent duplicate records for the same consumer/site
     final existingWithSameConsumer = _inMemoryCache.where(
-      (c) => c.consumerNo.trim() == commission.consumerNo.trim() &&
+      (c) => (ConsumerNoNormalizer.isDuplicate(c.consumerNo, commission.consumerNo) || c.consumerNo.trim() == commission.consumerNo.trim()) &&
           c.id != commission.id &&
           !c.id.startsWith('init-'),
     );
@@ -178,17 +181,30 @@ class SalesCommissionService {
     }
   }
 
-  /// Fetch active customers from Customer Master
+  /// Fetch active, non-merged, unique customers from Customer Master
   static Future<List<ConsumerRecord>> fetchAvailableCustomers() async {
     try {
       final response = await _client
           .from('consumer_records')
           .select('*')
           .eq('deleted', false)
+          .eq('is_merged', false)
           .order('name', ascending: true);
 
       final List<dynamic> data = response as List<dynamic>;
-      return data.map((json) => ConsumerRecord.fromJson(json as Map<String, dynamic>)).toList();
+      final all = data.map((json) => ConsumerRecord.fromJson(json as Map<String, dynamic>)).toList();
+
+      // Deduplicate by normalized consumer number to ensure only real unique customers are shown
+      final seen = <String>{};
+      final uniqueList = <ConsumerRecord>[];
+      for (final c in all) {
+        if (c.isMerged || c.deleted) continue;
+        final norm = ConsumerNoNormalizer.normalize(c.consumerNo);
+        if (norm.isNotEmpty && seen.add(norm)) {
+          uniqueList.add(c);
+        }
+      }
+      return uniqueList;
     } catch (e) {
       // ignore: avoid_print
       print('SalesCommissionService.fetchAvailableCustomers error: $e');

@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/site_team_expense.dart';
 import '../models/consumer_record.dart';
+import '../utils/consumer_no_utils.dart';
 import 'supabase_service.dart';
 
 class SiteTeamExpenseService {
@@ -112,17 +113,30 @@ class SiteTeamExpenseService {
     }
   }
 
-  /// Fetch active customers from Customer Master for the selection dropdown
+  /// Fetch active, non-merged, unique customers from Customer Master for the selection dropdown
   static Future<List<ConsumerRecord>> fetchAvailableCustomers() async {
     try {
       final response = await _client
           .from('consumer_records')
           .select('*')
           .eq('deleted', false)
+          .eq('is_merged', false)
           .order('name', ascending: true);
 
       final List<dynamic> data = response as List<dynamic>;
-      return data.map((json) => ConsumerRecord.fromJson(json as Map<String, dynamic>)).toList();
+      final all = data.map((json) => ConsumerRecord.fromJson(json as Map<String, dynamic>)).toList();
+
+      // Deduplicate by normalized consumer number to ensure only real unique customers are shown
+      final seen = <String>{};
+      final uniqueList = <ConsumerRecord>[];
+      for (final c in all) {
+        if (c.isMerged || c.deleted) continue;
+        final norm = ConsumerNoNormalizer.normalize(c.consumerNo);
+        if (norm.isNotEmpty && seen.add(norm)) {
+          uniqueList.add(c);
+        }
+      }
+      return uniqueList;
     } catch (e) {
       // ignore: avoid_print
       print('SiteTeamExpenseService.fetchAvailableCustomers error: $e');
