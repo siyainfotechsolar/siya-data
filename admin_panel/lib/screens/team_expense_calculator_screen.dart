@@ -346,7 +346,7 @@ class _TeamExpenseCalculatorScreenState extends State<TeamExpenseCalculatorScree
                           Icon(Icons.group_work_rounded, size: 28, color: theme.colorScheme.primary),
                           const SizedBox(width: 10),
                           Text(
-                            isMobile ? 'Team Expense' : 'Site-Wise Team Expense Calculator',
+                            isMobile ? 'Team Expenses' : 'Site-wise Team Expenses',
                             style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(width: 12),
@@ -1130,11 +1130,11 @@ class _TeamExpenseCalculatorScreenState extends State<TeamExpenseCalculatorScree
                     DataColumn(label: Text('Sr. No.', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Consumer No.', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Site Location', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Capacity', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Mobile', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Expense Status', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Action', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Capacity', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Site Location', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Expense Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Mobile', style: TextStyle(fontWeight: FontWeight.bold))),
                   ],
                   rows: List.generate(pendingList.length, (idx) {
                     final c = pendingList[idx];
@@ -1143,6 +1143,7 @@ class _TeamExpenseCalculatorScreenState extends State<TeamExpenseCalculatorScree
                         ? c.systemCapacity!
                         : (c.capacityKw > 0 ? '${c.capacityKw} kW' : '-');
                     return DataRow(
+                      onSelectChanged: (_) => _openAddEditDialog(initialConsumer: c),
                       cells: [
                         DataCell(Text('${idx + 1}')),
                         DataCell(Row(
@@ -1154,9 +1155,23 @@ class _TeamExpenseCalculatorScreenState extends State<TeamExpenseCalculatorScree
                           ],
                         )),
                         DataCell(Text(c.consumerNo, style: const TextStyle(fontWeight: FontWeight.w500))),
-                        DataCell(Text(loc)),
+                        DataCell(
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F766E), // Emerald
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            icon: const Icon(Icons.add_task_rounded, size: 14),
+                            label: const Text('Enter Expense', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            onPressed: () => _openAddEditDialog(initialConsumer: c),
+                          ),
+                        ),
                         DataCell(Text(cap)),
-                        DataCell(Text(c.mobile ?? '-')),
+                        DataCell(SizedBox(
+                          width: 220,
+                          child: Text(loc, maxLines: 2, overflow: TextOverflow.ellipsis),
+                        )),
                         DataCell(Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
@@ -1176,18 +1191,7 @@ class _TeamExpenseCalculatorScreenState extends State<TeamExpenseCalculatorScree
                             ],
                           ),
                         )),
-                        DataCell(
-                          FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF0F766E), // Emerald
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            icon: const Icon(Icons.add_task_rounded, size: 14),
-                            label: const Text('Enter Expense', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                            onPressed: () => _openAddEditDialog(initialConsumer: c),
-                          ),
-                        ),
+                        DataCell(Text(c.mobile ?? '-')),
                       ],
                     );
                   }),
@@ -1303,11 +1307,11 @@ class _TeamExpenseCalculatorScreenState extends State<TeamExpenseCalculatorScree
                     DataColumn(label: Text('Sr. No.', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Consumer No.', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Location', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Action', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Capacity', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Location', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Expense Status', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Total Site Expense', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Action', style: TextStyle(fontWeight: FontWeight.bold))),
                   ],
                   rows: List.generate(allFiltered.length, (idx) {
                     final c = allFiltered[idx];
@@ -1322,6 +1326,7 @@ class _TeamExpenseCalculatorScreenState extends State<TeamExpenseCalculatorScree
                     final isRecorded = exp != null;
 
                     return DataRow(
+                      onSelectChanged: (_) => isRecorded ? _openViewDialog(exp) : _openAddEditDialog(initialConsumer: c),
                       cells: [
                         DataCell(Text('${idx + 1}')),
                         DataCell(Row(
@@ -1333,31 +1338,6 @@ class _TeamExpenseCalculatorScreenState extends State<TeamExpenseCalculatorScree
                           ],
                         )),
                         DataCell(Text(c.consumerNo)),
-                        DataCell(Text(loc)),
-                        DataCell(Text(cap)),
-                        DataCell(Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: isRecorded ? Colors.green.shade50 : Colors.amber.shade50,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: isRecorded ? Colors.green.shade400 : Colors.amber.shade400),
-                          ),
-                          child: Text(
-                            isRecorded ? '✓ Recorded' : '⏳ Pending',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: isRecorded ? Colors.green.shade800 : Colors.amber.shade900,
-                            ),
-                          ),
-                        )),
-                        DataCell(Text(
-                          isRecorded ? _currency.format(exp.totalSiteExpense) : '₹ 0.00',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: isRecorded ? const Color(0xFF064E3B) : Colors.grey,
-                          ),
-                        )),
                         DataCell(
                           isRecorded
                               ? Row(
@@ -1386,6 +1366,34 @@ class _TeamExpenseCalculatorScreenState extends State<TeamExpenseCalculatorScree
                                   onPressed: () => _openAddEditDialog(initialConsumer: c),
                                 ),
                         ),
+                        DataCell(Text(cap)),
+                        DataCell(SizedBox(
+                          width: 200,
+                          child: Text(loc, maxLines: 2, overflow: TextOverflow.ellipsis),
+                        )),
+                        DataCell(Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isRecorded ? Colors.green.shade50 : Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: isRecorded ? Colors.green.shade400 : Colors.amber.shade400),
+                          ),
+                          child: Text(
+                            isRecorded ? '✓ Recorded' : '⏳ Pending',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: isRecorded ? Colors.green.shade800 : Colors.amber.shade900,
+                            ),
+                          ),
+                        )),
+                        DataCell(Text(
+                          isRecorded ? _currency.format(exp.totalSiteExpense) : '₹ 0.00',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isRecorded ? const Color(0xFF064E3B) : Colors.grey,
+                          ),
+                        )),
                       ],
                     );
                   }),
