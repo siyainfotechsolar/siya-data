@@ -8,6 +8,8 @@ import '../services/sales_commission_service.dart';
 import '../services/sales_commission_excel_service.dart';
 import '../utils/responsive.dart';
 
+enum SalesCommissionTab { all, pending, salesPerson, direct, summary }
+
 class SalesCommissionScreen extends StatefulWidget {
   const SalesCommissionScreen({super.key});
 
@@ -25,6 +27,8 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
   bool _isLoading = false;
   bool _isExporting = false;
   String? _errorMessage;
+
+  SalesCommissionTab _currentTab = SalesCommissionTab.all;
 
   // Filter controllers & states
   final TextEditingController _searchCtrl = TextEditingController();
@@ -409,17 +413,15 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
             _buildDashboardMetricsBar(theme, summary, isMobile),
             const SizedBox(height: 12),
 
-            // SECTION 8: SALES PERSON-WISE SUMMARY (Toggleable Strip)
-            if (salesPersonSummaries.isNotEmpty) ...[
-              _buildSalesPersonSummarySection(theme, salesPersonSummaries, isMobile),
-              const SizedBox(height: 12),
-            ],
+            // SECTION 8: TAB SELECTOR (All, Pending, Sales Person, Direct, Summary)
+            _buildTabSelector(theme, summary, salesPersonSummaries),
+            const SizedBox(height: 10),
 
             // SECTION 9: SEARCH & FILTERS TOOLBAR
             _buildFiltersToolbar(theme, isMobile),
             const SizedBox(height: 12),
 
-            // SECTION 6: MAIN SCREEN – COMPLETE CUSTOMER LIST
+            // SECTION 6: MAIN SCREEN – TAB CONTENT
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -436,37 +438,7 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
                             ],
                           ),
                         )
-                      : displayed.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.person_search_outlined, size: 56, color: Colors.grey.shade400),
-                                  const SizedBox(height: 12),
-                                  const Text(
-                                    'No customer commission records found',
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    _allCommissions.isEmpty
-                                        ? 'Click "+ Add Commission" to create the first record.'
-                                        : 'No records match the current filter criteria.',
-                                    style: TextStyle(color: Colors.grey.shade600),
-                                  ),
-                                  if (_allCommissions.isNotEmpty) ...[
-                                    const SizedBox(height: 12),
-                                    OutlinedButton(
-                                      onPressed: _resetFilters,
-                                      child: const Text('Reset All Filters'),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            )
-                          : isMobile
-                              ? _buildMobileCommissionList(theme, displayed)
-                              : _buildDesktopDataTable(theme, displayed, summary),
+                      : _buildCurrentTabView(theme, displayed, summary, salesPersonSummaries, isMobile),
             ),
           ],
         ),
@@ -480,33 +452,71 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
   Widget _buildDashboardMetricsBar(ThemeData theme, CommissionDashboardSummary summary, bool isMobile) {
     final cards = [
       _MetricCard(
-        title: 'Total Customers',
-        value: '${summary.totalCustomers}',
-        subtitle: 'All Master Sites',
-        icon: Icons.people_alt_outlined,
+        title: 'Master Sites',
+        value: '${summary.totalCustomers} Sites',
+        subtitle: '${summary.salesPersonCustomers} Sales Person • ${summary.directCustomers} Direct',
+        icon: Icons.business_rounded,
         color: Colors.blue.shade800,
         bgColor: Colors.blue.shade50,
+        isSelected: _currentTab == SalesCommissionTab.all && _selectedSourceFilter == 'All' && _selectedStatusFilter == 'All',
+        onTap: () {
+          _resetFilters();
+          setState(() => _currentTab = SalesCommissionTab.all);
+        },
       ),
       _MetricCard(
-        title: 'Sales Person Customers',
-        value: '${summary.salesPersonCustomers}',
+        title: 'Pending Commission',
+        value: '${summary.pendingCommissionCustomers} Sites',
+        subtitle: 'Click to view pending sites!',
+        icon: Icons.pending_actions_rounded,
+        color: Colors.amber.shade900,
+        bgColor: Colors.amber.shade50,
+        isSelected: _currentTab == SalesCommissionTab.pending,
+        onTap: () {
+          setState(() => _currentTab = SalesCommissionTab.pending);
+        },
+      ),
+      _MetricCard(
+        title: 'Sales Person Sites',
+        value: '${summary.salesPersonCustomers} Sites',
         subtitle: 'Referred Customers',
         icon: Icons.badge_outlined,
         color: Colors.indigo.shade800,
         bgColor: Colors.indigo.shade50,
-        onTap: () => setState(() => _selectedSourceFilter = 'Sales Person'),
+        isSelected: _currentTab == SalesCommissionTab.salesPerson,
+        onTap: () {
+          setState(() => _currentTab = SalesCommissionTab.salesPerson);
+        },
       ),
       _MetricCard(
         title: 'Direct Customers',
-        value: '${summary.directCustomers}',
-        subtitle: 'No Commission Required',
+        value: '${summary.directCustomers} Sites',
+        subtitle: '₹0 • Not Applicable',
         icon: Icons.domain_outlined,
         color: Colors.teal.shade800,
         bgColor: Colors.teal.shade50,
-        onTap: () => setState(() => _selectedSourceFilter = 'Direct Customer'),
+        isSelected: _currentTab == SalesCommissionTab.direct,
+        onTap: () {
+          setState(() => _currentTab = SalesCommissionTab.direct);
+        },
       ),
       _MetricCard(
-        title: 'Total Installed Capacity',
+        title: 'Completed Records',
+        value: '${summary.completedCommissionCustomers} Sites',
+        subtitle: 'Finalized Commission Records',
+        icon: Icons.check_circle_outline,
+        color: Colors.green.shade800,
+        bgColor: Colors.green.shade50,
+        isSelected: _selectedStatusFilter == 'Completed',
+        onTap: () {
+          setState(() {
+            _selectedStatusFilter = 'Completed';
+            _currentTab = SalesCommissionTab.all;
+          });
+        },
+      ),
+      _MetricCard(
+        title: 'Total Installed kW',
         value: '${summary.totalInstalledCapacityKw.toStringAsFixed(1)} kW',
         subtitle: 'All Customer Sites',
         icon: Icons.solar_power_outlined,
@@ -514,39 +524,16 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
         bgColor: Colors.orange.shade50,
       ),
       _MetricCard(
-        title: 'Pending Commission Sites',
-        value: '${summary.pendingCommissionCustomers}',
-        subtitle: 'Awaiting Finalization',
-        icon: Icons.hourglass_top_rounded,
-        color: Colors.amber.shade900,
-        bgColor: Colors.amber.shade50,
-        onTap: () => setState(() => _selectedStatusFilter = 'Pending'),
-      ),
-      _MetricCard(
-        title: 'Completed Commission Sites',
-        value: '${summary.completedCommissionCustomers}',
-        subtitle: 'Finalized Commission Records',
-        icon: Icons.check_circle_outline,
-        color: Colors.green.shade800,
-        bgColor: Colors.green.shade50,
-        onTap: () => setState(() => _selectedStatusFilter = 'Completed'),
-      ),
-      _MetricCard(
-        title: 'Not Applicable Sites',
-        value: '${summary.notApplicableCustomers}',
-        subtitle: 'Direct Customers',
-        icon: Icons.block_outlined,
-        color: Colors.blueGrey.shade700,
-        bgColor: Colors.blueGrey.shade50,
-        onTap: () => setState(() => _selectedStatusFilter = 'Not Applicable'),
-      ),
-      _MetricCard(
-        title: 'Total Pending Commission',
+        title: 'Pending Commission',
         value: _currency.format(summary.totalPendingCommissionAmount),
         subtitle: 'Pending Payout (Direct Excluded)',
-        icon: Icons.pending_actions_rounded,
+        icon: Icons.hourglass_top_rounded,
         color: const Color(0xFFB45309), // Amber dark
         bgColor: const Color(0xFFFEF3C7),
+        isSelected: _currentTab == SalesCommissionTab.pending,
+        onTap: () {
+          setState(() => _currentTab = SalesCommissionTab.pending);
+        },
       ),
       _MetricCard(
         title: 'Total Commission Amount',
@@ -556,17 +543,42 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
         color: const Color(0xFF064E3B),
         bgColor: const Color(0xFFD1FAE5),
         isPrimary: true,
+        isSelected: _currentTab == SalesCommissionTab.summary,
+        onTap: () {
+          setState(() => _currentTab = SalesCommissionTab.summary);
+        },
       ),
     ];
 
-    return SizedBox(
-      height: 110,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: cards.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 10),
-        itemBuilder: (context, i) => SizedBox(width: isMobile ? 185 : 210, child: cards[i]),
-      ),
+    if (isMobile) {
+      return SizedBox(
+        height: 102,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: cards.length,
+          separatorBuilder: (context, index) => const SizedBox(width: 8),
+          itemBuilder: (context, i) => SizedBox(width: 175, child: cards[i]),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossCount = constraints.maxWidth > 1200 ? 4 : 2;
+        final rows = <Widget>[];
+        for (int i = 0; i < cards.length; i += crossCount) {
+          final chunk = cards.sublist(i, (i + crossCount < cards.length) ? i + crossCount : cards.length);
+          rows.add(
+            Row(
+              children: chunk
+                  .map((c) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4.0), child: c)))
+                  .toList(),
+            ),
+          );
+          if (i + crossCount < cards.length) rows.add(const SizedBox(height: 8));
+        }
+        return Column(children: rows);
+      },
     );
   }
 
@@ -873,6 +885,677 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // =========================================================================
+  // SECTION 8: TAB SELECTOR
+  // =========================================================================
+  Widget _buildTabSelector(
+    ThemeData theme,
+    CommissionDashboardSummary summary,
+    List<SalesPersonSummary> spSummaries,
+  ) {
+    return SegmentedButton<SalesCommissionTab>(
+      segments: [
+        ButtonSegment(
+          value: SalesCommissionTab.all,
+          icon: const Icon(Icons.list_alt_rounded, size: 16),
+          label: Text('All Customer Sites (${_allCommissions.length})'),
+        ),
+        ButtonSegment(
+          value: SalesCommissionTab.pending,
+          icon: const Icon(Icons.pending_actions_rounded, size: 16),
+          label: Text('Pending Commission (${summary.pendingCommissionCustomers})'),
+        ),
+        ButtonSegment(
+          value: SalesCommissionTab.salesPerson,
+          icon: const Icon(Icons.badge_outlined, size: 16),
+          label: Text('Sales Person Sites (${summary.salesPersonCustomers})'),
+        ),
+        ButtonSegment(
+          value: SalesCommissionTab.direct,
+          icon: const Icon(Icons.domain_outlined, size: 16),
+          label: Text('Direct Customers (${summary.directCustomers})'),
+        ),
+        ButtonSegment(
+          value: SalesCommissionTab.summary,
+          icon: const Icon(Icons.leaderboard_rounded, size: 16),
+          label: Text('Sales Person Summary (${spSummaries.length})'),
+        ),
+      ],
+      selected: {_currentTab},
+      onSelectionChanged: (set) {
+        setState(() => _currentTab = set.first);
+      },
+    );
+  }
+
+  Widget _buildCurrentTabView(
+    ThemeData theme,
+    List<SalesCommission> displayed,
+    CommissionDashboardSummary summary,
+    List<SalesPersonSummary> spSummaries,
+    bool isMobile,
+  ) {
+    switch (_currentTab) {
+      case SalesCommissionTab.all:
+        return displayed.isEmpty
+            ? _buildEmptyState()
+            : (isMobile
+                ? _buildMobileCommissionList(theme, displayed)
+                : _buildDesktopDataTable(theme, displayed, summary));
+      case SalesCommissionTab.pending:
+        return _buildPendingCommissionTab(theme, displayed, summary, isMobile);
+      case SalesCommissionTab.salesPerson:
+        return _buildSalesPersonSitesTab(theme, displayed, summary, spSummaries, isMobile);
+      case SalesCommissionTab.direct:
+        return _buildDirectCustomersTab(theme, displayed, summary, isMobile);
+      case SalesCommissionTab.summary:
+        return _buildSalesPersonSummaryTab(theme, spSummaries, isMobile);
+    }
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.person_search_outlined, size: 56, color: Colors.grey.shade400),
+          const SizedBox(height: 12),
+          const Text(
+            'No customer commission records found',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _allCommissions.isEmpty
+                ? 'Click "+ Add Commission" to create the first record.'
+                : 'No records match the current filter criteria.',
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+          if (_allCommissions.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: _resetFilters,
+              child: const Text('Reset All Filters'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingCommissionTab(
+    ThemeData theme,
+    List<SalesCommission> displayed,
+    CommissionDashboardSummary summary,
+    bool isMobile,
+  ) {
+    final pendingList = displayed.where((c) => c.isPending || (c.isSalesPersonCustomer && c.commissionStatus != 'Completed')).toList();
+
+    if (pendingList.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check_circle_outline_rounded, size: 56, color: Colors.green.shade600),
+            const SizedBox(height: 12),
+            const Text(
+              'No Pending Commissions!',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              summary.pendingCommissionCustomers == 0
+                  ? 'All customer commissions have been finalized or marked not applicable.'
+                  : 'No pending records match the search filter.',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return isMobile
+        ? _buildMobilePendingList(theme, pendingList)
+        : _buildDesktopPendingTable(theme, pendingList);
+  }
+
+  Widget _buildDesktopPendingTable(ThemeData theme, List<SalesCommission> pendingList) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+              border: Border(bottom: BorderSide(color: Colors.amber.shade200)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, size: 20, color: Colors.amber.shade900),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${pendingList.length} Customer Sites have pending commission entry/finalization. Click "+ Set Commission" to assign Sales Person & Rate.',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber.shade900, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  headingRowColor: WidgetStateProperty.all(Colors.amber.shade100.withValues(alpha: 0.5)),
+                  columns: const [
+                    DataColumn(label: Text('Sr. No.', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Consumer No.', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Action', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Customer Source', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Sales Person', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Capacity (kW)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Rate / kW (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Total Commission (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Commission Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Site Location', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Remarks', style: TextStyle(fontWeight: FontWeight.bold))),
+                  ],
+                  rows: List.generate(pendingList.length, (idx) {
+                    final c = pendingList[idx];
+                    return DataRow(
+                      onSelectChanged: (_) => _openAddEditDialog(existing: c),
+                      cells: [
+                        DataCell(Text('${idx + 1}')),
+                        DataCell(Row(
+                          children: [
+                            const Icon(Icons.person_outline, size: 16, color: Colors.blueGrey),
+                            const SizedBox(width: 6),
+                            Text(c.customerName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ],
+                        )),
+                        DataCell(Text(c.consumerNo, style: const TextStyle(fontWeight: FontWeight.w500))),
+                        DataCell(
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.edit_note_rounded, size: 14, color: Colors.white),
+                            label: const Text('+ Set Commission', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0D9488),
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            ),
+                            onPressed: () => _openAddEditDialog(existing: c),
+                          ),
+                        ),
+                        DataCell(Text(c.customerSource)),
+                        DataCell(Text(c.salesPersonName ?? '—', style: TextStyle(color: c.salesPersonName != null ? Colors.indigo : Colors.grey, fontWeight: FontWeight.bold))),
+                        DataCell(Text('${c.capacityKw.toStringAsFixed(1)} kW')),
+                        DataCell(Text(_currency.format(c.commissionRatePerKw))),
+                        DataCell(Text(
+                          _currency.format(c.totalCommission),
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFB45309)),
+                        )),
+                        DataCell(
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.amber.shade400),
+                            ),
+                            child: Text(
+                              c.commissionStatus,
+                              style: TextStyle(color: Colors.amber.shade900, fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                        DataCell(Text(c.siteLocation)),
+                        DataCell(Text(c.remarks ?? '-')),
+                      ],
+                    );
+                  }),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobilePendingList(ThemeData theme, List<SalesCommission> pendingList) {
+    return ListView.separated(
+      itemCount: pendingList.length,
+      separatorBuilder: (_, index) => const SizedBox(height: 8),
+      itemBuilder: (_, i) {
+        final c = pendingList[i];
+        return Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: Colors.amber.shade200),
+          ),
+          color: Colors.amber.shade50.withValues(alpha: 0.3),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        c.customerName,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade100,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Pending',
+                        style: TextStyle(color: Colors.amber.shade900, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text('Consumer No: ${c.consumerNo} • ${c.capacityKw.toStringAsFixed(1)} kW', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                if (c.salesPersonName != null)
+                  Text('Sales Person: ${c.salesPersonName} (Rate: ${_currency.format(c.commissionRatePerKw)}/kW)', style: TextStyle(fontSize: 12, color: Colors.indigo.shade800)),
+                Text('Location: ${c.siteLocation}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Commission: ${_currency.format(c.totalCommission)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFFB45309)),
+                    ),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.edit_note_rounded, size: 14, color: Colors.white),
+                      label: const Text('+ Set Commission', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0D9488),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () => _openAddEditDialog(existing: c),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSalesPersonSitesTab(
+    ThemeData theme,
+    List<SalesCommission> displayed,
+    CommissionDashboardSummary summary,
+    List<SalesPersonSummary> spSummaries,
+    bool isMobile,
+  ) {
+    final spList = displayed.where((c) => c.isSalesPersonCustomer).toList();
+    final spTotal = spList.fold<double>(0.0, (sum, c) => sum + c.totalCommission);
+    final spKw = spList.fold<double>(0.0, (sum, c) => sum + c.capacityKw);
+
+    return Column(
+      children: [
+        if (spSummaries.isNotEmpty) ...[
+          _buildSalesPersonSummarySection(theme, spSummaries, isMobile),
+          const SizedBox(height: 10),
+        ],
+        Expanded(
+          child: Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(color: Colors.indigo.shade200),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.indigo.shade50,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                    border: Border(bottom: BorderSide(color: Colors.indigo.shade200)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.badge_outlined, size: 20, color: Colors.indigo.shade900),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${spList.length} Referred Sites • ${spKw.toStringAsFixed(1)} Installed kW • Total Commission: ${_currency.format(spTotal)}',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo.shade900, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(8),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        headingRowColor: WidgetStateProperty.all(Colors.indigo.shade50),
+                        columns: const [
+                          DataColumn(label: Text('Sr. No.', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Consumer No.', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Sales Person', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Capacity (kW)', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Rate / kW (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Commission (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Site Location', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+                        ],
+                        rows: List.generate(spList.length, (idx) {
+                          final c = spList[idx];
+                          return DataRow(
+                            cells: [
+                              DataCell(Text('${idx + 1}')),
+                              DataCell(Text(c.customerName, style: const TextStyle(fontWeight: FontWeight.bold))),
+                              DataCell(Text(c.consumerNo)),
+                              DataCell(Text(c.salesPersonName ?? '—', style: const TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold))),
+                              DataCell(Text('${c.capacityKw.toStringAsFixed(1)} kW')),
+                              DataCell(Text(_currency.format(c.commissionRatePerKw))),
+                              DataCell(Text(_currency.format(c.totalCommission), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF064E3B)))),
+                              DataCell(Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: c.isCompleted ? Colors.green.shade100 : Colors.amber.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  c.commissionStatus,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: c.isCompleted ? Colors.green.shade900 : Colors.amber.shade900,
+                                  ),
+                                ),
+                              )),
+                              DataCell(Text(c.siteLocation)),
+                              DataCell(
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.blue),
+                                      onPressed: () => _openAddEditDialog(existing: c),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                                      onPressed: () => _handleDelete(c),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        }),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDirectCustomersTab(
+    ThemeData theme,
+    List<SalesCommission> displayed,
+    CommissionDashboardSummary summary,
+    bool isMobile,
+  ) {
+    final directList = displayed.where((c) => c.isDirectCustomer).toList();
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.teal.shade200),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.teal.shade50,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+              border: Border(bottom: BorderSide(color: Colors.teal.shade200)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline_rounded, size: 20, color: Colors.teal.shade900),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${directList.length} Direct Customers (No Sales Person). Commission is strictly ₹0.00 and status is Not Applicable.',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade900, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  headingRowColor: WidgetStateProperty.all(Colors.teal.shade50),
+                  columns: const [
+                    DataColumn(label: Text('Sr. No.', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Consumer No.', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Customer Source', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Capacity (kW)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Commission (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Site Location', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+                  ],
+                  rows: List.generate(directList.length, (idx) {
+                    final c = directList[idx];
+                    return DataRow(
+                      cells: [
+                        DataCell(Text('${idx + 1}')),
+                        DataCell(Row(
+                          children: [
+                            const Icon(Icons.person_outline, size: 16, color: Colors.teal),
+                            const SizedBox(width: 6),
+                            Text(c.customerName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ],
+                        )),
+                        DataCell(Text(c.consumerNo)),
+                        DataCell(Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.teal.shade200)),
+                          child: const Text('Direct Customer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.teal)),
+                        )),
+                        DataCell(Text('${c.capacityKw.toStringAsFixed(1)} kW')),
+                        DataCell(const Text('₹ 0.00', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey))),
+                        DataCell(Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(4)),
+                          child: const Text('Not Applicable', style: TextStyle(fontSize: 11, color: Colors.black87)),
+                        )),
+                        DataCell(Text(c.siteLocation)),
+                        DataCell(
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.blue),
+                            tooltip: 'Edit / Change Source',
+                            onPressed: () => _openAddEditDialog(existing: c),
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSalesPersonSummaryTab(
+    ThemeData theme,
+    List<SalesPersonSummary> spSummaries,
+    bool isMobile,
+  ) {
+    if (spSummaries.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.leaderboard_outlined, size: 56, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            const Text('No Sales Person Summaries Available', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text('Assign customers to Sales Persons to view the summary.', style: TextStyle(color: Colors.grey.shade600)),
+          ],
+        ),
+      );
+    }
+
+    final totalKw = spSummaries.fold<double>(0.0, (s, p) => s + p.totalCapacityKw);
+    final totalComm = spSummaries.fold<double>(0.0, (s, p) => s + p.totalCommission);
+    final totalPending = spSummaries.fold<double>(0.0, (s, p) => s + p.pendingCommission);
+    final totalCompleted = spSummaries.fold<double>(0.0, (s, p) => s + p.completedCommission);
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.indigo.shade200),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.indigo.shade50,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+              border: Border(bottom: BorderSide(color: Colors.indigo.shade200)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.groups_outlined, size: 20, color: Colors.indigo.shade900),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Sales Person Performance Summary (${spSummaries.length} Staff Members) • Grand Total: ${_currency.format(totalComm)}',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo.shade900, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  headingRowColor: WidgetStateProperty.all(Colors.indigo.shade50),
+                  columns: const [
+                    DataColumn(label: Text('Sr. No.', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Sales Person Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Number of Sites', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Total Capacity (kW)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Total Commission (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Pending Commission (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Completed Commission (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Action', style: TextStyle(fontWeight: FontWeight.bold))),
+                  ],
+                  rows: [
+                    ...List.generate(spSummaries.length, (idx) {
+                      final sp = spSummaries[idx];
+                      return DataRow(
+                        cells: [
+                          DataCell(Text('${idx + 1}')),
+                          DataCell(Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 12,
+                                backgroundColor: Colors.indigo.shade100,
+                                child: Text(sp.salesPersonName[0].toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(sp.salesPersonName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            ],
+                          )),
+                          DataCell(Text('${sp.totalCustomers} Sites')),
+                          DataCell(Text('${sp.totalCapacityKw.toStringAsFixed(1)} kW')),
+                          DataCell(Text(_currency.format(sp.totalCommission), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF064E3B)))),
+                          DataCell(Text(_currency.format(sp.pendingCommission), style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFB45309)))),
+                          DataCell(Text(_currency.format(sp.completedCommission), style: const TextStyle(color: Colors.green))),
+                          DataCell(
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.filter_alt_outlined, size: 14),
+                              label: const Text('View Sites', style: TextStyle(fontSize: 11)),
+                              style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                              onPressed: () {
+                                setState(() {
+                                  _selectedSalesPersonFilter = sp.salesPersonName;
+                                  _currentTab = SalesCommissionTab.salesPerson;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                    // Grand Total Row
+                    DataRow(
+                      color: WidgetStateProperty.all(Colors.indigo.shade50.withValues(alpha: 0.5)),
+                      cells: [
+                        const DataCell(Text('')),
+                        const DataCell(Text('TOTAL', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataCell(Text('${spSummaries.fold<int>(0, (s, p) => s + p.totalCustomers)} Sites', style: const TextStyle(fontWeight: FontWeight.bold))),
+                        DataCell(Text('${totalKw.toStringAsFixed(1)} kW', style: const TextStyle(fontWeight: FontWeight.bold))),
+                        DataCell(Text(_currency.format(totalComm), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF064E3B)))),
+                        DataCell(Text(_currency.format(totalPending), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFB45309)))),
+                        DataCell(Text(_currency.format(totalCompleted), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green))),
+                        const DataCell(Text('')),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1218,6 +1901,7 @@ class _MetricCard extends StatelessWidget {
   final Color color;
   final Color bgColor;
   final bool isPrimary;
+  final bool isSelected;
   final VoidCallback? onTap;
 
   const _MetricCard({
@@ -1228,6 +1912,7 @@ class _MetricCard extends StatelessWidget {
     required this.color,
     required this.bgColor,
     this.isPrimary = false,
+    this.isSelected = false,
     this.onTap,
   });
 
@@ -1237,7 +1922,12 @@ class _MetricCard extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: isPrimary ? color.withValues(alpha: 0.5) : Colors.grey.shade300),
+        side: BorderSide(
+          color: isSelected
+              ? color
+              : (isPrimary ? color.withValues(alpha: 0.5) : Colors.grey.shade300),
+          width: isSelected ? 2.0 : 1.0,
+        ),
       ),
       color: bgColor,
       child: InkWell(
@@ -1655,7 +2345,9 @@ class _AddEditCommissionDialogState extends State<_AddEditCommissionDialog> {
                           title: const Text('Sales Person', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                           subtitle: const Text('Commission is applicable', style: TextStyle(fontSize: 11)),
                           value: 'Sales Person',
+                          // ignore: deprecated_member_use
                           groupValue: _customerSource,
+                          // ignore: deprecated_member_use
                           onChanged: (val) {
                             if (val != null) {
                               setState(() {
@@ -1672,7 +2364,9 @@ class _AddEditCommissionDialogState extends State<_AddEditCommissionDialog> {
                           title: const Text('Direct Customer', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                           subtitle: const Text('₹0 Commission (Not Applicable)', style: TextStyle(fontSize: 11)),
                           value: 'Direct Customer',
+                          // ignore: deprecated_member_use
                           groupValue: _customerSource,
+                          // ignore: deprecated_member_use
                           onChanged: (val) {
                             if (val != null) {
                               setState(() {
