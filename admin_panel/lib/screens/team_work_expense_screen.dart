@@ -9,7 +9,7 @@ import '../services/team_work_excel_service.dart';
 import '../utils/consumer_no_utils.dart';
 import '../utils/responsive.dart';
 
-enum TeamWorkViewTab { allSites, pending, customers, entries, persons, categories }
+enum TeamWorkViewTab { entries, customers, persons, categories }
 
 class TeamWorkExpenseScreen extends StatefulWidget {
   const TeamWorkExpenseScreen({super.key});
@@ -30,7 +30,7 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
   bool _isExporting = false;
   String? _errorMessage;
 
-  TeamWorkViewTab _currentTab = TeamWorkViewTab.allSites;
+  TeamWorkViewTab _currentTab = TeamWorkViewTab.entries;
 
   // Filter controllers & states
   final TextEditingController _searchCtrl = TextEditingController();
@@ -122,51 +122,6 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
         return false;
       }
 
-      return true;
-    }).toList();
-  }
-
-  /// All unique customer sites from master that do NOT yet have any recorded team work expense
-  List<ConsumerRecord> get _allPendingConsumers {
-    final recordedConsumerNos = _allExpenses
-        .map((e) => ConsumerNoNormalizer.normalize(e.consumerNo))
-        .where((s) => s.isNotEmpty)
-        .toSet();
-
-    return _availableConsumers.where((c) {
-      final norm = ConsumerNoNormalizer.normalize(c.consumerNo);
-      return !recordedConsumerNos.contains(norm);
-    }).toList();
-  }
-
-  /// Pending customer sites filtered by customer name and consumer number searches
-  List<ConsumerRecord> get _filteredPendingConsumers {
-    final nameTerm = _searchCtrl.text.trim().toLowerCase();
-    final noTerm = _consumerNoSearchCtrl.text.trim().toLowerCase();
-
-    return _allPendingConsumers.where((c) {
-      if (nameTerm.isNotEmpty && !c.name.toLowerCase().contains(nameTerm)) {
-        return false;
-      }
-      if (noTerm.isNotEmpty && !c.consumerNo.toLowerCase().contains(noTerm)) {
-        return false;
-      }
-      return true;
-    }).toList();
-  }
-
-  /// All customer sites filtered by customer name and consumer number searches
-  List<ConsumerRecord> get _filteredAllConsumers {
-    final nameTerm = _searchCtrl.text.trim().toLowerCase();
-    final noTerm = _consumerNoSearchCtrl.text.trim().toLowerCase();
-
-    return _availableConsumers.where((c) {
-      if (nameTerm.isNotEmpty && !c.name.toLowerCase().contains(nameTerm)) {
-        return false;
-      }
-      if (noTerm.isNotEmpty && !c.consumerNo.toLowerCase().contains(noTerm)) {
-        return false;
-      }
       return true;
     }).toList();
   }
@@ -418,7 +373,7 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
                       if (!isMobile) ...[
                         const SizedBox(height: 4),
                         Text(
-                          'Track individual team worker expenses (Structure, Wiring, Civil) with site drill-down and 4-sheet Excel reports.',
+                          'Record and track completed work expenses for individual team members (Structure, Wiring, Civil) with site drill-down and 4-sheet Excel reports.',
                           style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                         ),
                       ],
@@ -448,7 +403,7 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
                       icon: const Icon(Icons.people_outline, size: 18),
                       label: Text(isMobile ? 'Members' : 'Team Members (${_teamMembers.length})'),
                     ),
-                    // Add Work Entry
+                    // Add Completed Work Entry
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF1E3A8A), // Navy
@@ -456,7 +411,7 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
                       ),
                       onPressed: () => _openAddEditEntryDialog(),
                       icon: const Icon(Icons.add_rounded, size: 18),
-                      label: Text(isMobile ? 'Add' : '+ Add Work Entry'),
+                      label: Text(isMobile ? 'Record Work' : '+ Record Completed Work'),
                     ),
                     IconButton(
                       onPressed: _loadData,
@@ -511,41 +466,15 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
   // ==========================================
 
   Widget _buildDashboardMetricsBar(ThemeData theme, TeamWorkDashboardSummary summary, bool isMobile) {
-    final totalMaster = _availableConsumers.length;
     final customerSummaries = TeamWorkService.buildCustomerSummaries(_allExpenses);
-    final recordedCount = customerSummaries.length;
-    final pendingCount = _allPendingConsumers.length;
+    final recordedSitesCount = customerSummaries.length;
 
     final cards = [
       _MetricCard(
-        title: 'Master Sites',
-        value: '$totalMaster Sites',
-        subtitle: '$recordedCount Recorded • $pendingCount Pending',
-        icon: Icons.business_rounded,
-        color: const Color(0xFF2563EB), // Blue
-        bgColor: const Color(0xFFEFF6FF),
-        isSelected: _currentTab == TeamWorkViewTab.allSites,
-        onTap: () {
-          setState(() => _currentTab = TeamWorkViewTab.allSites);
-        },
-      ),
-      _MetricCard(
-        title: 'Expenses Pending',
-        value: '$pendingCount Sites',
-        subtitle: 'Click to view pending sites!',
-        icon: Icons.pending_actions_rounded,
-        color: const Color(0xFFD97706), // Amber
-        bgColor: const Color(0xFFFFFBEB),
-        isSelected: _currentTab == TeamWorkViewTab.pending,
-        onTap: () {
-          setState(() => _currentTab = TeamWorkViewTab.pending);
-        },
-      ),
-      _MetricCard(
-        title: 'Expenses Recorded',
-        value: '$recordedCount Sites',
-        subtitle: '${_allExpenses.length} Work Entries',
-        icon: Icons.check_circle_outline,
+        title: 'Completed Sites',
+        value: '$recordedSitesCount Sites',
+        subtitle: '${_allExpenses.length} Completed Work Entries',
+        icon: Icons.domain_verification_rounded,
         color: const Color(0xFF047857), // Green
         bgColor: const Color(0xFFECFDF5),
         isSelected: _currentTab == TeamWorkViewTab.customers,
@@ -632,7 +561,7 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossCount = constraints.maxWidth > 1200 ? 4 : 2;
+        final crossCount = constraints.maxWidth > 1200 ? 6 : (constraints.maxWidth > 700 ? 3 : 2);
         final rows = <Widget>[];
         for (int i = 0; i < cards.length; i += crossCount) {
           final chunk = cards.sublist(i, (i + crossCount < cards.length) ? i + crossCount : cards.length);
@@ -813,44 +742,32 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
   // ==========================================
 
   Widget _buildTabSelector(ThemeData theme) {
-    final totalMaster = _availableConsumers.length;
     final personSummaries = TeamWorkService.buildPersonSummaries(_allExpenses);
     final customerSummaries = TeamWorkService.buildCustomerSummaries(_allExpenses);
-    final pendingCount = _allPendingConsumers.length;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SegmentedButton<TeamWorkViewTab>(
         segments: [
           ButtonSegment(
-            value: TeamWorkViewTab.allSites,
-            icon: const Icon(Icons.business_rounded, size: 16),
-            label: Text('All Customer Sites ($totalMaster)'),
-          ),
-          ButtonSegment(
-            value: TeamWorkViewTab.pending,
-            icon: const Icon(Icons.pending_actions_rounded, size: 16),
-            label: Text('Pending Sites ($pendingCount)'),
+            value: TeamWorkViewTab.entries,
+            icon: const Icon(Icons.list_alt_rounded, size: 16),
+            label: Text('Completed Work Entries (${_filteredExpenses.length})'),
           ),
           ButtonSegment(
             value: TeamWorkViewTab.customers,
             icon: const Icon(Icons.domain_rounded, size: 16),
-            label: Text('Recorded Sites (${customerSummaries.length})'),
-          ),
-          ButtonSegment(
-            value: TeamWorkViewTab.entries,
-            icon: const Icon(Icons.list_alt_rounded, size: 16),
-            label: Text('All Work Entries (${_filteredExpenses.length})'),
+            label: Text('Customer-wise Summary (${customerSummaries.length})'),
           ),
           ButtonSegment(
             value: TeamWorkViewTab.persons,
             icon: const Icon(Icons.person_pin_rounded, size: 16),
-            label: Text('Person Summary (${personSummaries.length})'),
+            label: Text('Person-wise Summary (${personSummaries.length})'),
           ),
           const ButtonSegment(
             value: TeamWorkViewTab.categories,
             icon: Icon(Icons.pie_chart_outline_rounded, size: 16),
-            label: Text('Category Summary (3)'),
+            label: Text('Work Category Summary (3)'),
           ),
         ],
         selected: {_currentTab},
@@ -867,395 +784,15 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
 
   Widget _buildCurrentTabView(ThemeData theme, List<TeamWorkExpense> expenses, bool isMobile) {
     switch (_currentTab) {
-      case TeamWorkViewTab.allSites:
-        return _buildAllCustomerSitesTab(theme, isMobile);
       case TeamWorkViewTab.entries:
         return _buildWorkEntriesTab(theme, expenses, isMobile);
-      case TeamWorkViewTab.pending:
-        return _buildPendingSitesTab(theme, isMobile);
-      case TeamWorkViewTab.persons:
-        return _buildPersonSummaryTab(theme, expenses, isMobile);
       case TeamWorkViewTab.customers:
         return _buildCustomerSummaryTab(theme, expenses, isMobile);
+      case TeamWorkViewTab.persons:
+        return _buildPersonSummaryTab(theme, expenses, isMobile);
       case TeamWorkViewTab.categories:
         return _buildCategorySummaryTab(theme, expenses);
     }
-  }
-
-  // ==========================================
-  // ALL CUSTOMER SITES TAB
-  // ==========================================
-
-  Widget _buildAllCustomerSitesTab(ThemeData theme, bool isMobile) {
-    final list = _filteredAllConsumers;
-    final totalMaster = _availableConsumers.length;
-    final recordedCount = TeamWorkService.buildCustomerSummaries(_allExpenses).length;
-    final pendingCount = _allPendingConsumers.length;
-
-    if (list.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.search_off_rounded, size: 48, color: Colors.grey.shade400),
-            const SizedBox(height: 12),
-            const Text('No Customer Sites Found Matching Filter.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      );
-    }
-
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: Colors.blue.shade200),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-              border: Border(bottom: BorderSide(color: Colors.blue.shade200)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.business_rounded, size: 20, color: Colors.blue.shade900),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'All Customer Sites ($totalMaster Sites) — $recordedCount Expenses Recorded, $pendingCount Expenses Pending. Click "Edit Work" or "+ Record Work" on any customer.',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade900, fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(8),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: DataTable(
-                  headingRowColor: WidgetStateProperty.all(Colors.blue.shade100.withValues(alpha: 0.5)),
-                  columns: const [
-                    DataColumn(label: Text('Sr. No.', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Consumer No.', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Action / Edit', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Expense Status', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(numeric: true, label: Text('Total Site Expense (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Solar Capacity', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Site Location', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Mobile', style: TextStyle(fontWeight: FontWeight.bold))),
-                  ],
-                  rows: List.generate(list.length, (idx) {
-                    final c = list[idx];
-                    final norm = ConsumerNoNormalizer.normalize(c.consumerNo);
-                    final entries = _allExpenses.where((e) => ConsumerNoNormalizer.normalize(e.consumerNo) == norm).toList();
-                    final isRecorded = entries.isNotEmpty;
-                    final totalExp = entries.fold<double>(0.0, (sum, e) => sum + e.individualExpense);
-
-                    final loc = c.address ?? c.village ?? '-';
-                    final cap = c.systemCapacity?.isNotEmpty == true
-                        ? c.systemCapacity!
-                        : (c.capacityKw > 0 ? '${c.capacityKw} kW' : '-');
-
-                    return DataRow(
-                      cells: [
-                        DataCell(Text('${idx + 1}')),
-                        DataCell(Row(
-                          children: [
-                            Icon(isRecorded ? Icons.verified_user_rounded : Icons.person_outline, size: 16, color: isRecorded ? Colors.teal : Colors.blueGrey),
-                            const SizedBox(width: 6),
-                            Text(c.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          ],
-                        )),
-                        DataCell(Text(c.consumerNo, style: const TextStyle(fontWeight: FontWeight.w500))),
-                        DataCell(
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (isRecorded) ...[
-                                ElevatedButton.icon(
-                                  icon: const Icon(Icons.edit_outlined, size: 13, color: Colors.white),
-                                  label: const Text('Edit Work', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF1E3A8A),
-                                    visualDensity: VisualDensity.compact,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  ),
-                                  onPressed: () => _openAddEditEntryDialog(existing: entries.first),
-                                ),
-                                const SizedBox(width: 4),
-                                OutlinedButton.icon(
-                                  icon: const Icon(Icons.add, size: 13),
-                                  label: const Text('+ Worker', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                  style: OutlinedButton.styleFrom(
-                                    visualDensity: VisualDensity.compact,
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  ),
-                                  onPressed: () => _openAddEditEntryDialog(preselectedCustomer: c),
-                                ),
-                              ] else ...[
-                                ElevatedButton.icon(
-                                  icon: const Icon(Icons.add_task_rounded, size: 13, color: Colors.white),
-                                  label: const Text('+ Record Work', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF0D9488),
-                                    visualDensity: VisualDensity.compact,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  ),
-                                  onPressed: () => _openAddEditEntryDialog(preselectedCustomer: c),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        DataCell(
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isRecorded ? Colors.green.shade50 : Colors.amber.shade50,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: isRecorded ? Colors.green.shade400 : Colors.amber.shade400),
-                            ),
-                            child: Text(
-                              isRecorded ? 'Recorded (${entries.length} Workers)' : 'Pending Entry',
-                              style: TextStyle(
-                                color: isRecorded ? Colors.green.shade800 : Colors.amber.shade900,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                        DataCell(Text(
-                          isRecorded ? _currency.format(totalExp) : '—',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: isRecorded ? const Color(0xFF064E3B) : Colors.grey),
-                        )),
-                        DataCell(Text(cap)),
-                        DataCell(Text(loc)),
-                        DataCell(Text(c.mobile ?? '-')),
-                      ],
-                    );
-                  }),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================
-  // PENDING SITES TAB
-  // ==========================================
-
-  Widget _buildPendingSitesTab(ThemeData theme, bool isMobile) {
-    final pendingList = _filteredPendingConsumers;
-    if (pendingList.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.check_circle_outline_rounded, size: 56, color: Colors.green.shade600),
-            const SizedBox(height: 12),
-            const Text(
-              'No Pending Customer Sites!',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _allPendingConsumers.isEmpty
-                  ? 'All registered customer sites have team expenses recorded.'
-                  : 'No pending sites match the search filter.',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return isMobile
-        ? _buildMobilePendingList(theme, pendingList)
-        : _buildDesktopPendingTable(theme, pendingList);
-  }
-
-  Widget _buildDesktopPendingTable(ThemeData theme, List<ConsumerRecord> pendingList) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.amber.shade50,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-              border: Border(bottom: BorderSide(color: Colors.amber.shade200)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.warning_amber_rounded, size: 20, color: Colors.amber.shade900),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${pendingList.length} Customer Sites are awaiting team work & expense entry. Click "+ Record / Edit Work" on any site to assign team members.',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber.shade900, fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(8),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: DataTable(
-                  headingRowColor: WidgetStateProperty.all(Colors.amber.shade100.withValues(alpha: 0.5)),
-                  columns: const [
-                    DataColumn(label: Text('Sr. No.', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Consumer No.', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Action / Edit', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Solar Capacity', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Site Location', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Expense Status', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Mobile', style: TextStyle(fontWeight: FontWeight.bold))),
-                  ],
-                  rows: List.generate(pendingList.length, (idx) {
-                    final c = pendingList[idx];
-                    final loc = c.address ?? c.village ?? '-';
-                    final cap = c.systemCapacity?.isNotEmpty == true
-                        ? c.systemCapacity!
-                        : (c.capacityKw > 0 ? '${c.capacityKw} kW' : '-');
-                    return DataRow(
-                      onSelectChanged: (_) => _openAddEditEntryDialog(preselectedCustomer: c),
-                      cells: [
-                        DataCell(Text('${idx + 1}')),
-                        DataCell(Row(
-                          children: [
-                            const Icon(Icons.person_outline, size: 16, color: Colors.blueGrey),
-                            const SizedBox(width: 6),
-                            Text(c.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          ],
-                        )),
-                        DataCell(Text(c.consumerNo, style: const TextStyle(fontWeight: FontWeight.w500))),
-                        DataCell(
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.add_task_rounded, size: 14, color: Colors.white),
-                            label: const Text('+ Record / Edit Work', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0D9488),
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            ),
-                            onPressed: () => _openAddEditEntryDialog(preselectedCustomer: c),
-                          ),
-                        ),
-                        DataCell(Text(cap)),
-                        DataCell(Text(loc)),
-                        DataCell(
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.amber.shade100,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: Colors.amber.shade400),
-                            ),
-                            child: Text(
-                              'Pending Entry',
-                              style: TextStyle(color: Colors.amber.shade900, fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ),
-                        DataCell(Text(c.mobile ?? '-')),
-                      ],
-                    );
-                  }),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMobilePendingList(ThemeData theme, List<ConsumerRecord> pendingList) {
-    return ListView.separated(
-      itemCount: pendingList.length,
-      separatorBuilder: (_, index) => const SizedBox(height: 8),
-      itemBuilder: (_, i) {
-        final c = pendingList[i];
-        final loc = c.address ?? c.village ?? '-';
-        final cap = c.systemCapacity?.isNotEmpty == true
-            ? c.systemCapacity!
-            : (c.capacityKw > 0 ? '${c.capacityKw} kW' : '-');
-        return Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: BorderSide(color: Colors.amber.shade200),
-          ),
-          color: Colors.amber.shade50.withValues(alpha: 0.3),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        c.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.shade100,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'Pending',
-                        style: TextStyle(color: Colors.amber.shade900, fontSize: 11, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text('Consumer No: ${c.consumerNo} • Capacity: $cap', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                Text('Location: $loc', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add_task_rounded, size: 14, color: Colors.white),
-                    label: const Text('+ Record / Edit Work', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0D9488),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    onPressed: () => _openAddEditEntryDialog(preselectedCustomer: c),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
   }
 
   // 1. ALL WORK ENTRIES TAB
