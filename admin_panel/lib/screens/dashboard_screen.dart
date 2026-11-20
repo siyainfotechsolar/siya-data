@@ -29,6 +29,7 @@ import 'document_enhancer_screen.dart';
 import 'solar_quotation_generator_screen.dart';
 import 'solar_site_cost_calculator_screen.dart';
 import 'team_expense_calculator_screen.dart';
+import 'team_work_expense_screen.dart';
 import 'sales_commission_screen.dart';
 import '../models/user_profile.dart';
 
@@ -73,7 +74,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItem(id: 'doc_enhancer', label: 'Document Clear & A4 Print', icon: Icons.document_scanner_outlined, selectedIcon: Icons.document_scanner, isMainBottomNav: false, category: 'Tools'),
     _NavItem(id: 'solar_quotation_generator', label: 'Solar Quotation Generator', icon: Icons.solar_power_outlined, selectedIcon: Icons.solar_power, isMainBottomNav: false, moduleKey: 'solar_quotation', category: 'Tools'),
     _NavItem(id: 'solar_site_cost_calculator', label: 'Site Cost Calculator', icon: Icons.calculate_outlined, selectedIcon: Icons.calculate, isMainBottomNav: false, moduleKey: 'solar_cost_calculator', category: 'Tools'),
-    _NavItem(id: 'team_expenses', label: 'Site-wise Team Expenses', icon: Icons.group_work_outlined, selectedIcon: Icons.group_work, isMainBottomNav: false, moduleKey: 'team_expenses', category: 'Tools'),
+    _NavItem(id: 'team_expenses', label: 'Team Work & Expenses', icon: Icons.group_work_outlined, selectedIcon: Icons.group_work, isMainBottomNav: false, moduleKey: 'team_expenses', category: 'Tools'),
     _NavItem(id: 'history', label: 'History', icon: Icons.history_outlined, selectedIcon: Icons.history, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'audit', label: 'Audit', icon: Icons.shield_outlined, selectedIcon: Icons.shield, isMainBottomNav: false, moduleKey: 'settings'),
     _NavItem(id: 'duplicates', label: 'Duplicates', icon: Icons.find_in_page_outlined, selectedIcon: Icons.find_in_page, isMainBottomNav: false, moduleKey: 'customer'),
@@ -635,7 +636,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 'solar_site_cost_calculator':
         return const SolarSiteCostCalculatorScreen();
       case 'team_expenses':
-        return const TeamExpenseCalculatorScreen();
+        return const TeamWorkExpenseScreen();
       case 'sales_commissions':
         return const SalesCommissionScreen();
       case 'history':
