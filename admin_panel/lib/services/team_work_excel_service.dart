@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import '../models/team_work_expense.dart';
+import '../utils/universal_file_saver.dart';
 import 'team_work_service.dart';
 import 'audit_service.dart';
 
@@ -383,42 +384,19 @@ class TeamWorkExcelService {
     final dateStr = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
     final defaultFileName = 'SiyaSolar_TeamWork_Expenses_$dateStr.xlsx';
 
-    if (kIsWeb) {
-      // In web environment, handle download
-      final result = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save Team Work & Expense Excel Report',
-        fileName: defaultFileName,
-        type: FileType.custom,
-        allowedExtensions: ['xlsx'],
-        bytes: Uint8List.fromList(bytes),
-      );
+    final savedPath = await saveFileUniversal(
+      bytes: Uint8List.fromList(bytes),
+      fileName: defaultFileName,
+      dialogTitle: 'Save Team Work & Expense Excel Report',
+    );
+
+    if (savedPath != null) {
       await AuditService.logExportRun(
         module: 'Team Work & Individual Expense Management',
         recordCount: expenses.length,
-        filterSummary: 'Web Export: 4 Sheets',
+        filterSummary: 'Exported $defaultFileName (${expenses.length} records, 4 sheets)',
       );
-      return result;
-    } else {
-      // Desktop / Mobile
-      final result = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save Team Work & Expense Excel Report',
-        fileName: defaultFileName,
-        type: FileType.custom,
-        allowedExtensions: ['xlsx'],
-        bytes: Uint8List.fromList(bytes),
-      );
-
-      if (result != null) {
-        final file = File(result);
-        await file.writeAsBytes(bytes);
-        await AuditService.logExportRun(
-          module: 'Team Work & Individual Expense Management',
-          recordCount: expenses.length,
-          filterSummary: 'Saved to $result (4 sheets)',
-        );
-        return result;
-      }
     }
-    return null;
+    return savedPath;
   }
 }

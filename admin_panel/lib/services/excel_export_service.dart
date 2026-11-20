@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+import '../utils/universal_file_saver.dart';
 import 'audit_service.dart';
 
 class ExcelColumnDef<T> {
@@ -186,15 +187,13 @@ class ExcelExportService {
     final cleanPrefix = filePrefix.replaceAll(' ', '_');
     final fileName = '${cleanPrefix}_$dateStr.xlsx';
 
-    final result = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save $sheetName Export',
-      fileName: fileName,
+    final savedPath = await saveFileUniversal(
       bytes: Uint8List.fromList(bytes),
-      type: FileType.custom,
-      allowedExtensions: ['xlsx'],
+      fileName: fileName,
+      dialogTitle: 'Save $sheetName Export',
     );
 
-    if (result != null) {
+    if (savedPath != null) {
       // Audit log the export
       await AuditService.logExportRun(
         module: reportTitle ?? sheetName,
@@ -203,7 +202,7 @@ class ExcelExportService {
       );
     }
 
-    return result != null;
+    return savedPath != null;
   }
 
   /// Export a multi-sheet document and trigger save file dialog
@@ -224,15 +223,13 @@ class ExcelExportService {
 
     final totalRows = sheets.fold<int>(0, (sum, s) => sum + s.items.length);
 
-    final result = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save ${reportTitle ?? 'Report'} Export',
-      fileName: fileName,
+    final savedPath = await saveFileUniversal(
       bytes: Uint8List.fromList(bytes),
-      type: FileType.custom,
-      allowedExtensions: ['xlsx'],
+      fileName: fileName,
+      dialogTitle: 'Save ${reportTitle ?? 'Report'} Export',
     );
 
-    if (result != null) {
+    if (savedPath != null) {
       await AuditService.logExportRun(
         module: reportTitle ?? 'Multi-Sheet Report',
         recordCount: totalRows,
@@ -240,6 +237,6 @@ class ExcelExportService {
       );
     }
 
-    return result != null;
+    return savedPath != null;
   }
 }

@@ -255,7 +255,10 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
   void _openViewDialog(SalesCommission commission) {
     showDialog(
       context: context,
-      builder: (ctx) => _ViewCommissionDialog(commission: commission),
+      builder: (ctx) => _ViewCommissionDialog(
+        commission: commission,
+        onEdit: () => _openAddEditDialog(existing: commission),
+      ),
     );
   }
 
@@ -1090,7 +1093,7 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
                         DataCell(
                           ElevatedButton.icon(
                             icon: const Icon(Icons.edit_note_rounded, size: 14, color: Colors.white),
-                            label: const Text('+ Set Commission', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                            label: const Text('+ Edit / Set Commission', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF0D9488),
                               visualDensity: VisualDensity.compact,
@@ -1190,7 +1193,7 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
                     ),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.edit_note_rounded, size: 14, color: Colors.white),
-                      label: const Text('+ Set Commission', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                      label: const Text('+ Edit / Set Commission', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF0D9488),
                         visualDensity: VisualDensity.compact,
@@ -1303,10 +1306,17 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.blue),
+                                    ElevatedButton.icon(
+                                      icon: const Icon(Icons.edit_outlined, size: 13, color: Colors.white),
+                                      label: const Text('Edit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF1E3A8A),
+                                        visualDensity: VisualDensity.compact,
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      ),
                                       onPressed: () => _openAddEditDialog(existing: c),
                                     ),
+                                    const SizedBox(width: 4),
                                     IconButton(
                                       icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
                                       onPressed: () => _handleDelete(c),
@@ -1410,9 +1420,14 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
                         )),
                         DataCell(Text(c.siteLocation)),
                         DataCell(
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.blue),
-                            tooltip: 'Edit / Change Source',
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.edit_outlined, size: 13, color: Colors.white),
+                            label: const Text('Edit / Assign', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F766E),
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            ),
                             onPressed: () => _openAddEditDialog(existing: c),
                           ),
                         ),
@@ -1672,15 +1687,21 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
                           DataCell(Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              ElevatedButton.icon(
+                                icon: const Icon(Icons.edit_outlined, size: 13, color: Colors.white),
+                                label: const Text('Edit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1E3A8A),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                ),
+                                onPressed: () => _openAddEditDialog(existing: c),
+                              ),
+                              const SizedBox(width: 4),
                               IconButton(
                                 icon: const Icon(Icons.visibility_outlined, size: 18, color: Colors.blue),
                                 tooltip: 'View Details',
                                 onPressed: () => _openViewDialog(c),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.indigo),
-                                tooltip: 'Edit Record',
-                                onPressed: () => _openAddEditDialog(existing: c),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
@@ -2616,9 +2637,10 @@ class _AddEditCommissionDialogState extends State<_AddEditCommissionDialog> {
 // =============================================================================
 class _ViewCommissionDialog extends StatelessWidget {
   final SalesCommission commission;
+  final VoidCallback onEdit;
   final NumberFormat _currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹ ', decimalDigits: 0);
 
-  _ViewCommissionDialog({required this.commission});
+  _ViewCommissionDialog({required this.commission, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -2691,9 +2713,20 @@ class _ViewCommissionDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Edit Commission'),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    onEdit();
+                  },
+                ),
+                const SizedBox(width: 8),
+                FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+              ],
             ),
           ],
         ),

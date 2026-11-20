@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import '../models/site_team_expense.dart';
 import '../models/consumer_record.dart';
+import '../utils/universal_file_saver.dart';
 import 'audit_service.dart';
 
 class TeamExpenseExcelService {
@@ -409,15 +410,13 @@ class TeamExpenseExcelService {
     final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final fileName = 'Siya_Site_Team_Expenses_$dateStr.xlsx';
 
-    final result = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save Team Expense Excel Report',
-      fileName: fileName,
+    final savedPath = await saveFileUniversal(
       bytes: Uint8List.fromList(bytes),
-      type: FileType.custom,
-      allowedExtensions: ['xlsx'],
+      fileName: fileName,
+      dialogTitle: 'Save Team Expense Excel Report',
     );
 
-    if (result != null) {
+    if (savedPath != null) {
       await AuditService.logExportRun(
         module: 'Team Expense Calculator',
         recordCount: expenses.length + (pendingConsumers?.length ?? 0),
@@ -425,6 +424,6 @@ class TeamExpenseExcelService {
       );
     }
 
-    return result != null;
+    return savedPath != null;
   }
 }

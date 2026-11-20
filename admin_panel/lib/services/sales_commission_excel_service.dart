@@ -3,6 +3,7 @@ import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import '../models/sales_commission.dart';
+import '../utils/universal_file_saver.dart';
 import 'audit_service.dart';
 
 class SalesCommissionExcelService {
@@ -527,15 +528,13 @@ class SalesCommissionExcelService {
     final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final fileName = 'Siya_Sales_Commissions_$dateStr.xlsx';
 
-    final result = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save Sales Person Commission Excel Report',
-      fileName: fileName,
+    final savedPath = await saveFileUniversal(
       bytes: Uint8List.fromList(bytes),
-      type: FileType.custom,
-      allowedExtensions: ['xlsx'],
+      fileName: fileName,
+      dialogTitle: 'Save Sales Person Commission Excel Report',
     );
 
-    if (result != null) {
+    if (savedPath != null) {
       await AuditService.logExportRun(
         module: 'Sales Person Commission Management',
         recordCount: commissions.length,
@@ -543,6 +542,6 @@ class SalesCommissionExcelService {
       );
     }
 
-    return result != null;
+    return savedPath != null;
   }
 }

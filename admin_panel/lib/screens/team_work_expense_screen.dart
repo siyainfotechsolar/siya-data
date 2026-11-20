@@ -9,7 +9,7 @@ import '../services/team_work_excel_service.dart';
 import '../utils/consumer_no_utils.dart';
 import '../utils/responsive.dart';
 
-enum TeamWorkViewTab { entries, pending, persons, customers, categories }
+enum TeamWorkViewTab { allSites, pending, customers, entries, persons, categories }
 
 class TeamWorkExpenseScreen extends StatefulWidget {
   const TeamWorkExpenseScreen({super.key});
@@ -30,7 +30,7 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
   bool _isExporting = false;
   String? _errorMessage;
 
-  TeamWorkViewTab _currentTab = TeamWorkViewTab.entries;
+  TeamWorkViewTab _currentTab = TeamWorkViewTab.allSites;
 
   // Filter controllers & states
   final TextEditingController _searchCtrl = TextEditingController();
@@ -145,6 +145,22 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
     final noTerm = _consumerNoSearchCtrl.text.trim().toLowerCase();
 
     return _allPendingConsumers.where((c) {
+      if (nameTerm.isNotEmpty && !c.name.toLowerCase().contains(nameTerm)) {
+        return false;
+      }
+      if (noTerm.isNotEmpty && !c.consumerNo.toLowerCase().contains(noTerm)) {
+        return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  /// All customer sites filtered by customer name and consumer number searches
+  List<ConsumerRecord> get _filteredAllConsumers {
+    final nameTerm = _searchCtrl.text.trim().toLowerCase();
+    final noTerm = _consumerNoSearchCtrl.text.trim().toLowerCase();
+
+    return _availableConsumers.where((c) {
       if (nameTerm.isNotEmpty && !c.name.toLowerCase().contains(nameTerm)) {
         return false;
       }
@@ -305,7 +321,10 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
   void _openViewEntryDialog(TeamWorkExpense entry) {
     showDialog(
       context: context,
-      builder: (ctx) => _ViewWorkEntryDialog(entry: entry),
+      builder: (ctx) => _ViewWorkEntryDialog(
+        entry: entry,
+        onEdit: () => _openAddEditEntryDialog(existing: entry),
+      ),
     );
   }
 
@@ -325,6 +344,15 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
       context: context,
       builder: (ctx) => _CustomerWorkDrillDownDialog(
         customerSummary: customer,
+        onAddEntry: () {
+          Navigator.pop(context);
+          final norm = ConsumerNoNormalizer.normalize(customer.consumerNo);
+          final match = _availableConsumers.cast<ConsumerRecord?>().firstWhere(
+                (c) => c != null && ConsumerNoNormalizer.normalize(c.consumerNo) == norm,
+                orElse: () => null,
+              );
+          _openAddEditEntryDialog(preselectedCustomer: match);
+        },
         onEditEntry: (entry) {
           Navigator.pop(context);
           _openAddEditEntryDialog(existing: entry);
@@ -494,9 +522,9 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
         icon: Icons.business_rounded,
         color: const Color(0xFF2563EB), // Blue
         bgColor: const Color(0xFFEFF6FF),
-        isSelected: _currentTab == TeamWorkViewTab.customers,
+        isSelected: _currentTab == TeamWorkViewTab.allSites,
         onTap: () {
-          setState(() => _currentTab = TeamWorkViewTab.customers);
+          setState(() => _currentTab = TeamWorkViewTab.allSites);
         },
       ),
       _MetricCard(
@@ -518,9 +546,9 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
         icon: Icons.check_circle_outline,
         color: const Color(0xFF047857), // Green
         bgColor: const Color(0xFFECFDF5),
-        isSelected: _currentTab == TeamWorkViewTab.entries,
+        isSelected: _currentTab == TeamWorkViewTab.customers,
         onTap: () {
-          setState(() => _currentTab = TeamWorkViewTab.entries);
+          setState(() => _currentTab = TeamWorkViewTab.customers);
         },
       ),
       _MetricCard(
@@ -783,42 +811,51 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
   // ==========================================
 
   Widget _buildTabSelector(ThemeData theme) {
+    final totalMaster = _availableConsumers.length;
     final personSummaries = TeamWorkService.buildPersonSummaries(_allExpenses);
     final customerSummaries = TeamWorkService.buildCustomerSummaries(_allExpenses);
     final pendingCount = _allPendingConsumers.length;
 
-    return SegmentedButton<TeamWorkViewTab>(
-      segments: [
-        ButtonSegment(
-          value: TeamWorkViewTab.entries,
-          icon: const Icon(Icons.list_alt_rounded, size: 16),
-          label: Text('All Work Entries (${_filteredExpenses.length})'),
-        ),
-        ButtonSegment(
-          value: TeamWorkViewTab.pending,
-          icon: const Icon(Icons.pending_actions_rounded, size: 16),
-          label: Text('Pending Sites ($pendingCount)'),
-        ),
-        ButtonSegment(
-          value: TeamWorkViewTab.persons,
-          icon: const Icon(Icons.person_pin_rounded, size: 16),
-          label: Text('Person Summary (${personSummaries.length})'),
-        ),
-        ButtonSegment(
-          value: TeamWorkViewTab.customers,
-          icon: const Icon(Icons.domain_rounded, size: 16),
-          label: Text('Customer Summary (${customerSummaries.length})'),
-        ),
-        const ButtonSegment(
-          value: TeamWorkViewTab.categories,
-          icon: Icon(Icons.pie_chart_outline_rounded, size: 16),
-          label: Text('Category Summary (3)'),
-        ),
-      ],
-      selected: {_currentTab},
-      onSelectionChanged: (set) {
-        setState(() => _currentTab = set.first);
-      },
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SegmentedButton<TeamWorkViewTab>(
+        segments: [
+          ButtonSegment(
+            value: TeamWorkViewTab.allSites,
+            icon: const Icon(Icons.business_rounded, size: 16),
+            label: Text('All Customer Sites ($totalMaster)'),
+          ),
+          ButtonSegment(
+            value: TeamWorkViewTab.pending,
+            icon: const Icon(Icons.pending_actions_rounded, size: 16),
+            label: Text('Pending Sites ($pendingCount)'),
+          ),
+          ButtonSegment(
+            value: TeamWorkViewTab.customers,
+            icon: const Icon(Icons.domain_rounded, size: 16),
+            label: Text('Recorded Sites (${customerSummaries.length})'),
+          ),
+          ButtonSegment(
+            value: TeamWorkViewTab.entries,
+            icon: const Icon(Icons.list_alt_rounded, size: 16),
+            label: Text('All Work Entries (${_filteredExpenses.length})'),
+          ),
+          ButtonSegment(
+            value: TeamWorkViewTab.persons,
+            icon: const Icon(Icons.person_pin_rounded, size: 16),
+            label: Text('Person Summary (${personSummaries.length})'),
+          ),
+          const ButtonSegment(
+            value: TeamWorkViewTab.categories,
+            icon: Icon(Icons.pie_chart_outline_rounded, size: 16),
+            label: Text('Category Summary (3)'),
+          ),
+        ],
+        selected: {_currentTab},
+        onSelectionChanged: (set) {
+          setState(() => _currentTab = set.first);
+        },
+      ),
     );
   }
 
@@ -828,6 +865,8 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
 
   Widget _buildCurrentTabView(ThemeData theme, List<TeamWorkExpense> expenses, bool isMobile) {
     switch (_currentTab) {
+      case TeamWorkViewTab.allSites:
+        return _buildAllCustomerSitesTab(theme, isMobile);
       case TeamWorkViewTab.entries:
         return _buildWorkEntriesTab(theme, expenses, isMobile);
       case TeamWorkViewTab.pending:
@@ -839,6 +878,175 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
       case TeamWorkViewTab.categories:
         return _buildCategorySummaryTab(theme, expenses);
     }
+  }
+
+  // ==========================================
+  // ALL CUSTOMER SITES TAB
+  // ==========================================
+
+  Widget _buildAllCustomerSitesTab(ThemeData theme, bool isMobile) {
+    final list = _filteredAllConsumers;
+    final totalMaster = _availableConsumers.length;
+    final recordedCount = TeamWorkService.buildCustomerSummaries(_allExpenses).length;
+    final pendingCount = _allPendingConsumers.length;
+
+    if (list.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off_rounded, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            const Text('No Customer Sites Found Matching Filter.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+    }
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+              border: Border(bottom: BorderSide(color: Colors.blue.shade200)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.business_rounded, size: 20, color: Colors.blue.shade900),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'All Customer Sites ($totalMaster Sites) — $recordedCount Expenses Recorded, $pendingCount Expenses Pending. Click "Edit Work" or "+ Record Work" on any customer.',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade900, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  headingRowColor: WidgetStateProperty.all(Colors.blue.shade100.withValues(alpha: 0.5)),
+                  columns: const [
+                    DataColumn(label: Text('Sr. No.', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Consumer No.', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Action / Edit', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Expense Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(numeric: true, label: Text('Total Site Expense (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Solar Capacity', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Site Location', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Mobile', style: TextStyle(fontWeight: FontWeight.bold))),
+                  ],
+                  rows: List.generate(list.length, (idx) {
+                    final c = list[idx];
+                    final norm = ConsumerNoNormalizer.normalize(c.consumerNo);
+                    final entries = _allExpenses.where((e) => ConsumerNoNormalizer.normalize(e.consumerNo) == norm).toList();
+                    final isRecorded = entries.isNotEmpty;
+                    final totalExp = entries.fold<double>(0.0, (sum, e) => sum + e.individualExpense);
+
+                    final loc = c.address ?? c.village ?? '-';
+                    final cap = c.systemCapacity?.isNotEmpty == true
+                        ? c.systemCapacity!
+                        : (c.capacityKw > 0 ? '${c.capacityKw} kW' : '-');
+
+                    return DataRow(
+                      cells: [
+                        DataCell(Text('${idx + 1}')),
+                        DataCell(Row(
+                          children: [
+                            Icon(isRecorded ? Icons.verified_user_rounded : Icons.person_outline, size: 16, color: isRecorded ? Colors.teal : Colors.blueGrey),
+                            const SizedBox(width: 6),
+                            Text(c.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ],
+                        )),
+                        DataCell(Text(c.consumerNo, style: const TextStyle(fontWeight: FontWeight.w500))),
+                        DataCell(
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isRecorded) ...[
+                                ElevatedButton.icon(
+                                  icon: const Icon(Icons.edit_outlined, size: 13, color: Colors.white),
+                                  label: const Text('Edit Work', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF1E3A8A),
+                                    visualDensity: VisualDensity.compact,
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  ),
+                                  onPressed: () => _openAddEditEntryDialog(existing: entries.first),
+                                ),
+                                const SizedBox(width: 4),
+                                OutlinedButton.icon(
+                                  icon: const Icon(Icons.add, size: 13),
+                                  label: const Text('+ Worker', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  style: OutlinedButton.styleFrom(
+                                    visualDensity: VisualDensity.compact,
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  ),
+                                  onPressed: () => _openAddEditEntryDialog(preselectedCustomer: c),
+                                ),
+                              ] else ...[
+                                ElevatedButton.icon(
+                                  icon: const Icon(Icons.add_task_rounded, size: 13, color: Colors.white),
+                                  label: const Text('+ Record Work', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF0D9488),
+                                    visualDensity: VisualDensity.compact,
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  ),
+                                  onPressed: () => _openAddEditEntryDialog(preselectedCustomer: c),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        DataCell(
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isRecorded ? Colors.green.shade50 : Colors.amber.shade50,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: isRecorded ? Colors.green.shade400 : Colors.amber.shade400),
+                            ),
+                            child: Text(
+                              isRecorded ? 'Recorded (${entries.length} Workers)' : 'Pending Entry',
+                              style: TextStyle(
+                                color: isRecorded ? Colors.green.shade800 : Colors.amber.shade900,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                        DataCell(Text(
+                          isRecorded ? _currency.format(totalExp) : '—',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: isRecorded ? const Color(0xFF064E3B) : Colors.grey),
+                        )),
+                        DataCell(Text(cap)),
+                        DataCell(Text(loc)),
+                        DataCell(Text(c.mobile ?? '-')),
+                      ],
+                    );
+                  }),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ==========================================
@@ -897,7 +1105,7 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '${pendingList.length} Customer Sites are awaiting team work & expense entry. Click "+ Record Work" on any site to assign team members.',
+                    '${pendingList.length} Customer Sites are awaiting team work & expense entry. Click "+ Record / Edit Work" on any site to assign team members.',
                     style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber.shade900, fontSize: 13),
                   ),
                 ),
@@ -915,7 +1123,7 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
                     DataColumn(label: Text('Sr. No.', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Customer Name', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Consumer No.', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Action', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Action / Edit', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Solar Capacity', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Site Location', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Expense Status', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -942,7 +1150,7 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
                         DataCell(
                           ElevatedButton.icon(
                             icon: const Icon(Icons.add_task_rounded, size: 14, color: Colors.white),
-                            label: const Text('+ Record Work', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                            label: const Text('+ Record / Edit Work', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF0D9488),
                               visualDensity: VisualDensity.compact,
@@ -1032,7 +1240,7 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
                   alignment: Alignment.centerRight,
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.add_task_rounded, size: 14, color: Colors.white),
-                    label: const Text('+ Record Work', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                    label: const Text('+ Record / Edit Work', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF0D9488),
                       visualDensity: VisualDensity.compact,
@@ -1160,15 +1368,21 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
                   DataCell(Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.edit_outlined, size: 13, color: Colors.white),
+                        label: const Text('Edit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1E3A8A),
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        ),
+                        onPressed: () => _openAddEditEntryDialog(existing: e),
+                      ),
+                      const SizedBox(width: 4),
                       IconButton(
                         icon: const Icon(Icons.visibility_outlined, size: 16, color: Colors.blueGrey),
                         tooltip: 'View Details',
                         onPressed: () => _openViewEntryDialog(e),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.indigo),
-                        tooltip: 'Edit Entry',
-                        onPressed: () => _openAddEditEntryDialog(existing: e),
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
@@ -1362,15 +1576,36 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
                     style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF064E3B)),
                   )),
                   DataCell(
-                    FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F766E),
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      ),
-                      icon: const Icon(Icons.layers_outlined, size: 14),
-                      label: Text('${c.entriesCount} Workers', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                      onPressed: () => _openCustomerDrillDown(c),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1E3A8A),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          ),
+                          icon: const Icon(Icons.edit_outlined, size: 14, color: Colors.white),
+                          label: const Text('Edit Work', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                          onPressed: () {
+                            if (c.entries.isNotEmpty) {
+                              _openAddEditEntryDialog(existing: c.entries.first);
+                            } else {
+                              _openCustomerDrillDown(c);
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 6),
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          ),
+                          icon: const Icon(Icons.layers_outlined, size: 14),
+                          label: Text('${c.entriesCount} Workers', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          onPressed: () => _openCustomerDrillDown(c),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1951,7 +2186,8 @@ class _AddEditWorkEntryDialogState extends State<_AddEditWorkEntryDialog> {
 
 class _ViewWorkEntryDialog extends StatelessWidget {
   final TeamWorkExpense entry;
-  const _ViewWorkEntryDialog({required this.entry});
+  final VoidCallback onEdit;
+  const _ViewWorkEntryDialog({required this.entry, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -1985,6 +2221,14 @@ class _ViewWorkEntryDialog extends StatelessWidget {
         ),
       ),
       actions: [
+        OutlinedButton.icon(
+          icon: const Icon(Icons.edit_outlined, size: 16),
+          label: const Text('Edit Entry'),
+          onPressed: () {
+            Navigator.pop(context);
+            onEdit();
+          },
+        ),
         FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
       ],
     );
@@ -2204,11 +2448,13 @@ class _TeamMemberMasterDialogState extends State<_TeamMemberMasterDialog> {
 
 class _CustomerWorkDrillDownDialog extends StatelessWidget {
   final CustomerExpenseSummary customerSummary;
+  final VoidCallback onAddEntry;
   final Function(TeamWorkExpense) onEditEntry;
   final Function(TeamWorkExpense) onDeleteEntry;
 
   const _CustomerWorkDrillDownDialog({
     required this.customerSummary,
+    required this.onAddEntry,
     required this.onEditEntry,
     required this.onDeleteEntry,
   });
@@ -2234,6 +2480,16 @@ class _CustomerWorkDrillDownDialog extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add, size: 14, color: Colors.white),
+            label: const Text('+ Add Worker', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0D9488),
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            ),
+            onPressed: onAddEntry,
           ),
         ],
       ),
@@ -2306,11 +2562,17 @@ class _CustomerWorkDrillDownDialog extends StatelessWidget {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.indigo),
-                          tooltip: 'Edit',
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.edit_outlined, size: 13, color: Colors.white),
+                          label: const Text('Edit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1E3A8A),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          ),
                           onPressed: () => onEditEntry(e),
                         ),
+                        const SizedBox(width: 4),
                         IconButton(
                           icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
                           tooltip: 'Delete',
