@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:excel/excel.dart';
 import 'package:admin_panel/models/site_team_expense.dart';
+import 'package:admin_panel/models/consumer_record.dart';
 import 'package:admin_panel/services/site_team_expense_service.dart';
 import 'package:admin_panel/services/team_expense_excel_service.dart';
 
@@ -216,6 +217,159 @@ void main() {
       final wiringOnly = listWithZero.where((e) => e.wiringExpense > 0).toList();
       expect(wiringOnly.length, 3);
       expect(wiringOnly.contains(zeroWiringSite), isFalse);
+    });
+
+    test('7. Pending Site Expense Tracking & 4-Sheet Excel Report with Pending Sites', () {
+      final list = [sampleSite1, sampleSite2]; // 2 recorded
+
+      // 4 master consumers, 2 are recorded and 2 are pending
+      final masterConsumers = [
+        ConsumerRecord(
+          consumerNo: '123456789012',
+          name: 'Suresh Patil',
+          status: 'Active',
+          deleted: false,
+          isMerged: false,
+          applicationStatus: 'Approved',
+          agreementRequired: false,
+          agreementStatus: 'Verified',
+          loanRequired: 'No',
+          loanStatus: 'Not Required',
+          loanSubStage: '',
+          loanAttempts: const [],
+          loanReapplyCount: 0,
+          installationStatus: 'Installation Completed',
+          rtsStatus: 'Completed',
+          subsidyStatus: 'Approved',
+          customerWorkState: 'COMPLETED',
+          hasActiveFollowup: false,
+          totalAmount: 150000,
+          paidAmount: 150000,
+          pendingAmount: 0,
+          additionalPaidAmount: 0,
+          firstPaymentAmount: 0,
+          secondPaymentAmount: 0,
+        ),
+        ConsumerRecord(
+          consumerNo: '987654321098',
+          name: 'Anil Deshmukh',
+          status: 'Active',
+          deleted: false,
+          isMerged: false,
+          applicationStatus: 'Approved',
+          agreementRequired: false,
+          agreementStatus: 'Verified',
+          loanRequired: 'No',
+          loanStatus: 'Not Required',
+          loanSubStage: '',
+          loanAttempts: const [],
+          loanReapplyCount: 0,
+          installationStatus: 'Installation Completed',
+          rtsStatus: 'Completed',
+          subsidyStatus: 'Approved',
+          customerWorkState: 'COMPLETED',
+          hasActiveFollowup: false,
+          totalAmount: 200000,
+          paidAmount: 200000,
+          pendingAmount: 0,
+          additionalPaidAmount: 0,
+          firstPaymentAmount: 0,
+          secondPaymentAmount: 0,
+        ),
+        ConsumerRecord(
+          consumerNo: '555555555555',
+          name: 'Ramesh Kadam (Pending)',
+          status: 'Active',
+          address: 'Karad, Satara',
+          systemCapacity: '5 kW',
+          deleted: false,
+          isMerged: false,
+          applicationStatus: 'Approved',
+          agreementRequired: false,
+          agreementStatus: 'Verified',
+          loanRequired: 'No',
+          loanStatus: 'Not Required',
+          loanSubStage: '',
+          loanAttempts: const [],
+          loanReapplyCount: 0,
+          installationStatus: 'Installation Completed',
+          rtsStatus: 'Completed',
+          subsidyStatus: 'Approved',
+          customerWorkState: 'COMPLETED',
+          hasActiveFollowup: false,
+          totalAmount: 250000,
+          paidAmount: 250000,
+          pendingAmount: 0,
+          additionalPaidAmount: 0,
+          firstPaymentAmount: 0,
+          secondPaymentAmount: 0,
+        ),
+        ConsumerRecord(
+          consumerNo: '777777777777',
+          name: 'Sunita More (Pending)',
+          status: 'Active',
+          address: 'Wai, Satara',
+          systemCapacity: '3 kW',
+          deleted: false,
+          isMerged: false,
+          applicationStatus: 'Approved',
+          agreementRequired: false,
+          agreementStatus: 'Verified',
+          loanRequired: 'No',
+          loanStatus: 'Not Required',
+          loanSubStage: '',
+          loanAttempts: const [],
+          loanReapplyCount: 0,
+          installationStatus: 'Installation Completed',
+          rtsStatus: 'Completed',
+          subsidyStatus: 'Approved',
+          customerWorkState: 'COMPLETED',
+          hasActiveFollowup: false,
+          totalAmount: 180000,
+          paidAmount: 180000,
+          pendingAmount: 0,
+          additionalPaidAmount: 0,
+          firstPaymentAmount: 0,
+          secondPaymentAmount: 0,
+        ),
+      ];
+
+      // Verify pending identification logic
+      final recordedNos = list.map((e) => e.consumerNo.trim().toLowerCase()).toSet();
+      final pendingConsumers = masterConsumers
+          .where((c) => !recordedNos.contains(c.consumerNo.trim().toLowerCase()))
+          .toList();
+
+      expect(pendingConsumers.length, 2);
+      expect(pendingConsumers[0].name, 'Ramesh Kadam (Pending)');
+      expect(pendingConsumers[1].name, 'Sunita More (Pending)');
+
+      // Verify Summary with Master Count
+      final summary = TeamExpenseSummary.fromExpenses(list, totalMasterCount: masterConsumers.length);
+      expect(summary.totalSites, 2);
+      expect(summary.totalMasterSites, 4);
+      expect(summary.pendingSitesCount, 2);
+
+      // Verify Excel generation with Sheet 4: Pending Expenses Sites
+      final bytes = TeamExpenseExcelService.buildExcelWorkbook(
+        expenses: list,
+        pendingConsumers: pendingConsumers,
+        filterSummary: 'All Sites',
+      );
+
+      final decoded = Excel.decodeBytes(bytes);
+      expect(decoded.tables.containsKey('Customer-wise Report'), isTrue);
+      expect(decoded.tables.containsKey('Team-wise Summary'), isTrue);
+      expect(decoded.tables.containsKey('Detailed Team Report'), isTrue);
+      expect(decoded.tables.containsKey('Pending Expenses Sites'), isTrue);
+
+      final s4 = decoded.tables['Pending Expenses Sites']!;
+      expect(s4.rows.length >= 6, isTrue);
+      final s4Headers = s4.rows[3].map((cell) => cell?.value.toString() ?? '').toList();
+      expect(s4Headers.contains('Customer Name'), isTrue);
+      expect(s4Headers.contains('Consumer Number'), isTrue);
+      expect(s4Headers.contains('Expense Status'), isTrue);
+      expect(s4Headers.contains('Action Required'), isTrue);
     });
   });
 }

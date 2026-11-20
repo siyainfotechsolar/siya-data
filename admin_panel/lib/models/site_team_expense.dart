@@ -125,6 +125,8 @@ class SiteTeamExpense {
 /// Aggregated dashboard & report totals for team expenses
 class TeamExpenseSummary {
   final int totalSites;
+  final int totalMasterSites;
+  final int pendingSitesCount;
   final double totalWiringExpense;
   final double totalCivilExpense;
   final double totalStructureExpense;
@@ -135,6 +137,8 @@ class TeamExpenseSummary {
 
   const TeamExpenseSummary({
     required this.totalSites,
+    this.totalMasterSites = 0,
+    this.pendingSitesCount = 0,
     required this.totalWiringExpense,
     required this.totalCivilExpense,
     required this.totalStructureExpense,
@@ -144,7 +148,10 @@ class TeamExpenseSummary {
     required this.structureSitesCount,
   });
 
-  factory TeamExpenseSummary.fromExpenses(List<SiteTeamExpense> expenses) {
+  factory TeamExpenseSummary.fromExpenses(
+    List<SiteTeamExpense> expenses, {
+    int totalMasterCount = 0,
+  }) {
     double wiringSum = 0;
     double civilSum = 0;
     double structureSum = 0;
@@ -163,9 +170,13 @@ class TeamExpenseSummary {
     }
 
     final grandTotal = wiringSum + civilSum + structureSum;
+    final effectiveMaster = totalMasterCount > 0 ? totalMasterCount : expenses.length;
+    final pendingCount = effectiveMaster > expenses.length ? (effectiveMaster - expenses.length) : 0;
 
     return TeamExpenseSummary(
       totalSites: expenses.length,
+      totalMasterSites: effectiveMaster,
+      pendingSitesCount: pendingCount,
       totalWiringExpense: wiringSum,
       totalCivilExpense: civilSum,
       totalStructureExpense: structureSum,

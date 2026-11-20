@@ -3,6 +3,7 @@ import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import '../models/site_team_expense.dart';
+import '../models/consumer_record.dart';
 import 'audit_service.dart';
 
 class TeamExpenseExcelService {
@@ -16,8 +17,10 @@ class TeamExpenseExcelService {
   /// - Sheet 1: Customer-wise Report
   /// - Sheet 2: Team-wise Summary
   /// - Sheet 3: Detailed Team Report
+  /// - Sheet 4: Pending Expenses Sites (when pending customers provided)
   static List<int> buildExcelWorkbook({
     required List<SiteTeamExpense> expenses,
+    List<ConsumerRecord>? pendingConsumers,
     String? filterSummary,
   }) {
     final excel = Excel.createExcel();
@@ -316,20 +319,90 @@ class TeamExpenseExcelService {
       sheet3.setColumnWidth(c, s3Widths[c]);
     }
 
+    // =========================================================================
+    // SHEET 4: Pending Expenses Sites (Customers awaiting team expense entry)
+    // =========================================================================
+    if (pendingConsumers != null && pendingConsumers.isNotEmpty) {
+      const sheet4Name = 'Pending Expenses Sites';
+      final sheet4 = excel[sheet4Name];
+
+      // Title & Metadata
+      sheet4.appendRow([TextCellValue('SIYA INFOTECH & SOLAR ENERGY - SITES PENDING TEAM EXPENSE ENTRY')]);
+      sheet4.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0)).cellStyle = titleStyle;
+
+      sheet4.appendRow([TextCellValue('Report Generated: $generatedDateStr | Total Pending Sites: ${pendingConsumers.length}')]);
+      sheet4.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 1)).cellStyle = metaStyle;
+      sheet4.appendRow([TextCellValue('')]);
+
+      final sheet4Headers = [
+        'Sr. No.',
+        'Customer Name',
+        'Consumer Number',
+        'Site Location / Village',
+        'Solar Capacity',
+        'Mobile Number',
+        'Expense Status',
+        'Action Required',
+      ];
+      sheet4.appendRow(sheet4Headers.map((h) => TextCellValue(h)).toList());
+      for (int c = 0; c < sheet4Headers.length; c++) {
+        sheet4.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 3)).cellStyle = headerStyle;
+      }
+
+      int s4Idx = 1;
+      int rIdx4 = 4;
+      for (final p in pendingConsumers) {
+        final loc = p.address ?? p.village ?? '-';
+        final cap = p.systemCapacity?.isNotEmpty == true
+            ? p.systemCapacity!
+            : (p.capacityKw > 0 ? '${p.capacityKw} kW' : '-');
+        sheet4.appendRow([
+          IntCellValue(s4Idx++),
+          TextCellValue(p.name),
+          TextCellValue(p.consumerNo),
+          TextCellValue(loc),
+          TextCellValue(cap),
+          TextCellValue(p.mobile ?? '-'),
+          TextCellValue('Expense Entry Pending'),
+          TextCellValue('Record Wiring, Civil & Structure Expenses'),
+        ]);
+
+        final isEven = (rIdx4 % 2 == 0);
+        final bg = isEven ? ExcelColor.fromHexString('#FFFBEB') : ExcelColor.white;
+        final cellSt = CellStyle(
+          fontSize: 10,
+          backgroundColorHex: bg,
+          verticalAlign: VerticalAlign.Center,
+        );
+        for (int c = 0; c < sheet4Headers.length; c++) {
+          sheet4.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: rIdx4)).cellStyle = cellSt;
+        }
+        rIdx4++;
+      }
+
+      // Sheet 4 column widths
+      final s4Widths = [10.0, 26.0, 18.0, 26.0, 16.0, 16.0, 24.0, 36.0];
+      for (int c = 0; c < s4Widths.length; c++) {
+        sheet4.setColumnWidth(c, s4Widths[c]);
+      }
+    }
+
     return excel.save() ?? [];
   }
 
   /// Prompts user to save the Excel file via FilePicker and records an audit log
   static Future<bool> exportAndSave({
     required List<SiteTeamExpense> expenses,
+    List<ConsumerRecord>? pendingConsumers,
     String? filterSummary,
   }) async {
-    if (expenses.isEmpty) {
-      throw Exception('No team expenses found to export.');
+    if (expenses.isEmpty && (pendingConsumers == null || pendingConsumers.isEmpty)) {
+      throw Exception('No team expenses or customer records found to export.');
     }
 
     final bytes = buildExcelWorkbook(
       expenses: expenses,
+      pendingConsumers: pendingConsumers,
       filterSummary: filterSummary,
     );
 
@@ -347,7 +420,7 @@ class TeamExpenseExcelService {
     if (result != null) {
       await AuditService.logExportRun(
         module: 'Team Expense Calculator',
-        recordCount: expenses.length,
+        recordCount: expenses.length + (pendingConsumers?.length ?? 0),
         filterSummary: filterSummary,
       );
     }
