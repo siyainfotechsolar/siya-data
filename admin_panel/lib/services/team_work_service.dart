@@ -186,6 +186,24 @@ class TeamWorkService {
     }
   }
 
+  /// Batch Save multiple work expenses for a site (add/edit) and optionally delete removed entries
+  static Future<List<TeamWorkExpense>> saveMultipleWorkExpenses({
+    required List<TeamWorkExpense> toSave,
+    List<String> toDelete = const [],
+  }) async {
+    for (final id in toDelete) {
+      if (id.isNotEmpty && !id.startsWith('temp-')) {
+        await deleteWorkExpense(id);
+      }
+    }
+    final results = <TeamWorkExpense>[];
+    for (final exp in toSave) {
+      final saved = await saveWorkExpense(exp);
+      results.add(saved);
+    }
+    return results;
+  }
+
   // ==========================================
   // 3. CUSTOMER MASTER (REAL UNIQUE CUSTOMERS ONLY)
   // ==========================================

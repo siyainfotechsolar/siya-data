@@ -6,21 +6,12 @@ Future<String?> saveFileUniversal({
   required Uint8List bytes,
   required String fileName,
   String? dialogTitle,
-  String? mimeType,
 }) async {
-  List<String>? allowedExtensions;
-  FileType fileType = FileType.any;
-  if (fileName.contains('.')) {
-    final ext = fileName.split('.').last.toLowerCase();
-    allowedExtensions = [ext];
-    fileType = FileType.custom;
-  }
-
   final result = await FilePicker.platform.saveFile(
     dialogTitle: dialogTitle ?? 'Save File',
     fileName: fileName,
-    type: fileType,
-    allowedExtensions: allowedExtensions,
+    type: FileType.custom,
+    allowedExtensions: ['xlsx'],
     bytes: bytes,
   );
   if (result != null) {

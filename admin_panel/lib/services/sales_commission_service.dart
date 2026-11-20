@@ -181,6 +181,16 @@ class SalesCommissionService {
     }
   }
 
+  /// Batch save multiple commission records
+  static Future<List<SalesCommission>> saveMultipleCommissions(List<SalesCommission> list) async {
+    final results = <SalesCommission>[];
+    for (final c in list) {
+      final saved = await saveCommission(c);
+      results.add(saved);
+    }
+    return results;
+  }
+
   /// Fetch active, non-merged, unique customers from Customer Master
   static Future<List<ConsumerRecord>> fetchAvailableCustomers() async {
     try {

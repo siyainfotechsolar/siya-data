@@ -239,32 +239,34 @@ class _TeamWorkExpenseScreenState extends State<TeamWorkExpenseScreen> {
   }
 
   Future<void> _openAddEditEntryDialog({TeamWorkExpense? existing, ConsumerRecord? preselectedCustomer}) async {
-    final result = await showDialog<TeamWorkExpense>(
+    final result = await showDialog<List<TeamWorkExpense>>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => _AddEditWorkEntryDialog(
+      builder: (ctx) => _SiteWorkEntryManagerDialog(
         existing: existing,
         preselectedCustomer: preselectedCustomer,
         availableCustomers: _availableConsumers,
+        allExpenses: _allExpenses,
         teamMembers: _teamMembers,
-        onSave: (entry) async {
-          final saved = await TeamWorkService.saveWorkExpense(entry);
-          return saved;
+        onSaveMultiple: (toSave, toDelete) async {
+          return await TeamWorkService.saveMultipleWorkExpenses(
+            toSave: toSave,
+            toDelete: toDelete,
+          );
         },
       ),
     );
 
-    if (result != null && mounted) {
+    if (result != null && result.isNotEmpty && mounted) {
       await _loadData();
       if (!mounted) return;
+      final total = result.fold<double>(0.0, (s, e) => s + e.individualExpense);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            existing == null
-                ? 'Work entry for "${result.teamMemberName}" saved successfully.'
-                : 'Work entry updated successfully.',
+            'Saved ${result.length} worker entries for "${result.first.customerName}" (Total Site Expense: ${_currency.format(total)}).',
           ),
-          backgroundColor: Colors.green,
+          backgroundColor: const Color(0xFF047857),
         ),
       );
     }
@@ -1785,29 +1787,65 @@ class _MetricCard extends StatelessWidget {
 }
 
 // ==========================================
-// ADD / EDIT WORK ENTRY DIALOG
+// SITE-WISE MULTI-WORKER WORK ENTRY & EDITOR DIALOG
 // ==========================================
 
-class _AddEditWorkEntryDialog extends StatefulWidget {
+class _WorkerRowItem {
+  String? existingId;
+  String workCategory; // 'Structure', 'Wiring', 'Civil'
+  String? teamMemberName;
+  String? teamMemberId;
+  final TextEditingController amountCtrl;
+  final TextEditingController remarksCtrl;
+  DateTime workDate;
+
+  _WorkerRowItem({
+    this.existingId,
+    this.workCategory = 'Structure',
+    this.teamMemberName,
+    this.teamMemberId,
+    String initialAmount = '',
+    String initialRemarks = '',
+    DateTime? workDate,
+  })  : amountCtrl = TextEditingController(text: initialAmount),
+        remarksCtrl = TextEditingController(text: initialRemarks),
+        workDate = workDate ?? DateTime.now();
+
+  double get amount => double.tryParse(amountCtrl.text.replaceAll(',', '').trim()) ?? 0.0;
+
+  void dispose() {
+    amountCtrl.dispose();
+    remarksCtrl.dispose();
+  }
+}
+
+class _SiteWorkEntryManagerDialog extends StatefulWidget {
   final TeamWorkExpense? existing;
   final ConsumerRecord? preselectedCustomer;
   final List<ConsumerRecord> availableCustomers;
+  final List<TeamWorkExpense> allExpenses;
   final List<TeamMember> teamMembers;
-  final Future<TeamWorkExpense> Function(TeamWorkExpense) onSave;
+  final Future<List<TeamWorkExpense>> Function(List<TeamWorkExpense> toSave, List<String> toDelete)? onSaveMultiple;
+  final Future<TeamWorkExpense> Function(TeamWorkExpense)? onSave;
 
-  const _AddEditWorkEntryDialog({
+  const _SiteWorkEntryManagerDialog({
+    super.key,
     this.existing,
     this.preselectedCustomer,
     required this.availableCustomers,
+    this.allExpenses = const [],
     required this.teamMembers,
-    required this.onSave,
+    this.onSaveMultiple,
+    this.onSave,
   });
 
   @override
-  State<_AddEditWorkEntryDialog> createState() => _AddEditWorkEntryDialogState();
+  State<_SiteWorkEntryManagerDialog> createState() => _SiteWorkEntryManagerDialogState();
 }
 
-class _AddEditWorkEntryDialogState extends State<_AddEditWorkEntryDialog> {
+typedef _AddEditWorkEntryDialog = _SiteWorkEntryManagerDialog;
+
+class _SiteWorkEntryManagerDialogState extends State<_SiteWorkEntryManagerDialog> {
   final _formKey = GlobalKey<FormState>();
 
   ConsumerRecord? _selectedCustomer;
@@ -1816,16 +1854,15 @@ class _AddEditWorkEntryDialogState extends State<_AddEditWorkEntryDialog> {
   final TextEditingController _customerNameCtrl = TextEditingController();
   final TextEditingController _siteLocationCtrl = TextEditingController();
   final TextEditingController _solarCapacityCtrl = TextEditingController();
-  final TextEditingController _expenseAmountCtrl = TextEditingController();
-  final TextEditingController _remarksCtrl = TextEditingController();
 
-  DateTime _workDate = DateTime.now();
-  String _workCategory = 'Structure'; // 'Structure', 'Wiring', 'Civil'
-  String? _selectedTeamMemberName;
-  String? _selectedTeamMemberId;
+  final List<_WorkerRowItem> _workerRows = [];
+  final List<String> _deletedExpenseIds = [];
 
   bool _isSaving = false;
   String? _errorMessage;
+
+  final NumberFormat _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹ ', decimalDigits: 0);
+  final DateFormat _dateFormat = DateFormat('dd/MM/yyyy');
 
   @override
   void initState() {
@@ -1836,63 +1873,175 @@ class _AddEditWorkEntryDialogState extends State<_AddEditWorkEntryDialog> {
       _customerNameCtrl.text = e.customerName;
       _siteLocationCtrl.text = e.siteLocation;
       _solarCapacityCtrl.text = e.solarCapacity;
-      _workDate = e.workDate;
-      _workCategory = e.workCategory;
-      _selectedTeamMemberName = e.teamMemberName;
-      _selectedTeamMemberId = e.teamMemberId;
-      _expenseAmountCtrl.text = e.individualExpense.toStringAsFixed(0);
-      _remarksCtrl.text = e.remarks;
 
-      // Match customer
       final norm = ConsumerNoNormalizer.normalize(e.consumerNo);
       _selectedCustomer = widget.availableCustomers.cast<ConsumerRecord?>().firstWhere(
             (c) => c != null && ConsumerNoNormalizer.normalize(c.consumerNo) == norm,
             orElse: () => null,
           );
+      _customerSearchCtrl.text = '${e.customerName} (${e.consumerNo})';
+      _loadWorkerRowsForSite(consumerNo: e.consumerNo, prioritizeExisting: e);
     } else if (widget.preselectedCustomer != null) {
       _applyCustomer(widget.preselectedCustomer!);
-    } else if (widget.teamMembers.isNotEmpty) {
-      _selectedTeamMemberName = widget.teamMembers.first.name;
-      _selectedTeamMemberId = widget.teamMembers.first.id;
+    } else {
+      _addEmptyRow(category: 'Structure');
     }
   }
 
   void _applyCustomer(ConsumerRecord c) {
     setState(() {
       _selectedCustomer = c;
+      _customerSearchCtrl.text = '${c.name} (${c.consumerNo})';
       _consumerNoCtrl.text = c.consumerNo;
       _customerNameCtrl.text = c.name;
       _siteLocationCtrl.text = c.address ?? c.village ?? '';
       _solarCapacityCtrl.text = c.systemCapacity?.isNotEmpty == true
           ? c.systemCapacity!
           : (c.capacityKw > 0 ? '${c.capacityKw} kW' : '3 kW');
+      _loadWorkerRowsForSite(consumerNo: c.consumerNo);
     });
   }
 
+  void _loadWorkerRowsForSite({required String consumerNo, TeamWorkExpense? prioritizeExisting}) {
+    for (final r in _workerRows) {
+      r.dispose();
+    }
+    _workerRows.clear();
+    _deletedExpenseIds.clear();
+
+    final norm = ConsumerNoNormalizer.normalize(consumerNo);
+    final existingEntries = widget.allExpenses.where((e) {
+      return ConsumerNoNormalizer.normalize(e.consumerNo) == norm;
+    }).toList();
+
+    if (existingEntries.isNotEmpty) {
+      for (final exp in existingEntries) {
+        final row = _WorkerRowItem(
+          existingId: exp.id,
+          workCategory: exp.workCategory,
+          teamMemberName: exp.teamMemberName,
+          teamMemberId: exp.teamMemberId,
+          initialAmount: exp.individualExpense > 0 ? exp.individualExpense.toStringAsFixed(0) : '',
+          initialRemarks: exp.remarks,
+          workDate: exp.workDate,
+        );
+        row.amountCtrl.addListener(_onRowChanged);
+        _workerRows.add(row);
+      }
+    } else if (prioritizeExisting != null) {
+      final row = _WorkerRowItem(
+        existingId: prioritizeExisting.id,
+        workCategory: prioritizeExisting.workCategory,
+        teamMemberName: prioritizeExisting.teamMemberName,
+        teamMemberId: prioritizeExisting.teamMemberId,
+        initialAmount: prioritizeExisting.individualExpense > 0 ? prioritizeExisting.individualExpense.toStringAsFixed(0) : '',
+        initialRemarks: prioritizeExisting.remarks,
+        workDate: prioritizeExisting.workDate,
+      );
+      row.amountCtrl.addListener(_onRowChanged);
+      _workerRows.add(row);
+    } else {
+      _addEmptyRow(category: 'Structure');
+    }
+  }
+
+  void _onRowChanged() {
+    setState(() {});
+  }
+
+  void _addEmptyRow({String category = 'Structure'}) {
+    final activeMembers = _effectiveMembers;
+    final defaultMember = activeMembers.isNotEmpty ? activeMembers.first.name : 'Vishal';
+    final row = _WorkerRowItem(
+      workCategory: category,
+      teamMemberName: defaultMember,
+      workDate: DateTime.now(),
+    );
+    row.amountCtrl.addListener(_onRowChanged);
+    setState(() {
+      _workerRows.add(row);
+    });
+  }
+
+  void _removeRow(int index) {
+    if (index >= 0 && index < _workerRows.length) {
+      final removed = _workerRows.removeAt(index);
+      if (removed.existingId != null && removed.existingId!.isNotEmpty) {
+        _deletedExpenseIds.add(removed.existingId!);
+      }
+      removed.dispose();
+      if (_workerRows.isEmpty) {
+        _addEmptyRow(category: 'Structure');
+      } else {
+        setState(() {});
+      }
+    }
+  }
+
+  List<TeamMember> get _effectiveMembers {
+    final list = widget.teamMembers.where((m) => m.isActive).toList();
+    if (list.isEmpty) {
+      return const [
+        TeamMember(id: '1', name: 'Vishal'),
+        TeamMember(id: '2', name: 'Yendeshwar'),
+        TeamMember(id: '3', name: 'Samadhan'),
+        TeamMember(id: '4', name: 'Eknath'),
+      ];
+    }
+    return list;
+  }
+
+  double get _totalStructure => _workerRows
+      .where((r) => r.workCategory == 'Structure')
+      .fold<double>(0.0, (s, r) => s + r.amount);
+
+  double get _totalWiring => _workerRows
+      .where((r) => r.workCategory == 'Wiring')
+      .fold<double>(0.0, (s, r) => s + r.amount);
+
+  double get _totalCivil => _workerRows
+      .where((r) => r.workCategory == 'Civil')
+      .fold<double>(0.0, (s, r) => s + r.amount);
+
+  double get _grandTotal => _totalStructure + _totalWiring + _totalCivil;
+
   @override
   void dispose() {
+    for (final r in _workerRows) {
+      r.dispose();
+    }
     _customerSearchCtrl.dispose();
     _consumerNoCtrl.dispose();
     _customerNameCtrl.dispose();
     _siteLocationCtrl.dispose();
     _solarCapacityCtrl.dispose();
-    _expenseAmountCtrl.dispose();
-    _remarksCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    final consumerNo = _consumerNoCtrl.text.trim();
+    final customerName = _customerNameCtrl.text.trim();
 
-    if (_selectedTeamMemberName == null || _selectedTeamMemberName!.trim().isEmpty) {
-      setState(() => _errorMessage = 'Please select a Team Member.');
+    if (consumerNo.isEmpty || customerName.isEmpty) {
+      setState(() => _errorMessage = 'Please select a customer site first.');
       return;
     }
 
-    final amount = double.tryParse(_expenseAmountCtrl.text.replaceAll(',', '').trim()) ?? 0.0;
-    if (amount <= 0) {
-      setState(() => _errorMessage = 'Please enter a valid expense amount greater than ₹0.');
+    if (_workerRows.isEmpty) {
+      setState(() => _errorMessage = 'Please add at least one worker entry.');
       return;
+    }
+
+    for (int i = 0; i < _workerRows.length; i++) {
+      final r = _workerRows[i];
+      if (r.teamMemberName == null || r.teamMemberName!.trim().isEmpty) {
+        setState(() => _errorMessage = 'Row #${i + 1}: Please select a team member.');
+        return;
+      }
+      if (r.amount <= 0) {
+        setState(() => _errorMessage = 'Row #${i + 1} (${r.teamMemberName}): Please enter an expense amount > ₹0.');
+        return;
+      }
     }
 
     setState(() {
@@ -1901,24 +2050,36 @@ class _AddEditWorkEntryDialogState extends State<_AddEditWorkEntryDialog> {
     });
 
     try {
-      final entry = TeamWorkExpense(
-        id: widget.existing?.id ?? '',
-        consumerId: _selectedCustomer?.id,
-        consumerNo: _consumerNoCtrl.text.trim(),
-        customerName: _customerNameCtrl.text.trim(),
-        siteLocation: _siteLocationCtrl.text.trim(),
-        solarCapacity: _solarCapacityCtrl.text.trim(),
-        workDate: _workDate,
-        workCategory: _workCategory,
-        teamMemberId: _selectedTeamMemberId,
-        teamMemberName: _selectedTeamMemberName!.trim(),
-        individualExpense: amount,
-        remarks: _remarksCtrl.text.trim(),
-      );
+      final toSave = <TeamWorkExpense>[];
+      for (final r in _workerRows) {
+        toSave.add(TeamWorkExpense(
+          id: r.existingId ?? '',
+          consumerId: _selectedCustomer?.id,
+          consumerNo: consumerNo,
+          customerName: customerName,
+          siteLocation: _siteLocationCtrl.text.trim(),
+          solarCapacity: _solarCapacityCtrl.text.trim(),
+          workDate: r.workDate,
+          workCategory: r.workCategory,
+          teamMemberId: r.teamMemberId,
+          teamMemberName: r.teamMemberName!.trim(),
+          individualExpense: r.amount,
+          remarks: r.remarksCtrl.text.trim(),
+        ));
+      }
 
-      final saved = await widget.onSave(entry);
+      List<TeamWorkExpense> results = [];
+      if (widget.onSaveMultiple != null) {
+        results = await widget.onSaveMultiple!(toSave, _deletedExpenseIds);
+      } else if (widget.onSave != null) {
+        for (final item in toSave) {
+          final s = await widget.onSave!(item);
+          results.add(s);
+        }
+      }
+
       if (mounted) {
-        Navigator.pop(context, saved);
+        Navigator.pop(context, results.isNotEmpty ? results : toSave);
       }
     } catch (e) {
       if (mounted) {
@@ -1932,19 +2093,53 @@ class _AddEditWorkEntryDialogState extends State<_AddEditWorkEntryDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isEdit = widget.existing != null;
-    final activeMembers = widget.teamMembers.where((m) => m.isActive).toList();
+    final isMobile = Responsive.isMobile(context);
+    final activeMembers = _effectiveMembers;
+    final isEditMode = _workerRows.any((r) => r.existingId != null);
 
     return AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(20, 18, 16, 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       title: Row(
         children: [
-          Icon(isEdit ? Icons.edit_note_rounded : Icons.add_task_rounded, color: const Color(0xFF1E3A8A)),
-          const SizedBox(width: 8),
-          Text(isEdit ? 'Edit Team Work Entry' : 'Add Individual Work Entry'),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E3A8A).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              isEditMode ? Icons.edit_note_rounded : Icons.handyman_rounded,
+              color: const Color(0xFF1E3A8A),
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isEditMode ? 'Edit Site Team Work & Expenses' : 'Site-Wise Team Work & Expenses Entry',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'Record multiple team members (Vishal, Yendeshwar, Samadhan, Eknath) for this site in one step',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.pop(context),
+            tooltip: 'Close',
+          ),
         ],
       ),
       content: SizedBox(
-        width: 600,
+        width: isMobile ? double.maxFinite : 880,
         child: SingleChildScrollView(
           child: Form(
             key: _formKey,
@@ -1957,205 +2152,414 @@ class _AddEditWorkEntryDialogState extends State<_AddEditWorkEntryDialog> {
                     decoration: BoxDecoration(
                       color: Colors.red.shade50,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.shade200),
+                      border: Border.all(color: Colors.red.shade300),
                     ),
                     child: Row(
                       children: [
                         const Icon(Icons.error_outline, color: Colors.red, size: 18),
                         const SizedBox(width: 8),
-                        Expanded(child: Text(_errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 12))),
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 12),
                 ],
 
-                // 1. CUSTOMER SELECTION
-                const Text('1. CUSTOMER / SITE SELECTION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
-                const SizedBox(height: 8),
-
-                Autocomplete<ConsumerRecord>(
-                  displayStringForOption: (c) => '${c.name} (${c.consumerNo})',
-                  optionsBuilder: (textEditingValue) {
-                    final q = textEditingValue.text.trim().toLowerCase();
-                    if (q.isEmpty) return const Iterable<ConsumerRecord>.empty();
-                    return widget.availableCustomers.where(
-                      (c) => c.name.toLowerCase().contains(q) || c.consumerNo.toLowerCase().contains(q),
-                    );
-                  },
-                  onSelected: _applyCustomer,
-                  fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                    if (_customerNameCtrl.text.isNotEmpty && controller.text.isEmpty) {
-                      controller.text = '${_customerNameCtrl.text} (${_consumerNoCtrl.text})';
-                    }
-                    return TextFormField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      decoration: const InputDecoration(
-                        labelText: 'Search Customer by Name or Consumer No. *',
-                        prefixIcon: Icon(Icons.person_search_outlined),
-                        border: OutlineInputBorder(),
+                // SECTION 1: CUSTOMER & SITE DETAILS CARD
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on_outlined, size: 18, color: Color(0xFF1E3A8A)),
+                          const SizedBox(width: 6),
+                          const Text(
+                            '1. CUSTOMER & SITE DETAILS',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                          ),
+                          const Spacer(),
+                          if (_consumerNoCtrl.text.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade100,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'Consumer: ${_consumerNoCtrl.text}',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                              ),
+                            ),
+                        ],
                       ),
-                      validator: (v) {
-                        if (_consumerNoCtrl.text.isEmpty || _customerNameCtrl.text.isEmpty) {
-                          return 'Please select a customer';
-                        }
-                        return null;
-                      },
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
+                      const SizedBox(height: 10),
 
-                // Customer details preview
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _consumerNoCtrl,
+                      // Customer search autocomplete
+                      Autocomplete<ConsumerRecord>(
+                        displayStringForOption: (c) => '${c.name} (${c.consumerNo})',
+                        optionsBuilder: (textEditingValue) {
+                          final q = textEditingValue.text.trim().toLowerCase();
+                          if (q.isEmpty) return const Iterable<ConsumerRecord>.empty();
+                          return widget.availableCustomers.where(
+                            (c) => c.name.toLowerCase().contains(q) || c.consumerNo.toLowerCase().contains(q),
+                          );
+                        },
+                        onSelected: _applyCustomer,
+                        fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                          if (_customerNameCtrl.text.isNotEmpty && controller.text.isEmpty) {
+                            controller.text = '${_customerNameCtrl.text} (${_consumerNoCtrl.text})';
+                          }
+                          return TextFormField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            decoration: const InputDecoration(
+                              labelText: 'Search Customer by Name or Consumer No. *',
+                              prefixIcon: Icon(Icons.person_search_outlined),
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              fillColor: Colors.white,
+                              filled: true,
+                            ),
+                            validator: (v) {
+                              if (_consumerNoCtrl.text.isEmpty || _customerNameCtrl.text.isEmpty) {
+                                return 'Please select a valid customer site';
+                              }
+                              return null;
+                            },
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Customer metadata preview
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: TextFormField(
+                              controller: _customerNameCtrl,
+                              readOnly: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Customer Name',
+                                filled: true,
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 2,
+                            child: TextFormField(
+                              controller: _solarCapacityCtrl,
+                              readOnly: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Solar Capacity',
+                                filled: true,
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _siteLocationCtrl,
                         readOnly: true,
                         decoration: const InputDecoration(
-                          labelText: 'Consumer No.',
+                          labelText: 'Site Location',
                           filled: true,
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _solarCapacityCtrl,
-                        readOnly: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Solar Capacity',
-                          filled: true,
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _siteLocationCtrl,
-                  readOnly: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Site Location',
-                    filled: true,
-                    border: OutlineInputBorder(),
-                    isDense: true,
+                    ],
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                // 2. WORK CATEGORY
-                const Text('2. WORK CATEGORY (Select one for this entry)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
-                const SizedBox(height: 6),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'Structure', label: Text('Structure'), icon: Icon(Icons.architecture, size: 16)),
-                    ButtonSegment(value: 'Wiring', label: Text('Wiring'), icon: Icon(Icons.electric_bolt, size: 16)),
-                    ButtonSegment(value: 'Civil', label: Text('Civil'), icon: Icon(Icons.foundation, size: 16)),
+                // SECTION 2: WORKER ENTRIES LIST
+                Row(
+                  children: [
+                    const Icon(Icons.group_work_rounded, size: 18, color: Color(0xFF0F766E)),
+                    const SizedBox(width: 6),
+                    Text(
+                      '2. TEAM WORKERS & EXPENSES (${_workerRows.length} Workers)',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F766E)),
+                    ),
+                    const Spacer(),
+                    Wrap(
+                      spacing: 6,
+                      children: [
+                        ActionChip(
+                          avatar: const Icon(Icons.architecture, size: 14, color: Color(0xFF7C3AED)),
+                          label: const Text('+ Structure', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          onPressed: () => _addEmptyRow(category: 'Structure'),
+                        ),
+                        ActionChip(
+                          avatar: const Icon(Icons.electric_bolt, size: 14, color: Color(0xFFD97706)),
+                          label: const Text('+ Wiring', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          onPressed: () => _addEmptyRow(category: 'Wiring'),
+                        ),
+                        ActionChip(
+                          avatar: const Icon(Icons.foundation, size: 14, color: Color(0xFF0D9488)),
+                          label: const Text('+ Civil', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          onPressed: () => _addEmptyRow(category: 'Civil'),
+                        ),
+                        FilledButton.tonalIcon(
+                          icon: const Icon(Icons.add, size: 15),
+                          label: const Text('Add Worker Row', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          style: FilledButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                          ),
+                          onPressed: () => _addEmptyRow(category: 'Structure'),
+                        ),
+                      ],
+                    ),
                   ],
-                  selected: {_workCategory},
-                  onSelectionChanged: (set) => setState(() => _workCategory = set.first),
                 ),
-                const SizedBox(height: 16),
-
-                // 3. TEAM MEMBER & WORK EXPENSE
-                const Text('3. TEAM MEMBER & EXPENSE ENTRY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
                 const SizedBox(height: 8),
 
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Team Member dropdown
-                    Expanded(
-                      flex: 3,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: activeMembers.any((m) => m.name == _selectedTeamMemberName)
-                            ? _selectedTeamMemberName
-                            : (activeMembers.isNotEmpty ? activeMembers.first.name : null),
-                        decoration: const InputDecoration(
-                          labelText: 'Select Team Member *',
-                          prefixIcon: Icon(Icons.badge_outlined),
-                          border: OutlineInputBorder(),
-                        ),
-                        items: activeMembers.map((m) {
-                          return DropdownMenuItem(value: m.name, child: Text(m.name));
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            final m = activeMembers.firstWhere((element) => element.name == val);
-                            setState(() {
-                              _selectedTeamMemberName = m.name;
-                              _selectedTeamMemberId = m.id;
-                            });
-                          }
-                        },
-                        validator: (v) => v == null || v.isEmpty ? 'Please select a team member' : null,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
+                // List of Worker rows
+                ...List.generate(_workerRows.length, (index) {
+                  final row = _workerRows[index];
+                  final isStructure = row.workCategory == 'Structure';
+                  final isWiring = row.workCategory == 'Wiring';
+                  final categoryColor = isStructure
+                      ? const Color(0xFF7C3AED)
+                      : (isWiring ? const Color(0xFFD97706) : const Color(0xFF0D9488));
 
-                    // Individual Expense Amount
-                    Expanded(
-                      flex: 2,
-                      child: TextFormField(
-                        controller: _expenseAmountCtrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        decoration: const InputDecoration(
-                          labelText: 'Individual Expense *',
-                          prefixText: '₹ ',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) return 'Enter amount';
-                          final num = double.tryParse(v.trim());
-                          if (num == null || num <= 0) return 'Must be > 0';
-                          return null;
-                        },
-                      ),
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: categoryColor.withOpacity(0.35), width: 1.2),
                     ),
-                  ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Row Top Header Bar
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: categoryColor.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'Worker #${index + 1}',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: categoryColor),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+
+                            // Work Category selector pills
+                            ...['Structure', 'Wiring', 'Civil'].map((cat) {
+                              final isSel = row.workCategory == cat;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: ChoiceChip(
+                                  label: Text(cat, style: TextStyle(fontSize: 11, fontWeight: isSel ? FontWeight.bold : FontWeight.normal)),
+                                  selected: isSel,
+                                  visualDensity: VisualDensity.compact,
+                                  onSelected: (selected) {
+                                    if (selected) {
+                                      setState(() => row.workCategory = cat);
+                                    }
+                                  },
+                                ),
+                              );
+                            }),
+                            const Spacer(),
+
+                            // Work Date Button
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.calendar_today, size: 12),
+                              label: Text(_dateFormat.format(row.workDate), style: const TextStyle(fontSize: 11)),
+                              style: OutlinedButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                              ),
+                              onPressed: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: row.workDate,
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2035),
+                                );
+                                if (picked != null) {
+                                  setState(() => row.workDate = picked);
+                                }
+                              },
+                            ),
+                            const SizedBox(width: 6),
+
+                            // Delete row button
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                              tooltip: 'Remove worker row',
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => _removeRow(index),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Inputs row: Team Member, Expense Amount, Remarks
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Team Member Dropdown
+                            Expanded(
+                              flex: 3,
+                              child: DropdownButtonFormField<String>(
+                                initialValue: activeMembers.any((m) => m.name == row.teamMemberName)
+                                    ? row.teamMemberName
+                                    : (activeMembers.isNotEmpty ? activeMembers.first.name : null),
+                                decoration: const InputDecoration(
+                                  labelText: 'Team Member *',
+                                  prefixIcon: Icon(Icons.badge_outlined, size: 18),
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                  fillColor: Colors.white,
+                                  filled: true,
+                                ),
+                                items: activeMembers.map((m) {
+                                  return DropdownMenuItem(value: m.name, child: Text(m.name, style: const TextStyle(fontSize: 13)));
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    final m = activeMembers.firstWhere((element) => element.name == val);
+                                    setState(() {
+                                      row.teamMemberName = m.name;
+                                      row.teamMemberId = m.id;
+                                    });
+                                  }
+                                },
+                                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+
+                            // Individual Expense Amount
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: row.amountCtrl,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                decoration: const InputDecoration(
+                                  labelText: 'Expense (₹) *',
+                                  prefixText: '₹ ',
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                  fillColor: Colors.white,
+                                  filled: true,
+                                ),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) return 'Enter ₹';
+                                  final num = double.tryParse(v.trim());
+                                  if (num == null || num <= 0) return '> ₹0';
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+
+                            // Remarks
+                            Expanded(
+                              flex: 3,
+                              child: TextFormField(
+                                controller: row.remarksCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'Remarks (Optional)',
+                                  hintText: 'e.g. Structure foundation, wiring...',
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                  fillColor: Colors.white,
+                                  filled: true,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+
+                // Add another worker row button
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.add_circle_outline, size: 18),
+                    label: const Text('+ Add Another Team Member to this Site', style: TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: () => _addEmptyRow(category: 'Structure'),
+                  ),
                 ),
                 const SizedBox(height: 12),
 
-                // 4. DATE & REMARKS
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                // SECTION 3: LIVE SITE EXPENSE TOTALS
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF064E3B).withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF047857).withOpacity(0.3), width: 1.5),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Wrap(
+                          spacing: 16,
+                          runSpacing: 6,
+                          children: [
+                            Text(
+                              'Structure: ${_currencyFormat.format(_totalStructure)}',
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF6D28D9)),
+                            ),
+                            Text(
+                              'Wiring: ${_currencyFormat.format(_totalWiring)}',
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFFD97706)),
+                            ),
+                            Text(
+                              'Civil: ${_currencyFormat.format(_totalCivil)}',
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0D9488)),
+                            ),
+                          ],
                         ),
-                        icon: const Icon(Icons.calendar_today, size: 16),
-                        label: Text('Date: ${DateFormat('dd-MM-yyyy').format(_workDate)}'),
-                        onPressed: () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: _workDate,
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime(2035),
-                          );
-                          if (picked != null) setState(() => _workDate = picked);
-                        },
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                TextFormField(
-                  controller: _remarksCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Remarks (Optional)',
-                    border: OutlineInputBorder(),
-                    hintText: 'e.g. Structure foundation completed, cable laid...',
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF047857),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Total Site Expense: ${_currencyFormat.format(_grandTotal)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -2165,15 +2569,23 @@ class _AddEditWorkEntryDialogState extends State<_AddEditWorkEntryDialog> {
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(
+        FilledButton.icon(
           style: FilledButton.styleFrom(
             backgroundColor: const Color(0xFF1E3A8A),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           ),
           onPressed: _isSaving ? null : _submit,
-          child: _isSaving
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : Text(isEdit ? 'Update Entry' : 'Save Work Entry'),
+          icon: _isSaving
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              : const Icon(Icons.check_circle_outline, size: 18),
+          label: Text(
+            _isSaving
+                ? 'Saving Entries...'
+                : (isEditMode
+                    ? 'Update All (${_workerRows.length}) Entries'
+                    : 'Save All (${_workerRows.length}) Worker Entries'),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
         ),
       ],
     );

@@ -6,6 +6,7 @@ import '../models/consumer_record.dart';
 import '../models/user_profile.dart';
 import '../services/sales_commission_service.dart';
 import '../services/sales_commission_excel_service.dart';
+import '../utils/consumer_no_utils.dart';
 import '../utils/responsive.dart';
 
 enum SalesCommissionTab { all, pending, salesPerson, direct, summary }
@@ -252,6 +253,31 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
     );
   }
 
+  Future<void> _openBulkCommissionDialog() async {
+    final result = await showDialog<List<SalesCommission>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _BulkCommissionDialog(
+        availableConsumers: _availableConsumers,
+        availableStaff: _availableStaff,
+        allCommissions: _allCommissions,
+        onSaveMultiple: SalesCommissionService.saveMultipleCommissions,
+      ),
+    );
+
+    if (result != null && result.isNotEmpty && mounted) {
+      await _loadData();
+      if (!mounted) return;
+      final totalComm = result.fold<double>(0.0, (s, c) => s + c.totalCommission);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Successfully saved/updated commission for ${result.length} customers (Total: ${_currency.format(totalComm)}).'),
+          backgroundColor: const Color(0xFF047857),
+        ),
+      );
+    }
+  }
+
   void _openViewDialog(SalesCommission commission) {
     showDialog(
       context: context,
@@ -385,6 +411,20 @@ class _SalesCommissionScreenState extends State<SalesCommissionScreen> {
                           : const Icon(Icons.table_view_rounded, size: 18),
                       label: Text(
                         isMobile ? 'Excel' : 'Export to Excel (5 Sheets)',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ),
+                    // Bulk Set Commission Button
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C3AED),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      onPressed: _openBulkCommissionDialog,
+                      icon: const Icon(Icons.checklist_rounded, size: 18),
+                      label: Text(
+                        isMobile ? 'Bulk Set' : 'Bulk Set Commission',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                     ),
@@ -2744,6 +2784,603 @@ class _ViewCommissionDialog extends StatelessWidget {
           Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
         ],
       ),
+    );
+  }
+}
+
+// ==========================================
+// BULK / MULTI SET COMMISSION DIALOG
+// ==========================================
+
+class _BulkCommissionDialog extends StatefulWidget {
+  final List<ConsumerRecord> availableConsumers;
+  final List<UserProfile> availableStaff;
+  final List<SalesCommission> allCommissions;
+  final Future<List<SalesCommission>> Function(List<SalesCommission>) onSaveMultiple;
+
+  const _BulkCommissionDialog({
+    required this.availableConsumers,
+    required this.availableStaff,
+    required this.allCommissions,
+    required this.onSaveMultiple,
+  });
+
+  @override
+  State<_BulkCommissionDialog> createState() => _BulkCommissionDialogState();
+}
+
+class _BulkCommissionDialogState extends State<_BulkCommissionDialog> {
+  final NumberFormat _currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹ ', decimalDigits: 0);
+  final Set<String> _selectedConsumerNos = {};
+  final TextEditingController _searchCtrl = TextEditingController();
+  final TextEditingController _rateCtrl = TextEditingController(text: '500');
+  final TextEditingController _remarksCtrl = TextEditingController();
+
+  String _filterMode = 'Pending'; // 'Pending', 'All'
+  String _customerSource = 'Sales Person'; // 'Sales Person' or 'Direct Customer'
+  String? _selectedSalesPersonName;
+  String? _selectedSalesPersonId;
+  String _commissionStatus = 'Pending'; // 'Pending' or 'Completed'
+
+  bool _isSaving = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.availableStaff.isNotEmpty) {
+      final firstStaff = widget.availableStaff.first;
+      _selectedSalesPersonName = firstStaff.fullName?.trim().isNotEmpty == true ? firstStaff.fullName! : (firstStaff.email ?? 'Staff');
+      _selectedSalesPersonId = firstStaff.id;
+    }
+    // Pre-select all pending customers by default
+    final pending = _filteredList;
+    for (final c in pending) {
+      _selectedConsumerNos.add(c.consumerNo);
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _rateCtrl.dispose();
+    _remarksCtrl.dispose();
+    super.dispose();
+  }
+
+  List<ConsumerRecord> get _filteredList {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    return widget.availableConsumers.where((c) {
+      if (q.isNotEmpty) {
+        final matches = c.name.toLowerCase().contains(q) || c.consumerNo.toLowerCase().contains(q);
+        if (!matches) return false;
+      }
+      if (_filterMode == 'Pending') {
+        final norm = ConsumerNoNormalizer.normalize(c.consumerNo);
+        final existing = widget.allCommissions.where(
+          (cm) => ConsumerNoNormalizer.normalize(cm.consumerNo) == norm,
+        );
+        if (existing.isNotEmpty && existing.first.commissionStatus != 'Pending') {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
+  }
+
+  double get _totalCapacityKw {
+    double total = 0.0;
+    for (final no in _selectedConsumerNos) {
+      final cust = widget.availableConsumers.firstWhere(
+        (c) => c.consumerNo == no,
+        orElse: () => ConsumerRecord(id: '', consumerNo: no, name: '', status: ''),
+      );
+      total += cust.capacityKw > 0 ? cust.capacityKw : 3.0;
+    }
+    return total;
+  }
+
+  double get _totalCalculatedCommission {
+    if (_customerSource == 'Direct Customer') return 0.0;
+    final rate = double.tryParse(_rateCtrl.text.trim()) ?? 0.0;
+    return _totalCapacityKw * rate;
+  }
+
+  Future<void> _submit() async {
+    if (_selectedConsumerNos.isEmpty) {
+      setState(() => _errorMessage = 'Please select at least one customer.');
+      return;
+    }
+
+    final isDirect = _customerSource == 'Direct Customer';
+    final rate = double.tryParse(_rateCtrl.text.trim()) ?? 0.0;
+
+    if (!isDirect) {
+      if (_selectedSalesPersonName == null || _selectedSalesPersonName!.trim().isEmpty) {
+        setState(() => _errorMessage = 'Please select a Sales Person.');
+        return;
+      }
+      if (rate <= 0) {
+        setState(() => _errorMessage = 'Please enter a valid commission rate (> ₹0) per kW.');
+        return;
+      }
+    }
+
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final toSave = <SalesCommission>[];
+      final now = DateTime.now();
+
+      for (final no in _selectedConsumerNos) {
+        final norm = ConsumerNoNormalizer.normalize(no);
+        final cust = widget.availableConsumers.firstWhere(
+          (c) => c.consumerNo == no,
+          orElse: () => ConsumerRecord(id: '', consumerNo: no, name: '', status: ''),
+        );
+        final existingList = widget.allCommissions.where(
+          (cm) => ConsumerNoNormalizer.normalize(cm.consumerNo) == norm,
+        ).toList();
+        final existing = existingList.isNotEmpty ? existingList.first : null;
+
+        final kw = cust.capacityKw > 0 ? cust.capacityKw : (existing?.capacityKw ?? 3.0);
+        final commAmount = isDirect ? 0.0 : (kw * rate);
+
+        toSave.add(SalesCommission(
+          id: existing?.id ?? '',
+          consumerId: (cust.id != null && cust.id!.isNotEmpty) ? cust.id! : (existing?.consumerId ?? ''),
+          consumerNo: cust.consumerNo.isNotEmpty ? cust.consumerNo : no,
+          customerName: cust.name.isNotEmpty ? cust.name : (existing?.customerName ?? 'Customer'),
+          siteLocation: cust.address ?? cust.village ?? (existing?.siteLocation ?? ''),
+          solarCapacity: cust.systemCapacity?.isNotEmpty == true
+              ? cust.systemCapacity!
+              : (existing?.solarCapacity ?? '${kw.toStringAsFixed(1)} kW'),
+          capacityKw: kw,
+          customerSource: _customerSource,
+          salesPersonId: isDirect ? null : _selectedSalesPersonId,
+          salesPersonName: isDirect ? null : _selectedSalesPersonName,
+          commissionRatePerKw: isDirect ? 0.0 : rate,
+          totalCommission: commAmount,
+          commissionStatus: isDirect ? 'Not Applicable' : _commissionStatus,
+          commissionDate: existing?.commissionDate ?? now,
+          remarks: _remarksCtrl.text.trim().isNotEmpty ? _remarksCtrl.text.trim() : existing?.remarks,
+        ));
+      }
+
+      final saved = await widget.onSaveMultiple(toSave);
+      if (mounted) {
+        Navigator.pop(context, saved.isNotEmpty ? saved : toSave);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = Responsive.isMobile(context);
+    final displayedList = _filteredList;
+    final allSelected = displayedList.isNotEmpty && displayedList.every((c) => _selectedConsumerNos.contains(c.consumerNo));
+    final isDirect = _customerSource == 'Direct Customer';
+
+    return AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(20, 18, 16, 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF7C3AED).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.playlist_add_check_rounded, color: Color(0xFF7C3AED), size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Bulk / Multi Customer Commission Entry',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'Assign Sales Person & rate or mark Direct for multiple customers simultaneously',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.pop(context),
+            tooltip: 'Close',
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: isMobile ? double.maxFinite : 860,
+        height: 600,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_errorMessage != null) ...[
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade300),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(_errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.w500)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+
+            // SECTION 1: COMMISSION ASSIGNMENT SETTINGS CARD
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF7C3AED).withOpacity(0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF7C3AED).withOpacity(0.25)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '1. COMMISSION SETTINGS (Applied to all selected customers)',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF7C3AED)),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      // Customer Source Choice
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(value: 'Sales Person', label: Text('Sales Person Customer'), icon: Icon(Icons.person_outline, size: 16)),
+                          ButtonSegment(value: 'Direct Customer', label: Text('Direct Customer'), icon: Icon(Icons.flash_on_outlined, size: 16)),
+                        ],
+                        selected: {_customerSource},
+                        onSelectionChanged: (set) => setState(() => _customerSource = set.first),
+                      ),
+                      const SizedBox(width: 14),
+
+                      // Status Selector (if Sales Person)
+                      if (!isDirect) ...[
+                        const Text('Status:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 8),
+                        DropdownButton<String>(
+                          value: _commissionStatus,
+                          items: const [
+                            DropdownMenuItem(value: 'Pending', child: Text('Pending Commission')),
+                            DropdownMenuItem(value: 'Completed', child: Text('Completed Record')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) setState(() => _commissionStatus = val);
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  if (!isDirect) ...[
+                    Row(
+                      children: [
+                        // Sales Person Dropdown
+                        Expanded(
+                          flex: 3,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: widget.availableStaff.any((s) => s.fullName == _selectedSalesPersonName)
+                                ? _selectedSalesPersonName
+                                : (widget.availableStaff.isNotEmpty ? widget.availableStaff.first.fullName : null),
+                            decoration: const InputDecoration(
+                              labelText: 'Select Sales Person *',
+                              prefixIcon: Icon(Icons.badge_outlined),
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              fillColor: Colors.white,
+                              filled: true,
+                            ),
+                            items: widget.availableStaff.map((staff) {
+                              final name = staff.fullName?.trim().isNotEmpty == true ? staff.fullName! : (staff.email ?? 'Staff');
+                              return DropdownMenuItem(value: name, child: Text(name));
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                final s = widget.availableStaff.firstWhere(
+                                  (element) => (element.fullName?.trim().isNotEmpty == true ? element.fullName! : (element.email ?? 'Staff')) == val,
+                                );
+                                setState(() {
+                                  _selectedSalesPersonName = s.fullName?.trim().isNotEmpty == true ? s.fullName! : (s.email ?? 'Staff');
+                                  _selectedSalesPersonId = s.id;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+
+                        // Commission Rate per kW
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _rateCtrl,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: const InputDecoration(
+                              labelText: 'Rate / kW (₹) *',
+                              prefixText: '₹ ',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              fillColor: Colors.white,
+                              filled: true,
+                            ),
+                            onChanged: (_) => setState(() {}),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+
+                        // Remarks
+                        Expanded(
+                          flex: 3,
+                          child: TextFormField(
+                            controller: _remarksCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Remarks (Optional)',
+                              hintText: 'e.g. Standard rate, Diwali scheme...',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              fillColor: Colors.white,
+                              filled: true,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 18, color: Colors.blue),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Direct Customers require No Sales Person. Commission Rate = ₹0, Total Commission = ₹0, Status = Not Applicable.',
+                              style: TextStyle(fontSize: 12, color: Colors.blue),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // SECTION 2: CUSTOMER SELECTOR TOOLBAR
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchCtrl,
+                    decoration: const InputDecoration(
+                      hintText: 'Search customer by name or consumer number...',
+                      prefixIcon: Icon(Icons.search, size: 18),
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'Pending', label: Text('Pending Only')),
+                    ButtonSegment(value: 'All', label: Text('All Customers')),
+                  ],
+                  selected: {_filterMode},
+                  onSelectionChanged: (set) => setState(() => _filterMode = set.first),
+                ),
+                const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  icon: Icon(allSelected ? Icons.deselect : Icons.select_all, size: 16),
+                  label: Text(allSelected ? 'Deselect All' : 'Select All (${displayedList.length})'),
+                  onPressed: () {
+                    setState(() {
+                      if (allSelected) {
+                        for (final c in displayedList) {
+                          _selectedConsumerNos.remove(c.consumerNo);
+                        }
+                      } else {
+                        for (final c in displayedList) {
+                          _selectedConsumerNos.add(c.consumerNo);
+                        }
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // SECTION 3: CUSTOMER CHECKLIST TABLE
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: ListView.separated(
+                  itemCount: displayedList.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final cust = displayedList[index];
+                    final isChecked = _selectedConsumerNos.contains(cust.consumerNo);
+                    final norm = ConsumerNoNormalizer.normalize(cust.consumerNo);
+                    final existingList = widget.allCommissions.where(
+                      (cm) => ConsumerNoNormalizer.normalize(cm.consumerNo) == norm,
+                    ).toList();
+                    final existing = existingList.isNotEmpty ? existingList.first : null;
+
+                    return CheckboxListTile(
+                      value: isChecked,
+                      dense: true,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              cust.name,
+                              style: TextStyle(fontWeight: isChecked ? FontWeight.bold : FontWeight.normal),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(cust.consumerNo, style: const TextStyle(fontSize: 11, fontFamily: 'monospace')),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            cust.systemCapacity?.isNotEmpty == true
+                                ? cust.systemCapacity!
+                                : '${cust.capacityKw > 0 ? cust.capacityKw : 3.0} kW',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(width: 14),
+                          if (existing != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: existing.commissionStatus == 'Completed'
+                                    ? Colors.green.shade100
+                                    : (existing.commissionStatus == 'Pending' ? Colors.amber.shade100 : Colors.grey.shade200),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                existing.commissionStatus,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: existing.commissionStatus == 'Completed'
+                                      ? Colors.green.shade900
+                                      : (existing.commissionStatus == 'Pending' ? Colors.amber.shade900 : Colors.black87),
+                                ),
+                              ),
+                            )
+                          else
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text('New Entry', style: TextStyle(fontSize: 10, color: Colors.blue, fontWeight: FontWeight.bold)),
+                            ),
+                        ],
+                      ),
+                      subtitle: cust.address != null && cust.address!.isNotEmpty
+                          ? Text(cust.address!, style: const TextStyle(fontSize: 11, color: Colors.grey), maxLines: 1, overflow: TextOverflow.ellipsis)
+                          : null,
+                      onChanged: (val) {
+                        setState(() {
+                          if (val == true) {
+                            _selectedConsumerNos.add(cust.consumerNo);
+                          } else {
+                            _selectedConsumerNos.remove(cust.consumerNo);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // SECTION 4: LIVE CALCULATION SUMMARY BANNER
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF047857).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF047857).withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    'Selected Customers: ${_selectedConsumerNos.length}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(width: 16),
+                  Text(
+                    'Total Capacity: ${_totalCapacityKw.toStringAsFixed(1)} kW',
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E3A8A)),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF047857),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Total Commission: ${_currency.format(_totalCalculatedCommission)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF7C3AED),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          ),
+          onPressed: _isSaving ? null : _submit,
+          icon: _isSaving
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              : const Icon(Icons.check_circle_outline, size: 18),
+          label: Text(
+            _isSaving ? 'Applying...' : 'Apply Commission to ${_selectedConsumerNos.length} Customers',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+      ],
     );
   }
 }
