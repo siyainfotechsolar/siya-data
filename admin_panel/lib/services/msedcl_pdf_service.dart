@@ -8,6 +8,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
 import '../models/msedcl_change_of_name.dart';
 import 'solar_quotation_font_helper.dart';
+import 'company_stamp_helper.dart';
 
 class MsedclPdfService {
   static final DateFormat _dateFormat = DateFormat('dd/MM/yyyy');
@@ -932,212 +933,232 @@ class MsedclPdfService {
   // ==========================================
 
   /// Generate Editable Stamp Paper Affidavit / Undertaking for the NEW CUSTOMER
-  static Future<Uint8List> generateAffidavitPdf(MsedclChangeOfNameApplication app) async {
+  /// Renders on official Rs. 100 Non-Judicial Maharashtra Stamp Paper (matching Net Metering Agreement)
+  static Future<Uint8List> generateAffidavitPdf(MsedclChangeOfNameApplication app, {Uint8List? customStampPaperBytes}) async {
     final pdf = pw.Document(
       title: 'MSEDCL Affidavit - ${app.computedNewFullName}',
       author: 'Siya Infotech & Solar Energy',
     );
 
     final pdfTheme = await SolarQuotationFontHelper.loadPdfTheme();
-
     final isMarathi = app.stampPaperLanguage.toLowerCase() == 'marathi';
 
+    // Load official Rs. 100 Maharashtra Non-Judicial Stamp Paper graphic (identical to Net Meter Agreement)
+    final stampBytes = await AdminCompanyStampHelper.loadStampPaperBytes(customBytes: customStampPaperBytes);
+    final pw.MemoryImage? stampPaperImage = (stampBytes != null && stampBytes.isNotEmpty) ? pw.MemoryImage(stampBytes) : null;
+
+    final isPhysicalStamp = app.stampTopMarginMm > 0;
+    final topMarginPt = isPhysicalStamp ? (app.stampTopMarginMm * 2.83465) : 465.0;
+
     pdf.addPage(
-      pw.Page(
-        pageFormat: const PdfPageFormat(612.0, 792.0), // Match exact US Letter dimensions of official MSEDCL form
-        margin: const pw.EdgeInsets.symmetric(horizontal: 26, vertical: 18),
-        theme: pdfTheme,
-        build: (context) {
+      pw.MultiPage(
+        pageTheme: pw.PageTheme(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.fromLTRB(42, 20, 42, 20),
+          theme: pdfTheme,
+          buildBackground: (context) {
+            // Render the official Rs. 100 Stamp Paper as full background on Page 1 (unless physical stamp feed is selected)
+            if (context.pageNumber == 1 && !isPhysicalStamp && stampPaperImage != null) {
+              return pw.FullPage(
+                ignoreMargins: true,
+                child: pw.Image(stampPaperImage, fit: pw.BoxFit.fill),
+              );
+            }
+            return pw.Container();
+          },
+        ),
+        header: (context) {
+          if (context.pageNumber == 1) {
+            // Clear top space occupied by the Rs. 100 Stamp Paper header
+            return pw.SizedBox(height: topMarginPt);
+          }
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
-              // Top Margin gap for physical non-judicial stamp paper if configured
-              if (app.stampTopMarginMm > 0)
-                pw.SizedBox(height: app.stampTopMarginMm * 2.83465) // 1mm = 2.83465 pt
-              else ...[
-                // Simulated Stamp Paper Header when printed on plain paper
-                pw.Container(
-                  padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: const PdfColor.fromInt(0xFF854D0E), width: 1.2),
-                    color: const PdfColor.fromInt(0xFFFEFCE8),
-                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5)),
-                  ),
-                  child: pw.Column(
-                    children: [
-                      pw.Text(
-                        'GOVERNMENT OF MAHARASHTRA | NON-JUDICIAL STAMP PAPER',
-                        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF854D0E)),
-                        textAlign: pw.TextAlign.center,
-                      ),
-                      pw.SizedBox(height: 1),
-                      pw.Text(
-                        'महाराष्ट्र शासन | मुद्रांक शुल्क मूल्य: रु. ${app.stampPaperValue.toInt()}/- (रुपये ${app.stampPaperValue.toInt()} फक्त)',
-                        style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF854D0E)),
-                        textAlign: pw.TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(height: 8),
-              ],
-
-              // Affidavit / Self Declaration Title
-              pw.Text(
-                isMarathi ? '।। प्रतिज्ञापत्र / हमीपत्र ।।' : 'SELF DECLARATION & UNDERTAKING',
-                style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: primaryBlue),
-                textAlign: pw.TextAlign.center,
-              ),
-              pw.Text(
-                isMarathi
-                    ? '(महाराष्ट्र राज्य विद्युत वितरण कंपनी मर्यादित - वीज ग्राहक नाव बदल कामी)'
-                    : '(For Change of Name in MSEDCL Electricity Connection | On Rs. 100/- Non-Judicial Stamp Paper)',
-                style: const pw.TextStyle(fontSize: 8.5, color: mutedText),
-                textAlign: pw.TextAlign.center,
-              ),
-              pw.SizedBox(height: 8),
-
-              // Deponent / Applicant Details
-              pw.Container(
-                padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: pw.BoxDecoration(border: pw.Border.all(color: borderColor, width: 0.8), color: lightBg),
-                child: isMarathi
-                    ? pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          pw.Text(
-                            'मी खालीलप्रमाणे सत्य प्रतिज्ञेवर लिहून देतो / देते की —',
-                            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-                          ),
-                          pw.SizedBox(height: 3),
-                          pw.Text(
-                            'अर्जदार / नवीन ग्राहक: ${app.computedNewFullName}, वय: ${app.newAge} वर्षे, व्यवसाय: शेती/व्यवसाय/नोकरी, '
-                            'रा. ${app.propertyAddress}. '
-                            'आधार क्र.: ${app.newAadhaarNo.isNotEmpty ? app.newAadhaarNo : "लागू नाही"}.',
-                            style: const pw.TextStyle(fontSize: 8, height: 1.3),
-                          ),
-                        ],
-                      )
-                    : pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          pw.Text(
-                            'I, the undersigned deponent / applicant, do hereby solemnly affirm, declare and state on oath as under:',
-                            style: pw.TextStyle(fontSize: 8.8, fontWeight: pw.FontWeight.bold),
-                          ),
-                          pw.SizedBox(height: 3),
-                          pw.Text(
-                            'Applicant / Transferee: ${app.computedNewFullName}, Age: ${app.newAge} Years, '
-                            'Residing at: ${app.propertyAddress}. '
-                            'Consumer No: ${app.consumerNo}, Office: ${app.subDivisionOffice}${app.circleOffice.isNotEmpty ? ", " + app.circleOffice : ""}. '
-                            'Aadhaar No: ${app.newAadhaarNo.isNotEmpty ? app.newAadhaarNo : "N/A"}, Mobile: ${app.newMobileNo}.',
-                            style: const pw.TextStyle(fontSize: 8, height: 1.3),
-                          ),
-                        ],
-                      ),
-              ),
-              pw.SizedBox(height: 8),
-
-              // Custom or Standard Affidavit Body
-              if (app.affidavitCustomText != null && app.affidavitCustomText!.trim().isNotEmpty)
-                pw.Container(
-                  padding: const pw.EdgeInsets.all(6),
-                  child: pw.Text(
-                    app.affidavitCustomText!,
-                    style: const pw.TextStyle(fontSize: 8, height: 1.3),
-                  ),
-                )
-              else if (isMarathi) ...[
-                _buildClauseText('१.', 'सदर मिळकतीवर महावितरणचा वीज ग्राहक क्रमांक ${app.consumerNo} हा असून तो सध्या जुने ग्राहक ${app.computedOldFullName} यांच्या नावावर नोंदणीकृत आहे.'),
-                _buildClauseText('२.', 'मी सदर मिळकत / जागा (${app.propertyAddress}) ही कायदेशीररित्या (${app.reasonForChange}) अन्वये प्राप्त केली असून सध्या सदर जागेचा संपूर्ण कायदेशीर ताबा व मालकी हक्क माझ्याकडे आहे.'),
-                _buildClauseText('३.', 'सदर जागेवरील वीज मीटर ग्राहक क्र. ${app.consumerNo} हे माझ्या नावाने (${app.computedNewFullName}) हस्तांतरित / नाव बदल करून मिळण्यासाठी मी हा अर्ज सादर करत आहे.'),
-                _buildClauseText('४.', 'सदर वीज जोडणी माझ्या नावावर झाल्यानंतर भविष्यात येणारे सर्व वीज देयक (Bills) नियमाप्रमाणे विहित मुदतीत भरण्याची संपूर्ण जबाबदारी माझी राहील.'),
-                _buildClauseText('५.', 'सदर वीज जोडणीवर जुनी थकबाकी किंवा कायदेशीर देणी असल्यास, ती महावितरणच्या नियमानुसार भरण्यास मी वैयक्तिकरीत्या बांधील व सहमत आहे.'),
-                _buildClauseText('६.', 'सदर नाव बदलाबाबत भविष्यात कोणताही वाद किंवा आक्षेप उद्भवल्यास त्याची संपूर्ण जबाबदारी माझी राहील. मी सादर केलेली सर्व कागदपत्रे व माहिती खरी व कायदेशीर आहे.'),
-              ] else ...[
-                // Official Standard MSEDCL Change of Name Self Declaration & Undertaking (Strictly for normal consumers - No solar / PM Surya Ghar mention)
-                _buildClauseText('1.', 'That I am the rightful legal owner / lawful occupant in peaceful possession of the premises situated at ${app.propertyAddress} by virtue of ${app.reasonForChange}.'),
-                _buildClauseText('2.', 'That the existing low-tension (LT) electricity connection bearing Consumer No. ${app.consumerNo} currently stands registered in the official records of MSEDCL in the name of the previous consumer, ${app.computedOldFullName}.'),
-                _buildClauseText('3.', 'That I have submitted an official application to Maharashtra State Electricity Distribution Co. Ltd. (MSEDCL) for Change of Name / transfer of the said electricity connection to my name (${app.computedNewFullName}).'),
-                _buildClauseText('4.', 'That I hereby solemnly undertake to abide by all the provisions of the Electricity Act 2003, and the Maharashtra Electricity Regulatory Commission (Electricity Supply Code and other conditions of Supply) Regulations 2005, as amended from time to time.'),
-                _buildClauseText('5.', 'That I undertake to promptly pay all regular monthly electricity consumption bills as per prevailing MSEDCL tariffs and clear any legitimate past arrears or dues pending against Consumer No. ${app.consumerNo}.'),
-                _buildClauseText('6.', 'That if the subject premises is declared unauthorized or vacated by competent authority, MSEDCL shall have full liberty to disconnect the electric supply in accordance with applicable rules.'),
-                _buildClauseText('7.', 'That all statements made herein and documents submitted are true, authentic, and legally valid. If any information is found false or incorrect, I shall be solely held responsible for all consequences, and I hereby indemnify MSEDCL against any third-party claims or disputes.'),
-              ],
-
-              pw.SizedBox(height: 8),
-              pw.Text(
-                isMarathi
-                    ? 'करिता हे प्रतिज्ञापत्र / हमीपत्र मी स्वतःच्या राजीखुशीने, कोणत्याही दबावाशिवाय लिहून सही केली आहे. जेणेकरून महावितरण कार्यालयात पुरावा म्हणून सादर करता येईल.'
-                    : 'Solemnly affirmed, declared and signed on this day with sound mind and free will, without any coercion or undue influence.',
-                style: pw.TextStyle(fontSize: 7.5, fontStyle: isMarathi ? pw.FontStyle.normal : pw.FontStyle.italic),
-              ),
-              pw.SizedBox(height: 12),
-
-              // Date, Place & Applicant Signature
               pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    isMarathi ? 'प्रतिज्ञापत्र / हमीपत्र (पान २)' : 'SELF DECLARATION & UNDERTAKING (Continuation Sheet - Page ${context.pageNumber})',
+                    style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: primaryBlue),
+                  ),
+                  pw.Text(
+                    'Consumer No: ${app.consumerNo}',
+                    style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                  ),
+                ],
+              ),
+              pw.Divider(color: borderColor, thickness: 0.8),
+              pw.SizedBox(height: 6),
+            ],
+          );
+        },
+        build: (context) {
+          return [
+            // Title
+            pw.Center(
+              child: pw.Column(
+                children: [
+                  pw.Text(
+                    isMarathi ? '।। प्रतिज्ञापत्र / हमीपत्र ।।' : 'SELF DECLARATION & UNDERTAKING',
+                    style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, color: primaryBlue),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                  pw.SizedBox(height: 1.5),
+                  pw.Text(
+                    isMarathi
+                        ? '(महाराष्ट्र राज्य विद्युत वितरण कंपनी मर्यादित - वीज ग्राहक नाव बदल कामी)'
+                        : '(For Change of Name in MSEDCL Electricity Connection | On Rs. 100/- Non-Judicial Stamp Paper)',
+                    style: const pw.TextStyle(fontSize: 7.2, color: mutedText),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 4),
+
+            // Deponent Box
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+              decoration: pw.BoxDecoration(border: pw.Border.all(color: borderColor, width: 0.6), color: lightBg),
+              child: isMarathi
+                  ? pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'मी खालीलप्रमाणे सत्य प्रतिज्ञेवर लिहून देतो / देते की —',
+                          style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold),
+                        ),
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          'अर्जदार / नवीन ग्राहक: ${app.computedNewFullName}, वय: ${app.newAge} वर्षे, व्यवसाय: शेती/व्यवसाय/नोकरी, '
+                          'रा. ${app.propertyAddress}. '
+                          'ग्राहक क्र.: ${app.consumerNo}, कार्यालय: ${app.subDivisionOffice}${app.circleOffice.isNotEmpty ? ", " + app.circleOffice : ""}. '
+                          'आधार क्र.: ${app.newAadhaarNo.isNotEmpty ? app.newAadhaarNo : "लागू नाही"}, मो.: ${app.newMobileNo}.',
+                          style: const pw.TextStyle(fontSize: 7.0, height: 1.2),
+                        ),
+                      ],
+                    )
+                  : pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'I, the undersigned deponent / applicant, do hereby solemnly affirm, declare and state on oath as under:',
+                          style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold),
+                        ),
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          'Applicant / Transferee: ${app.computedNewFullName}, Age: ${app.newAge} Years, '
+                          'Residing at: ${app.propertyAddress}. '
+                          'Consumer No: ${app.consumerNo}, Office: ${app.subDivisionOffice}${app.circleOffice.isNotEmpty ? ", " + app.circleOffice : ""}. '
+                          'Aadhaar No: ${app.newAadhaarNo.isNotEmpty ? app.newAadhaarNo : "N/A"}, Mobile: ${app.newMobileNo}.',
+                          style: const pw.TextStyle(fontSize: 7.0, height: 1.2),
+                        ),
+                      ],
+                    ),
+            ),
+            pw.SizedBox(height: 4),
+
+            // Clauses
+            if (app.affidavitCustomText != null && app.affidavitCustomText!.trim().isNotEmpty)
+              pw.Container(
+                padding: const pw.EdgeInsets.all(5),
+                child: pw.Text(
+                  app.affidavitCustomText!,
+                  style: const pw.TextStyle(fontSize: 7.0, height: 1.2),
+                ),
+              )
+            else if (isMarathi) ...[
+              _buildClauseText('१.', 'सदर मिळकतीवर महावितरणचा वीज ग्राहक क्रमांक ${app.consumerNo} हा असून तो सध्या जुने ग्राहक ${app.computedOldFullName} यांच्या नावावर नोंदणीकृत आहे.'),
+              _buildClauseText('२.', 'मी सदर मिळकत / जागा (${app.propertyAddress}) ही कायदेशीररित्या (${app.reasonForChange}) अन्वये प्राप्त केली असून सध्या सदर जागेचा संपूर्ण कायदेशीर ताबा व मालकी हक्क माझ्याकडे आहे.'),
+              _buildClauseText('३.', 'सदर जागेवरील वीज मीटर ग्राहक क्र. ${app.consumerNo} हे माझ्या नावाने (${app.computedNewFullName}) हस्तांतरित / नाव बदल करून मिळण्यासाठी मी हा अर्ज सादर करत आहे.'),
+              _buildClauseText('४.', 'सदर वीज जोडणी माझ्या नावावर झाल्यानंतर भविष्यात येणारे सर्व वीज देयक (Bills) नियमाप्रमाणे विहित मुदतीत भरण्याची संपूर्ण जबाबदारी माझी राहील.'),
+              _buildClauseText('५.', 'सदर वीज जोडणीवर जुनी थकबाकी किंवा कायदेशीर देणी असल्यास, ती महावितरणच्या नियमानुसार भरण्यास मी वैयक्तिकरीत्या बांधील व सहमत आहे.'),
+              _buildClauseText('६.', 'सदर नाव बदलाबाबत भविष्यात कोणताही वाद किंवा आक्षेप उद्भवल्यास त्याची संपूर्ण जबाबदारी माझी राहील. मी सादर केलेली सर्व कागदपत्रे व माहिती खरी व कायदेशीर आहे.'),
+            ] else ...[
+              _buildClauseText('1.', 'That I am the rightful legal owner / lawful occupant in peaceful possession of the premises situated at ${app.propertyAddress} by virtue of ${app.reasonForChange}.'),
+              _buildClauseText('2.', 'That the existing low-tension (LT) electricity connection bearing Consumer No. ${app.consumerNo} currently stands registered in the official records of MSEDCL in the name of the previous consumer, ${app.computedOldFullName}.'),
+              _buildClauseText('3.', 'That I have submitted an official application to Maharashtra State Electricity Distribution Co. Ltd. (MSEDCL) for Change of Name / transfer of the said electricity connection to my name (${app.computedNewFullName}).'),
+              _buildClauseText('4.', 'That I hereby solemnly undertake to abide by all the provisions of the Electricity Act 2003, and the Maharashtra Electricity Regulatory Commission (Electricity Supply Code and other conditions of Supply) Regulations 2005, as amended from time to time.'),
+              _buildClauseText('5.', 'That I undertake to promptly pay all regular monthly electricity consumption bills as per prevailing MSEDCL tariffs and clear any legitimate past arrears or dues pending against Consumer No. ${app.consumerNo}.'),
+              _buildClauseText('6.', 'That if the subject premises is declared unauthorized or vacated by competent authority, MSEDCL shall have full liberty to disconnect the electric supply in accordance with applicable rules.'),
+              _buildClauseText('7.', 'That all statements made herein and documents submitted are true, authentic, and legally valid. If any information is found false or incorrect, I shall be solely held responsible for all consequences, and I hereby indemnify MSEDCL against any third-party claims or disputes.'),
+            ],
+
+            pw.SizedBox(height: 4),
+            pw.Text(
+              isMarathi
+                  ? 'करिता हे प्रतिज्ञापत्र / हमीपत्र मी स्वतःच्या राजीखुशीने, कोणत्याही दबावाशिवाय लिहून सही केली आहे. जेणेकरून महावितरण कार्यालयात पुरावा म्हणून सादर करता येईल.'
+                  : 'Solemnly affirmed, declared and signed on this day with sound mind and free will, without any coercion or undue influence.',
+              style: pw.TextStyle(fontSize: 7.0, fontStyle: isMarathi ? pw.FontStyle.normal : pw.FontStyle.italic),
+            ),
+            pw.SizedBox(height: 6),
+
+            // Date, Place & Applicant Signature
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(isMarathi ? 'दिनांक: ${_dateFormat.format(app.applicationDate)}' : 'Date: ${_dateFormat.format(app.applicationDate)}', style: const pw.TextStyle(fontSize: 7.5)),
+                    pw.SizedBox(height: 2),
+                    pw.Text(isMarathi ? 'ठिकाण: ${app.affidavitPlace}' : 'Place: ${app.affidavitPlace}', style: const pw.TextStyle(fontSize: 7.5)),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    if (app.hasNewConsumerSignature)
+                      pw.Container(
+                        height: 24,
+                        child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 22, fit: pw.BoxFit.contain),
+                      )
+                    else
+                      pw.SizedBox(height: 24),
+                    pw.Container(width: 140, height: 0.7, color: darkText),
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      isMarathi ? 'प्रतिज्ञापत्र देणारा / अर्जदार (सही)' : 'Signature of Deponent / Applicant',
+                      style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text('(${app.computedNewFullName})', style: const pw.TextStyle(fontSize: 7.0, color: mutedText)),
+                  ],
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 6),
+
+            // Blank Notary / Attestation Block (for physical attestation)
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: pw.BoxDecoration(border: pw.Border.all(color: borderColor, width: 0.7)),
+              child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text(isMarathi ? 'दिनांक: ${_dateFormat.format(app.applicationDate)}' : 'Date: ${_dateFormat.format(app.applicationDate)}', style: const pw.TextStyle(fontSize: 8)),
-                      pw.Text(isMarathi ? 'ठिकाण: ${app.affidavitPlace}' : 'Place: ${app.affidavitPlace}', style: const pw.TextStyle(fontSize: 8)),
+                      pw.Text('BEFORE ME', style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold)),
+                      pw.SizedBox(height: 10),
+                      pw.Text('Notary Public / Executive Magistrate', style: const pw.TextStyle(fontSize: 6.8)),
+                      pw.Text('(Affix Notary Stamp & Seal here)', style: const pw.TextStyle(fontSize: 6.2, color: mutedText)),
                     ],
                   ),
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
-                      if (app.hasNewConsumerSignature)
-                        pw.Container(
-                          height: 32,
-                          child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 30, fit: pw.BoxFit.contain),
-                        )
-                      else
-                        pw.SizedBox(height: 32),
-                      pw.Container(width: 140, height: 0.8, color: darkText),
-                      pw.SizedBox(height: 3),
-                      pw.Text(
-                        isMarathi ? 'प्रतिज्ञापत्र देणारा / अर्जदार (सही)' : 'Signature of Deponent / Applicant',
-                        style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
-                      ),
-                      pw.Text('(${app.computedNewFullName})', style: const pw.TextStyle(fontSize: 7.5, color: mutedText)),
+                      pw.Text('IDENTIFIED BY', style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold)),
+                      pw.SizedBox(height: 10),
+                      pw.Text('Advocate / Witness Signature', style: const pw.TextStyle(fontSize: 6.8)),
+                      pw.Text('Name: ______________________', style: const pw.TextStyle(fontSize: 6.2, color: mutedText)),
                     ],
                   ),
                 ],
               ),
-              pw.SizedBox(height: 10),
-
-              // Blank Notary / Attestation Block (Left strictly blank for physical attestation)
-              pw.Container(
-                padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: pw.BoxDecoration(border: pw.Border.all(color: borderColor, width: 0.8)),
-                child: pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text('BEFORE ME', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-                        pw.SizedBox(height: 12),
-                        pw.Text('Notary Public / Executive Magistrate', style: const pw.TextStyle(fontSize: 7)),
-                        pw.Text('(Affix Notary Stamp & Seal here)', style: const pw.TextStyle(fontSize: 6.5, color: mutedText)),
-                      ],
-                    ),
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.end,
-                      children: [
-                        pw.Text('IDENTIFIED BY', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-                        pw.SizedBox(height: 12),
-                        pw.Text('Advocate / Witness Signature', style: const pw.TextStyle(fontSize: 7)),
-                        pw.Text('Name: ______________________', style: const pw.TextStyle(fontSize: 6.5, color: mutedText)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
+            ),
+          ];
         },
       ),
     );
@@ -1736,15 +1757,18 @@ class MsedclPdfService {
     );
   }
 
-  static pw.Widget _buildClauseText(String num, String text) {
+  static pw.Widget _buildClauseText(String num, String text, {double fontSize = 6.8, double bottomPadding = 3.5}) {
     return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 5),
+      padding: pw.EdgeInsets.only(bottom: bottomPadding),
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text('$num ', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(
+            width: 14,
+            child: pw.Text('$num ', style: pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold)),
+          ),
           pw.Expanded(
-            child: pw.Text(text, style: const pw.TextStyle(fontSize: 8.5, height: 1.35)),
+            child: pw.Text(text, style: pw.TextStyle(fontSize: fontSize, height: 1.2), textAlign: pw.TextAlign.justify),
           ),
         ],
       ),
