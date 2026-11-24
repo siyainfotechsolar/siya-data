@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:admin_panel/models/msedcl_change_of_name.dart';
@@ -12,7 +11,7 @@ void main() {
     img.fill(sigImg, color: img.ColorRgba8(0, 0, 0, 0));
     img.drawLine(sigImg, x1: 15, y1: 25, x2: 125, y2: 15, color: img.ColorRgba8(10, 45, 140, 255));
     img.drawLine(sigImg, x1: 25, y1: 30, x2: 80, y2: 10, color: img.ColorRgba8(10, 45, 140, 255));
-    final dummySignature = base64Encode(Uint8List.fromList(img.encodePng(sigImg)));
+    final dummySignature = base64Encode(img.encodePng(sigImg));
 
     final app = MsedclChangeOfNameApplication(
       id: 'app-sample-001',
@@ -94,3 +93,4 @@ void main() {
     print('Generated all 6 official signed PDF documents successfully!');
   });
 }
+

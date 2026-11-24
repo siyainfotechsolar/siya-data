@@ -1,7 +1,11 @@
+import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
 import '../models/msedcl_change_of_name.dart';
 import 'solar_quotation_font_helper.dart';
 
@@ -16,12 +20,217 @@ class MsedclPdfService {
   static const PdfColor lightBg = PdfColor.fromInt(0xFFF8FAFC);
   static const PdfColor borderColor = PdfColor.fromInt(0xFF94A3B8);
 
+  static Uint8List? _cachedTemplateBytes;
+
+  /// Loads the original official MSEDCL U Form template PDF
+  static Future<Uint8List?> _loadTemplateBytes() async {
+    if (_cachedTemplateBytes != null) return _cachedTemplateBytes;
+    try {
+      final byteData = await rootBundle.load('assets/templates/msedcl_u_form_template.pdf');
+      _cachedTemplateBytes = byteData.buffer.asUint8List();
+      return _cachedTemplateBytes;
+    } catch (_) {}
+
+    try {
+      final f = File('assets/templates/msedcl_u_form_template.pdf');
+      if (f.existsSync()) {
+        _cachedTemplateBytes = f.readAsBytesSync();
+        return _cachedTemplateBytes;
+      }
+    } catch (_) {}
+
+    try {
+      final f = File('admin_panel/assets/templates/msedcl_u_form_template.pdf');
+      if (f.existsSync()) {
+        _cachedTemplateBytes = f.readAsBytesSync();
+        return _cachedTemplateBytes;
+      }
+    } catch (_) {}
+
+    try {
+      final f = File(r'C:\Users\Admin\.gemini\antigravity\brain\830e2504-7b0c-4ee4-8264-23b83985f796\.user_uploaded\media_1795543505437_d96150c5.pdf');
+      if (f.existsSync()) {
+        _cachedTemplateBytes = f.readAsBytesSync();
+        return _cachedTemplateBytes;
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
   // ==========================================
   // 1. MSEDCL U FORM PDF (2-PAGE OFFICIAL FORM)
   // ==========================================
 
   /// Generate official MSEDCL Form U (Application Form for Change of Name & Annexure A / Form X)
+  /// Keeps the original official MSEDCL PDF as the base, and overlays all customer details,
+  /// checkboxes and uploaded signatures directly in new high-precision layers.
   static Future<Uint8List> generateUFormPdf(MsedclChangeOfNameApplication app) async {
+    final templateBytes = await _loadTemplateBytes();
+    if (templateBytes != null && templateBytes.isNotEmpty) {
+      try {
+        return _generateUFormOverlayPdf(app, templateBytes);
+      } catch (e) {
+        // ignore: avoid_print
+        print('MsedclPdfService: Failed to overlay onto original PDF template: $e. Falling back to generated replica.');
+      }
+    }
+    return _generateUFormFallbackPdf(app);
+  }
+
+  /// Overlay customer details, signatures and checkboxes onto the original official MSEDCL template
+  static Uint8List _generateUFormOverlayPdf(MsedclChangeOfNameApplication app, Uint8List templateBytes) {
+    final document = sf.PdfDocument(inputBytes: templateBytes);
+
+    // Dark Navy Blue ink brush for authentic official form appearance
+    final textBrush = sf.PdfSolidBrush(sf.PdfColor(12, 38, 100));
+    final fontBold = sf.PdfStandardFont(sf.PdfFontFamily.helvetica, 8.5, style: sf.PdfFontStyle.bold);
+    final fontNormal = sf.PdfStandardFont(sf.PdfFontFamily.helvetica, 8);
+    final fontSmall = sf.PdfStandardFont(sf.PdfFontFamily.helvetica, 7.5);
+    final fontCheck = sf.PdfStandardFont(sf.PdfFontFamily.helvetica, 10, style: sf.PdfFontStyle.bold);
+
+    // =========================================================================
+    // PAGE 0: OFFICIAL "U" FORM - DEDICATED NEW LAYER FOR CUSTOMER DETAILS
+    // =========================================================================
+    final page0 = document.pages[0];
+    final layer0 = page0.layers.add(name: 'NewCustomerDetails');
+    final g0 = layer0.graphics;
+
+    // 1. Date of Application
+    g0.drawString(_dateFormat.format(app.applicationDate), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(475, 134, 90, 14));
+
+    // 2. Sub-Division / Circle Office
+    final officeStr = '${app.subDivisionOffice.isNotEmpty ? app.subDivisionOffice : "Sub-Division"}, ${app.circleOffice.isNotEmpty ? app.circleOffice : "Circle Office"}';
+    g0.drawString(officeStr, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(85, 184, 250, 14));
+
+    // 3. Old Consumer Details
+    final oldFirst = app.oldFirstName.isNotEmpty ? app.oldFirstName : (app.oldConsumerFullName.split(' ').isNotEmpty ? app.oldConsumerFullName.split(' ').first : '');
+    final oldFather = app.oldFatherOrHusbandName.isNotEmpty ? app.oldFatherOrHusbandName : (app.oldConsumerFullName.split(' ').length > 1 ? app.oldConsumerFullName.split(' ')[1] : '');
+    final oldLast = app.oldSurname.isNotEmpty ? app.oldSurname : (app.oldConsumerFullName.split(' ').length > 2 ? app.oldConsumerFullName.split(' ').last : '');
+
+    g0.drawString(oldFirst.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(180, 278, 100, 14));
+    g0.drawString(oldFather.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(290, 278, 120, 14));
+    g0.drawString(oldLast.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(425, 278, 90, 14));
+
+    // Old Consumer No & Mobile
+    g0.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(185, 313, 130, 14));
+    if (app.oldMobileNo.isNotEmpty) {
+      g0.drawString(app.oldMobileNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(400, 313, 100, 14));
+    }
+
+    // 4. New Consumer Details
+    final newFirst = app.newFirstName.isNotEmpty ? app.newFirstName : (app.computedNewFullName.split(' ').isNotEmpty ? app.computedNewFullName.split(' ').first : '');
+    final newFather = app.newFatherOrHusbandName.isNotEmpty ? app.newFatherOrHusbandName : (app.computedNewFullName.split(' ').length > 1 ? app.computedNewFullName.split(' ')[1] : '');
+    final newLast = app.newSurname.isNotEmpty ? app.newSurname : (app.computedNewFullName.split(' ').length > 2 ? app.computedNewFullName.split(' ').last : '');
+
+    g0.drawString(newFirst.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(180, 388, 100, 14));
+    g0.drawString(newFather.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(290, 388, 120, 14));
+    g0.drawString(newLast.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(425, 388, 90, 14));
+
+    // New Consumer Contact: Email, Phone, Mobile
+    if (app.newEmail.isNotEmpty) {
+      g0.drawString(app.newEmail, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(135, 421, 150, 14));
+    }
+    g0.drawString(app.newPhoneNo.isNotEmpty ? app.newPhoneNo : '-', fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(320, 421, 60, 14));
+    g0.drawString(app.newMobileNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(425, 421, 90, 14));
+
+    // Aadhaar Card No (Optional)
+    if (app.newAadhaarNo.isNotEmpty) {
+      g0.drawString(app.newAadhaarNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(225, 437, 130, 14));
+    }
+
+    // 5. Reason for Change of Name
+    final reasonText = '${app.reasonForChange}${app.remarks.isNotEmpty ? " (${app.remarks})" : ""}';
+    g0.drawString(reasonText, fontNormal, brush: textBrush, bounds: ui.Rect.fromLTWH(230, 458, 280, 14));
+
+    // 6. Documents Enclosed
+    final docList = app.documents.where((d) => d.isReceived).map((d) => d.docType).toList();
+    final enclosedText = docList.isNotEmpty ? docList.take(3).join(', ') : 'Registered Sale Deed, 7/12 Extract, Stamp Affidavit';
+    g0.drawString(enclosedText, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(245, 482, 260, 14));
+
+    // 7. Signature of Applicant
+    if (app.hasNewConsumerSignature && app.newConsumerSignatureBytes != null) {
+      try {
+        final pdfBitmap = sf.PdfBitmap(app.newConsumerSignatureBytes!);
+        g0.drawImage(pdfBitmap, ui.Rect.fromLTWH(385, 642, 130, 38));
+      } catch (_) {}
+    }
+
+    // 8. Bottom Acknowledgement Receipt Slip Details
+    g0.drawString(app.subDivisionOffice.isNotEmpty ? app.subDivisionOffice : "Nardana Sub-Division", fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(240, 725, 160, 12));
+    g0.drawString(app.oldConsumerFullName, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(180, 745, 140, 12));
+    g0.drawString(app.computedNewFullName, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(370, 745, 140, 12));
+    g0.drawString(app.consumerNo, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(180, 758, 120, 12));
+    g0.drawString(_dateFormat.format(app.applicationDate), fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(370, 758, 100, 12));
+
+    // =========================================================================
+    // PAGE 1: ANNEXURE A & FORM X - DEDICATED NEW LAYER
+    // =========================================================================
+    final page1 = document.pages[1];
+    final layer1 = page1.layers.add(name: 'AnnexureAndFormXDetails');
+    final g1 = layer1.graphics;
+
+    // Checkmarks for Annexure A Checklist
+    bool hasOcc = app.documents.any((d) => d.isReceived && d.docType == MsedclDocumentType.occupancyCertificate);
+    bool hasOwn = app.documents.any((d) => d.isReceived && (d.docType == MsedclDocumentType.ownershipProof || d.docType == MsedclDocumentType.extract712 || d.docType == MsedclDocumentType.form8 || d.docType == MsedclDocumentType.propertyTaxReceipt));
+    bool hasLegal = app.documents.any((d) => d.isReceived && d.docType == MsedclDocumentType.successionOrWill);
+    bool hasAffidavit = app.documents.any((d) => d.isReceived && (d.docType == MsedclDocumentType.affidavitGazette || d.docType.contains('Affidavit') || d.docType.contains('प्रतिज्ञापत्र')));
+    bool hasNoc = app.documents.any((d) => d.isReceived && d.docType == MsedclDocumentType.ownerNoc);
+
+    if (!hasOcc && !hasOwn && !hasLegal && !hasAffidavit) {
+      hasOwn = true;
+      hasAffidavit = true;
+    }
+
+    if (hasOcc) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(62, 149, 18, 14));
+    if (hasOwn) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(62, 165, 18, 14));
+    if (hasLegal) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(62, 188, 18, 14));
+    if (hasAffidavit) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(62, 224, 18, 14));
+    if (hasNoc) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(62, 236, 18, 14));
+
+    // FORM X
+    if (app.isFormXTransfer) {
+      // Option a) Transfer of Security Deposit
+      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(190, 415, 260, 14));
+      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(365, 427, 120, 14));
+      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(205, 439, 260, 14));
+
+      // Old Consumer Consent Signature
+      if (app.hasOldConsumerSignature && app.oldConsumerSignatureBytes != null) {
+        try {
+          final pdfBitmap = sf.PdfBitmap(app.oldConsumerSignatureBytes!);
+          g1.drawImage(pdfBitmap, ui.Rect.fromLTWH(370, 465, 130, 35));
+        } catch (_) {}
+      }
+    } else {
+      // Option b) Refund of Security Deposit
+      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(190, 589, 260, 14));
+      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(370, 603, 140, 14));
+      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(80, 630, 120, 14));
+
+      final holder = app.refundAccountHolderName.isNotEmpty ? app.refundAccountHolderName : app.oldConsumerFullName;
+      g1.drawString(holder, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(210, 672, 250, 14));
+      g1.drawString('${app.refundBankName} ${app.refundBranch}'.trim(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(210, 684, 250, 14));
+      g1.drawString(app.refundAccountNumber, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(150, 697, 200, 14));
+      g1.drawString(app.refundIfscCode, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(135, 710, 150, 14));
+      g1.drawString(app.originalReceiptNo.isNotEmpty ? app.originalReceiptNo : (app.receiptStatus == 'Available' ? 'Available' : 'Lost (Indemnity Enclosed)'), fontNormal, brush: textBrush, bounds: ui.Rect.fromLTWH(185, 722, 150, 14));
+
+      // Old Consumer Refund Signature
+      if (app.hasOldConsumerSignature && app.oldConsumerSignatureBytes != null) {
+        try {
+          final pdfBitmap = sf.PdfBitmap(app.oldConsumerSignatureBytes!);
+          g1.drawImage(pdfBitmap, ui.Rect.fromLTWH(370, 725, 130, 35));
+        } catch (_) {}
+      }
+    }
+
+    final outBytes = Uint8List.fromList(document.saveSync());
+    document.dispose();
+    return outBytes;
+  }
+
+  /// Programmatic 2-Page MSEDCL U Form fallback if template PDF file is not present
+  static Future<Uint8List> _generateUFormFallbackPdf(MsedclChangeOfNameApplication app) async {
     final pdf = pw.Document(
       title: 'MSEDCL Form U - ${app.consumerNo}',
       author: 'Siya Infotech & Solar Energy',
@@ -1298,6 +1507,72 @@ class MsedclPdfService {
 
   /// Combines all filled documents into one single upload-ready Master PDF
   static Future<Uint8List> generateCompleteApplicationPdf(
+    MsedclChangeOfNameApplication app, {
+    bool includeUForm = true,
+    bool includeAffidavit = true,
+    bool includeFormX = true,
+    bool includeChecklist = true,
+    bool includeAttachments = true,
+  }) async {
+    final templateBytes = await _loadTemplateBytes();
+    if (templateBytes != null && templateBytes.isNotEmpty && includeUForm) {
+      try {
+        final uFormOverlayBytes = _generateUFormOverlayPdf(app, templateBytes);
+        final masterDoc = sf.PdfDocument(inputBytes: uFormOverlayBytes);
+
+        if (includeAffidavit) {
+          final affidavitBytes = await generateAffidavitPdf(app);
+          final affidavitDoc = sf.PdfDocument(inputBytes: affidavitBytes);
+          for (int i = 0; i < affidavitDoc.pages.count; i++) {
+            final template = affidavitDoc.pages[i].createTemplate();
+            final newPage = masterDoc.pages.add();
+            newPage.graphics.drawPdfTemplate(template, ui.Offset.zero);
+          }
+          affidavitDoc.dispose();
+        }
+
+        if (includeAttachments) {
+          for (final doc in app.documents) {
+            if (doc.isReceived && doc.fileBytes != null) {
+              try {
+                final attachBitmap = sf.PdfBitmap(doc.fileBytes!);
+                final attachPage = masterDoc.pages.add();
+                final pageSize = attachPage.getClientSize();
+                attachPage.graphics.drawString(
+                  'Enclosure: ${doc.docType}',
+                  sf.PdfStandardFont(sf.PdfFontFamily.helvetica, 10, style: sf.PdfFontStyle.bold),
+                  brush: sf.PdfSolidBrush(sf.PdfColor(15, 35, 90)),
+                  bounds: ui.Rect.fromLTWH(20, 15, pageSize.width - 40, 20),
+                );
+                attachPage.graphics.drawImage(
+                  attachBitmap,
+                  ui.Rect.fromLTWH(20, 40, pageSize.width - 40, pageSize.height - 60),
+                );
+              } catch (_) {}
+            }
+          }
+        }
+
+        final outBytes = Uint8List.fromList(masterDoc.saveSync());
+        masterDoc.dispose();
+        return outBytes;
+      } catch (e) {
+        // ignore: avoid_print
+        print('MsedclPdfService.generateCompleteApplicationPdf overlay fallback: $e');
+      }
+    }
+
+    return _generateCompleteApplicationFallbackPdf(
+      app,
+      includeUForm: includeUForm,
+      includeAffidavit: includeAffidavit,
+      includeFormX: includeFormX,
+      includeChecklist: includeChecklist,
+      includeAttachments: includeAttachments,
+    );
+  }
+
+  static Future<Uint8List> _generateCompleteApplicationFallbackPdf(
     MsedclChangeOfNameApplication app, {
     bool includeUForm = true,
     bool includeAffidavit = true,
