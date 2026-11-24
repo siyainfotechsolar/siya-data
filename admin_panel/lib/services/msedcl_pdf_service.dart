@@ -982,16 +982,16 @@ class MsedclPdfService {
                 pw.SizedBox(height: 8),
               ],
 
-              // Affidavit Title
+              // Affidavit / Self Declaration Title
               pw.Text(
-                isMarathi ? '।। प्रतिज्ञापत्र / हमीपत्र ।।' : 'SELF UNDERTAKING / DECLARATION',
+                isMarathi ? '।। प्रतिज्ञापत्र / हमीपत्र ।।' : 'SELF DECLARATION & UNDERTAKING',
                 style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: primaryBlue),
                 textAlign: pw.TextAlign.center,
               ),
               pw.Text(
                 isMarathi
                     ? '(महाराष्ट्र राज्य विद्युत वितरण कंपनी मर्यादित - वीज ग्राहक नाव बदल कामी)'
-                    : '(For MSEDCL Net Metering & Electricity Connection | On Rs. 100/- Non-Judicial Stamp Paper)',
+                    : '(For Change of Name in MSEDCL Electricity Connection | On Rs. 100/- Non-Judicial Stamp Paper)',
                 style: const pw.TextStyle(fontSize: 8.5, color: mutedText),
                 textAlign: pw.TextAlign.center,
               ),
@@ -1027,9 +1027,9 @@ class MsedclPdfService {
                           ),
                           pw.SizedBox(height: 3),
                           pw.Text(
-                            'Applicant / Consumer: ${app.computedNewFullName}, Age: ${app.newAge} Years, '
+                            'Applicant / Transferee: ${app.computedNewFullName}, Age: ${app.newAge} Years, '
                             'Residing at: ${app.propertyAddress}. '
-                            'Consumer No: ${app.consumerNo}, Sub-Division: ${app.subDivisionOffice}. '
+                            'Consumer No: ${app.consumerNo}, Office: ${app.subDivisionOffice}${app.circleOffice.isNotEmpty ? ", " + app.circleOffice : ""}. '
                             'Aadhaar No: ${app.newAadhaarNo.isNotEmpty ? app.newAadhaarNo : "N/A"}, Mobile: ${app.newMobileNo}.',
                             style: const pw.TextStyle(fontSize: 8, height: 1.3),
                           ),
@@ -1055,13 +1055,14 @@ class MsedclPdfService {
                 _buildClauseText('५.', 'सदर वीज जोडणीवर जुनी थकबाकी किंवा कायदेशीर देणी असल्यास, ती महावितरणच्या नियमानुसार भरण्यास मी वैयक्तिकरीत्या बांधील व सहमत आहे.'),
                 _buildClauseText('६.', 'सदर नाव बदलाबाबत भविष्यात कोणताही वाद किंवा आक्षेप उद्भवल्यास त्याची संपूर्ण जबाबदारी माझी राहील. मी सादर केलेली सर्व कागदपत्रे व माहिती खरी व कायदेशीर आहे.'),
               ] else ...[
-                _buildClauseText('1.', 'That I am the lawful owner / legal occupant in peaceful possession of the premises situated at ${app.propertyAddress}.'),
-                _buildClauseText('2.', 'That the electricity connection bearing Consumer No. ${app.consumerNo} currently stands registered in the name of ${app.computedOldFullName}, and I have submitted an application to MSEDCL for Change of Name / Net Metering Connection in my name (${app.computedNewFullName}).'),
-                _buildClauseText('3.', 'That I have applied for installation of a Grid-Connected Rooftop Solar PV System under PM Surya Ghar: Muft Bijli Yojana / MSEDCL Net Metering Regulations.'),
-                _buildClauseText('4.', 'That I hereby undertake to abide by all the provisions of the Electricity Act 2003, MERC Regulations, and MSEDCL Net Metering Guidelines issued from time to time.'),
-                _buildClauseText('5.', 'That I undertake to promptly pay all regular electricity consumption bills and clear any legitimate past arrears/dues against Consumer No. ${app.consumerNo} as per prevailing MSEDCL rules.'),
-                _buildClauseText('6.', 'That the rooftop installation, structure, inverter, and net meter connectivity comply with safety standards, and I shall not hold MSEDCL liable for grid interruptions or islanding issues.'),
-                _buildClauseText('7.', 'That all statements made herein and documents submitted are true, authentic, and legally valid. I hereby indemnify MSEDCL against any third-party claims or disputes.'),
+                // Official Standard MSEDCL Change of Name Self Declaration & Undertaking (Strictly for normal consumers - No solar / PM Surya Ghar mention)
+                _buildClauseText('1.', 'That I am the rightful legal owner / lawful occupant in peaceful possession of the premises situated at ${app.propertyAddress} by virtue of ${app.reasonForChange}.'),
+                _buildClauseText('2.', 'That the existing low-tension (LT) electricity connection bearing Consumer No. ${app.consumerNo} currently stands registered in the official records of MSEDCL in the name of the previous consumer, ${app.computedOldFullName}.'),
+                _buildClauseText('3.', 'That I have submitted an official application to Maharashtra State Electricity Distribution Co. Ltd. (MSEDCL) for Change of Name / transfer of the said electricity connection to my name (${app.computedNewFullName}).'),
+                _buildClauseText('4.', 'That I hereby solemnly undertake to abide by all the provisions of the Electricity Act 2003, and the Maharashtra Electricity Regulatory Commission (Electricity Supply Code and other conditions of Supply) Regulations 2005, as amended from time to time.'),
+                _buildClauseText('5.', 'That I undertake to promptly pay all regular monthly electricity consumption bills as per prevailing MSEDCL tariffs and clear any legitimate past arrears or dues pending against Consumer No. ${app.consumerNo}.'),
+                _buildClauseText('6.', 'That if the subject premises is declared unauthorized or vacated by competent authority, MSEDCL shall have full liberty to disconnect the electric supply in accordance with applicable rules.'),
+                _buildClauseText('7.', 'That all statements made herein and documents submitted are true, authentic, and legally valid. If any information is found false or incorrect, I shall be solely held responsible for all consequences, and I hereby indemnify MSEDCL against any third-party claims or disputes.'),
               ],
 
               pw.SizedBox(height: 8),
