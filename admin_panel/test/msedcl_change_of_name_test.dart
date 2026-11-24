@@ -285,5 +285,68 @@ void main() {
       final postDeleteList = await MsedclChangeOfNameService.fetchApplications();
       expect(postDeleteList.any((a) => a.id == created.id), isFalse);
     });
+
+    test('11. Signature Upload, Serialization & Embedding in Form U, Stamp Affidavit & Form X', () async {
+      // 1. Create a dummy transparent 1x1 PNG signature in base64
+      const dummySignatureBase64 =
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+
+      final appWithSignatures = MsedclChangeOfNameApplication(
+        id: 'test-sig-001',
+        applicationNo: 'MSEDCL-CN-202611-SIG',
+        applicationDate: DateTime.now(),
+        subDivisionOffice: 'Nardana Sub-Division',
+        circleOffice: 'Dhule Circle',
+        village: 'Nardana',
+        reasonForChange: MsedclReasonForChange.purchaseOfProperty,
+        assignedEmployee: 'Rahul',
+        oldFirstName: 'RAMESH',
+        oldSurname: 'PATIL',
+        oldConsumerFullName: 'RAMESH PATIL',
+        consumerNo: '096570003663',
+        newFirstName: 'SURESH',
+        newSurname: 'PATIL',
+        newConsumerFullName: 'SURESH RAMESH PATIL',
+        newMobileNo: '9822112233',
+        propertyAddress: 'Plot 22, Nardana, Dhule',
+        stampPaperValue: 100.0,
+        stampPaperLanguage: 'Marathi',
+        newConsumerSignatureBase64: dummySignatureBase64,
+        oldConsumerSignatureBase64: dummySignatureBase64,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      // Verify getters
+      expect(appWithSignatures.hasNewConsumerSignature, isTrue);
+      expect(appWithSignatures.hasOldConsumerSignature, isTrue);
+      expect(appWithSignatures.newConsumerSignatureBytes, isNotNull);
+      expect(appWithSignatures.oldConsumerSignatureBytes, isNotNull);
+
+      // Verify JSON serialization of signatures
+      final json = appWithSignatures.toJson();
+      expect(json['new_consumer_signature_base64'], dummySignatureBase64);
+      expect(json['old_consumer_signature_base64'], dummySignatureBase64);
+
+      final deserialized = MsedclChangeOfNameApplication.fromJson(json);
+      expect(deserialized.hasNewConsumerSignature, isTrue);
+      expect(deserialized.hasOldConsumerSignature, isTrue);
+
+      // Generate 2-Page Official Form U PDF with embedded signature
+      final uFormPdf = await MsedclPdfService.generateUFormPdf(appWithSignatures);
+      expect(uFormPdf.length, greaterThan(1000));
+
+      // Generate ₹100 Stamp Paper Affidavit PDF with embedded signature
+      final affidavitPdf = await MsedclPdfService.generateAffidavitPdf(appWithSignatures);
+      expect(affidavitPdf.length, greaterThan(1000));
+
+      // Generate Form X PDF with embedded signature
+      final formXPdf = await MsedclPdfService.generateFormXPdf(appWithSignatures);
+      expect(formXPdf.length, greaterThan(1000));
+
+      // Generate Complete Master Application PDF
+      final masterPdf = await MsedclPdfService.generateCompleteApplicationPdf(appWithSignatures);
+      expect(masterPdf.length, greaterThan(1500));
+    });
   });
 }

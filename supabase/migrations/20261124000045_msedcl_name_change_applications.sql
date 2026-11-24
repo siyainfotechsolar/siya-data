@@ -65,6 +65,10 @@ CREATE TABLE IF NOT EXISTS public.msedcl_name_change_applications (
     -- Annexure A Supporting Documents Checklist (JSONB)
     documents JSONB NOT NULL DEFAULT '[]'::jsonb,
 
+    -- Signatures (Base64 transparent PNG)
+    new_consumer_signature_base64 TEXT,
+    old_consumer_signature_base64 TEXT,
+
     -- Audit meta
     created_by TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

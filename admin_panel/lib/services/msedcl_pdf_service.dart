@@ -2,7 +2,6 @@ import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import '../models/msedcl_change_of_name.dart';
 import 'solar_quotation_font_helper.dart';
 
@@ -11,16 +10,17 @@ class MsedclPdfService {
 
   // MSEDCL Official Branding Colors
   static const PdfColor primaryBlue = PdfColor.fromInt(0xFF0F3B7A);
+  static const PdfColor mahavitaranRed = PdfColor.fromInt(0xFFDC2626);
   static const PdfColor darkText = PdfColor.fromInt(0xFF1E293B);
   static const PdfColor mutedText = PdfColor.fromInt(0xFF64748B);
   static const PdfColor lightBg = PdfColor.fromInt(0xFFF8FAFC);
-  static const PdfColor borderColor = PdfColor.fromInt(0xFFCBD5E1);
+  static const PdfColor borderColor = PdfColor.fromInt(0xFF94A3B8);
 
   // ==========================================
-  // 1. MSEDCL U FORM PDF
+  // 1. MSEDCL U FORM PDF (2-PAGE OFFICIAL FORM)
   // ==========================================
 
-  /// Generate official MSEDCL Form U (Application Form for Change of Name)
+  /// Generate official MSEDCL Form U (Application Form for Change of Name & Annexure A / Form X)
   static Future<Uint8List> generateUFormPdf(MsedclChangeOfNameApplication app) async {
     final pdf = pw.Document(
       title: 'MSEDCL Form U - ${app.consumerNo}',
@@ -29,208 +29,651 @@ class MsedclPdfService {
 
     final pdfTheme = await SolarQuotationFontHelper.loadPdfTheme();
 
+    // -------------------------------------------------------------
+    // PAGE 1: OFFICIAL "U" FORM FOR CHANGE OF NAME
+    // -------------------------------------------------------------
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(28),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         theme: pdfTheme,
         build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
-              // Header
-              pw.Container(
-                padding: const pw.EdgeInsets.all(8),
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: primaryBlue, width: 1.5),
-                  color: lightBg,
-                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-                ),
-                child: pw.Column(
-                  children: [
-                    pw.Text(
-                      'MAHARASHTRA STATE ELECTRICITY DISTRIBUTION CO. LTD.',
-                      style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: primaryBlue),
-                      textAlign: pw.TextAlign.center,
-                    ),
-                    pw.SizedBox(height: 2),
-                    pw.Text(
-                      'महाराष्ट्र राज्य विद्युत वितरण कंपनी मर्यादित (महावितरण)',
-                      style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: primaryBlue),
-                      textAlign: pw.TextAlign.center,
-                    ),
-                    pw.SizedBox(height: 4),
-                    pw.Text(
-                      'FORM "U" — APPLICATION FORM FOR CHANGE OF NAME',
-                      style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: darkText),
-                      textAlign: pw.TextAlign.center,
-                    ),
-                    pw.Text(
-                      '(Under Regulation 6.5 of MERC Electricity Supply Code, 2021 / 2005)',
-                      style: const pw.TextStyle(fontSize: 7.5, color: mutedText),
-                      textAlign: pw.TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-              pw.SizedBox(height: 8),
-
-              // Application Meta
+              // Top Header with CIN & Mahavitaran
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('App No: ${app.applicationNo}', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
-                  pw.Text('Date: ${_dateFormat.format(app.applicationDate)}', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
-                ],
-              ),
-              pw.SizedBox(height: 4),
-
-              // To Officer
-              pw.Text('To,', style: const pw.TextStyle(fontSize: 8.5)),
-              pw.Text('The Assistant Engineer / Additional Executive Engineer,', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
-              pw.Text('MSEDCL, ${app.subDivisionOffice}, ${app.circleOffice}.', style: const pw.TextStyle(fontSize: 8.5)),
-              pw.SizedBox(height: 6),
-
-              pw.Text(
-                'Sub: Request for Change of Name / Transfer of Electricity Connection (Consumer No: ${app.consumerNo})',
-                style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: primaryBlue),
-              ),
-              pw.SizedBox(height: 4),
-              pw.Text('Sir / Madam,', style: const pw.TextStyle(fontSize: 8)),
-              pw.Text(
-                'I/We hereby request you to effect the Change of Name on the existing electricity service connection as per the particulars mentioned below:',
-                style: const pw.TextStyle(fontSize: 8),
-              ),
-              pw.SizedBox(height: 6),
-
-              // 1. Existing / Old Consumer Particulars
-              _buildSectionHeader('1. PARTICULARS OF OLD CONSUMER (TRANSFEROR)'),
-              pw.Table(
-                border: pw.TableBorder.all(color: borderColor, width: 0.5),
-                columnWidths: {
-                  0: const pw.FlexColumnWidth(2.5),
-                  1: const pw.FlexColumnWidth(3.5),
-                  2: const pw.FlexColumnWidth(2.0),
-                  3: const pw.FlexColumnWidth(2.5),
-                },
-                children: [
-                  _tableRow(['Existing Consumer No.', app.consumerNo, 'Meter No.', app.oldMeterNo.isNotEmpty ? app.oldMeterNo : 'As per bill']),
-                  _tableRow(['Full Name of Transferor', app.computedOldFullName, 'Mobile No.', app.oldMobileNo.isNotEmpty ? app.oldMobileNo : '—']),
-                  _tableRow(['Premises / Village', app.village.isNotEmpty ? app.village : '—', 'Tariff / Phase', 'LT - Residential / 1-Ph']),
-                ],
-              ),
-              pw.SizedBox(height: 6),
-
-              // 2. Incoming / New Consumer Particulars
-              _buildSectionHeader('2. PARTICULARS OF NEW CONSUMER / APPLICANT (TRANSFEREE)'),
-              pw.Table(
-                border: pw.TableBorder.all(color: borderColor, width: 0.5),
-                columnWidths: {
-                  0: const pw.FlexColumnWidth(2.5),
-                  1: const pw.FlexColumnWidth(4.5),
-                  2: const pw.FlexColumnWidth(1.8),
-                  3: const pw.FlexColumnWidth(2.2),
-                },
-                children: [
-                  _tableRow(['Full Name of Applicant', app.computedNewFullName, 'Age', '${app.newAge} Years']),
-                  _tableRow(['Father / Husband Name', app.newFatherOrHusbandName.isNotEmpty ? app.newFatherOrHusbandName : '—', 'Aadhaar No.', app.newAadhaarNo.isNotEmpty ? app.newAadhaarNo : '—']),
-                  _tableRow(['Mobile Number', app.newMobileNo, 'Email ID', app.newEmail.isNotEmpty ? app.newEmail : '—']),
-                  _tableRow(['Property / Site Address', app.propertyAddress, 'State', 'Maharashtra']),
-                ],
-              ),
-              pw.SizedBox(height: 6),
-
-              // 3. Reason & Legal Basis
-              _buildSectionHeader('3. REASON FOR CHANGE OF NAME'),
-              pw.Container(
-                padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: pw.BoxDecoration(border: pw.Border.all(color: borderColor, width: 0.5)),
-                child: pw.Row(
-                  children: [
-                    pw.Text('Category: ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-                    pw.Text(app.reasonForChange, style: const pw.TextStyle(fontSize: 8)),
-                    pw.Spacer(),
-                    pw.Text('Remarks: ${app.remarks.isNotEmpty ? app.remarks : "Standard name change application"}', style: const pw.TextStyle(fontSize: 7.5, color: mutedText)),
-                  ],
-                ),
-              ),
-              pw.SizedBox(height: 6),
-
-              // 4. Documents Enclosed Checklist
-              _buildSectionHeader('4. DOCUMENTS ENCLOSED AS PROOF OF OWNERSHIP / OCCUPANCY (ANNEXURE "A")'),
-              pw.Container(
-                padding: const pw.EdgeInsets.all(6),
-                decoration: pw.BoxDecoration(border: pw.Border.all(color: borderColor, width: 0.5)),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Wrap(
-                      spacing: 12,
-                      runSpacing: 4,
-                      children: app.documents.map((d) {
-                        final mark = d.isReceived ? '[YES]' : (d.isNotApplicable ? '[-]' : '[  ]');
-                        return pw.Text(
-                          '$mark ${d.docType}',
-                          style: pw.TextStyle(
-                            fontSize: 7.5,
-                            fontWeight: d.isReceived ? pw.FontWeight.bold : pw.FontWeight.normal,
-                            color: d.isReceived ? primaryBlue : (d.isNotApplicable ? mutedText : darkText),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-              ),
-              pw.SizedBox(height: 6),
-
-              // 5. Declaration & Undertaking
-              _buildSectionHeader('5. DECLARATION & UNDERTAKING BY APPLICANT'),
-              pw.Container(
-                padding: const pw.EdgeInsets.all(6),
-                decoration: pw.BoxDecoration(border: pw.Border.all(color: borderColor, width: 0.5), color: lightBg),
-                child: pw.Text(
-                  'I/We hereby declare that the information provided above is true and correct to the best of my knowledge. I undertake to abide by the provisions of the Electricity Act, 2003, MERC Regulations and MSEDCL Conditions of Supply. I agree to clear all legitimate dues/charges on this connection.',
-                  style: const pw.TextStyle(fontSize: 7.5),
-                ),
-              ),
-              pw.SizedBox(height: 14),
-
-              // Signatures
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Container(width: 140, height: 1, color: darkText),
-                      pw.SizedBox(height: 3),
-                      pw.Text('Signature / Consent of Old Consumer', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-                      pw.Text('Name: ${app.computedOldFullName}', style: const pw.TextStyle(fontSize: 7, color: mutedText)),
+                      pw.Text(
+                        'Maharashtra State Electricity Distribution Co. Ltd.',
+                        style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, color: primaryBlue),
+                      ),
+                      pw.Text(
+                        '(A Govt. of Maharashtra undertaking)',
+                        style: const pw.TextStyle(fontSize: 8, color: darkText),
+                      ),
+                      pw.Text(
+                        'CIN: U40109MH20055GC153645',
+                        style: const pw.TextStyle(fontSize: 7.5, color: darkText),
+                      ),
                     ],
                   ),
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
-                      pw.Container(width: 140, height: 1, color: darkText),
-                      pw.SizedBox(height: 3),
-                      pw.Text('Signature of New Consumer (Applicant)', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-                      pw.Text('Name: ${app.computedNewFullName}', style: const pw.TextStyle(fontSize: 7, color: mutedText)),
+                      pw.Text(
+                        'MAHAVITARAN',
+                        style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+                      ),
+                      pw.Text(
+                        'Maharashtra State Electricity Distribution Co. Ltd.',
+                        style: const pw.TextStyle(fontSize: 6.5, color: mutedText),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 6),
+
+              // Title Section
+              pw.Center(
+                child: pw.Column(
+                  children: [
+                    pw.Text(
+                      '"U" FORM FOR CHANGE OF NAME',
+                      style: pw.TextStyle(fontSize: 11.5, fontWeight: pw.FontWeight.bold, color: darkText),
+                    ),
+                    pw.Text(
+                      '(Address of the premises shall remain same)',
+                      style: const pw.TextStyle(fontSize: 7.5, color: darkText),
+                    ),
+                    pw.Text(
+                      'You can fill this form online also. Please visit www.mahadiscom.in',
+                      style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: darkText),
+                    ),
+                    pw.Text(
+                      '(Processing fee will be waived if application and payment is made online)',
+                      style: const pw.TextStyle(fontSize: 6.5, color: darkText),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 4),
+
+              // Date of Application
+              pw.Align(
+                alignment: pw.Alignment.centerRight,
+                child: pw.Text(
+                  'Date of Application: ${_dateFormat.format(app.applicationDate)}',
+                  style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: darkText),
+                ),
+              ),
+              pw.SizedBox(height: 2),
+
+              // To Officer
+              pw.Text('To,', style: const pw.TextStyle(fontSize: 8)),
+              pw.Text('The Office In Charge,', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: mahavitaranRed)),
+              pw.Text(
+                'Sub-Division/ Circle Office: ${app.subDivisionOffice}, ${app.circleOffice}',
+                style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+              ),
+              pw.Text('-------------------------------------------', style: const pw.TextStyle(fontSize: 7, color: borderColor)),
+              pw.SizedBox(height: 2),
+
+              pw.Text('Dear Sir / Madam,', style: const pw.TextStyle(fontSize: 7.5)),
+              pw.Text(
+                'I hereby submit this application for Change of Name of connection as mentioned below.',
+                style: const pw.TextStyle(fontSize: 7.5),
+              ),
+              pw.SizedBox(height: 4),
+
+              // 1) Details of Old Consumer
+              pw.Text(
+                '1) Details of Old Consumer',
+                style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+              ),
+              pw.SizedBox(height: 2),
+              pw.Table(
+                border: pw.TableBorder.all(color: darkText, width: 0.6),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(2.6),
+                  1: const pw.FlexColumnWidth(2.8),
+                  2: const pw.FlexColumnWidth(3.2),
+                  3: const pw.FlexColumnWidth(2.8),
+                },
+                children: [
+                  pw.TableRow(
+                    children: [
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('1) Applicants Name\n(IN BLOCK LETTERS)', style: pw.TextStyle(fontSize: 6.8, fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('First name', style: const pw.TextStyle(fontSize: 6.5, color: mutedText)),
+                            pw.Text(app.oldFirstName.toUpperCase(), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('Name of Father/Husband', style: const pw.TextStyle(fontSize: 6.5, color: mutedText)),
+                            pw.Text(app.oldFatherOrHusbandName.toUpperCase(), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('Surname', style: const pw.TextStyle(fontSize: 6.5, color: mutedText)),
+                            pw.Text(app.oldSurname.toUpperCase(), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('2) Consumer No.:', style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text(app.consumerNo, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: primaryBlue)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('(Mobile No):', style: const pw.TextStyle(fontSize: 7)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text(app.oldMobileNo.isNotEmpty ? app.oldMobileNo : '—', style: const pw.TextStyle(fontSize: 7.5)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 5),
+
+              // 2) Details of New Consumer
+              pw.Text(
+                '2) Details of New Consumer',
+                style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+              ),
+              pw.SizedBox(height: 2),
+              pw.Table(
+                border: pw.TableBorder.all(color: darkText, width: 0.6),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(2.6),
+                  1: const pw.FlexColumnWidth(2.8),
+                  2: const pw.FlexColumnWidth(3.2),
+                  3: const pw.FlexColumnWidth(2.8),
+                },
+                children: [
+                  pw.TableRow(
+                    children: [
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('1) Applicants Name\n(IN BLOCK LETTERS)', style: pw.TextStyle(fontSize: 6.8, fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('First name', style: const pw.TextStyle(fontSize: 6.5, color: mutedText)),
+                            pw.Text(app.newFirstName.toUpperCase(), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('Name of Father/Husband', style: const pw.TextStyle(fontSize: 6.5, color: mutedText)),
+                            pw.Text(app.newFatherOrHusbandName.toUpperCase(), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('Surname', style: const pw.TextStyle(fontSize: 6.5, color: mutedText)),
+                            pw.Text(app.newSurname.toUpperCase(), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('2) Email Id:', style: const pw.TextStyle(fontSize: 7)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text(app.newEmail.isNotEmpty ? app.newEmail : '—', style: const pw.TextStyle(fontSize: 7)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('(Phone No): ${app.newPhoneNo.isNotEmpty ? app.newPhoneNo : "—"}', style: const pw.TextStyle(fontSize: 7)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('(Mobile No): ${app.newMobileNo}', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('3) Aadhar Card No.(Optional):', style: const pw.TextStyle(fontSize: 6.8)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text(app.newAadhaarNo.isNotEmpty ? app.newAadhaarNo : '—', style: const pw.TextStyle(fontSize: 7.5)),
+                      ),
+                      pw.Container(padding: const pw.EdgeInsets.all(3), child: pw.Text('Property Address:', style: const pw.TextStyle(fontSize: 6.5, color: mutedText))),
+                      pw.Container(padding: const pw.EdgeInsets.all(3), child: pw.Text(app.propertyAddress, style: const pw.TextStyle(fontSize: 7))),
+                    ],
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 5),
+
+              // 3) Reason for Change of Name
+              pw.RichText(
+                text: pw.TextSpan(
+                  children: [
+                    pw.TextSpan(
+                      text: '3) Reason for Change of Name : ',
+                      style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+                    ),
+                    pw.TextSpan(
+                      text: '${app.reasonForChange} ${app.remarks.isNotEmpty ? "(${app.remarks})" : ""}',
+                      style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: darkText),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 3),
+
+              // 4) Document enclosed
+              pw.RichText(
+                text: pw.TextSpan(
+                  children: [
+                    pw.TextSpan(
+                      text: '4) Document enclosed (Please specify ) ',
+                      style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+                    ),
+                    pw.TextSpan(
+                      text: app.documents.where((d) => d.isReceived).isNotEmpty
+                          ? app.documents.where((d) => d.isReceived).map((d) => d.docType).join(', ')
+                          : 'Ownership Document, 7/12 Extract, ₹100 Stamp Paper Affidavit',
+                      style: const pw.TextStyle(fontSize: 7.5, color: darkText),
+                    ),
+                    pw.TextSpan(
+                      text: '  (Please see Annexure "A")',
+                      style: const pw.TextStyle(fontSize: 7.5, color: darkText),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 4),
+
+              // Notes
+              pw.Container(
+                padding: const pw.EdgeInsets.all(4),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'Note: 1. For transfer of Security Deposit, old consumer should give consent, in absence of such consent incoming consumer will pay security deposit.',
+                      style: const pw.TextStyle(fontSize: 6.6),
+                    ),
+                    pw.Text(
+                      '         2. If old consumer wants refund of Security Deposit then fill up form "X".',
+                      style: const pw.TextStyle(fontSize: 6.6),
+                    ),
+                    pw.Text(
+                      '         3. In case of arrears, this application will not be processed and intimation will be sent to new consumer.',
+                      style: const pw.TextStyle(fontSize: 6.6),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 2),
+
+              // Declaration
+              pw.Text(
+                'Declaration:',
+                style: pw.TextStyle(fontSize: 7.8, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+              ),
+              pw.Container(
+                padding: const pw.EdgeInsets.all(4),
+                decoration: pw.BoxDecoration(border: pw.Border.all(color: borderColor, width: 0.5), color: lightBg),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('I hereby declare that', style: const pw.TextStyle(fontSize: 6.6)),
+                    pw.Text(
+                      'I will abide by the provisions of Electricity Act 2003 and Maharashtra Electricity Regulatory Commission (Electricity Supply Code and other conditions of Supply) Regulation 2005. I will further abide by rules & regulations issued by regulatory bodies & MSEDCL from time to time. I will pay the electricity bill as per prevailing MSEDCL Tariff. If the premises is declared unauthorized then at the time of vacation by competent authority, MSEDCL will have liberty to remove the electric connection immediately.',
+                      style: const pw.TextStyle(fontSize: 6.3, height: 1.2),
+                    ),
+                    pw.SizedBox(height: 1),
+                    pw.Text(
+                      'The above information is true and if any false information is observed, I / we will be responsible for the consequence thereof.',
+                      style: const pw.TextStyle(fontSize: 6.3, height: 1.2),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 3),
+
+              pw.Text(
+                'Note: You can upload signed copy of this form & relevant document for change of name, on MSEDCL website OR by using Mobile App.',
+                style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+              ),
+              pw.SizedBox(height: 4),
+
+              // Signature of Applicant Section
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      if (app.hasNewConsumerSignature)
+                        pw.Container(
+                          height: 32,
+                          child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 30, fit: pw.BoxFit.contain),
+                        )
+                      else
+                        pw.SizedBox(height: 32),
+                      pw.Container(width: 140, height: 0.8, color: darkText),
+                      pw.SizedBox(height: 2),
+                      pw.Text(
+                        'Signature of Applicant',
+                        style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: primaryBlue),
+                      ),
+                      pw.Text(
+                        '(${app.computedNewFullName})',
+                        style: const pw.TextStyle(fontSize: 6.8, color: mutedText),
+                      ),
                     ],
                   ),
                 ],
               ),
               pw.Spacer(),
 
-              // 6. For MSEDCL Office Use Only
-              _buildSectionHeader('6. FOR MSEDCL OFFICE USE ONLY (DO NOT WRITE BELOW THIS LINE)'),
-              pw.Table(
-                border: pw.TableBorder.all(color: borderColor, width: 0.5),
+              // Scissor cut line
+              pw.Row(
                 children: [
-                  _tableRow(['Application Inward No.', '', 'Inward Date', '']),
-                  _tableRow(['Existing Arrears Verified', 'NIL / Cleared', 'Security Deposit Status', app.isFormXTransfer ? 'Transferred via Form X' : 'Fresh SD Applicable']),
-                  _tableRow(['Scrutiny by Section Officer', '', 'Sanctioned by Assistant Engineer', '']),
+                  pw.Expanded(
+                    child: pw.Text(
+                      '- - - - - - - - - - - - - - - - - - - - - - - - - [ Cut Here ] - - - - - - - - - - - - - - - - - - - - - - - - -',
+                      style: pw.TextStyle(fontSize: 7, color: mahavitaranRed, fontWeight: pw.FontWeight.bold),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 2),
+
+              // Acknowledgement Receipt (Office Use Box)
+              pw.Container(
+                height: 52,
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: darkText, width: 0.7),
+                ),
+                child: pw.Row(
+                  children: [
+                    // Red Vertical Banner
+                    pw.Container(
+                      width: 18,
+                      color: mahavitaranRed,
+                      alignment: pw.Alignment.center,
+                      child: pw.Text(
+                        'For Office Use',
+                        style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+                        textAlign: pw.TextAlign.center,
+                      ),
+                    ),
+                    // Details
+                    pw.Expanded(
+                      flex: 4,
+                      child: pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          mainAxisAlignment: pw.MainAxisAlignment.center,
+                          children: [
+                            pw.Text('Application No.: ${app.applicationNo}', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                            pw.Text('Applicant Name: ${app.computedNewFullName}', style: const pw.TextStyle(fontSize: 6.8)),
+                            pw.Text('Application Received Date: ${_dateFormat.format(app.applicationDate)}', style: const pw.TextStyle(fontSize: 6.8)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Middle
+                    pw.Expanded(
+                      flex: 3,
+                      child: pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.center,
+                        children: [
+                          pw.Text('Acknowledgement Receipt', style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold, color: primaryBlue)),
+                          pw.Text('MAHAVITARAN', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: mahavitaranRed)),
+                        ],
+                      ),
+                    ),
+                    // Right Stamp
+                    pw.Expanded(
+                      flex: 4,
+                      child: pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.center,
+                        children: [
+                          pw.Text('Signature & Office Stamp', style: pw.TextStyle(fontSize: 6.8, fontWeight: pw.FontWeight.bold, color: mahavitaranRed)),
+                          pw.Text('(Representative MSEDCL)', style: const pw.TextStyle(fontSize: 6.2, color: mutedText)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    // -------------------------------------------------------------
+    // PAGE 2: OFFICIAL ANNEXURE "A" & FORM "X"
+    // -------------------------------------------------------------
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        theme: pdfTheme,
+        build: (context) {
+          final isOccupancyTicked = app.documents.any((d) => d.isReceived && d.docType.toLowerCase().contains('occupancy'));
+          final isOwnershipTicked = app.documents.any((d) => d.isReceived && (d.docType.contains('7/12') || d.docType.contains('Form 8') || d.docType.toLowerCase().contains('ownership') || d.docType.toLowerCase().contains('tax')));
+          final isLegalDocTicked = app.documents.any((d) => d.isReceived && (d.docType.toLowerCase().contains('inheritance') || d.docType.toLowerCase().contains('succession') || d.docType.toLowerCase().contains('will') || d.docType.toLowerCase().contains('gift')));
+          final isIncorporationTicked = app.documents.any((d) => d.isReceived && d.docType.toLowerCase().contains('incorporation'));
+          final isAffidavitTicked = app.documents.any((d) => d.isReceived && (d.docType.toLowerCase().contains('affidavit') || d.docType.toLowerCase().contains('gazette')));
+          final isNocTicked = app.documents.any((d) => d.isReceived && (d.docType.toLowerCase().contains('noc') || d.docType.toLowerCase().contains('lease')));
+
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              // Annexure "A" Title
+              pw.Center(
+                child: pw.Text(
+                  'Annexure "A"',
+                  style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: darkText),
+                ),
+              ),
+              pw.SizedBox(height: 6),
+
+              pw.Text(
+                'Document required (please tick):',
+                style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+              ),
+              pw.SizedBox(height: 3),
+
+              // Checklist Box
+              pw.Container(
+                padding: const pw.EdgeInsets.all(8),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: darkText, width: 0.8),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'Any one of the relevant document:-',
+                      style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+                    ),
+                    pw.SizedBox(height: 6),
+                    _buildChecklistRow(isOccupancyTicked, 'a. Occupancy Certificate issued by statutory body / Competent Authority.'),
+                    _buildChecklistRow(isOwnershipTicked || (!isOccupancyTicked && !isLegalDocTicked), 'b. Ownership Document/form 8 / Form 7-12 / tax / lease issued by Local Authority'),
+                    _buildChecklistRow(isLegalDocTicked, 'c. Certified copy of Corresponding Legal Document (In case of inheritance / succession / will/ Gift Deed)'),
+                    _buildChecklistRow(isIncorporationTicked, 'd. Certificate of Incorporation issued as per provision of companies Act 1956.'),
+                    _buildChecklistRow(isAffidavitTicked || true, 'e. Affidavit / Gazette Notification for himself (In case applicant himself has changed his name)'),
+                    _buildChecklistRow(isNocTicked, 'f. Legal document supporting letting and NOC of the owner. (In case of premises is let out to the applicant)'),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 16),
+
+              // Divider
+              pw.Text(
+                '-------------------------------------------------------------------------------------------------------------------------',
+                style: const pw.TextStyle(fontSize: 8, color: borderColor),
+                textAlign: pw.TextAlign.center,
+              ),
+              pw.SizedBox(height: 14),
+
+              // FORM "X" Title
+              pw.Center(
+                child: pw.Text(
+                  'FORM "X"',
+                  style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: darkText),
+                ),
+              ),
+              pw.SizedBox(height: 10),
+
+              // a) Transfer of Security Deposit
+              pw.Text(
+                'a) Transfer of Security Deposit',
+                style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                'I, Shri / Smt. / M/s. ${app.computedOldFullName}, hereby give consent for transfer of Security Deposit held against my consumer no. ${app.consumerNo} in the name of transferee Shri / Smt./ /M/s. ${app.computedNewFullName}.',
+                style: const pw.TextStyle(fontSize: 8.5, height: 1.35),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      if (app.isFormXTransfer && app.hasOldConsumerSignature)
+                        pw.Container(
+                          height: 30,
+                          child: pw.Image(pw.MemoryImage(app.oldConsumerSignatureBytes!), height: 28, fit: pw.BoxFit.contain),
+                        )
+                      else
+                        pw.SizedBox(height: 30),
+                      pw.Container(width: 150, height: 0.8, color: mahavitaranRed),
+                      pw.SizedBox(height: 2),
+                      pw.Text(
+                        'Signature of Old Consumer',
+                        style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+                      ),
+                      pw.Text('(${app.computedOldFullName})', style: const pw.TextStyle(fontSize: 6.8, color: mutedText)),
+                    ],
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 14),
+
+              // OR
+              pw.Center(
+                child: pw.Text(
+                  'OR',
+                  style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, color: darkText),
+                ),
+              ),
+              pw.SizedBox(height: 10),
+
+              // b) Refund of Security Deposit
+              pw.Text(
+                'b) Refund of Security Deposit',
+                style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                'I, Shri / Smt. / M/s. ${app.refundAccountHolderName.isNotEmpty ? app.refundAccountHolderName : app.computedOldFullName}, hereby give consent to transfer the connection in the name of transferee Shri / Smt. /M/s. ${app.computedNewFullName}. I request to refund the security deposit held against my consumer no. ${app.consumerNo} to me. For refund of security deposit Original Receipt is enclosed. OR my Original Receipt of S.D. is lost, I am enclosing indemnity bond. The Account details for ECS are as below.',
+                style: const pw.TextStyle(fontSize: 8.5, height: 1.35),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(left: 14),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('- Name of Account Holder: ${app.refundAccountHolderName.isNotEmpty ? app.refundAccountHolderName : app.computedOldFullName}', style: const pw.TextStyle(fontSize: 8)),
+                    pw.Text('- Name of Bank & Branch: ${app.refundBankName.isNotEmpty ? app.refundBankName : "________________"} ${app.refundBranch.isNotEmpty ? "(${app.refundBranch})" : ""}', style: const pw.TextStyle(fontSize: 8)),
+                    pw.Text('- Bank A/c no.: ${app.refundAccountNumber.isNotEmpty ? app.refundAccountNumber : "________________________"}', style: const pw.TextStyle(fontSize: 8)),
+                    pw.Text('- IFSC no.: ${app.refundIfscCode.isNotEmpty ? app.refundIfscCode : "________________________"}', style: const pw.TextStyle(fontSize: 8)),
+                    pw.Text('- Original Receipt no..: ${app.originalReceiptNo.isNotEmpty ? app.originalReceiptNo : "________________________"}', style: const pw.TextStyle(fontSize: 8)),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      if (!app.isFormXTransfer && app.hasOldConsumerSignature)
+                        pw.Container(
+                          height: 30,
+                          child: pw.Image(pw.MemoryImage(app.oldConsumerSignatureBytes!), height: 28, fit: pw.BoxFit.contain),
+                        )
+                      else
+                        pw.SizedBox(height: 30),
+                      pw.Container(width: 150, height: 0.8, color: mahavitaranRed),
+                      pw.SizedBox(height: 2),
+                      pw.Text(
+                        'Signature of Old Consumer',
+                        style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: mahavitaranRed),
+                      ),
+                      pw.Text('(${app.computedOldFullName})', style: const pw.TextStyle(fontSize: 6.8, color: mutedText)),
+                    ],
+                  ),
                 ],
               ),
             ],
@@ -240,6 +683,34 @@ class MsedclPdfService {
     );
 
     return pdf.save();
+  }
+
+  static pw.Widget _buildChecklistRow(bool isChecked, String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Container(
+            width: 10,
+            height: 10,
+            decoration: pw.BoxDecoration(border: pw.Border.all(color: darkText, width: 0.8)),
+            alignment: pw.Alignment.center,
+            child: isChecked ? pw.Text('X', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: primaryBlue)) : null,
+          ),
+          pw.SizedBox(width: 6),
+          pw.Expanded(
+            child: pw.Text(
+              text,
+              style: pw.TextStyle(
+                fontSize: 7.8,
+                fontWeight: isChecked ? pw.FontWeight.bold : pw.FontWeight.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ==========================================
@@ -400,6 +871,13 @@ class MsedclPdfService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
+                      if (app.hasNewConsumerSignature)
+                        pw.Container(
+                          height: 38,
+                          child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 36, fit: pw.BoxFit.contain),
+                        )
+                      else
+                        pw.SizedBox(height: 38),
                       pw.Container(width: 150, height: 1, color: darkText),
                       pw.SizedBox(height: 4),
                       pw.Text(
@@ -555,6 +1033,13 @@ class MsedclPdfService {
                     pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
+                        if (app.hasOldConsumerSignature)
+                          pw.Container(
+                            height: 34,
+                            child: pw.Image(pw.MemoryImage(app.oldConsumerSignatureBytes!), height: 32, fit: pw.BoxFit.contain),
+                          )
+                        else
+                          pw.SizedBox(height: 34),
                         pw.Container(width: 150, height: 1, color: darkText),
                         pw.SizedBox(height: 4),
                         pw.Text('Signature of Old Consumer (Transferor)', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
@@ -564,6 +1049,13 @@ class MsedclPdfService {
                     pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.end,
                       children: [
+                        if (app.hasNewConsumerSignature)
+                          pw.Container(
+                            height: 34,
+                            child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 32, fit: pw.BoxFit.contain),
+                          )
+                        else
+                          pw.SizedBox(height: 34),
                         pw.Container(width: 150, height: 1, color: darkText),
                         pw.SizedBox(height: 4),
                         pw.Text('Signature of New Consumer (Acceptor)', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
@@ -606,6 +1098,13 @@ class MsedclPdfService {
                   child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
+                      if (app.hasOldConsumerSignature)
+                        pw.Container(
+                          height: 34,
+                          child: pw.Image(pw.MemoryImage(app.oldConsumerSignatureBytes!), height: 32, fit: pw.BoxFit.contain),
+                        )
+                      else
+                        pw.SizedBox(height: 34),
                       pw.Container(width: 160, height: 1, color: darkText),
                       pw.SizedBox(height: 4),
                       pw.Text('Signature of Previous Consumer (Claimant)', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
@@ -1029,9 +1528,40 @@ class MsedclPdfService {
         pw.Spacer(),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
           children: [
-            pw.Text('Transferor Signature: _________________', style: const pw.TextStyle(fontSize: 8)),
-            pw.Text('Applicant Signature: _________________', style: const pw.TextStyle(fontSize: 8)),
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (app.hasOldConsumerSignature)
+                  pw.Container(
+                    height: 26,
+                    child: pw.Image(pw.MemoryImage(app.oldConsumerSignatureBytes!), height: 24, fit: pw.BoxFit.contain),
+                  )
+                else
+                  pw.SizedBox(height: 26),
+                pw.Container(width: 140, height: 0.8, color: darkText),
+                pw.SizedBox(height: 2),
+                pw.Text('Transferor Signature', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                pw.Text('(${app.computedOldFullName})', style: const pw.TextStyle(fontSize: 6.8, color: mutedText)),
+              ],
+            ),
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                if (app.hasNewConsumerSignature)
+                  pw.Container(
+                    height: 26,
+                    child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 24, fit: pw.BoxFit.contain),
+                  )
+                else
+                  pw.SizedBox(height: 26),
+                pw.Container(width: 140, height: 0.8, color: darkText),
+                pw.SizedBox(height: 2),
+                pw.Text('Applicant Signature', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                pw.Text('(${app.computedNewFullName})', style: const pw.TextStyle(fontSize: 6.8, color: mutedText)),
+              ],
+            ),
           ],
         ),
       ],
@@ -1066,9 +1596,25 @@ class MsedclPdfService {
         pw.Spacer(),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
           children: [
             pw.Text('Place: ${app.affidavitPlace} | Date: ${_dateFormat.format(app.applicationDate)}', style: const pw.TextStyle(fontSize: 8)),
-            pw.Text('Deponent Signature: _________________', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                if (app.hasNewConsumerSignature)
+                  pw.Container(
+                    height: 28,
+                    child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 26, fit: pw.BoxFit.contain),
+                  )
+                else
+                  pw.SizedBox(height: 28),
+                pw.Container(width: 140, height: 0.8, color: darkText),
+                pw.SizedBox(height: 2),
+                pw.Text('Deponent Signature', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                pw.Text('(${app.computedNewFullName})', style: const pw.TextStyle(fontSize: 6.8, color: mutedText)),
+              ],
+            ),
           ],
         ),
       ],
@@ -1103,7 +1649,22 @@ class MsedclPdfService {
         pw.Spacer(),
         pw.Align(
           alignment: pw.Alignment.centerRight,
-          child: pw.Text('Signature: _________________', style: const pw.TextStyle(fontSize: 8)),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              if (app.hasOldConsumerSignature)
+                pw.Container(
+                  height: 28,
+                  child: pw.Image(pw.MemoryImage(app.oldConsumerSignatureBytes!), height: 26, fit: pw.BoxFit.contain),
+                )
+              else
+                pw.SizedBox(height: 28),
+              pw.Container(width: 140, height: 0.8, color: darkText),
+              pw.SizedBox(height: 2),
+              pw.Text('Old Consumer Signature', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+              pw.Text('(${app.computedOldFullName})', style: const pw.TextStyle(fontSize: 6.8, color: mutedText)),
+            ],
+          ),
         ),
       ],
     );

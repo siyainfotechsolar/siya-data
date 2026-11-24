@@ -239,7 +239,7 @@ class SalesCommissionService {
       final response = await _client
           .from('profiles')
           .select('*')
-          .order('name', ascending: true);
+          .order('full_name', ascending: true);
 
       final List<dynamic> data = response as List<dynamic>;
       return data.map((json) => UserProfile.fromJson(json as Map<String, dynamic>)).toList();

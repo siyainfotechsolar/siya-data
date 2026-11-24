@@ -10,6 +10,7 @@ import '../models/msedcl_change_of_name.dart';
 import '../services/msedcl_change_of_name_service.dart';
 import '../services/msedcl_pdf_service.dart';
 import '../services/msedcl_excel_service.dart';
+import '../services/customer_signature_helper.dart';
 import '../utils/universal_file_saver.dart';
 import '../utils/responsive.dart';
 
@@ -1204,6 +1205,13 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
   // 5. Annexure A Documents
   List<MsedclDocumentItem> _documents = [];
 
+  // 6. Signatures (Applicant & Old Consumer)
+  String? _newConsumerSignatureBase64;
+  String? _oldConsumerSignatureBase64;
+  Uint8List? _newConsumerSignatureBytes;
+  Uint8List? _oldConsumerSignatureBytes;
+  bool _isProcessingSignature = false;
+
   int _currentStep = 0;
   bool _isSaving = false;
   String? _errorMessage;
@@ -1379,6 +1387,11 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
       _indemnityBondDetailsCtrl.text = e.indemnityBondDetails;
 
       _documents = List.from(e.documents);
+
+      _newConsumerSignatureBase64 = e.newConsumerSignatureBase64;
+      _oldConsumerSignatureBase64 = e.oldConsumerSignatureBase64;
+      _newConsumerSignatureBytes = e.newConsumerSignatureBytes;
+      _oldConsumerSignatureBytes = e.oldConsumerSignatureBytes;
     } else {
       _applicationNoCtrl.text = MsedclChangeOfNameService.generateNextApplicationNo();
       _documents = MsedclDocumentType.all.map((t) => MsedclDocumentItem(docType: t)).toList();
@@ -1387,6 +1400,74 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
         _applyCustomer(widget.preselectedCustomer!);
       }
     }
+  }
+
+  Future<void> _pickNewConsumerSignature() async {
+    try {
+      final res = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+        withData: true,
+      );
+      if (res != null && res.files.isNotEmpty) {
+        final rawBytes = res.files.first.bytes;
+        if (rawBytes != null) {
+          setState(() => _isProcessingSignature = true);
+          final cleaned = CustomerSignatureHelper.removeSignatureBackground(rawBytes);
+          setState(() {
+            _newConsumerSignatureBytes = cleaned;
+            _newConsumerSignatureBase64 = base64Encode(cleaned);
+            _isProcessingSignature = false;
+          });
+        }
+      }
+    } catch (e) {
+      setState(() => _isProcessingSignature = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error picking applicant signature: $e')));
+      }
+    }
+  }
+
+  Future<void> _pickOldConsumerSignature() async {
+    try {
+      final res = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+        withData: true,
+      );
+      if (res != null && res.files.isNotEmpty) {
+        final rawBytes = res.files.first.bytes;
+        if (rawBytes != null) {
+          setState(() => _isProcessingSignature = true);
+          final cleaned = CustomerSignatureHelper.removeSignatureBackground(rawBytes);
+          setState(() {
+            _oldConsumerSignatureBytes = cleaned;
+            _oldConsumerSignatureBase64 = base64Encode(cleaned);
+            _isProcessingSignature = false;
+          });
+        }
+      }
+    } catch (e) {
+      setState(() => _isProcessingSignature = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error picking old consumer signature: $e')));
+      }
+    }
+  }
+
+  void _clearNewConsumerSignature() {
+    setState(() {
+      _newConsumerSignatureBytes = null;
+      _newConsumerSignatureBase64 = null;
+    });
+  }
+
+  void _clearOldConsumerSignature() {
+    setState(() {
+      _oldConsumerSignatureBytes = null;
+      _oldConsumerSignatureBase64 = null;
+    });
   }
 
   void _applyCustomer(ConsumerRecord c) {
@@ -1500,6 +1581,8 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
         receiptStatus: _receiptStatus,
         indemnityBondDetails: _indemnityBondDetailsCtrl.text.trim(),
         documents: _documents,
+        newConsumerSignatureBase64: _newConsumerSignatureBase64,
+        oldConsumerSignatureBase64: _oldConsumerSignatureBase64,
         createdAt: widget.existing?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -1823,6 +1906,16 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
             decoration: const InputDecoration(labelText: 'Old Consumer Full Name (Transferor) *', border: OutlineInputBorder(), isDense: true),
             validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
           ),
+          const SizedBox(height: 10),
+          _buildSignatureUploadCard(
+            title: 'Old Consumer Consent Signature (जुना ग्राहक संमती सही - ऐच्छिक)',
+            subtitle: 'Optionally embedded in Form X & Form U transfer consent',
+            signatureBytes: _oldConsumerSignatureBytes,
+            onPick: _pickOldConsumerSignature,
+            onClear: _clearOldConsumerSignature,
+            accentColor: const Color(0xFF92400E),
+            isRequired: false,
+          ),
           const SizedBox(height: 16),
 
           // Section B: New Consumer Details
@@ -1909,6 +2002,16 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
             maxLines: 2,
             decoration: const InputDecoration(labelText: 'Complete Property / Installation Address *', border: OutlineInputBorder(), isDense: true),
             validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+          ),
+          const SizedBox(height: 10),
+          _buildSignatureUploadCard(
+            title: 'Applicant / New Consumer Signature (नवीन ग्राहक / अर्जदाराची सही * )',
+            subtitle: 'Automatically embedded in official Form U, ₹100 Stamp Paper Affidavit & Form X',
+            signatureBytes: _newConsumerSignatureBytes,
+            onPick: _pickNewConsumerSignature,
+            onClear: _clearNewConsumerSignature,
+            accentColor: const Color(0xFF0F3B7A),
+            isRequired: true,
           ),
           const SizedBox(height: 16),
           Align(
@@ -2306,10 +2409,237 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
   );
 }
 
+  Widget _buildSignatureUploadCard({
+    required String title,
+    required String subtitle,
+    required Uint8List? signatureBytes,
+    required VoidCallback onPick,
+    required VoidCallback onClear,
+    required Color accentColor,
+    bool isRequired = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: signatureBytes != null ? accentColor.withOpacity(0.04) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: signatureBytes != null ? accentColor.withOpacity(0.4) : Colors.grey.shade300,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                signatureBytes != null ? Icons.verified_user_rounded : Icons.drive_file_rename_outline,
+                size: 18,
+                color: signatureBytes != null ? accentColor : Colors.blueGrey,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12.5,
+                        color: accentColor,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+              if (signatureBytes != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green.shade300),
+                  ),
+                  child: const Text(
+                    'Uploaded ✓',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF047857)),
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber.shade300),
+                  ),
+                  child: Text(
+                    isRequired ? 'Pending Sign ⚠️' : 'Optional (ऐच्छिक)',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isRequired ? Colors.amber.shade900 : Colors.grey.shade700),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (signatureBytes != null) ...[
+            Container(
+              height: 64,
+              width: double.infinity,
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              alignment: Alignment.center,
+              child: Image.memory(signatureBytes, fit: BoxFit.contain),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(Icons.refresh, size: 14),
+                  label: const Text('Re-upload (बदला)'),
+                  onPressed: _isProcessingSignature ? null : onPick,
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(Icons.delete_outline, size: 14),
+                  label: const Text('Remove (काढून टाका)'),
+                  onPressed: onClear,
+                ),
+              ],
+            ),
+          ] else ...[
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: accentColor,
+                    side: BorderSide(color: accentColor),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  ),
+                  icon: const Icon(Icons.upload_file_rounded, size: 16),
+                  label: const Text('Upload Signature Image (स्वाक्षरी निवडा)'),
+                  onPressed: _isProcessingSignature ? null : onPick,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Shadows & yellow paper backgrounds are automatically removed.',
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   // TAB 5: ANNEXURE A (DOCUMENTS CHECKLIST)
   Widget _buildDocumentsChecklistTab(bool isMobile) {
     return Column(
       children: [
+        // Signatures overview in Step 5
+        Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.indigo.shade50.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.indigo.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.draw_rounded, size: 18, color: Color(0xFF0F3B7A)),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Signatures Verification for Generated PDFs (स्वाक्षरी पडताळणी):',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF0F3B7A)),
+                  ),
+                  const Spacer(),
+                  if (_newConsumerSignatureBytes != null)
+                    const Text('✓ Applicant Signature Attached', style: TextStyle(fontSize: 11, color: Color(0xFF047857), fontWeight: FontWeight.bold))
+                  else
+                    const Text('⚠️ Applicant Signature Pending', style: TextStyle(fontSize: 11, color: Colors.amber, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (isMobile)
+                Column(
+                  children: [
+                    _buildSignatureUploadCard(
+                      title: 'Applicant / New Consumer Signature *',
+                      subtitle: 'Form U, ₹100 Stamp Affidavit & Form X',
+                      signatureBytes: _newConsumerSignatureBytes,
+                      onPick: _pickNewConsumerSignature,
+                      onClear: _clearNewConsumerSignature,
+                      accentColor: const Color(0xFF0F3B7A),
+                      isRequired: true,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildSignatureUploadCard(
+                      title: 'Old Consumer Consent Signature',
+                      subtitle: 'Form X & Form U transfer consent',
+                      signatureBytes: _oldConsumerSignatureBytes,
+                      onPick: _pickOldConsumerSignature,
+                      onClear: _clearOldConsumerSignature,
+                      accentColor: const Color(0xFF92400E),
+                      isRequired: false,
+                    ),
+                  ],
+                )
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _buildSignatureUploadCard(
+                        title: 'Applicant / New Consumer Signature *',
+                        subtitle: 'Form U, ₹100 Stamp Affidavit & Form X',
+                        signatureBytes: _newConsumerSignatureBytes,
+                        onPick: _pickNewConsumerSignature,
+                        onClear: _clearNewConsumerSignature,
+                        accentColor: const Color(0xFF0F3B7A),
+                        isRequired: true,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildSignatureUploadCard(
+                        title: 'Old Consumer Consent Signature',
+                        subtitle: 'Form X & Form U transfer consent',
+                        signatureBytes: _oldConsumerSignatureBytes,
+                        onPick: _pickOldConsumerSignature,
+                        onClear: _clearOldConsumerSignature,
+                        accentColor: const Color(0xFF92400E),
+                        isRequired: false,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
         Expanded(
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 6),
@@ -2420,6 +2750,7 @@ class _MsedclDocumentGeneratorDialog extends StatefulWidget {
 }
 
 class _MsedclDocumentGeneratorDialogState extends State<_MsedclDocumentGeneratorDialog> {
+  late MsedclChangeOfNameApplication _app;
   bool _isGenerating = false;
   String _activeDocName = 'Complete Master Application';
   Uint8List? _previewBytes;
@@ -2427,13 +2758,14 @@ class _MsedclDocumentGeneratorDialogState extends State<_MsedclDocumentGenerator
   @override
   void initState() {
     super.initState();
+    _app = widget.application;
     _loadCompletePdfPreview();
   }
 
   Future<void> _loadCompletePdfPreview() async {
     setState(() => _isGenerating = true);
     try {
-      final bytes = await MsedclPdfService.generateCompleteApplicationPdf(widget.application);
+      final bytes = await MsedclPdfService.generateCompleteApplicationPdf(_app);
       if (mounted) {
         setState(() {
           _previewBytes = bytes;
@@ -2484,9 +2816,53 @@ class _MsedclDocumentGeneratorDialogState extends State<_MsedclDocumentGenerator
     }
   }
 
+  Future<void> _pickAndApplySignature({required bool isNewConsumer}) async {
+    try {
+      final res = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+        withData: true,
+      );
+      if (res != null && res.files.isNotEmpty) {
+        final raw = res.files.first.bytes;
+        if (raw != null) {
+          final cleaned = CustomerSignatureHelper.removeSignatureBackground(raw);
+          final b64 = base64Encode(cleaned);
+          setState(() {
+            if (isNewConsumer) {
+              _app = _app.copyWith(newConsumerSignatureBase64: b64);
+            } else {
+              _app = _app.copyWith(oldConsumerSignatureBase64: b64);
+            }
+          });
+          await MsedclChangeOfNameService.saveApplication(_app);
+          _refreshCurrentPreview();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error uploading signature: $e')));
+      }
+    }
+  }
+
+  void _refreshCurrentPreview() {
+    if (_activeDocName.contains('Form U')) {
+      _previewDoc('MSEDCL Form U', () => MsedclPdfService.generateUFormPdf(_app));
+    } else if (_activeDocName.contains('Affidavit')) {
+      _previewDoc('Stamp Paper Affidavit', () => MsedclPdfService.generateAffidavitPdf(_app));
+    } else if (_activeDocName.contains('Form X')) {
+      _previewDoc('MSEDCL Form X', () => MsedclPdfService.generateFormXPdf(_app));
+    } else if (_activeDocName.contains('Checklist')) {
+      _previewDoc('Document Checklist', () => MsedclPdfService.generateChecklistPdf(_app));
+    } else {
+      _previewDoc('Complete Application PDF', () => MsedclPdfService.generateCompleteApplicationPdf(_app));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final app = widget.application;
+    final app = _app;
     final isMobile = Responsive.isMobile(context);
 
     return AlertDialog(
@@ -2505,6 +2881,66 @@ class _MsedclDocumentGeneratorDialogState extends State<_MsedclDocumentGenerator
                 Text('Consumer: ${app.consumerNo} • ${app.computedNewFullName}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
               ],
             ),
+          ),
+          // Signature Management Shortcut Button
+          PopupMenuButton<String>(
+            tooltip: 'Upload / Manage Signatures (स्वाक्षरी व्यवस्थापन)',
+            icon: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: app.hasNewConsumerSignature ? Colors.green.shade50 : Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: app.hasNewConsumerSignature ? Colors.green.shade300 : Colors.amber.shade300),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    app.hasNewConsumerSignature ? Icons.verified_user : Icons.drive_file_rename_outline,
+                    size: 16,
+                    color: app.hasNewConsumerSignature ? const Color(0xFF047857) : Colors.amber.shade900,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    app.hasNewConsumerSignature ? 'Signature ✓' : '+ Signature',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: app.hasNewConsumerSignature ? const Color(0xFF047857) : Colors.amber.shade900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            onSelected: (val) {
+              if (val == 'applicant') {
+                _pickAndApplySignature(isNewConsumer: true);
+              } else if (val == 'old_consumer') {
+                _pickAndApplySignature(isNewConsumer: false);
+              }
+            },
+            itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: 'applicant',
+                child: Row(
+                  children: [
+                    const Icon(Icons.person, size: 16, color: Color(0xFF0F3B7A)),
+                    const SizedBox(width: 8),
+                    Text(app.hasNewConsumerSignature ? 'Re-upload Applicant Signature (अर्जदाराची सही बदला)' : 'Upload Applicant Signature * (अर्जदाराची सही जोडा)'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'old_consumer',
+                child: Row(
+                  children: [
+                    const Icon(Icons.person_outline, size: 16, color: Color(0xFF92400E)),
+                    const SizedBox(width: 8),
+                    Text(app.hasOldConsumerSignature ? 'Re-upload Old Consumer Signature (जुनी संमती सही बदला)' : 'Upload Old Consumer Signature (जुनी संमती सही जोडा)'),
+                  ],
+                ),
+              ),
+            ],
           ),
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
         ],
@@ -3098,6 +3534,24 @@ class _ViewMsedclApplicationDialog extends StatelessWidget {
             _detailItem('Meter No (मीटर क्र.):', application.oldMeterNo),
           if (application.oldMobileNo.isNotEmpty)
             _detailItem('Mobile No (मोबाईल क्र.):', application.oldMobileNo),
+          const SizedBox(height: 8),
+          if (application.hasOldConsumerSignature) ...[
+            const Text('Consent Signature (संमती सही):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF92400E))),
+            const SizedBox(height: 4),
+            Container(
+              height: 44,
+              width: 130,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade300)),
+              child: Image.memory(application.oldConsumerSignatureBytes!, fit: BoxFit.contain),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(4)),
+              child: const Text('Signature: Physical Pen Signing (कागदावर सही)', style: TextStyle(fontSize: 10.5, color: Colors.blueGrey)),
+            ),
+          ],
         ],
       ),
     );
@@ -3139,6 +3593,24 @@ class _ViewMsedclApplicationDialog extends StatelessWidget {
           if (application.newAadhaarNo.isNotEmpty)
             _detailItem('Aadhaar No:', application.newAadhaarNo),
           _detailItem('Property Address (पत्ता):', application.propertyAddress),
+          const SizedBox(height: 8),
+          if (application.hasNewConsumerSignature) ...[
+            const Text('Applicant Signature (अर्जदाराची सही):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+            const SizedBox(height: 4),
+            Container(
+              height: 44,
+              width: 130,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+              child: Image.memory(application.newConsumerSignatureBytes!, fit: BoxFit.contain),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.amber.shade200)),
+              child: const Text('Signature: Physical Pen Signing (कागदावर सही)', style: TextStyle(fontSize: 10.5, color: Colors.brown, fontWeight: FontWeight.w600)),
+            ),
+          ],
         ],
       ),
     );

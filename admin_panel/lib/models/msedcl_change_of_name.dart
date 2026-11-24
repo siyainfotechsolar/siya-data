@@ -243,6 +243,10 @@ class MsedclChangeOfNameApplication {
   // Annexure A Supporting Documents
   final List<MsedclDocumentItem> documents;
 
+  // Signatures
+  final String? newConsumerSignatureBase64;
+  final String? oldConsumerSignatureBase64;
+
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -297,6 +301,9 @@ class MsedclChangeOfNameApplication {
     this.indemnityBondDetails = '',
     // Documents
     this.documents = const [],
+    // Signatures
+    this.newConsumerSignatureBase64,
+    this.oldConsumerSignatureBase64,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -312,6 +319,29 @@ class MsedclChangeOfNameApplication {
 
   /// Total applicable documents count
   int get applicableDocCount => documents.where((d) => !d.isNotApplicable).length;
+
+  /// Decoded New Consumer / Applicant Signature bytes
+  Uint8List? get newConsumerSignatureBytes {
+    if (newConsumerSignatureBase64 == null || newConsumerSignatureBase64!.trim().isEmpty) return null;
+    try {
+      return base64Decode(newConsumerSignatureBase64!.trim());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Decoded Old Consumer Consent Signature bytes
+  Uint8List? get oldConsumerSignatureBytes {
+    if (oldConsumerSignatureBase64 == null || oldConsumerSignatureBase64!.trim().isEmpty) return null;
+    try {
+      return base64Decode(oldConsumerSignatureBase64!.trim());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool get hasNewConsumerSignature => newConsumerSignatureBytes != null;
+  bool get hasOldConsumerSignature => oldConsumerSignatureBytes != null;
 
   /// Formatted New Consumer Full Name with Father/Husband Name
   String get computedNewFullName {
@@ -373,6 +403,8 @@ class MsedclChangeOfNameApplication {
     String? receiptStatus,
     String? indemnityBondDetails,
     List<MsedclDocumentItem>? documents,
+    String? newConsumerSignatureBase64,
+    String? oldConsumerSignatureBase64,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -422,6 +454,8 @@ class MsedclChangeOfNameApplication {
       receiptStatus: receiptStatus ?? this.receiptStatus,
       indemnityBondDetails: indemnityBondDetails ?? this.indemnityBondDetails,
       documents: documents ?? this.documents,
+      newConsumerSignatureBase64: newConsumerSignatureBase64 ?? this.newConsumerSignatureBase64,
+      oldConsumerSignatureBase64: oldConsumerSignatureBase64 ?? this.oldConsumerSignatureBase64,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -474,6 +508,8 @@ class MsedclChangeOfNameApplication {
       'receipt_status': receiptStatus,
       'indemnity_bond_details': indemnityBondDetails,
       'documents': documents.map((d) => d.toJson()).toList(),
+      'new_consumer_signature_base64': newConsumerSignatureBase64,
+      'old_consumer_signature_base64': oldConsumerSignatureBase64,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -547,6 +583,8 @@ class MsedclChangeOfNameApplication {
       receiptStatus: json['receipt_status'] as String? ?? 'Available',
       indemnityBondDetails: json['indemnity_bond_details'] as String? ?? '',
       documents: docs,
+      newConsumerSignatureBase64: json['new_consumer_signature_base64'] as String?,
+      oldConsumerSignatureBase64: json['old_consumer_signature_base64'] as String?,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'] as String) ?? DateTime.now()
           : DateTime.now(),
