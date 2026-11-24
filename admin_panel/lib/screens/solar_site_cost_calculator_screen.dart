@@ -9,6 +9,7 @@ import 'package:siya_shared/siya_shared.dart';
 
 import '../services/solar_site_cost_service.dart';
 import '../services/solar_site_cost_pdf_service.dart';
+import '../utils/universal_file_saver.dart';
 
 /// SIYA SOLAR SITE COST CALCULATOR SCREEN
 ///
@@ -407,11 +408,10 @@ class _SolarSiteCostCalculatorScreenState
       final bytes = utf8.encode(csvString);
       final filename = 'Site_Cost_GST_${calc.siteName.replaceAll(' ', '_')}_${_dateFormat.format(calc.calculationDate)}.csv';
 
-      await FilePicker.platform.saveFile(
+      await saveFileUniversal(
         dialogTitle: 'Export Site Cost & GST CSV',
         fileName: filename,
         bytes: Uint8List.fromList(bytes),
-        allowedExtensions: ['csv'],
       );
 
       if (mounted) {

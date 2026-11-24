@@ -8,9 +8,15 @@ Future<String?> saveFileUniversal({
   String? dialogTitle,
 }) async {
   try {
-    final mimeType = fileName.toLowerCase().endsWith('.pdf')
-        ? 'application/pdf'
-        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    String mimeType = 'application/octet-stream';
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.pdf')) {
+      mimeType = 'application/pdf';
+    } else if (lower.endsWith('.xlsx')) {
+      mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    } else if (lower.endsWith('.csv')) {
+      mimeType = 'text/csv;charset=utf-8';
+    }
     final blob = web.Blob(
       [bytes.toJS].toJS,
       web.BlobPropertyBag(type: mimeType),

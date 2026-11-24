@@ -9,6 +9,7 @@ import '../services/sub_vendor_service.dart';
 import '../services/sub_vendor_pdf_service.dart';
 import '../widgets/sub_vendor_dialogs.dart';
 import 'sub_vendor_complete_financial_dashboard_screen.dart';
+import '../utils/universal_file_saver.dart';
 
 final _currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 2);
 final _dateFormat = DateFormat('dd-MM-yyyy');
@@ -1566,12 +1567,10 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
       final bytes = utf8.encode(csvString);
       final fileName = 'siya_customer_payments_${DateTime.now().millisecondsSinceEpoch}.csv';
 
-      final result = await FilePicker.platform.saveFile(
+      final result = await saveFileUniversal(
         dialogTitle: 'Export Payments as CSV',
         fileName: fileName,
         bytes: Uint8List.fromList(bytes),
-        type: FileType.custom,
-        allowedExtensions: ['csv'],
       );
 
       if (result != null && mounted) {

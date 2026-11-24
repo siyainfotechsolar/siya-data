@@ -212,5 +212,78 @@ void main() {
       expect(byName.length, 1);
       expect(byName.first.computedNewFullName.toLowerCase(), contains('raju'));
     });
+
+    test('10. Full Application CRUD (Create, Read/View, Update, Status, Delete) Lifecycle', () async {
+      // 1. CREATE
+      final newApp = MsedclChangeOfNameApplication(
+        id: '',
+        applicationNo: '',
+        applicationDate: DateTime.now(),
+        subDivisionOffice: 'Nardana Sub-Division',
+        circleOffice: 'Dhule Circle',
+        village: 'Nardana',
+        reasonForChange: MsedclReasonForChange.inheritance,
+        assignedEmployee: 'Rahul',
+        remarks: 'Legal heir transfer under will',
+        oldFirstName: 'Ramesh',
+        oldSurname: 'Patil',
+        oldConsumerFullName: 'Ramesh Patil',
+        consumerNo: '096570009999',
+        newFirstName: 'Mahesh',
+        newSurname: 'Patil',
+        newConsumerFullName: 'Mahesh Ramesh Patil',
+        newMobileNo: '9876543210',
+        propertyAddress: 'Plot 12, Nardana, Dhule',
+        stampPaperValue: 500.0,
+        formXOption: 'transfer',
+        documents: const [
+          MsedclDocumentItem(docType: MsedclDocumentType.electricityBill, status: 'Received'),
+          MsedclDocumentItem(docType: MsedclDocumentType.extract712, status: 'Received'),
+          MsedclDocumentItem(docType: MsedclDocumentType.successionOrWill, status: 'Received'),
+        ],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final created = await MsedclChangeOfNameService.saveApplication(newApp);
+      expect(created.id, isNotEmpty);
+      expect(created.applicationNo, startsWith('MSEDCL-CN-'));
+      expect(created.computedNewFullName, 'Mahesh Ramesh Patil');
+      expect(created.receivedDocCount, 3);
+
+      // 2. READ / VIEW
+      final allApps = await MsedclChangeOfNameService.fetchApplications();
+      final fetched = allApps.firstWhere((a) => a.id == created.id);
+      expect(fetched.applicationNo, created.applicationNo);
+      expect(fetched.consumerNo, '096570009999');
+      expect(fetched.stampPaperValue, 500.0);
+      expect(fetched.reasonForChange, MsedclReasonForChange.inheritance);
+
+      // 3. UPDATE (Edit fields)
+      final modifiedApp = fetched.copyWith(
+        remarks: 'Updated after verifying succession certificate',
+        stampPaperValue: 200.0,
+      );
+      final updated = await MsedclChangeOfNameService.saveApplication(modifiedApp);
+      expect(updated.remarks, 'Updated after verifying succession certificate');
+      expect(updated.stampPaperValue, 200.0);
+
+      // 4. ADVANCE STATUS
+      final withNewStatus = await MsedclChangeOfNameService.updateStatus(
+        id: updated.id,
+        newStatus: MsedclApplicationStatus.submitted,
+        updatedBy: 'Admin',
+        remarks: 'Application submitted to Nardana Sub-Division office',
+      );
+      expect(withNewStatus?.status, MsedclApplicationStatus.submitted);
+      expect(withNewStatus?.statusHistory.last.status, MsedclApplicationStatus.submitted);
+
+      // 5. DELETE
+      final deleteResult = await MsedclChangeOfNameService.deleteApplication(created.id);
+      expect(deleteResult, isTrue);
+
+      final postDeleteList = await MsedclChangeOfNameService.fetchApplications();
+      expect(postDeleteList.any((a) => a.id == created.id), isFalse);
+    });
   });
 }

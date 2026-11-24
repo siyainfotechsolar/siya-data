@@ -259,6 +259,31 @@ class _MsedclChangeOfNameScreenState extends State<MsedclChangeOfNameScreen> {
     );
   }
 
+  void _openViewApplicationDialog(MsedclChangeOfNameApplication application) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _ViewMsedclApplicationDialog(
+        application: application,
+        onEdit: () {
+          Navigator.pop(ctx);
+          _openAddEditApplicationDialog(existing: application);
+        },
+        onStatus: () {
+          Navigator.pop(ctx);
+          _openStatusHistoryDialog(application);
+        },
+        onPdf: () {
+          Navigator.pop(ctx);
+          _openDocumentGeneratorDialog(application);
+        },
+        onDelete: () {
+          Navigator.pop(ctx);
+          _deleteApplication(application);
+        },
+      ),
+    );
+  }
+
   void _openStatusHistoryDialog(MsedclChangeOfNameApplication application) {
     showDialog(
       context: context,
@@ -783,6 +808,7 @@ class _MsedclChangeOfNameScreenState extends State<MsedclChangeOfNameScreen> {
         scrollDirection: Axis.horizontal,
         child: SingleChildScrollView(
           child: DataTable(
+            showCheckboxColumn: false,
             headingRowColor: WidgetStateProperty.all(const Color(0xFF0F3B7A).withOpacity(0.08)),
             columns: const [
               DataColumn(label: Text('Sr.', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -803,6 +829,7 @@ class _MsedclChangeOfNameScreenState extends State<MsedclChangeOfNameScreen> {
               final statusBg = statusColor.withOpacity(0.12);
 
               return DataRow(
+                onSelectChanged: (_) => _openViewApplicationDialog(a),
                 cells: [
                   DataCell(Text('${idx + 1}')),
                   DataCell(Column(
@@ -881,6 +908,11 @@ class _MsedclChangeOfNameScreenState extends State<MsedclChangeOfNameScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
+                        icon: const Icon(Icons.visibility_outlined, size: 18, color: Color(0xFF0F3B7A)),
+                        tooltip: 'View Application Details',
+                        onPressed: () => _openViewApplicationDialog(a),
+                      ),
+                      IconButton(
                         icon: const Icon(Icons.timeline_rounded, size: 18, color: Color(0xFF4F46E5)),
                         tooltip: 'Status History',
                         onPressed: () => _openStatusHistoryDialog(a),
@@ -915,69 +947,80 @@ class _MsedclChangeOfNameScreenState extends State<MsedclChangeOfNameScreen> {
         borderRadius: BorderRadius.circular(10),
         side: BorderSide(color: theme.colorScheme.outlineVariant),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    '${a.applicationNo} • Consumer: ${a.consumerNo}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => _openViewApplicationDialog(a),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${a.applicationNo} • Consumer: ${a.consumerNo}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: statusColor),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: statusColor),
+                    ),
+                    child: Text(
+                      a.status,
+                      style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
                   ),
-                  child: Text(
-                    a.status,
-                    style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text('Old Consumer: ${a.computedOldFullName}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+              Text('New Consumer: ${a.computedNewFullName} (${a.newMobileNo})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              Text('Sub-Division: ${a.subDivisionOffice} • Date: ${_dateFormat.format(a.applicationDate)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.visibility_outlined, size: 14),
+                    label: const Text('View', style: TextStyle(fontSize: 11)),
+                    style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                    onPressed: () => _openViewApplicationDialog(a),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text('Old Consumer: ${a.computedOldFullName}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-            Text('New Consumer: ${a.computedNewFullName} (${a.newMobileNo})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-            Text('Sub-Division: ${a.subDivisionOffice} • Date: ${_dateFormat.format(a.applicationDate)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.picture_as_pdf_rounded, size: 14, color: Colors.white),
-                  label: const Text('PDFs', style: TextStyle(fontSize: 11, color: Colors.white)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F3B7A),
-                    visualDensity: VisualDensity.compact,
+                  const SizedBox(width: 6),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.picture_as_pdf_rounded, size: 14, color: Colors.white),
+                    label: const Text('PDFs', style: TextStyle(fontSize: 11, color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F3B7A),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => _openDocumentGeneratorDialog(a),
                   ),
-                  onPressed: () => _openDocumentGeneratorDialog(a),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.edit_outlined, size: 14),
-                  label: const Text('Edit', style: TextStyle(fontSize: 11)),
-                  style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
-                  onPressed: () => _openAddEditApplicationDialog(existing: a),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.timeline_rounded, size: 18, color: Color(0xFF4F46E5)),
-                  onPressed: () => _openStatusHistoryDialog(a),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                  onPressed: () => _deleteApplication(a),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: 6),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.edit_outlined, size: 14),
+                    label: const Text('Edit', style: TextStyle(fontSize: 11)),
+                    style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                    onPressed: () => _openAddEditApplicationDialog(existing: a),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.timeline_rounded, size: 18, color: Color(0xFF4F46E5)),
+                    onPressed: () => _openStatusHistoryDialog(a),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                    onPressed: () => _deleteApplication(a),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2515,6 +2558,686 @@ class _MsedclStatusHistoryDialogState extends State<_MsedclStatusHistoryDialog> 
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+      ],
+    );
+  }
+}
+
+// ==============================================================================
+// VIEW APPLICATION DETAILS DIALOG (CRUD - READ / VIEW)
+// ==============================================================================
+
+class _ViewMsedclApplicationDialog extends StatelessWidget {
+  final MsedclChangeOfNameApplication application;
+  final VoidCallback onEdit;
+  final VoidCallback onStatus;
+  final VoidCallback onPdf;
+  final VoidCallback onDelete;
+
+  const _ViewMsedclApplicationDialog({
+    required this.application,
+    required this.onEdit,
+    required this.onStatus,
+    required this.onPdf,
+    required this.onDelete,
+  });
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case MsedclApplicationStatus.newEntry:
+        return Colors.blue;
+      case MsedclApplicationStatus.docsPending:
+        return Colors.orange;
+      case MsedclApplicationStatus.docsCompleted:
+        return Colors.teal;
+      case MsedclApplicationStatus.submitted:
+        return Colors.indigo;
+      case MsedclApplicationStatus.msedclProcessing:
+        return Colors.purple;
+      case MsedclApplicationStatus.objectionRaised:
+        return Colors.deepOrange;
+      case MsedclApplicationStatus.approved:
+      case MsedclApplicationStatus.nameChanged:
+        return const Color(0xFF047857);
+      case MsedclApplicationStatus.rejected:
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFormat = DateFormat('dd/MM/yyyy');
+    final timeFormat = DateFormat('dd/MM/yyyy hh:mm a');
+    final statusColor = _getStatusColor(application.status);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 750;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 960,
+          maxHeight: MediaQuery.of(context).size.height * 0.92,
+        ),
+        child: Column(
+          children: [
+            // TOP HEADER
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: const BoxDecoration(
+                color: Color(0xFF0F3B7A),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.description_outlined, color: Colors.white, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              application.applicationNo,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                'Consumer: ${application.consumerNo}',
+                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'MSEDCL Change of Name Application Details • Date: ${dateFormat.format(application.applicationDate)}',
+                          style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(radius: 4, backgroundColor: statusColor),
+                        const SizedBox(width: 6),
+                        Text(
+                          application.status,
+                          style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+
+            // SCROLLABLE CONTENT BODY
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 1. COMPARISON: OLD CONSUMER VS NEW CONSUMER
+                    _buildConsumerComparisonCard(isMobile),
+                    const SizedBox(height: 16),
+
+                    // 2. APPLICATION & OFFICE DETAILS
+                    _buildOfficeDetailsCard(dateFormat),
+                    const SizedBox(height: 16),
+
+                    // 3. STAMP PAPER AFFIDAVIT DETAILS
+                    _buildStampPaperCard(),
+                    const SizedBox(height: 16),
+
+                    // 4. FORM X SECURITY DEPOSIT DETAILS
+                    _buildFormXCard(),
+                    const SizedBox(height: 16),
+
+                    // 5. ANNEXURE A DOCUMENT CHECKLIST
+                    _buildDocumentChecklistCard(),
+                    const SizedBox(height: 16),
+
+                    // 6. STATUS HISTORY & AUDIT TRAIL
+                    _buildStatusHistoryCard(timeFormat),
+                  ],
+                ),
+              ),
+            ),
+
+            // BOTTOM ACTION BAR
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton.icon(
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    icon: const Icon(Icons.delete_outline, size: 16),
+                    label: const Text('Delete'),
+                    onPressed: onDelete,
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        label: const Text('Edit Application'),
+                        onPressed: onEdit,
+                      ),
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF4F46E5)),
+                        icon: const Icon(Icons.timeline_rounded, size: 16),
+                        label: const Text('Advance Status'),
+                        onPressed: onStatus,
+                      ),
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F3B7A)),
+                        icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+                        label: const Text('Generate PDFs'),
+                        onPressed: onPdf,
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 1. Consumer Comparison Card (Old vs New)
+  Widget _buildConsumerComparisonCard(bool isMobile) {
+    final oldConsumerWidget = Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB), // Warm amber background
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(color: Colors.amber.shade200, shape: BoxShape.circle),
+                child: const Icon(Icons.person_outline, size: 16, color: Color(0xFF92400E)),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Old Consumer (माजी ग्राहक / विक्रेता)',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF92400E)),
+              ),
+            ],
+          ),
+          const Divider(height: 18),
+          _detailItem('Full Name (पूर्ण नाव):', application.computedOldFullName, isBold: true),
+          if (application.oldFatherOrHusbandName.isNotEmpty)
+            _detailItem('Father / Husband:', application.oldFatherOrHusbandName),
+          _detailItem('Consumer No (ग्राहक क्र.):', application.consumerNo),
+          if (application.oldMeterNo.isNotEmpty)
+            _detailItem('Meter No (मीटर क्र.):', application.oldMeterNo),
+          if (application.oldMobileNo.isNotEmpty)
+            _detailItem('Mobile No (मोबाईल क्र.):', application.oldMobileNo),
+        ],
+      ),
+    );
+
+    final newConsumerWidget = Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF), // Cool blue background
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(color: Colors.blue.shade200, shape: BoxShape.circle),
+                child: const Icon(Icons.person, size: 16, color: Color(0xFF1E3A8A)),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'New Consumer (नवीन ग्राहक / खरेदीदार)',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E3A8A)),
+              ),
+            ],
+          ),
+          const Divider(height: 18),
+          _detailItem('Full Name (पूर्ण नाव):', application.computedNewFullName, isBold: true),
+          if (application.newFatherOrHusbandName.isNotEmpty)
+            _detailItem('Father / Husband:', application.newFatherOrHusbandName),
+          _detailItem('Age (वय):', '${application.newAge} वर्षे (Years)'),
+          _detailItem('Mobile No (मोबाईल क्र.):', application.newMobileNo, isBold: true),
+          if (application.newPhoneNo.isNotEmpty)
+            _detailItem('Phone No:', application.newPhoneNo),
+          if (application.newEmail.isNotEmpty)
+            _detailItem('Email ID:', application.newEmail),
+          if (application.newAadhaarNo.isNotEmpty)
+            _detailItem('Aadhaar No:', application.newAadhaarNo),
+          _detailItem('Property Address (पत्ता):', application.propertyAddress),
+        ],
+      ),
+    );
+
+    return isMobile
+        ? Column(
+            children: [
+              oldConsumerWidget,
+              const SizedBox(height: 12),
+              newConsumerWidget,
+            ],
+          )
+        : Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: oldConsumerWidget),
+              const SizedBox(width: 14),
+              Expanded(child: newConsumerWidget),
+            ],
+          );
+  }
+
+  // 2. Office & Application Meta Card
+  Widget _buildOfficeDetailsCard(DateFormat dateFormat) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.business_outlined, size: 18, color: Color(0xFF0F3B7A)),
+                SizedBox(width: 8),
+                Text('Application & MSEDCL Office Details (कार्यालयीन तपशील)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ],
+            ),
+            const Divider(height: 18),
+            Wrap(
+              spacing: 24,
+              runSpacing: 10,
+              children: [
+                _detailColumn('Sub-Division Office:', application.subDivisionOffice),
+                _detailColumn('Circle Office:', application.circleOffice),
+                if (application.village.isNotEmpty)
+                  _detailColumn('Village / Location:', application.village),
+                _detailColumn('Reason for Transfer:', application.reasonForChange),
+                _detailColumn('Assigned Staff:', application.assignedEmployee),
+                _detailColumn('Application Date:', dateFormat.format(application.applicationDate)),
+                if (application.remarks.isNotEmpty)
+                  _detailColumn('Remarks:', application.remarks),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 3. Stamp Paper & Affidavit Details Card
+  Widget _buildStampPaperCard() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.gavel_rounded, size: 18, color: Color(0xFFD97706)),
+                SizedBox(width: 8),
+                Text('Stamp Paper Affidavit & Undertaking (स्टॅम्प पेपर प्रतिज्ञापत्र)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ],
+            ),
+            const Divider(height: 18),
+            Wrap(
+              spacing: 24,
+              runSpacing: 10,
+              children: [
+                _detailColumn('Configurable Stamp Value:', '₹ ${application.stampPaperValue.toStringAsFixed(0)}'),
+                _detailColumn('State:', application.stampPaperState),
+                _detailColumn('Language:', application.stampPaperLanguage),
+                _detailColumn('Top Margin for Physical Stamp:', '${application.stampTopMarginMm.toStringAsFixed(0)} mm'),
+                _detailColumn('Place of Execution:', application.affidavitPlace),
+              ],
+            ),
+            if (application.affidavitCustomText != null && application.affidavitCustomText!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Text(
+                  application.affidavitCustomText!,
+                  style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 4. Form X Security Deposit Card
+  Widget _buildFormXCard() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.account_balance_outlined, size: 18, color: Color(0xFF047857)),
+                const SizedBox(width: 8),
+                const Text('Form X - Security Deposit (सुरक्षा ठेव हस्तांतरण / परतावा)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: application.isFormXTransfer ? Colors.blue.shade50 : Colors.teal.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: application.isFormXTransfer ? Colors.blue.shade300 : Colors.teal.shade300),
+                  ),
+                  child: Text(
+                    application.isFormXTransfer ? 'Option A: Transfer of Security Deposit' : 'Option B: Refund of Security Deposit',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: application.isFormXTransfer ? Colors.blue.shade900 : Colors.teal.shade900),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 18),
+            if (application.isFormXTransfer) ...[
+              _detailItem('Old Consumer Consent:', application.oldConsumerConsent ? 'Consent Granted (सहमत)' : 'Consent Pending (प्रलंबित)', isBold: true),
+              _detailItem('Transferee Name:', application.computedNewFullName),
+            ] else ...[
+              Wrap(
+                spacing: 24,
+                runSpacing: 10,
+                children: [
+                  _detailColumn('A/C Holder Name:', application.refundAccountHolderName),
+                  _detailColumn('Bank Name:', application.refundBankName),
+                  _detailColumn('Branch:', application.refundBranch),
+                  _detailColumn('Account Number:', application.refundAccountNumber),
+                  _detailColumn('IFSC Code:', application.refundIfscCode),
+                  _detailColumn('Original Receipt No:', application.originalReceiptNo),
+                  _detailColumn('Receipt Status:', application.receiptStatus),
+                  if (application.indemnityBondDetails.isNotEmpty)
+                    _detailColumn('Indemnity Bond:', application.indemnityBondDetails),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 5. Annexure A Supporting Documents Checklist Card
+  Widget _buildDocumentChecklistCard() {
+    final docs = application.documents;
+    final receivedCount = application.receivedDocCount;
+    final applicableCount = application.applicableDocCount;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.checklist_rtl_rounded, size: 18, color: Color(0xFF0F3B7A)),
+                const SizedBox(width: 8),
+                const Text('Annexure A - Document Checklist (कागदपत्रे तपासणी यादी)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: receivedCount == applicableCount ? Colors.green.shade50 : Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: receivedCount == applicableCount ? Colors.green.shade400 : Colors.amber.shade400),
+                  ),
+                  child: Text(
+                    '$receivedCount / $applicableCount Documents Received',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: receivedCount == applicableCount ? Colors.green.shade900 : Colors.amber.shade900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 18),
+            if (docs.isEmpty)
+              const Text('No documents initialized for this application.', style: TextStyle(color: Colors.grey))
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: docs.length,
+                separatorBuilder: (_, index) => const Divider(height: 1),
+                itemBuilder: (ctx, i) {
+                  final d = docs[i];
+                  Color badgeColor = Colors.grey;
+                  Color badgeBg = Colors.grey.shade100;
+                  if (d.isReceived) {
+                    badgeColor = const Color(0xFF047857);
+                    badgeBg = Colors.green.shade50;
+                  } else if (d.isPending) {
+                    badgeColor = Colors.orange.shade800;
+                    badgeBg = Colors.orange.shade50;
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: [
+                        Icon(
+                          d.isReceived
+                              ? Icons.check_circle_rounded
+                              : (d.isPending ? Icons.pending_actions_rounded : Icons.remove_circle_outline),
+                          size: 16,
+                          color: badgeColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(d.docType, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                              if (d.fileName != null && d.fileName!.isNotEmpty)
+                                Text('File: ${d.fileName}', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: badgeBg,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: badgeColor),
+                          ),
+                          child: Text(
+                            d.status,
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: badgeColor),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 6. Status History & Audit Trail Card
+  Widget _buildStatusHistoryCard(DateFormat timeFormat) {
+    final history = application.statusHistory;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.history_rounded, size: 18, color: Color(0xFF4F46E5)),
+                SizedBox(width: 8),
+                Text('Workflow & Status Audit History (कार्यप्रवाह इतिहास)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ],
+            ),
+            const Divider(height: 18),
+            if (history.isEmpty)
+              const Text('No status transitions recorded yet.', style: TextStyle(color: Colors.grey, fontSize: 12))
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: history.length,
+                separatorBuilder: (_, index) => const Divider(height: 1),
+                itemBuilder: (ctx, i) {
+                  final h = history[i];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    leading: const Icon(Icons.check_circle_outline, color: Color(0xFF047857), size: 18),
+                    title: Text(h.status, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    subtitle: Text(
+                      '${h.remarks.isNotEmpty ? "${h.remarks} • " : ""}Updated by ${h.updatedBy}',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    trailing: Text(timeFormat.format(h.timestamp), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper widgets for key-value display
+  Widget _detailItem(String label, String value, {bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(label, style: const TextStyle(fontSize: 11.5, color: Colors.black54)),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailColumn(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
       ],
     );
   }

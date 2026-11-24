@@ -10,6 +10,7 @@ import 'package:siya_shared/siya_shared.dart';
 import '../services/sub_vendor_service.dart';
 import '../services/sub_vendor_pdf_service.dart';
 import '../widgets/sub_vendor_dialogs.dart';
+import '../utils/universal_file_saver.dart';
 
 final _currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 2);
 final _dateFormat = DateFormat('dd-MM-yyyy');
@@ -129,11 +130,10 @@ class _SubVendorCompleteFinancialDashboardScreenState
     try {
       final csvString = const ListToCsvConverter().convert(rows);
       final bytes = utf8.encode(csvString);
-      await FilePicker.platform.saveFile(
+      await saveFileUniversal(
         dialogTitle: 'Export $fileName',
         fileName: '$fileName.csv',
         bytes: Uint8List.fromList(bytes),
-        allowedExtensions: ['csv'],
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

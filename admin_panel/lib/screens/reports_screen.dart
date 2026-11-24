@@ -15,6 +15,7 @@ import '../widgets/work_completion_certificate_dialog.dart';
 import '../widgets/bank_loan_quotation_dialog.dart';
 import '../widgets/consumer_vendor_agreement_dialog.dart';
 import '../utils/responsive.dart';
+import '../utils/universal_file_saver.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -254,12 +255,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
       final bytes = utf8.encode(csvString);
       final fileName = 'siya_solar_report_${DateTime.now().millisecondsSinceEpoch}.csv';
 
-      final result = await FilePicker.platform.saveFile(
+      final result = await saveFileUniversal(
         dialogTitle: 'Export Report as CSV',
         fileName: fileName,
         bytes: Uint8List.fromList(bytes),
-        type: FileType.custom,
-        allowedExtensions: ['csv'],
       );
 
       if (result != null && mounted) {
@@ -287,12 +286,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
       );
       final fileName = 'siya_solar_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
 
-      final result = await FilePicker.platform.saveFile(
+      final result = await saveFileUniversal(
         dialogTitle: 'Export Report as PDF',
         fileName: fileName,
         bytes: pdfBytes,
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
       );
 
       if (result != null && mounted) {

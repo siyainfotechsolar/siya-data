@@ -11,6 +11,7 @@ import '../models/consumer_record.dart';
 import '../models/work_completion_report_data.dart';
 import 'company_stamp_helper.dart';
 import 'customer_signature_helper.dart';
+import '../utils/universal_file_saver.dart';
 
 class WorkCompletionCertificateService {
   static const PdfColor blackColor = PdfColor.fromInt(0xFF000000);
@@ -1514,12 +1515,10 @@ class WorkCompletionCertificateService {
 
       if (!downloaded) {
         try {
-          final result = await FilePicker.platform.saveFile(
+          final result = await saveFileUniversal(
             dialogTitle: 'Download $docPrefix PDF',
             fileName: fileName,
             bytes: bytes,
-            type: FileType.custom,
-            allowedExtensions: ['pdf'],
           );
           if (result != null) downloaded = true;
         } catch (_) {}
