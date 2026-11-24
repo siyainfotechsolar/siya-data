@@ -11,7 +11,6 @@ import '../services/msedcl_change_of_name_service.dart';
 import '../services/msedcl_pdf_service.dart';
 import '../services/msedcl_excel_service.dart';
 import '../utils/universal_file_saver.dart';
-import '../utils/consumer_no_utils.dart';
 import '../utils/responsive.dart';
 
 enum MsedclViewTab { all, pendingDocs, processing, completed }
@@ -1205,6 +1204,7 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
   // 5. Annexure A Documents
   List<MsedclDocumentItem> _documents = [];
 
+  int _currentStep = 0;
   bool _isSaving = false;
   String? _errorMessage;
 
@@ -1212,7 +1212,121 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging && _currentStep != _tabController.index) {
+        setState(() {
+          _currentStep = _tabController.index;
+        });
+      }
+    });
     _initData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _consumerNoCtrl.dispose();
+    _oldFirstNameCtrl.dispose();
+    _oldFatherHusbandCtrl.dispose();
+    _oldSurnameCtrl.dispose();
+    _oldFullNameCtrl.dispose();
+    _oldMobileCtrl.dispose();
+    _oldMeterNoCtrl.dispose();
+    _newFirstNameCtrl.dispose();
+    _newFatherHusbandCtrl.dispose();
+    _newSurnameCtrl.dispose();
+    _newFullNameCtrl.dispose();
+    _newAgeCtrl.dispose();
+    _newMobileCtrl.dispose();
+    _newPhoneCtrl.dispose();
+    _newEmailCtrl.dispose();
+    _newAadhaarCtrl.dispose();
+    _propertyAddressCtrl.dispose();
+    _applicationNoCtrl.dispose();
+    _villageCtrl.dispose();
+    _assignedEmployeeCtrl.dispose();
+    _remarksCtrl.dispose();
+    _affidavitPlaceCtrl.dispose();
+    _affidavitCustomTextCtrl.dispose();
+    _refundAccountHolderCtrl.dispose();
+    _refundBankNameCtrl.dispose();
+    _refundBranchCtrl.dispose();
+    _refundAccountNoCtrl.dispose();
+    _refundIfscCtrl.dispose();
+    _originalReceiptNoCtrl.dispose();
+    _indemnityBondDetailsCtrl.dispose();
+    super.dispose();
+  }
+
+  void _goToPreviousStep() {
+    if (_currentStep > 0) {
+      setState(() {
+        _errorMessage = null;
+        _currentStep = _currentStep - 1;
+      });
+      _tabController.animateTo(_currentStep);
+    }
+  }
+
+  void _goToNextStep() {
+    setState(() => _errorMessage = null);
+
+    // Validation when advancing from Step 1 (Customer Details)
+    if (_currentStep == 0) {
+      if (!_formKey.currentState!.validate()) {
+        return;
+      }
+      if (_consumerNoCtrl.text.trim().isEmpty) {
+        setState(() => _errorMessage = 'Consumer Number is required (ग्राहक क्रमांक आवश्यक आहे).');
+        return;
+      }
+      if (_oldFullNameCtrl.text.trim().isEmpty) {
+        setState(() => _errorMessage = 'Old Consumer Full Name is required (माजी ग्राहकाचे नाव आवश्यक आहे).');
+        return;
+      }
+      if (_newFullNameCtrl.text.trim().isEmpty) {
+        setState(() => _errorMessage = 'New Consumer Full Name is required (नवीन ग्राहकाचे नाव आवश्यक आहे).');
+        return;
+      }
+      if (_newMobileCtrl.text.trim().isEmpty) {
+        setState(() => _errorMessage = 'New Consumer Mobile Number is required (नवीन ग्राहकाचा मोबाईल क्र. आवश्यक आहे).');
+        return;
+      }
+      if (_propertyAddressCtrl.text.trim().isEmpty) {
+        setState(() => _errorMessage = 'Property Address is required (पत्ता आवश्यक आहे).');
+        return;
+      }
+    } else if (_currentStep == 1) {
+      // Step 2 validation
+      if (_applicationNoCtrl.text.trim().isEmpty) {
+        setState(() => _errorMessage = 'Application Number is required (अर्ज क्रमांक आवश्यक आहे).');
+        return;
+      }
+    }
+
+    if (_currentStep < 4) {
+      setState(() {
+        _currentStep = _currentStep + 1;
+      });
+      _tabController.animateTo(_currentStep);
+    }
+  }
+
+  String _getStepTitle(int step) {
+    switch (step) {
+      case 0:
+        return 'Customer Details';
+      case 1:
+        return 'Application Meta';
+      case 2:
+        return 'Stamp Paper';
+      case 3:
+        return 'Form X (Deposit)';
+      case 4:
+        return 'Annexure A (Submit)';
+      default:
+        return '';
+    }
   }
 
   void _initData() {
@@ -1431,8 +1545,8 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  'Enter customer details once to generate official Form U, Stamp Paper Affidavit & Form X',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  'Step ${_currentStep + 1} of 5: ${_getStepTitle(_currentStep)} • Complete all 5 steps to submit',
+                  style: TextStyle(fontSize: 12, color: Colors.blue.shade900, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -1471,6 +1585,18 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
                   ),
                 ),
               ],
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: (_currentStep + 1) / 5.0,
+                  backgroundColor: Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    _currentStep == 4 ? const Color(0xFF047857) : const Color(0xFF0F3B7A),
+                  ),
+                  minHeight: 4,
+                ),
+              ),
+              const SizedBox(height: 6),
               TabBar(
                 controller: _tabController,
                 isScrollable: true,
@@ -1479,11 +1605,11 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
                 unselectedLabelColor: Colors.grey.shade600,
                 indicatorColor: const Color(0xFF0F3B7A),
                 tabs: const [
-                  Tab(icon: Icon(Icons.people_outline, size: 18), text: '1. Customer Details'),
-                  Tab(icon: Icon(Icons.business_outlined, size: 18), text: '2. Application Meta'),
-                  Tab(icon: Icon(Icons.gavel_rounded, size: 18), text: '3. Stamp Paper Affidavit'),
-                  Tab(icon: Icon(Icons.security_outlined, size: 18), text: '4. Form X (Deposit)'),
-                  Tab(icon: Icon(Icons.attach_file_rounded, size: 18), text: '5. Annexure A (Docs)'),
+                  Tab(icon: Icon(Icons.people_outline, size: 18), text: 'Step 1: Customer Details'),
+                  Tab(icon: Icon(Icons.business_outlined, size: 18), text: 'Step 2: Application Meta'),
+                  Tab(icon: Icon(Icons.gavel_rounded, size: 18), text: 'Step 3: Stamp Paper'),
+                  Tab(icon: Icon(Icons.security_outlined, size: 18), text: 'Step 4: Form X (Deposit)'),
+                  Tab(icon: Icon(Icons.attach_file_rounded, size: 18), text: 'Step 5: Annexure A (Submit)'),
                 ],
               ),
               const SizedBox(height: 10),
@@ -1504,14 +1630,79 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F3B7A)),
-          onPressed: _isSaving ? null : _submit,
-          icon: _isSaving
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : const Icon(Icons.check_circle_outline, size: 18),
-          label: Text(isEdit ? 'Save Changes' : 'Create Application'),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _currentStep == 4 ? Colors.green.shade50 : const Color(0xFF0F3B7A).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _currentStep == 4 ? Colors.green.shade300 : const Color(0xFF0F3B7A).withOpacity(0.2),
+                    ),
+                  ),
+                  child: Text(
+                    'Step ${_currentStep + 1} of 5: ${_getStepTitle(_currentStep)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: _currentStep == 4 ? const Color(0xFF047857) : const Color(0xFF0F3B7A),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_currentStep > 0) ...[
+                  OutlinedButton.icon(
+                    onPressed: _goToPreviousStep,
+                    icon: const Icon(Icons.arrow_back, size: 16),
+                    label: const Text('Previous (मागे)'),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                if (_currentStep < 4)
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F3B7A)),
+                    onPressed: _goToNextStep,
+                    icon: const Icon(Icons.arrow_forward, size: 16),
+                    label: Text(
+                      _currentStep == 0
+                          ? 'Next: Step 2 ➔'
+                          : (_currentStep == 1
+                              ? 'Next: Step 3 ➔'
+                              : (_currentStep == 2 ? 'Next: Step 4 ➔' : 'Next: Step 5 ➔')),
+                    ),
+                  )
+                else
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF047857),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                    onPressed: _isSaving ? null : _submit,
+                    icon: _isSaving
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Icon(Icons.check_circle_outline, size: 18),
+                    label: Text(isEdit ? 'Submit Changes' : 'Submit Application (अर्ज सबमिट करा)'),
+                  ),
+              ],
+            ),
+          ],
         ),
       ],
     );
@@ -1719,6 +1910,16 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
             decoration: const InputDecoration(labelText: 'Complete Property / Installation Address *', border: OutlineInputBorder(), isDense: true),
             validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
           ),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F3B7A)),
+              onPressed: _goToNextStep,
+              icon: const Icon(Icons.arrow_forward, size: 16),
+              label: const Text('Next: Step 2 - Application Meta ➔'),
+            ),
+          ),
         ],
       ),
     );
@@ -1819,6 +2020,23 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
             controller: _remarksCtrl,
             maxLines: 2,
             decoration: const InputDecoration(labelText: 'Remarks / Case Notes', border: OutlineInputBorder(), isDense: true),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _goToPreviousStep,
+                icon: const Icon(Icons.arrow_back, size: 16),
+                label: const Text('⬅ Back to Step 1'),
+              ),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F3B7A)),
+                onPressed: _goToNextStep,
+                icon: const Icon(Icons.arrow_forward, size: 16),
+                label: const Text('Next: Step 3 - Stamp Paper ➔'),
+              ),
+            ],
           ),
         ],
       ),
@@ -1931,6 +2149,23 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
               border: OutlineInputBorder(),
               isDense: true,
             ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _goToPreviousStep,
+                icon: const Icon(Icons.arrow_back, size: 16),
+                label: const Text('⬅ Back to Step 2'),
+              ),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F3B7A)),
+                onPressed: _goToNextStep,
+                icon: const Icon(Icons.arrow_forward, size: 16),
+                label: const Text('Next: Step 4 - Form X Deposit ➔'),
+              ),
+            ],
           ),
         ],
       ),
@@ -2049,73 +2284,124 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
               ],
             ),
           ],
-        ],
-      ),
-    );
-  }
+          const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _goToPreviousStep,
+              icon: const Icon(Icons.arrow_back, size: 16),
+              label: const Text('⬅ Back to Step 3'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F3B7A)),
+              onPressed: _goToNextStep,
+              icon: const Icon(Icons.arrow_forward, size: 16),
+              label: const Text('Next: Step 5 - Documents Checklist ➔'),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
 
   // TAB 5: ANNEXURE A (DOCUMENTS CHECKLIST)
   Widget _buildDocumentsChecklistTab(bool isMobile) {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      itemCount: _documents.length,
-      separatorBuilder: (_, index) => const Divider(height: 1),
-      itemBuilder: (ctx, i) {
-        final doc = _documents[i];
-        return ListTile(
-          dense: true,
-          title: Text(doc.docType, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-          subtitle: doc.fileName != null ? Text('File: ${doc.fileName}', style: TextStyle(color: Colors.blue.shade800, fontSize: 11)) : null,
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            itemCount: _documents.length,
+            separatorBuilder: (_, index) => const Divider(height: 1),
+            itemBuilder: (ctx, i) {
+              final doc = _documents[i];
+              return ListTile(
+                dense: true,
+                title: Text(doc.docType, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                subtitle: doc.fileName != null ? Text('File: ${doc.fileName}', style: TextStyle(color: Colors.blue.shade800, fontSize: 11)) : null,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Status selector
+                    DropdownButton<String>(
+                      value: doc.status,
+                      underline: const SizedBox(),
+                      items: const [
+                        DropdownMenuItem(value: 'Received', child: Text('Received ✓', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
+                        DropdownMenuItem(value: 'Pending', child: Text('Pending ⏳', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold))),
+                        DropdownMenuItem(value: 'Not Applicable', child: Text('N/A -', style: TextStyle(color: Colors.grey))),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) {
+                          setState(() {
+                            _documents[i] = doc.copyWith(status: v);
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    // Attachment button
+                    IconButton(
+                      icon: Icon(doc.fileName != null ? Icons.check_circle : Icons.upload_file_outlined,
+                          size: 18, color: doc.fileName != null ? Colors.green : Colors.blueGrey),
+                      tooltip: 'Attach Document',
+                      onPressed: () async {
+                        final result = await FilePicker.platform.pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+                          withData: true,
+                        );
+                        if (result != null && result.files.isNotEmpty) {
+                          final f = result.files.first;
+                          final base64 = f.bytes != null ? base64Encode(f.bytes!) : null;
+                          setState(() {
+                            _documents[i] = doc.copyWith(
+                              fileName: f.name,
+                              fileBytesBase64: base64,
+                              status: 'Received',
+                              uploadedAt: DateTime.now(),
+                            );
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: Colors.grey.shade200)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Status selector
-              DropdownButton<String>(
-                value: doc.status,
-                underline: const SizedBox(),
-                items: const [
-                  DropdownMenuItem(value: 'Received', child: Text('Received ✓', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
-                  DropdownMenuItem(value: 'Pending', child: Text('Pending ⏳', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold))),
-                  DropdownMenuItem(value: 'Not Applicable', child: Text('N/A -', style: TextStyle(color: Colors.grey))),
-                ],
-                onChanged: (v) {
-                  if (v != null) {
-                    setState(() {
-                      _documents[i] = doc.copyWith(status: v);
-                    });
-                  }
-                },
+              OutlinedButton.icon(
+                onPressed: _goToPreviousStep,
+                icon: const Icon(Icons.arrow_back, size: 16),
+                label: const Text('⬅ Back to Step 4'),
               ),
-              const SizedBox(width: 6),
-              // Attachment button
-              IconButton(
-                icon: Icon(doc.fileName != null ? Icons.check_circle : Icons.upload_file_outlined,
-                    size: 18, color: doc.fileName != null ? Colors.green : Colors.blueGrey),
-                tooltip: 'Attach Document',
-                onPressed: () async {
-                  final result = await FilePicker.platform.pickFiles(
-                    type: FileType.custom,
-                    allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-                    withData: true,
-                  );
-                  if (result != null && result.files.isNotEmpty) {
-                    final f = result.files.first;
-                    final base64 = f.bytes != null ? base64Encode(f.bytes!) : null;
-                    setState(() {
-                      _documents[i] = doc.copyWith(
-                        fileName: f.name,
-                        fileBytesBase64: base64,
-                        status: 'Received',
-                        uploadedAt: DateTime.now(),
-                      );
-                    });
-                  }
-                },
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF047857),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+                onPressed: _isSaving ? null : _submit,
+                icon: _isSaving
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Icon(Icons.check_circle_outline, size: 18),
+                label: Text(widget.existing != null ? 'Submit & Save Changes' : 'Submit Application (अर्ज सबमिट करा)'),
               ),
             ],
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 }
@@ -2193,19 +2479,6 @@ class _MsedclDocumentGeneratorDialogState extends State<_MsedclDocumentGenerator
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to download: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  Future<void> _printDoc(Future<Uint8List> Function() generator) async {
-    try {
-      final bytes = await generator();
-      await Printing.layoutPdf(onLayout: (format) async => bytes);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Print error: $e'), backgroundColor: Colors.red),
         );
       }
     }
