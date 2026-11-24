@@ -89,6 +89,12 @@ class MsedclPdfService {
     final fontSmall = sf.PdfStandardFont(sf.PdfFontFamily.helvetica, 7.5);
     final fontCheck = sf.PdfStandardFont(sf.PdfFontFamily.helvetica, 10, style: sf.PdfFontStyle.bold);
 
+    // Alignment formats for perfect centering within form boxes and lines
+    final centerFormat = sf.PdfStringFormat(
+      alignment: sf.PdfTextAlignment.center,
+      lineAlignment: sf.PdfVerticalAlignment.middle,
+    );
+
     // =========================================================================
     // PAGE 0: OFFICIAL "U" FORM - DEDICATED NEW LAYER FOR CUSTOMER DETAILS
     // =========================================================================
@@ -104,40 +110,42 @@ class MsedclPdfService {
     g0.drawString(officeStr, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(85, 184, 250, 14));
 
     // 3. Old Consumer Details (First, Father, Surname)
+    // Centered vertically and horizontally inside the designated table cells
     final oldFirst = app.oldFirstName.isNotEmpty ? app.oldFirstName : (app.oldConsumerFullName.split(' ').isNotEmpty ? app.oldConsumerFullName.split(' ').first : '');
     final oldFather = app.oldFatherOrHusbandName.isNotEmpty ? app.oldFatherOrHusbandName : (app.oldConsumerFullName.split(' ').length > 1 ? app.oldConsumerFullName.split(' ')[1] : '');
     final oldLast = app.oldSurname.isNotEmpty ? app.oldSurname : (app.oldConsumerFullName.split(' ').length > 2 ? app.oldConsumerFullName.split(' ').last : '');
 
-    g0.drawString(oldFirst.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(180, 282, 100, 14));
-    g0.drawString(oldFather.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(290, 282, 120, 14));
-    g0.drawString(oldLast.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(425, 282, 90, 14));
+    g0.drawString(oldFirst.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(176, 280, 118, 30), format: centerFormat);
+    g0.drawString(oldFather.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(296, 280, 123, 30), format: centerFormat);
+    g0.drawString(oldLast.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(421, 280, 116, 30), format: centerFormat);
 
     // Old Consumer No & Mobile
-    g0.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(185, 314, 130, 14));
+    g0.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(180, 311, 115, 23), format: centerFormat);
     if (app.oldMobileNo.isNotEmpty) {
-      g0.drawString(app.oldMobileNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(390, 314, 100, 14));
+      g0.drawString(app.oldMobileNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(345, 311, 190, 23), format: centerFormat);
     }
 
     // 4. New Consumer Details (First, Father, Surname)
+    // Centered vertically and horizontally inside the designated table cells
     final newFirst = app.newFirstName.isNotEmpty ? app.newFirstName : (app.computedNewFullName.split(' ').isNotEmpty ? app.computedNewFullName.split(' ').first : '');
     final newFather = app.newFatherOrHusbandName.isNotEmpty ? app.newFatherOrHusbandName : (app.computedNewFullName.split(' ').length > 1 ? app.computedNewFullName.split(' ')[1] : '');
     final newLast = app.newSurname.isNotEmpty ? app.newSurname : (app.computedNewFullName.split(' ').length > 2 ? app.computedNewFullName.split(' ').last : '');
 
-    g0.drawString(newFirst.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(180, 392, 100, 14));
-    g0.drawString(newFather.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(290, 392, 120, 14));
-    g0.drawString(newLast.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(425, 392, 90, 14));
+    g0.drawString(newFirst.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(176, 390, 118, 30), format: centerFormat);
+    g0.drawString(newFather.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(296, 390, 123, 30), format: centerFormat);
+    g0.drawString(newLast.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(421, 390, 116, 30), format: centerFormat);
 
     // New Consumer Contact: Email, Phone, Mobile
     // Carefully sized to fit into official template boxes without colliding
     if (app.newEmail.isNotEmpty) {
-      g0.drawString(app.newEmail, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(135, 423, 90, 12));
+      g0.drawString(app.newEmail, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(132, 420, 88, 17), format: centerFormat);
     }
-    g0.drawString(app.newPhoneNo.isNotEmpty ? app.newPhoneNo : '-', fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(280, 423, 75, 12));
-    g0.drawString(app.newMobileNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(410, 423, 95, 12));
+    g0.drawString(app.newPhoneNo.isNotEmpty ? app.newPhoneNo : '-', fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(277, 420, 73, 17), format: centerFormat);
+    g0.drawString(app.newMobileNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(407, 420, 128, 17), format: centerFormat);
 
     // Aadhaar Card No (Optional)
     if (app.newAadhaarNo.isNotEmpty) {
-      g0.drawString(app.newAadhaarNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(220, 440, 130, 14));
+      g0.drawString(app.newAadhaarNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(200, 437, 160, 16), format: sf.PdfStringFormat(lineAlignment: sf.PdfVerticalAlignment.middle));
     }
 
     // 5. Reason for Change of Name
@@ -188,9 +196,9 @@ class MsedclPdfService {
     // FORM X
     if (app.isFormXTransfer) {
       // Option a) Transfer of Security Deposit
-      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(175, 417, 260, 14));
-      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(360, 429, 115, 14));
-      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(205, 441, 260, 14));
+      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(170, 412, 270, 14), format: centerFormat);
+      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(355, 424, 120, 14), format: centerFormat);
+      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(205, 436, 280, 14), format: centerFormat);
 
       // Old Consumer Consent Signature
       if (app.hasOldConsumerSignature && app.oldConsumerSignatureBytes != null) {
@@ -201,9 +209,9 @@ class MsedclPdfService {
       }
     } else {
       // Option b) Refund of Security Deposit
-      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(175, 590, 260, 14));
-      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(370, 604, 140, 14));
-      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(345, 617, 120, 14));
+      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(170, 585, 270, 14), format: centerFormat);
+      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(365, 599, 140, 14), format: centerFormat);
+      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(345, 612, 125, 14), format: centerFormat);
 
       final holder = app.refundAccountHolderName.isNotEmpty ? app.refundAccountHolderName : app.oldConsumerFullName;
       g1.drawString(holder, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(195, 672, 250, 14));
