@@ -97,70 +97,68 @@ class MsedclPdfService {
     final g0 = layer0.graphics;
 
     // 1. Date of Application
-    g0.drawString(_dateFormat.format(app.applicationDate), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(475, 134, 90, 14));
+    g0.drawString(_dateFormat.format(app.applicationDate), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(485, 134, 85, 14));
 
     // 2. Sub-Division / Circle Office
     final officeStr = '${app.subDivisionOffice.isNotEmpty ? app.subDivisionOffice : "Sub-Division"}, ${app.circleOffice.isNotEmpty ? app.circleOffice : "Circle Office"}';
     g0.drawString(officeStr, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(85, 184, 250, 14));
 
-    // 3. Old Consumer Details
+    // 3. Old Consumer Details (First, Father, Surname)
     final oldFirst = app.oldFirstName.isNotEmpty ? app.oldFirstName : (app.oldConsumerFullName.split(' ').isNotEmpty ? app.oldConsumerFullName.split(' ').first : '');
     final oldFather = app.oldFatherOrHusbandName.isNotEmpty ? app.oldFatherOrHusbandName : (app.oldConsumerFullName.split(' ').length > 1 ? app.oldConsumerFullName.split(' ')[1] : '');
     final oldLast = app.oldSurname.isNotEmpty ? app.oldSurname : (app.oldConsumerFullName.split(' ').length > 2 ? app.oldConsumerFullName.split(' ').last : '');
 
-    g0.drawString(oldFirst.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(180, 278, 100, 14));
-    g0.drawString(oldFather.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(290, 278, 120, 14));
-    g0.drawString(oldLast.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(425, 278, 90, 14));
+    g0.drawString(oldFirst.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(180, 282, 100, 14));
+    g0.drawString(oldFather.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(290, 282, 120, 14));
+    g0.drawString(oldLast.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(425, 282, 90, 14));
 
     // Old Consumer No & Mobile
-    g0.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(185, 313, 130, 14));
+    g0.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(185, 314, 130, 14));
     if (app.oldMobileNo.isNotEmpty) {
-      g0.drawString(app.oldMobileNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(400, 313, 100, 14));
+      g0.drawString(app.oldMobileNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(390, 314, 100, 14));
     }
 
-    // 4. New Consumer Details
+    // 4. New Consumer Details (First, Father, Surname)
     final newFirst = app.newFirstName.isNotEmpty ? app.newFirstName : (app.computedNewFullName.split(' ').isNotEmpty ? app.computedNewFullName.split(' ').first : '');
     final newFather = app.newFatherOrHusbandName.isNotEmpty ? app.newFatherOrHusbandName : (app.computedNewFullName.split(' ').length > 1 ? app.computedNewFullName.split(' ')[1] : '');
     final newLast = app.newSurname.isNotEmpty ? app.newSurname : (app.computedNewFullName.split(' ').length > 2 ? app.computedNewFullName.split(' ').last : '');
 
-    g0.drawString(newFirst.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(180, 388, 100, 14));
-    g0.drawString(newFather.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(290, 388, 120, 14));
-    g0.drawString(newLast.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(425, 388, 90, 14));
+    g0.drawString(newFirst.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(180, 392, 100, 14));
+    g0.drawString(newFather.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(290, 392, 120, 14));
+    g0.drawString(newLast.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(425, 392, 90, 14));
 
     // New Consumer Contact: Email, Phone, Mobile
+    // Carefully sized to fit into official template boxes without colliding
     if (app.newEmail.isNotEmpty) {
-      g0.drawString(app.newEmail, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(135, 421, 150, 14));
+      g0.drawString(app.newEmail, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(135, 423, 90, 12));
     }
-    g0.drawString(app.newPhoneNo.isNotEmpty ? app.newPhoneNo : '-', fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(320, 421, 60, 14));
-    g0.drawString(app.newMobileNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(425, 421, 90, 14));
+    g0.drawString(app.newPhoneNo.isNotEmpty ? app.newPhoneNo : '-', fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(280, 423, 75, 12));
+    g0.drawString(app.newMobileNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(410, 423, 95, 12));
 
     // Aadhaar Card No (Optional)
     if (app.newAadhaarNo.isNotEmpty) {
-      g0.drawString(app.newAadhaarNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(225, 437, 130, 14));
+      g0.drawString(app.newAadhaarNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(220, 440, 130, 14));
     }
 
     // 5. Reason for Change of Name
     final reasonText = '${app.reasonForChange}${app.remarks.isNotEmpty ? " (${app.remarks})" : ""}';
-    g0.drawString(reasonText, fontNormal, brush: textBrush, bounds: ui.Rect.fromLTWH(230, 458, 280, 14));
+    g0.drawString(reasonText, fontNormal, brush: textBrush, bounds: ui.Rect.fromLTWH(225, 459, 295, 14));
 
-    // 6. Documents Enclosed
+    // 6. Documents Enclosed (fits neatly before "(Please see Annexure A)")
     final docList = app.documents.where((d) => d.isReceived).map((d) => d.docType).toList();
-    final enclosedText = docList.isNotEmpty ? docList.take(3).join(', ') : 'Registered Sale Deed, 7/12 Extract, Stamp Affidavit';
-    g0.drawString(enclosedText, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(245, 482, 260, 14));
+    final enclosedText = docList.isNotEmpty ? docList.take(2).join(', ') : 'Registered Sale Deed, 7/12 Extract';
+    g0.drawString(enclosedText, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(242, 482, 180, 14));
 
-    // 7. Signature of Applicant
+    // 7. Signature of Applicant (placed directly above "Signature of Applicant" label)
     if (app.hasNewConsumerSignature && app.newConsumerSignatureBytes != null) {
       try {
         final pdfBitmap = sf.PdfBitmap(app.newConsumerSignatureBytes!);
-        g0.drawImage(pdfBitmap, ui.Rect.fromLTWH(385, 642, 130, 38));
+        g0.drawImage(pdfBitmap, ui.Rect.fromLTWH(390, 642, 120, 38));
       } catch (_) {}
     }
 
-    // 8. Bottom Acknowledgement Receipt Slip Details
-    // Official slip labels: Application No.:, Applicant Name:, Application Received Date:
-    g0.drawString(app.applicationNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(150, 706, 140, 14));
-    g0.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(145, 724, 180, 14));
-    g0.drawString(_dateFormat.format(app.applicationDate), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(185, 742, 100, 14));
+    // 8. Bottom Acknowledgement Receipt Slip Details:
+    // Left completely BLANK for MSEDCL counter office use per user instruction ("he fill chi garaj nahi")
 
     // =========================================================================
     // PAGE 1: ANNEXURE A & FORM X - DEDICATED NEW LAYER
@@ -169,7 +167,7 @@ class MsedclPdfService {
     final layer1 = page1.layers.add(name: 'AnnexureAndFormXDetails');
     final g1 = layer1.graphics;
 
-    // Checkmarks for Annexure A Checklist
+    // Checkmarks for Annexure A Checklist (placed neatly inside the box margin at x = 73)
     bool hasOcc = app.documents.any((d) => d.isReceived && d.docType == MsedclDocumentType.occupancyCertificate);
     bool hasOwn = app.documents.any((d) => d.isReceived && (d.docType == MsedclDocumentType.ownershipProof || d.docType == MsedclDocumentType.extract712 || d.docType == MsedclDocumentType.form8 || d.docType == MsedclDocumentType.propertyTaxReceipt));
     bool hasLegal = app.documents.any((d) => d.isReceived && d.docType == MsedclDocumentType.successionOrWill);
@@ -181,44 +179,44 @@ class MsedclPdfService {
       hasAffidavit = true;
     }
 
-    if (hasOcc) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(62, 149, 18, 14));
-    if (hasOwn) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(62, 165, 18, 14));
-    if (hasLegal) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(62, 188, 18, 14));
-    if (hasAffidavit) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(62, 224, 18, 14));
-    if (hasNoc) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(62, 236, 18, 14));
+    if (hasOcc) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(73, 151, 14, 14));
+    if (hasOwn) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(73, 167, 14, 14));
+    if (hasLegal) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(73, 188, 14, 14));
+    if (hasAffidavit) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(73, 226, 14, 14));
+    if (hasNoc) g1.drawString('[X]', fontCheck, brush: textBrush, bounds: ui.Rect.fromLTWH(73, 240, 14, 14));
 
     // FORM X
     if (app.isFormXTransfer) {
       // Option a) Transfer of Security Deposit
-      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(190, 415, 260, 14));
-      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(365, 427, 120, 14));
-      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(205, 439, 260, 14));
+      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(175, 417, 260, 14));
+      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(360, 429, 115, 14));
+      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(205, 441, 260, 14));
 
       // Old Consumer Consent Signature
       if (app.hasOldConsumerSignature && app.oldConsumerSignatureBytes != null) {
         try {
           final pdfBitmap = sf.PdfBitmap(app.oldConsumerSignatureBytes!);
-          g1.drawImage(pdfBitmap, ui.Rect.fromLTWH(370, 465, 130, 35));
+          g1.drawImage(pdfBitmap, ui.Rect.fromLTWH(380, 462, 120, 36));
         } catch (_) {}
       }
     } else {
       // Option b) Refund of Security Deposit
-      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(190, 589, 260, 14));
-      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(370, 603, 140, 14));
-      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(80, 630, 120, 14));
+      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(175, 590, 260, 14));
+      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(370, 604, 140, 14));
+      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(345, 617, 120, 14));
 
       final holder = app.refundAccountHolderName.isNotEmpty ? app.refundAccountHolderName : app.oldConsumerFullName;
-      g1.drawString(holder, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(210, 672, 250, 14));
-      g1.drawString('${app.refundBankName} ${app.refundBranch}'.trim(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(210, 684, 250, 14));
-      g1.drawString(app.refundAccountNumber, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(150, 697, 200, 14));
-      g1.drawString(app.refundIfscCode, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(135, 710, 150, 14));
-      g1.drawString(app.originalReceiptNo.isNotEmpty ? app.originalReceiptNo : (app.receiptStatus == 'Available' ? 'Available' : 'Lost (Indemnity Enclosed)'), fontNormal, brush: textBrush, bounds: ui.Rect.fromLTWH(185, 722, 150, 14));
+      g1.drawString(holder, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(195, 672, 250, 14));
+      g1.drawString('${app.refundBankName} ${app.refundBranch}'.trim(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(195, 685, 250, 14));
+      g1.drawString(app.refundAccountNumber, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(145, 697, 200, 14));
+      g1.drawString(app.refundIfscCode, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(125, 710, 150, 14));
+      g1.drawString(app.originalReceiptNo.isNotEmpty ? app.originalReceiptNo : (app.receiptStatus == 'Available' ? 'Available' : 'Lost (Indemnity Enclosed)'), fontNormal, brush: textBrush, bounds: ui.Rect.fromLTWH(175, 722, 150, 14));
 
       // Old Consumer Refund Signature
       if (app.hasOldConsumerSignature && app.oldConsumerSignatureBytes != null) {
         try {
           final pdfBitmap = sf.PdfBitmap(app.oldConsumerSignatureBytes!);
-          g1.drawImage(pdfBitmap, ui.Rect.fromLTWH(370, 725, 130, 35));
+          g1.drawImage(pdfBitmap, ui.Rect.fromLTWH(380, 722, 120, 36));
         } catch (_) {}
       }
     }
@@ -675,9 +673,9 @@ class MsedclPdfService {
                           crossAxisAlignment: pw.CrossAxisAlignment.start,
                           mainAxisAlignment: pw.MainAxisAlignment.center,
                           children: [
-                            pw.Text('Application No.: ${app.applicationNo}', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                            pw.Text('Applicant Name: ${app.computedNewFullName}', style: const pw.TextStyle(fontSize: 6.8)),
-                            pw.Text('Application Received Date: ${_dateFormat.format(app.applicationDate)}', style: const pw.TextStyle(fontSize: 6.8)),
+                            pw.Text('Application No.: ________________________', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                            pw.Text('Applicant Name: ________________________', style: const pw.TextStyle(fontSize: 6.8)),
+                            pw.Text('Application Received Date: ____________', style: const pw.TextStyle(fontSize: 6.8)),
                           ],
                         ),
                       ),
@@ -938,8 +936,8 @@ class MsedclPdfService {
 
     pdf.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(28),
+        pageFormat: const PdfPageFormat(612.0, 792.0), // Match exact US Letter dimensions of official MSEDCL form
+        margin: const pw.EdgeInsets.symmetric(horizontal: 26, vertical: 18),
         theme: pdfTheme,
         build: (context) {
           return pw.Column(
@@ -951,49 +949,49 @@ class MsedclPdfService {
               else ...[
                 // Simulated Stamp Paper Header when printed on plain paper
                 pw.Container(
-                  padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 10),
                   decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: const PdfColor.fromInt(0xFF854D0E), width: 1.5),
+                    border: pw.Border.all(color: const PdfColor.fromInt(0xFF854D0E), width: 1.2),
                     color: const PdfColor.fromInt(0xFFFEFCE8),
-                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5)),
                   ),
                   child: pw.Column(
                     children: [
                       pw.Text(
                         'GOVERNMENT OF MAHARASHTRA | NON-JUDICIAL STAMP PAPER',
-                        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF854D0E)),
+                        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF854D0E)),
                         textAlign: pw.TextAlign.center,
                       ),
-                      pw.SizedBox(height: 2),
+                      pw.SizedBox(height: 1),
                       pw.Text(
                         'महाराष्ट्र शासन | मुद्रांक शुल्क मूल्य: रु. ${app.stampPaperValue.toInt()}/- (रुपये ${app.stampPaperValue.toInt()} फक्त)',
-                        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF854D0E)),
+                        style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF854D0E)),
                         textAlign: pw.TextAlign.center,
                       ),
                     ],
                   ),
                 ),
-                pw.SizedBox(height: 12),
+                pw.SizedBox(height: 8),
               ],
 
               // Affidavit Title
               pw.Text(
                 isMarathi ? '।। प्रतिज्ञापत्र / हमीपत्र ।।' : 'AFFIDAVIT / UNDERTAKING',
-                style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: primaryBlue),
+                style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: primaryBlue),
                 textAlign: pw.TextAlign.center,
               ),
               pw.Text(
                 isMarathi
                     ? '(महाराष्ट्र राज्य विद्युत वितरण कंपनी मर्यादित - वीज ग्राहक नाव बदल कामी)'
                     : '(For Change of Name in MSEDCL Electricity Connection)',
-                style: const pw.TextStyle(fontSize: 9, color: mutedText),
+                style: const pw.TextStyle(fontSize: 8.5, color: mutedText),
                 textAlign: pw.TextAlign.center,
               ),
-              pw.SizedBox(height: 12),
+              pw.SizedBox(height: 8),
 
               // Deponent / Applicant Details
               pw.Container(
-                padding: const pw.EdgeInsets.all(10),
+                padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 decoration: pw.BoxDecoration(border: pw.Border.all(color: borderColor, width: 0.8), color: lightBg),
                 child: isMarathi
                     ? pw.Column(
@@ -1001,14 +999,14 @@ class MsedclPdfService {
                         children: [
                           pw.Text(
                             'मी खालीलप्रमाणे सत्य प्रतिज्ञेवर लिहून देतो / देते की —',
-                            style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold),
+                            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
                           ),
-                          pw.SizedBox(height: 4),
+                          pw.SizedBox(height: 3),
                           pw.Text(
                             'अर्जदार / नवीन ग्राहक: ${app.computedNewFullName}, वय: ${app.newAge} वर्षे, व्यवसाय: शेती/व्यवसाय/नोकरी, '
                             'रा. ${app.propertyAddress}. '
                             'आधार क्र.: ${app.newAadhaarNo.isNotEmpty ? app.newAadhaarNo : "लागू नाही"}.',
-                            style: const pw.TextStyle(fontSize: 8.5, height: 1.4),
+                            style: const pw.TextStyle(fontSize: 8, height: 1.3),
                           ),
                         ],
                       )
@@ -1017,27 +1015,27 @@ class MsedclPdfService {
                         children: [
                           pw.Text(
                             'I, the undersigned deponent, do hereby solemnly affirm and state on oath as under:',
-                            style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold),
+                            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
                           ),
-                          pw.SizedBox(height: 4),
+                          pw.SizedBox(height: 3),
                           pw.Text(
                             'Applicant / Transferee: ${app.computedNewFullName}, Age: ${app.newAge} Years, '
                             'Residing at: ${app.propertyAddress}. '
                             'Aadhaar No: ${app.newAadhaarNo.isNotEmpty ? app.newAadhaarNo : "N/A"}.',
-                            style: const pw.TextStyle(fontSize: 8.5, height: 1.4),
+                            style: const pw.TextStyle(fontSize: 8, height: 1.3),
                           ),
                         ],
                       ),
               ),
-              pw.SizedBox(height: 10),
+              pw.SizedBox(height: 8),
 
               // Custom or Standard Affidavit Body
               if (app.affidavitCustomText != null && app.affidavitCustomText!.trim().isNotEmpty)
                 pw.Container(
-                  padding: const pw.EdgeInsets.all(8),
+                  padding: const pw.EdgeInsets.all(6),
                   child: pw.Text(
                     app.affidavitCustomText!,
-                    style: const pw.TextStyle(fontSize: 8.5, height: 1.4),
+                    style: const pw.TextStyle(fontSize: 8, height: 1.3),
                   ),
                 )
               else if (isMarathi) ...[
@@ -1056,14 +1054,14 @@ class MsedclPdfService {
                 _buildClauseText('6.', 'That all statements made herein and documents submitted are true, correct, and legally valid. I hereby indemnify MSEDCL against any third-party claims or disputes.'),
               ],
 
-              pw.SizedBox(height: 12),
+              pw.SizedBox(height: 8),
               pw.Text(
                 isMarathi
                     ? 'करिता हे प्रतिज्ञापत्र / हमीपत्र मी स्वतःच्या राजीखुशीने, कोणत्याही दबावाशिवाय लिहून सही केली आहे. जेणेकरून महावितरण कार्यालयात पुरावा म्हणून सादर करता येईल.'
                     : 'Solemnly affirmed and signed on this day with sound mind and free will, without any coercion or undue influence.',
-                style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic),
+                style: pw.TextStyle(fontSize: 7.5, fontStyle: isMarathi ? pw.FontStyle.normal : pw.FontStyle.italic),
               ),
-              pw.SizedBox(height: 20),
+              pw.SizedBox(height: 12),
 
               // Date, Place & Applicant Signature
               pw.Row(
@@ -1072,8 +1070,8 @@ class MsedclPdfService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text(isMarathi ? 'दिनांक: ${_dateFormat.format(app.applicationDate)}' : 'Date: ${_dateFormat.format(app.applicationDate)}', style: const pw.TextStyle(fontSize: 8.5)),
-                      pw.Text(isMarathi ? 'ठिकाण: ${app.affidavitPlace}' : 'Place: ${app.affidavitPlace}', style: const pw.TextStyle(fontSize: 8.5)),
+                      pw.Text(isMarathi ? 'दिनांक: ${_dateFormat.format(app.applicationDate)}' : 'Date: ${_dateFormat.format(app.applicationDate)}', style: const pw.TextStyle(fontSize: 8)),
+                      pw.Text(isMarathi ? 'ठिकाण: ${app.affidavitPlace}' : 'Place: ${app.affidavitPlace}', style: const pw.TextStyle(fontSize: 8)),
                     ],
                   ),
                   pw.Column(
@@ -1081,27 +1079,27 @@ class MsedclPdfService {
                     children: [
                       if (app.hasNewConsumerSignature)
                         pw.Container(
-                          height: 38,
-                          child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 36, fit: pw.BoxFit.contain),
+                          height: 32,
+                          child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 30, fit: pw.BoxFit.contain),
                         )
                       else
-                        pw.SizedBox(height: 38),
-                      pw.Container(width: 150, height: 1, color: darkText),
-                      pw.SizedBox(height: 4),
+                        pw.SizedBox(height: 32),
+                      pw.Container(width: 140, height: 0.8, color: darkText),
+                      pw.SizedBox(height: 3),
                       pw.Text(
                         isMarathi ? 'प्रतिज्ञापत्र देणारा / अर्जदार (सही)' : 'Signature of Deponent / Applicant',
-                        style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                        style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
                       ),
-                      pw.Text('(${app.computedNewFullName})', style: const pw.TextStyle(fontSize: 8, color: mutedText)),
+                      pw.Text('(${app.computedNewFullName})', style: const pw.TextStyle(fontSize: 7.5, color: mutedText)),
                     ],
                   ),
                 ],
               ),
-              pw.Spacer(),
+              pw.SizedBox(height: 10),
 
               // Blank Notary / Attestation Block (Left strictly blank for physical attestation)
               pw.Container(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 decoration: pw.BoxDecoration(border: pw.Border.all(color: borderColor, width: 0.8)),
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -1109,19 +1107,19 @@ class MsedclPdfService {
                     pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
-                        pw.Text('BEFORE ME', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                        pw.SizedBox(height: 20),
-                        pw.Text('Notary Public / Executive Magistrate', style: const pw.TextStyle(fontSize: 7.5)),
-                        pw.Text('(Affix Notary Stamp & Seal here)', style: const pw.TextStyle(fontSize: 7, color: mutedText)),
+                        pw.Text('BEFORE ME', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                        pw.SizedBox(height: 12),
+                        pw.Text('Notary Public / Executive Magistrate', style: const pw.TextStyle(fontSize: 7)),
+                        pw.Text('(Affix Notary Stamp & Seal here)', style: const pw.TextStyle(fontSize: 6.5, color: mutedText)),
                       ],
                     ),
                     pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.end,
                       children: [
-                        pw.Text('IDENTIFIED BY', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                        pw.SizedBox(height: 20),
-                        pw.Text('Advocate / Witness Signature', style: const pw.TextStyle(fontSize: 7.5)),
-                        pw.Text('Name: ______________________', style: const pw.TextStyle(fontSize: 7, color: mutedText)),
+                        pw.Text('IDENTIFIED BY', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                        pw.SizedBox(height: 12),
+                        pw.Text('Advocate / Witness Signature', style: const pw.TextStyle(fontSize: 7)),
+                        pw.Text('Name: ______________________', style: const pw.TextStyle(fontSize: 6.5, color: mutedText)),
                       ],
                     ),
                   ],
