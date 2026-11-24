@@ -284,7 +284,7 @@ class MsedclChangeOfNameApplication {
     // Stamp Paper Configuration
     this.stampPaperValue = 100.0,
     this.stampPaperState = 'Maharashtra',
-    this.stampPaperLanguage = 'Marathi',
+    this.stampPaperLanguage = 'English', // Default English Self Undertaking for MSEDCL / Net Metering
     this.stampTopMarginMm = 80.0, // Default 80mm top margin for physical stamp paper
     this.affidavitCustomText,
     this.affidavitPlace = 'Dhule',

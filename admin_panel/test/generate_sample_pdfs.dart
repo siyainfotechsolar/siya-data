@@ -43,7 +43,7 @@ void main() {
       propertyAddress: 'Plot No. 14, Gat No. 88, Near Water Tank, Nardana, Tal. Shindkheda, Dist. Dhule',
       stampPaperValue: 100.0,
       stampPaperState: 'Maharashtra',
-      stampPaperLanguage: 'Marathi',
+      stampPaperLanguage: 'English',
       stampTopMarginMm: 80.0,
       formXOption: 'transfer',
       oldConsumerConsent: true,

@@ -1185,7 +1185,7 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
 
   // 3. Stamp Paper Controllers
   double _stampValue = 100.0;
-  String _stampLanguage = 'Marathi';
+  String _stampLanguage = 'English'; // Default English Self Undertaking for MSEDCL / Net Metering
   double _stampTopMarginMm = 80.0;
   final _affidavitPlaceCtrl = TextEditingController(text: 'Dhule');
   final _affidavitCustomTextCtrl = TextEditingController();
@@ -2197,8 +2197,8 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
                   value: _stampLanguage,
                   decoration: const InputDecoration(labelText: 'Language *', border: OutlineInputBorder(), isDense: true),
                   items: const [
-                    DropdownMenuItem(value: 'Marathi', child: Text('मराठी (Marathi - Official)')),
-                    DropdownMenuItem(value: 'English', child: Text('English')),
+                    DropdownMenuItem(value: 'English', child: Text('English (Self Undertaking - Official)')),
+                    DropdownMenuItem(value: 'Marathi', child: Text('मराठी (Marathi - प्रतिज्ञापत्र / हमीपत्र)')),
                   ],
                   onChanged: (val) {
                     if (val != null) setState(() => _stampLanguage = val);
