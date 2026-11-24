@@ -31,6 +31,7 @@ import 'solar_site_cost_calculator_screen.dart';
 import 'team_expense_calculator_screen.dart';
 import 'team_work_expense_screen.dart';
 import 'sales_commission_screen.dart';
+import 'msedcl_change_of_name_screen.dart';
 import '../models/user_profile.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -75,6 +76,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItem(id: 'solar_quotation_generator', label: 'Solar Quotation Generator', icon: Icons.solar_power_outlined, selectedIcon: Icons.solar_power, isMainBottomNav: false, moduleKey: 'solar_quotation', category: 'Tools'),
     _NavItem(id: 'solar_site_cost_calculator', label: 'Site Cost Calculator', icon: Icons.calculate_outlined, selectedIcon: Icons.calculate, isMainBottomNav: false, moduleKey: 'solar_cost_calculator', category: 'Tools'),
     _NavItem(id: 'team_expenses', label: 'Team Work & Expenses', icon: Icons.group_work_outlined, selectedIcon: Icons.group_work, isMainBottomNav: false, moduleKey: 'team_expenses', category: 'Tools'),
+    _NavItem(id: 'msedcl_change_of_name', label: 'MSEDCL Name Change & Stamp', icon: Icons.assignment_turned_in_outlined, selectedIcon: Icons.assignment_turned_in, isMainBottomNav: false, category: 'Tools'),
     _NavItem(id: 'history', label: 'History', icon: Icons.history_outlined, selectedIcon: Icons.history, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'audit', label: 'Audit', icon: Icons.shield_outlined, selectedIcon: Icons.shield, isMainBottomNav: false, moduleKey: 'settings'),
     _NavItem(id: 'duplicates', label: 'Duplicates', icon: Icons.find_in_page_outlined, selectedIcon: Icons.find_in_page, isMainBottomNav: false, moduleKey: 'customer'),
@@ -639,6 +641,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return const TeamWorkExpenseScreen();
       case 'sales_commissions':
         return const SalesCommissionScreen();
+      case 'msedcl_change_of_name':
+        return const MsedclChangeOfNameScreen();
       case 'history':
         return const HistoryScreen();
       case 'audit':

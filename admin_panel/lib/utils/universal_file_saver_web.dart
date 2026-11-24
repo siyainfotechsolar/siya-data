@@ -8,9 +8,12 @@ Future<String?> saveFileUniversal({
   String? dialogTitle,
 }) async {
   try {
+    final mimeType = fileName.toLowerCase().endsWith('.pdf')
+        ? 'application/pdf'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
     final blob = web.Blob(
       [bytes.toJS].toJS,
-      web.BlobPropertyBag(type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+      web.BlobPropertyBag(type: mimeType),
     );
     final url = web.URL.createObjectURL(blob);
     final anchor = web.HTMLAnchorElement()

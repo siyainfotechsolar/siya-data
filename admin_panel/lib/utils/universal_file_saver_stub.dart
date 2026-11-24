@@ -7,11 +7,12 @@ Future<String?> saveFileUniversal({
   required String fileName,
   String? dialogTitle,
 }) async {
+  final ext = fileName.toLowerCase().endsWith('.pdf') ? ['pdf'] : ['xlsx', 'pdf'];
   final result = await FilePicker.platform.saveFile(
     dialogTitle: dialogTitle ?? 'Save File',
     fileName: fileName,
     type: FileType.custom,
-    allowedExtensions: ['xlsx'],
+    allowedExtensions: ext,
     bytes: bytes,
   );
   if (result != null) {
