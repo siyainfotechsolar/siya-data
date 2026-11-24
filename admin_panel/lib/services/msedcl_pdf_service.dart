@@ -157,11 +157,10 @@ class MsedclPdfService {
     }
 
     // 8. Bottom Acknowledgement Receipt Slip Details
-    g0.drawString(app.subDivisionOffice.isNotEmpty ? app.subDivisionOffice : "Nardana Sub-Division", fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(240, 725, 160, 12));
-    g0.drawString(app.oldConsumerFullName, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(180, 745, 140, 12));
-    g0.drawString(app.computedNewFullName, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(370, 745, 140, 12));
-    g0.drawString(app.consumerNo, fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(180, 758, 120, 12));
-    g0.drawString(_dateFormat.format(app.applicationDate), fontSmall, brush: textBrush, bounds: ui.Rect.fromLTWH(370, 758, 100, 12));
+    // Official slip labels: Application No.:, Applicant Name:, Application Received Date:
+    g0.drawString(app.applicationNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(150, 706, 140, 14));
+    g0.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(145, 724, 180, 14));
+    g0.drawString(_dateFormat.format(app.applicationDate), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(185, 742, 100, 14));
 
     // =========================================================================
     // PAGE 1: ANNEXURE A & FORM X - DEDICATED NEW LAYER
