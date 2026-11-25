@@ -9,6 +9,7 @@ import '../services/sub_vendor_service.dart';
 import '../services/sub_vendor_pdf_service.dart';
 import '../widgets/sub_vendor_dialogs.dart';
 import 'sub_vendor_complete_financial_dashboard_screen.dart';
+import 'sub_vendor_material_outward_screen.dart';
 import '../utils/universal_file_saver.dart';
 
 final _currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 2);
@@ -44,7 +45,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _loadAllData();
   }
 
@@ -215,6 +216,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
             Tab(icon: Icon(Icons.people, size: 18), text: 'Vendor Accounts'),
             Tab(icon: Icon(Icons.assignment, size: 18), text: 'Site Assignments'),
             Tab(icon: Icon(Icons.inventory, size: 18), text: 'Material Tracking'),
+            Tab(icon: Icon(Icons.outbox_rounded, size: 18), text: 'Material Outward'),
             Tab(icon: Icon(Icons.account_balance, size: 18), text: 'Customer Payments & Loans'),
             Tab(icon: Icon(Icons.assessment, size: 18), text: 'Financial Summaries'),
           ],
@@ -228,6 +230,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                 _buildVendorsListTab(),
                 _buildAssignmentsTab(),
                 _buildMaterialTrackingTab(),
+                const SubVendorMaterialOutwardScreen(),
                 _buildCustomerPaymentsTab(),
                 _buildFinancialSummariesTab(),
               ],
@@ -996,6 +999,17 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                 ),
               ),
               const SizedBox(width: 12),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.outbox_rounded, size: 16),
+                label: const Text('Material Outward Tracking'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF0D2B6F),
+                  side: const BorderSide(color: Color(0xFF0D2B6F)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                ),
+                onPressed: () => _tabController.animateTo(3),
+              ),
+              const SizedBox(width: 8),
               ElevatedButton.icon(
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('Issue Material to Site'),
