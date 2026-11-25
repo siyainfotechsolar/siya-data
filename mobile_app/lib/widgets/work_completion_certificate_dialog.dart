@@ -22,7 +22,7 @@ class WorkCompletionCertificateDialog extends StatefulWidget {
     this.initialTab = 0,
   });
 
-  static Future<void> show(BuildContext context, ConsumerRecord customer, {int initialTab = 0}) {
+  static Future<void> show(BuildContext context, {required ConsumerRecord customer, int initialTab = 0}) {
     return showDialog<void>(
       context: context,
       barrierDismissible: true,

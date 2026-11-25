@@ -1,10 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/consumer_record.dart';
@@ -30,6 +31,35 @@ class WorkCompletionCertificateService {
   // =========================================================================
   // 0. BANK WORK COMPLETION CERTIFICATE (1 Page A4 - For Bank Loan Submission)
   // =========================================================================
+  static Future<File> generateCertificatePdf({
+    required ConsumerRecord customer,
+    Directory? outputDirectory,
+    bool includeStampAndSignature = false,
+    Uint8List? customStampAndSignatureBytes,
+  }) async {
+    final data = WorkCompletionReportData.fromCustomer(customer);
+    final bytes = await generateBankWcrPdfBytes(
+      data,
+      includeStampAndSignature: includeStampAndSignature,
+      customStampAndSignatureBytes: customStampAndSignatureBytes,
+    );
+    Directory outDir;
+    if (outputDirectory != null) {
+      outDir = outputDirectory;
+    } else {
+      try {
+        outDir = await getTemporaryDirectory();
+      } catch (_) {
+        outDir = Directory.systemTemp;
+      }
+    }
+    final safeName = customer.name.replaceAll(RegExp(r'[^\w\s-]'), '').replaceAll(RegExp(r'\s+'), '_');
+    final fileName = 'Work_Completion_Certificate_${safeName}_${customer.consumerNo}.pdf';
+    final file = File('${outDir.path}/$fileName');
+    await file.writeAsBytes(bytes);
+    return file;
+  }
+
   static Future<Uint8List> generateBankWcrPdfBytes(
     WorkCompletionReportData data, {
     bool includeStampAndSignature = false,

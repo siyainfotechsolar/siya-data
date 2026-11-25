@@ -307,7 +307,7 @@ class _AppInformationScreenState extends State<AppInformationScreen> {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text(
-                    'v1.0.35 LATEST',
+                    'v1.0.36 LATEST',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
                   ),
                 ),
@@ -329,7 +329,7 @@ class _AppInformationScreenState extends State<AppInformationScreen> {
                   }
                 },
                 icon: const Icon(Icons.download_rounded, size: 18),
-                label: const Text('Download Latest APK (v1.0.35)', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: const Text('Download Latest APK (v1.0.36)', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF059669),
                   foregroundColor: Colors.white,

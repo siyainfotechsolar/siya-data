@@ -1,9 +1,9 @@
 import 'dart:io';
-import 'dart:typed_data';
-import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
+import 'package:pdf/pdf.dart' as pw_pdf;
+import 'package:pdf/widgets.dart' as pw;
 
 class CompanyStampHelper {
   /// Robustly loads stamp and signature bytes with multi-stage fallback
@@ -91,9 +91,9 @@ class CompanyStampHelper {
   /// If bitmap is available, renders the bitmap image.
   /// If bitmap is null but inclusion is requested, renders a crisp official vector seal.
   static void drawStampAndSignature({
-    required PdfGraphics graphics,
+    required sf.PdfGraphics graphics,
     required Rect bounds,
-    PdfBitmap? bitmap,
+    sf.PdfBitmap? bitmap,
     bool include = false,
   }) {
     if (!include) return;
@@ -108,10 +108,10 @@ class CompanyStampHelper {
     final double cy = bounds.top + bounds.height * 0.5;
     const double radius = 27.0;
 
-    final PdfColor stampBlue = PdfColor(15, 45, 105); // #0F2D69
-    final PdfPen outerPen = PdfPen(stampBlue, width: 1.5);
-    final PdfPen innerPen = PdfPen(stampBlue, width: 0.8);
-    final PdfBrush stampBrush = PdfSolidBrush(stampBlue);
+    final sf.PdfColor stampBlue = sf.PdfColor(15, 45, 105); // #0F2D69
+    final sf.PdfPen outerPen = sf.PdfPen(stampBlue, width: 1.5);
+    final sf.PdfPen innerPen = sf.PdfPen(stampBlue, width: 0.8);
+    final sf.PdfBrush stampBrush = sf.PdfSolidBrush(stampBlue);
 
     // Outer and Inner Stamp Box with Rounded Aesthetic
     graphics.drawRectangle(
@@ -124,37 +124,37 @@ class CompanyStampHelper {
     );
 
     // Stamp text inside seal
-    final PdfFont topFont = PdfStandardFont(PdfFontFamily.helvetica, 5.2, style: PdfFontStyle.bold);
-    final PdfFont midFont = PdfStandardFont(PdfFontFamily.helvetica, 4.8, style: PdfFontStyle.bold);
-    final PdfFont botFont = PdfStandardFont(PdfFontFamily.helvetica, 4.5, style: PdfFontStyle.bold);
+    final sf.PdfFont topFont = sf.PdfStandardFont(sf.PdfFontFamily.helvetica, 5.2, style: sf.PdfFontStyle.bold);
+    final sf.PdfFont midFont = sf.PdfStandardFont(sf.PdfFontFamily.helvetica, 4.8, style: sf.PdfFontStyle.bold);
+    final sf.PdfFont botFont = sf.PdfStandardFont(sf.PdfFontFamily.helvetica, 4.5, style: sf.PdfFontStyle.bold);
 
     graphics.drawString(
       'SIYA INFOTECH &',
       topFont,
       brush: stampBrush,
       bounds: Rect.fromLTWH(cx - radius + 4, cy - 17, (radius - 4) * 2, 8),
-      format: PdfStringFormat(alignment: PdfTextAlignment.center),
+      format: sf.PdfStringFormat(alignment: sf.PdfTextAlignment.center),
     );
     graphics.drawString(
       'DIGITAL SOLUTIONS',
       topFont,
       brush: stampBrush,
       bounds: Rect.fromLTWH(cx - radius + 4, cy - 10, (radius - 4) * 2, 8),
-      format: PdfStringFormat(alignment: PdfTextAlignment.center),
+      format: sf.PdfStringFormat(alignment: sf.PdfTextAlignment.center),
     );
     graphics.drawString(
       '★ BETAWAD ★',
       midFont,
       brush: stampBrush,
       bounds: Rect.fromLTWH(cx - radius + 4, cy - 2, (radius - 4) * 2, 7),
-      format: PdfStringFormat(alignment: PdfTextAlignment.center),
+      format: sf.PdfStringFormat(alignment: sf.PdfTextAlignment.center),
     );
     graphics.drawString(
       'AUTH. SIGNATORY',
       botFont,
       brush: stampBrush,
       bounds: Rect.fromLTWH(cx - radius + 4, cy + 8, (radius - 4) * 2, 7),
-      format: PdfStringFormat(alignment: PdfTextAlignment.center),
+      format: sf.PdfStringFormat(alignment: sf.PdfTextAlignment.center),
     );
 
     // Right-aligned Signature Overlay
@@ -162,22 +162,132 @@ class CompanyStampHelper {
     final double sigY = bounds.top + bounds.height * 0.25;
     final double sigW = bounds.width * 0.55;
 
-    final PdfFont sigFont = PdfStandardFont(PdfFontFamily.helvetica, 12.0, style: PdfFontStyle.bold);
+    final sf.PdfFont sigFont = sf.PdfStandardFont(sf.PdfFontFamily.helvetica, 12.0, style: sf.PdfFontStyle.bold);
     graphics.drawString(
       'Siya Infotech',
       sigFont,
       brush: stampBrush,
       bounds: Rect.fromLTWH(sigX, sigY, sigW, 18),
-      format: PdfStringFormat(alignment: PdfTextAlignment.center),
+      format: sf.PdfStringFormat(alignment: sf.PdfTextAlignment.center),
     );
 
-    final PdfFont subSigFont = PdfStandardFont(PdfFontFamily.helvetica, 6.5, style: PdfFontStyle.bold);
+    final sf.PdfFont subSigFont = sf.PdfStandardFont(sf.PdfFontFamily.helvetica, 6.5, style: sf.PdfFontStyle.bold);
     graphics.drawString(
       'Authorized Signatory',
       subSigFont,
       brush: stampBrush,
       bounds: Rect.fromLTWH(sigX, sigY + 18, sigW, 10),
-      format: PdfStringFormat(alignment: PdfTextAlignment.center),
+      format: sf.PdfStringFormat(alignment: sf.PdfTextAlignment.center),
+    );
+  }
+
+  /// Builds the official stamp and signature pw.Widget.
+  /// If image is loaded, displays the image.
+  /// If image is null but include is true, displays the crisp vector official badge.
+  static pw.Widget buildStampAndSignatureWidget({
+    pw.MemoryImage? image,
+    bool include = false,
+    double height = 72,
+    double width = 160,
+  }) {
+    if (!include) {
+      return pw.SizedBox(height: height, width: width);
+    }
+
+    if (image != null) {
+      return pw.Container(
+        height: height,
+        width: width,
+        alignment: pw.Alignment.center,
+        child: pw.Image(image, fit: pw.BoxFit.contain),
+      );
+    }
+
+    // Official Vector Stamp & Signature Fallback (Deep Blue / Indigo Ink)
+    const pw_pdf.PdfColor stampBlue = pw_pdf.PdfColor(15 / 255, 45 / 255, 105 / 255); // #0F2D69
+
+    return pw.Container(
+      height: height,
+      width: width,
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.center,
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          // Circular Seal
+          pw.Container(
+            width: 58,
+            height: 58,
+            decoration: pw.BoxDecoration(
+              shape: pw.BoxShape.circle,
+              border: pw.Border.all(color: stampBlue, width: 1.5),
+            ),
+            padding: const pw.EdgeInsets.all(2.5),
+            child: pw.Container(
+              decoration: pw.BoxDecoration(
+                shape: pw.BoxShape.circle,
+                border: pw.Border.all(color: stampBlue, width: 0.8),
+              ),
+              padding: const pw.EdgeInsets.symmetric(horizontal: 2),
+              child: pw.Column(
+                mainAxisAlignment: pw.MainAxisAlignment.center,
+                children: [
+                  pw.Text(
+                    'SIYA INFOTECH',
+                    style: pw.TextStyle(color: stampBlue, fontSize: 4.8, fontWeight: pw.FontWeight.bold),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                  pw.Text(
+                    '& DIGITAL',
+                    style: pw.TextStyle(color: stampBlue, fontSize: 4.4, fontWeight: pw.FontWeight.bold),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                  pw.SizedBox(height: 1),
+                  pw.Text(
+                    '★ BETAWAD ★',
+                    style: pw.TextStyle(color: stampBlue, fontSize: 4.0, fontWeight: pw.FontWeight.bold),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                  pw.SizedBox(height: 1),
+                  pw.Text(
+                    'AUTH. SIGNATORY',
+                    style: pw.TextStyle(color: stampBlue, fontSize: 3.8, fontWeight: pw.FontWeight.bold),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          pw.SizedBox(width: 8),
+
+          // Signature text
+          pw.Column(
+            mainAxisAlignment: pw.MainAxisAlignment.center,
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              pw.Text(
+                'Siya Infotech',
+                style: pw.TextStyle(
+                  color: stampBlue,
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                  fontStyle: pw.FontStyle.italic,
+                ),
+              ),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                'Authorized Signatory',
+                style: pw.TextStyle(
+                  color: stampBlue,
+                  fontSize: 6.5,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
+
+typedef AdminCompanyStampHelper = CompanyStampHelper;
