@@ -490,7 +490,7 @@ class SubVendorMaterialOutwardPdfService {
 
     final csvString = const ListToCsvConverter().convert(rows);
     final fileName = 'Date_Wise_Material_Outward_Report_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv';
-    await UniversalFileSaver.saveAndLaunchFile(utf8.encode(csvString), fileName);
+    await saveFileUniversal(bytes: Uint8List.fromList(utf8.encode(csvString)), fileName: fileName);
   }
 
   /// Exports Sub Vendor-wise Summary to CSV.
@@ -515,7 +515,7 @@ class SubVendorMaterialOutwardPdfService {
 
     final csvString = const ListToCsvConverter().convert(rows);
     final fileName = 'Sub_Vendor_Wise_Material_Report_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv';
-    await UniversalFileSaver.saveAndLaunchFile(utf8.encode(csvString), fileName);
+    await saveFileUniversal(bytes: Uint8List.fromList(utf8.encode(csvString)), fileName: fileName);
   }
 
   /// Exports Material-wise Summary to CSV.
@@ -540,7 +540,7 @@ class SubVendorMaterialOutwardPdfService {
 
     final csvString = const ListToCsvConverter().convert(rows);
     final fileName = 'Material_Wise_Outward_Report_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv';
-    await UniversalFileSaver.saveAndLaunchFile(utf8.encode(csvString), fileName);
+    await saveFileUniversal(bytes: Uint8List.fromList(utf8.encode(csvString)), fileName: fileName);
   }
 
   // ============================================================================

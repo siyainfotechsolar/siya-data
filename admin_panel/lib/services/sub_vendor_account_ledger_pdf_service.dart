@@ -182,7 +182,7 @@ class SubVendorAccountLedgerPdfService {
 
     final csvString = const ListToCsvConverter().convert(rows);
     final fileName = 'Ledger_${vendor.vendorCode}_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv';
-    await UniversalFileSaver.saveAndLaunchFile(utf8.encode(csvString), fileName);
+    await saveFileUniversal(bytes: Uint8List.fromList(utf8.encode(csvString)), fileName: fileName);
   }
 
   static Future<void> exportDashboardSummaryCsv(SubVendorDashboardMetrics metrics) async {
@@ -217,7 +217,7 @@ class SubVendorAccountLedgerPdfService {
 
     final csvString = const ListToCsvConverter().convert(rows);
     final fileName = 'Sub_Vendor_Dashboard_Summary_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv';
-    await UniversalFileSaver.saveAndLaunchFile(utf8.encode(csvString), fileName);
+    await saveFileUniversal(bytes: Uint8List.fromList(utf8.encode(csvString)), fileName: fileName);
   }
 
   // ============================================================================
