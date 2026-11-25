@@ -167,11 +167,11 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
             ],
           ),
           const Spacer(),
-          // Quick Action: Record Payment / Advance
+          // Quick Action: Record Payment
           ElevatedButton.icon(
             onPressed: _showRecordTransactionDialog,
             icon: const Icon(Icons.add_card_rounded, size: 16),
-            label: const Text('Record Payment / Advance'),
+            label: const Text('Record Payment'),
             style: ElevatedButton.styleFrom(backgroundColor: greenColor, foregroundColor: Colors.white),
           ),
           const SizedBox(width: 12),
@@ -661,7 +661,7 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
     DateTime selectedDate = DateTime.now();
     final amountCtrl = TextEditingController();
     final refCtrl = TextEditingController();
-    final particularsCtrl = TextEditingController(text: 'Material Payment Received');
+    final particularsCtrl = TextEditingController(text: 'Payments Received');
     final remarksCtrl = TextEditingController();
     String selectedMode = 'Bank Transfer';
 
@@ -675,7 +675,7 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                 children: [
                   Icon(Icons.add_card_rounded, color: navyColor),
                   SizedBox(width: 8),
-                  Text('Record Sub-Vendor Transaction'),
+                  Text('Record Payment'),
                 ],
               ),
               content: SizedBox(
@@ -695,23 +695,19 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                       ),
                       const SizedBox(height: 12),
 
-                      // Transaction Type
+                      // Transaction Type (Simple: Payments Received & Payout)
                       DropdownButtonFormField<String>(
                         value: selectedType,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Transaction Type *', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(labelText: 'Payment Type *', border: OutlineInputBorder()),
                         items: const [
                           DropdownMenuItem(
                             value: 'MATERIAL_PAYMENT',
-                            child: Text('🟢 Material Payment Received (Debit - Reduces Receivable)'),
+                            child: Text('🟢 Payments Received (पैसे मिळाले)'),
                           ),
                           DropdownMenuItem(
                             value: 'ADVANCE_GIVEN',
-                            child: Text('🟠 Advance / Deposit Given (Debit - Increases Advance)'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'ADVANCE_REFUND',
-                            child: Text('🔵 Advance / Deposit Refund Received (Credit - Reduces Advance)'),
+                            child: Text('🟠 Payout (पैसे दिले)'),
                           ),
                         ],
                         onChanged: (val) {
@@ -719,11 +715,9 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                             setDialogState(() {
                               selectedType = val;
                               if (val == 'MATERIAL_PAYMENT') {
-                                particularsCtrl.text = 'Material Payment Received';
-                              } else if (val == 'ADVANCE_GIVEN') {
-                                particularsCtrl.text = 'Advance Given for Site Work';
-                              } else if (val == 'ADVANCE_REFUND') {
-                                particularsCtrl.text = 'Advance Refund Received';
+                                particularsCtrl.text = 'Payments Received';
+                              } else {
+                                particularsCtrl.text = 'Payout to Sub-Vendor';
                               }
                             });
                           }

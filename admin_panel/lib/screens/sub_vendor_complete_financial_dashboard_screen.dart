@@ -9,6 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:siya_shared/siya_shared.dart';
 import '../services/sub_vendor_service.dart';
 import '../services/sub_vendor_pdf_service.dart';
+import '../services/sub_vendor_material_outward_service.dart';
+import '../services/sub_vendor_account_ledger_service.dart';
 import '../widgets/sub_vendor_dialogs.dart';
 import '../utils/universal_file_saver.dart';
 
@@ -57,6 +59,8 @@ class _SubVendorCompleteFinancialDashboardScreenState
   List<VendorPayout> _payouts = [];
   List<VendorCustomerPayment> _customerPayments = [];
   List<VendorGstRecovery> _gstRecoveries = [];
+  List<SubVendorMaterialOutward> _materialOutwards = [];
+  List<SubVendorAccountLedgerEntry> _accountLedgerEntries = [];
 
   // Search & filter
   String _siteSearch = '';
@@ -95,9 +99,12 @@ class _SubVendorCompleteFinancialDashboardScreenState
         SubVendorService.fetchVendorPayouts(vendorId),
         SubVendorService.fetchCustomerPayments(vendorId: vendorId),
         SubVendorService.fetchVendorGstRecoveries(vendorId),
+        SubVendorMaterialOutwardService.fetchOutwards(),
+        SubVendorAccountLedgerService.fetchLedgerEntries(vendorId: vendorId, statusFilter: 'Active'),
       ]);
 
       if (mounted) {
+        final allOutwards = results[6] as List<SubVendorMaterialOutward>;
         setState(() {
           _summary = results[0] as VendorFinancialSummary;
           _assignments = results[1] as List<VendorSiteAssignment>;
@@ -105,6 +112,8 @@ class _SubVendorCompleteFinancialDashboardScreenState
           _payouts = results[3] as List<VendorPayout>;
           _customerPayments = results[4] as List<VendorCustomerPayment>;
           _gstRecoveries = results[5] as List<VendorGstRecovery>;
+          _materialOutwards = allOutwards.where((o) => o.vendorId == vendorId).toList();
+          _accountLedgerEntries = results[7] as List<SubVendorAccountLedgerEntry>;
           _isLoading = false;
         });
       }
@@ -2562,6 +2571,8 @@ class _SubVendorCompleteFinancialDashboardScreenState
       payouts: _payouts,
       customerPayments: _customerPayments,
       gstRecoveries: _gstRecoveries,
+      materialOutwards: _materialOutwards,
+      accountLedgerEntries: _accountLedgerEntries,
       filterAssignmentId: _selectedLedgerSiteId,
       fromDate: _ledgerFromDate,
       toDate: _ledgerToDate,
@@ -2586,7 +2597,9 @@ class _SubVendorCompleteFinancialDashboardScreenState
       case 'Customer Cash Credit':
       case 'Customer Collection':
       case 'Material Return':
+      case 'Sub-Vendor Payment Credit':
         return const Color(0xFF047857);
+      case 'Material Outward':
       case 'Material Issue':
         return const Color(0xFFDC2626);
       case 'SIYA Platform Fee':

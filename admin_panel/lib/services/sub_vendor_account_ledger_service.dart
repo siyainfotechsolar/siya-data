@@ -245,7 +245,12 @@ class SubVendorAccountLedgerService {
       final List<dynamic> rows = res as List<dynamic>;
       final list = rows.map((e) => SubVendorAccountLedgerEntry.fromJson(e as Map<String, dynamic>)).toList();
       _inMemoryLedger = list;
-      _saveLedgerToCache(list);
+      // Dynamically recalculate running balances chronologically by date
+      final vIds = _inMemoryLedger.map((e) => e.vendorId).toSet();
+      for (final vId in vIds) {
+        _recalculateLocalRunningBalances(vId);
+      }
+      _saveLedgerToCache(_inMemoryLedger);
     } catch (e) {
       debugPrint('Notice: Fetching ledger from Supabase: $e');
     }

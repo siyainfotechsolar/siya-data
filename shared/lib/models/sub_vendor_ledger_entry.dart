@@ -4,6 +4,8 @@ import 'vendor_material_transaction.dart';
 import 'vendor_payout.dart';
 import 'vendor_customer_payment.dart';
 import 'vendor_gst_recovery.dart';
+import 'sub_vendor_material_outward.dart';
+import 'sub_vendor_account_ledger.dart';
 
 /// Single itemized chronological debit/credit entry in a Sub-Vendor's accounting ledger.
 class SubVendorLedgerEntry {
@@ -152,6 +154,8 @@ class SubVendorLedgerBuilder {
     required List<VendorPayout> payouts,
     required List<VendorCustomerPayment> customerPayments,
     List<VendorGstRecovery> gstRecoveries = const [],
+    List<SubVendorMaterialOutward> materialOutwards = const [],
+    List<SubVendorAccountLedgerEntry> accountLedgerEntries = const [],
     String? filterAssignmentId,
     DateTime? fromDate,
     DateTime? toDate,
@@ -360,6 +364,64 @@ class SubVendorLedgerBuilder {
           remarks: p.remarks,
         ),
       );
+    }
+
+    // 6B. Material Outward Entries (DEBITS - Maal Dila) & Manual Account Ledger Payments (CREDITS/DEBITS)
+    if (filterAssignmentId == null) {
+      for (final out in materialOutwards) {
+        if (!out.isActive) continue;
+        rawEntries.add(
+          SubVendorLedgerEntry(
+            id: 'outward_${out.id}',
+            date: out.outwardDate,
+            voucherType: 'Material Outward',
+            particulars: 'Material Outward (${out.totalItems} items, Qty: ${out.totalQuantity.toStringAsFixed(1)}) - ${out.outwardNumber}',
+            referenceNo: out.outwardNumber,
+            paymentMode: 'Outward',
+            credit: 0.0,
+            debit: out.totalValue,
+            remarks: out.remarks,
+          ),
+        );
+      }
+
+      for (final le in accountLedgerEntries) {
+        if (!le.isActive) continue;
+        final tType = le.transactionType.toUpperCase();
+        // Skip MATERIAL_OUTWARD here to avoid duplicating section 6B above
+        if (tType == 'MATERIAL_OUTWARD') continue;
+
+        if (tType == 'MATERIAL_PAYMENT' || tType == 'ADVANCE_REFUND') {
+          final amt = le.debitAmount > 0 ? le.debitAmount : le.creditAmount;
+          rawEntries.add(
+            SubVendorLedgerEntry(
+              id: 'acct_pay_${le.id}',
+              date: le.transactionDate,
+              voucherType: 'Sub-Vendor Payment Credit',
+              particulars: '${le.particulars}${le.remarks != null && le.remarks!.isNotEmpty ? " - ${le.remarks}" : ""}',
+              referenceNo: le.referenceNumber,
+              paymentMode: le.paymentMode,
+              credit: amt,
+              debit: 0.0,
+              remarks: le.remarks,
+            ),
+          );
+        } else if (tType == 'ADVANCE_GIVEN') {
+          rawEntries.add(
+            SubVendorLedgerEntry(
+              id: 'acct_adv_${le.id}',
+              date: le.transactionDate,
+              voucherType: 'Vendor Payout / Advance',
+              particulars: '${le.particulars}${le.remarks != null && le.remarks!.isNotEmpty ? " - ${le.remarks}" : ""}',
+              referenceNo: le.referenceNumber,
+              paymentMode: le.paymentMode,
+              credit: 0.0,
+              debit: le.debitAmount,
+              remarks: le.remarks,
+            ),
+          );
+        }
+      }
     }
 
     // 7. Sort Chronologically (by Date ASC)
