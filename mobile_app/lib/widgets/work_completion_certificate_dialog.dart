@@ -1,24 +1,32 @@
-import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
+import '../models/work_completion_report_data.dart';
+import '../services/customer_signature_helper.dart';
+import '../services/customer_aadhar_helper.dart';
 import '../services/work_completion_certificate_service.dart';
 
 class WorkCompletionCertificateDialog extends StatefulWidget {
   final ConsumerRecord customer;
+  final int initialTab;
 
   const WorkCompletionCertificateDialog({
     super.key,
     required this.customer,
+    this.initialTab = 0,
   });
 
-  static Future<void> show(
-    BuildContext context, {
-    required ConsumerRecord customer,
-  }) {
+  static Future<void> show(BuildContext context, ConsumerRecord customer, {int initialTab = 0}) {
     return showDialog<void>(
       context: context,
-      builder: (ctx) => WorkCompletionCertificateDialog(customer: customer),
+      barrierDismissible: true,
+      builder: (ctx) => WorkCompletionCertificateDialog(customer: customer, initialTab: initialTab),
     );
   }
 
@@ -27,219 +35,761 @@ class WorkCompletionCertificateDialog extends StatefulWidget {
 }
 
 class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertificateDialog> {
-  bool _isGenerating = false;
-  File? _cachedFile;
-  String? _statusMessage;
+  bool _isDownloading = false;
+  int _selectedTab = 0; // 0: Bank WCR, 1: MSEDCL WCR, 2: Annexure-1, 3: DCR, 4: Net-Metering Agreement
+  int _renderKey = 0;
   bool _includeStampAndSignature = false;
+  bool _includeCustomerSignature = false;
 
-  late String _customerName;
-  late String _consumerNo;
-  late String _address;
-  late String _capacity;
-  late DateTime _completionDate;
+  late WorkCompletionReportData _reportData;
 
   @override
   void initState() {
     super.initState();
-    _customerName = widget.customer.name;
-    _consumerNo = widget.customer.consumerNo;
-
-    if (widget.customer.address != null && widget.customer.address!.trim().isNotEmpty) {
-      _address = widget.customer.address!.trim();
-    } else if (widget.customer.village != null && widget.customer.village!.trim().isNotEmpty) {
-      _address = widget.customer.village!.trim();
-    } else {
-      _address = '';
-    }
-
-    String cap = '';
-    if (widget.customer.systemCapacity != null && widget.customer.systemCapacity!.trim().isNotEmpty) {
-      cap = widget.customer.systemCapacity!.trim();
-    } else if (widget.customer.remarks != null && widget.customer.remarks!.trim().isNotEmpty) {
-      final match = RegExp(r'(\d+(?:\.\d+)?\s*(?:kw|kW|KW|Kw))').firstMatch(widget.customer.remarks!);
-      if (match != null) cap = match.group(1)!;
-    }
-    _capacity = cap.isNotEmpty ? cap : '3.0 kW Rooftop Solar PV';
-
-    _completionDate = widget.customer.installationDate ??
-        widget.customer.rtsCompletionDate ??
-        widget.customer.submitDate ??
-        DateTime.now();
+    _selectedTab = widget.initialTab.clamp(0, 4);
+    _reportData = WorkCompletionReportData.fromCustomer(widget.customer);
+    _loadSavedWcrDossierAndSignature();
   }
 
-  Future<void> _openEditDetailsModal() async {
-    final nameCtrl = TextEditingController(text: _customerName);
-    final consumerCtrl = TextEditingController(text: _consumerNo);
-    final addressCtrl = TextEditingController(text: _address);
-    final capacityCtrl = TextEditingController(text: _capacity);
-    DateTime selectedDate = _completionDate;
+  Future<void> _loadSavedWcrDossierAndSignature() async {
+    final consumerNo = widget.customer.consumerNo.trim();
+    if (consumerNo.isEmpty) return;
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+    // 1. Check and load customer signature
+    CustomerSignatureHelper.ensureCustomerSignatureLoaded(consumerNo).then((hasSig) {
+      if (hasSig && mounted) {
+        setState(() {
+          _includeCustomerSignature = true;
+          _renderKey++;
+        });
+      }
+    });
+
+    // 2. Load saved WCR equipment specs from local SharedPreferences or Supabase
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final localJson = prefs.getString('wcr_dossier_$consumerNo');
+      if (localJson != null && localJson.isNotEmpty) {
+        final map = jsonDecode(localJson) as Map<String, dynamic>;
+        final saved = WorkCompletionReportData.fromJson(map);
+        if (mounted) {
+          setState(() {
+            _reportData = saved;
+            _renderKey++;
+          });
+        }
+      }
+    } catch (_) {}
+
+    // Check Supabase customer_documents for authoritative cloud specifications
+    try {
+      final client = Supabase.instance.client;
+      final res = await client
+          .from('customer_documents')
+          .select('extracted_data')
+          .eq('consumer_no', consumerNo)
+          .eq('document_type', 'Work Completion Dossier')
+          .order('created_at', ascending: false)
+          .limit(1);
+
+      if (res.isNotEmpty) {
+        final extracted = res.first['extracted_data'] as Map<String, dynamic>?;
+        if (extracted != null) {
+          final saved = WorkCompletionReportData.fromJson(extracted);
+          if (mounted) {
+            setState(() {
+              _reportData = saved;
+              _renderKey++;
+            });
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Preload Customer Aadhar Card Xerox if available
+    try {
+      final aadharBytes = await CustomerAadharHelper.loadCustomerAadharAsync(consumerNo);
+      if (aadharBytes != null && aadharBytes.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _reportData = _reportData.copyWith(aadharCardBytes: aadharBytes);
+            _renderKey++;
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _persistWcrDossier(WorkCompletionReportData data) async {
+    final consumerNo = data.consumerNo.trim();
+    if (consumerNo.isEmpty) return;
+
+    // 1. Save locally in SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('wcr_dossier_$consumerNo', jsonEncode(data.toJson()));
+    } catch (_) {}
+
+    // 2. Persist to Supabase customer_documents and update consumer_records
+    try {
+      final client = Supabase.instance.client;
+      final userId = client.auth.currentUser?.id;
+
+      // Resolve customer_id
+      String? customerId = widget.customer.id;
+      if (customerId == null || customerId.isEmpty) {
+        try {
+          final custRes = await client
+              .from('consumer_records')
+              .select('id')
+              .eq('consumer_no', consumerNo)
+              .limit(1);
+          if (custRes.isNotEmpty) {
+            customerId = custRes.first['id']?.toString();
+          }
+        } catch (_) {}
+      }
+
+      final docData = {
+        'customer_id': customerId,
+        'consumer_no': consumerNo,
+        'document_type': 'Work Completion Dossier',
+        'document_name': 'WCR_Specifications_$consumerNo.json',
+        'file_url': '',
+        'source': 'WCR Dossier Generator',
+        'extracted_data': data.toJson(),
+        'uploaded_by': userId,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      };
+
+      if (customerId != null && customerId.isNotEmpty) {
+        final existing = await client
+            .from('customer_documents')
+            .select('id')
+            .eq('customer_id', customerId)
+            .eq('document_type', 'Work Completion Dossier')
+            .limit(1);
+
+        if (existing.isNotEmpty) {
+          await client.from('customer_documents').update(docData).eq('id', existing.first['id']);
+        } else {
+          await client.from('customer_documents').insert(docData);
+        }
+
+        // Update consumer_records with new specs
+        final updateMap = <String, dynamic>{
+          'installation_date': data.completionDate.toIso8601String(),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        };
+        if (data.customerName.trim().isNotEmpty) {
+          updateMap['name'] = data.customerName.trim();
+        }
+        if (data.customerMobile.trim().isNotEmpty) {
+          updateMap['mobile'] = data.customerMobile.trim();
+        }
+        if (data.customerAddress.trim().isNotEmpty) {
+          updateMap['address'] = data.customerAddress.trim();
+        }
+        if (data.installedCapacityKw > 0) {
+          updateMap['system_capacity'] = '${data.installedCapacityKw} kW';
+        }
+        if (data.siteType.trim().isNotEmpty) {
+          updateMap['site_type'] = data.siteType.trim();
+        }
+        if (data.sanctionNo.trim().isNotEmpty) {
+          updateMap['application_id'] = data.sanctionNo.trim();
+        }
+        await client.from('consumer_records').update(updateMap).eq('id', customerId);
+      }
+    } catch (e) {
+      debugPrint('Error syncing WCR dossier to Supabase: $e');
+    }
+  }
+
+  Future<void> _pickCustomerSignature() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg'],
+        withData: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final bytes = result.files.first.bytes;
+        if (bytes != null && bytes.isNotEmpty) {
+          CustomerSignatureHelper.setCustomerSignature(widget.customer.consumerNo, bytes);
+          setState(() {
+            _includeCustomerSignature = true;
+            _renderKey++;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Customer signature uploaded successfully! Applied across all documents.'),
+                backgroundColor: Color(0xFF047857),
               ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload signature: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickCustomerAadhar() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+        withData: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final rawBytes = result.files.first.bytes;
+        if (rawBytes != null && rawBytes.isNotEmpty) {
+          final processedBytes = CustomerAadharHelper.compressAadharCardImage(rawBytes);
+          CustomerAadharHelper.setCustomerAadhar(widget.customer.consumerNo, processedBytes);
+
+          String currentAadhar = _reportData.consumerAadhar.trim();
+          if (currentAadhar.isEmpty && mounted) {
+            final aadharCtrl = TextEditingController();
+            await showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Row(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.edit_note_rounded, color: Color(0xFF0F2D69), size: 24),
-                            SizedBox(width: 8),
-                            Text(
-                              'Edit Certificate Details',
-                              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69)),
-                            ),
-                          ],
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.of(ctx).pop(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Customize values for this A4 Work Completion Certificate before exporting or sharing.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 1. Customer Name
-                    TextField(
-                      controller: nameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Customer Name *',
-                        prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
+                    Icon(Icons.badge_outlined, color: Color(0xFF0F2D69), size: 22),
+                    SizedBox(width: 8),
+                    Text('Consumer Aadhar Number', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Aadhar Card Xerox selected. Enter the 12-digit Aadhar number to print above the box:', style: TextStyle(fontSize: 12)),
                     const SizedBox(height: 12),
-
-                    // 2. Consumer Number
                     TextField(
-                      controller: consumerCtrl,
+                      controller: aadharCtrl,
+                      keyboardType: TextInputType.number,
+                      autofocus: true,
                       decoration: const InputDecoration(
-                        labelText: 'Consumer Number *',
-                        prefixIcon: Icon(Icons.numbers_rounded, size: 20),
+                        labelText: 'Aadhar Number (e.g. 4567 8901 2345)',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // 3. Project Address
-                    TextField(
-                      controller: addressCtrl,
-                      maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Project Address *',
-                        prefixIcon: Icon(Icons.location_on_outlined, size: 20),
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // 4. Solar Capacity
-                    TextField(
-                      controller: capacityCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Solar System Capacity *',
-                        prefixIcon: Icon(Icons.solar_power_outlined, size: 20),
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: ['3 kW', '3.3 kW', '4 kW', '5 kW', '6 kW', '10 kW'].map((val) {
-                        return ActionChip(
-                          label: Text('$val Rooftop Solar', style: const TextStyle(fontSize: 11)),
-                          padding: EdgeInsets.zero,
-                          onPressed: () {
-                            setSheetState(() {
-                              capacityCtrl.text = '$val Rooftop Solar PV';
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // 5. Installation Date
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        alignment: Alignment.centerLeft,
-                      ),
-                      icon: const Icon(Icons.calendar_today_rounded, size: 18, color: Color(0xFF0F2D69)),
-                      label: Text(
-                        'Installation Date: ${DateFormat('dd MMMM yyyy').format(selectedDate)}',
-                        style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
-                      ),
-                      onPressed: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: selectedDate,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime.now().add(const Duration(days: 365)),
-                        );
-                        if (picked != null) {
-                          setSheetState(() => selectedDate = picked);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F2D69),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _customerName = nameCtrl.text.trim();
-                          _consumerNo = consumerCtrl.text.trim();
-                          _address = addressCtrl.text.trim();
-                          _capacity = capacityCtrl.text.trim();
-                          _completionDate = selectedDate;
-                          _cachedFile = null; // Invalidate cache to regenerate with edited details
-                        });
-                        Navigator.of(ctx).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Certificate details updated! Regenerating PDF...'),
-                            backgroundColor: Color(0xFF059669),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.check_circle_outline, size: 18),
-                      label: const Text('Apply Changes & Update PDF', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Skip')),
+                  FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F2D69)),
+                    onPressed: () {
+                      currentAadhar = aadharCtrl.text.trim();
+                      Navigator.of(ctx).pop();
+                    },
+                    child: const Text('Save & Apply'),
+                  ),
+                ],
               ),
+            );
+          }
+
+          setState(() {
+            _reportData = _reportData.copyWith(
+              aadharCardBytes: processedBytes,
+              consumerAadhar: currentAadhar.isNotEmpty ? currentAadhar : _reportData.consumerAadhar,
+            );
+            _renderKey++;
+          });
+          _persistWcrDossier(_reportData);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Aadhar Card Xerox uploaded & embedded into Work Completion Report!'),
+                backgroundColor: Color(0xFF047857),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload Aadhar Card: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _removeCustomerAadhar() {
+    CustomerAadharHelper.clearCustomerAadhar(widget.customer.consumerNo);
+    setState(() {
+      _reportData = _reportData.copyWith(aadharCardBase64: '');
+      _renderKey++;
+    });
+    _persistWcrDossier(_reportData);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aadhar Card removed from Work Completion Report.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showAadharOptionsDialog() async {
+    final hasAadhar = CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null;
+    if (!hasAadhar) {
+      await _pickCustomerAadhar();
+      return;
+    }
+
+    await showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.file_upload_outlined, color: Color(0xFF0F2D69)),
+              title: const Text('Replace Aadhar Card Xerox'),
+              subtitle: const Text('Upload a new photo or scan of the consumer Aadhar card'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _pickCustomerAadhar();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+              title: const Text('Remove Aadhar Card', style: TextStyle(color: Colors.red)),
+              subtitle: const Text('Clear the embedded Xerox and revert to blank box'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _removeCustomerAadhar();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.close_rounded),
+              title: const Text('Cancel'),
+              onTap: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openEditDetailsDialog() async {
+    // Basic Details
+    final nameCtrl = TextEditingController(text: _reportData.customerName);
+    final consumerCtrl = TextEditingController(text: _reportData.consumerNo);
+    final addressCtrl = TextEditingController(text: _reportData.customerAddress);
+    final mobileCtrl = TextEditingController(text: _reportData.customerMobile);
+    final categoryCtrl = TextEditingController(text: _reportData.category);
+    final sanctionCtrl = TextEditingController(text: _reportData.sanctionNo);
+    final aadharCtrl = TextEditingController(text: _reportData.consumerAadhar);
+    final capKwCtrl = TextEditingController(text: _reportData.installedCapacityKw.toStringAsFixed(1));
+
+    // Module Specs
+    final modMakeCtrl = TextEditingController(text: _reportData.moduleMake);
+    final modAlmmCtrl = TextEditingController(text: _reportData.moduleAlmmModel);
+    final modWattCtrl = TextEditingController(text: _reportData.moduleWattage.toString());
+    final modCountCtrl = TextEditingController(text: _reportData.moduleCount.toString());
+    final modWarrantyCtrl = TextEditingController(text: _reportData.moduleWarranty);
+    final modSerialCtrl = TextEditingController(text: _reportData.moduleSerialNos);
+    final cellMfrCtrl = TextEditingController(text: _reportData.cellManufacturer);
+    final cellGstCtrl = TextEditingController(text: _reportData.cellGstInvoiceNo);
+
+    // Inverter Specs
+    final invMakeCtrl = TextEditingController(text: _reportData.inverterMake);
+    final invModelCtrl = TextEditingController(text: _reportData.inverterModel);
+    final invRatingCtrl = TextEditingController(text: _reportData.inverterRating);
+    final invCapCtrl = TextEditingController(text: _reportData.inverterCapacityKw.toStringAsFixed(1));
+    final invTypeCtrl = TextEditingController(text: _reportData.inverterControllerType);
+    final invYearCtrl = TextEditingController(text: _reportData.inverterMfgYear.toString());
+
+    // Earthing & Safety
+    final earthDetailsCtrl = TextEditingController(text: _reportData.earthResistanceDetails);
+    final earthCertCtrl = TextEditingController(text: _reportData.earthResistanceCertified);
+    final laCtrl = TextEditingController(text: _reportData.lightningArrester);
+
+    DateTime compDate = _reportData.completionDate;
+    String selectedSiteType = _reportData.siteType;
+    String selectedPhase = _reportData.electricalPhase;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final currentCap = double.tryParse(capKwCtrl.text.trim()) ?? _reportData.installedCapacityKw;
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.edit_document, color: Color(0xFF0F2D69)),
+                  SizedBox(width: 8),
+                  Text('Edit WCR & Commissioning Dossier Specifications'),
+                ],
+              ),
+              content: SizedBox(
+                width: 650,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'All values are pre-filled automatically from the customer profile. Customize equipment specs below and click Apply.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // SECTION 1: Consumer & Site Information
+                      const Text('1. Consumer & Site Information', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69))),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Customer Name *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: consumerCtrl, decoration: const InputDecoration(labelText: 'Consumer No *', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: addressCtrl, decoration: const InputDecoration(labelText: 'Site Address *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: mobileCtrl, decoration: const InputDecoration(labelText: 'Mobile Number', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: sanctionCtrl, decoration: const InputDecoration(labelText: 'Sanction / Appln No *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: capKwCtrl,
+                              decoration: const InputDecoration(labelText: 'System Capacity (KW) *', isDense: true, border: OutlineInputBorder()),
+                              onChanged: (val) {
+                                final parsedCap = double.tryParse(val.trim());
+                                if (parsedCap != null) {
+                                  setDialogState(() {
+                                    if (parsedCap > 6.0) {
+                                      selectedPhase = '3-Phase';
+                                      selectedSiteType = 'Non-Subsidy';
+                                      invRatingCtrl.text = '${parsedCap.toStringAsFixed(1)} kW, 3-Phase 415V, 50Hz';
+                                      invModelCtrl.text = 'MOD ${parsedCap.ceil()}KTL3-X';
+                                      invTypeCtrl.text = 'Dual MPPT / 3-Phase Grid-Tied';
+                                      earthDetailsCtrl.text = '4 Earthings (AC, DC, Body, LA) < 5 Ohms';
+                                      cellMfrCtrl.text = 'N/A (Non-DCR / Non-Subsidy)';
+                                      cellGstCtrl.text = 'N/A (Non-Subsidy)';
+                                      categoryCtrl.text = 'Commercial / Non-Subsidy';
+                                    } else {
+                                      selectedPhase = '1-Phase';
+                                      invRatingCtrl.text = '${parsedCap.toStringAsFixed(1)} kW, 1-Phase 230V, 50Hz';
+                                      invModelCtrl.text = parsedCap <= 3.3 ? 'MIC 3300TL-X' : 'MIN 6000TL-X';
+                                      invTypeCtrl.text = 'Dual MPPT / String Inverter';
+                                      earthDetailsCtrl.text = '3 Earthings (AC, DC, LA) < 5 Ohms';
+                                    }
+                                    invCapCtrl.text = parsedCap <= 3.0 ? '3.3' : parsedCap.toStringAsFixed(1);
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: selectedSiteType,
+                              decoration: const InputDecoration(labelText: 'Site Type', isDense: true, border: OutlineInputBorder()),
+                              items: const [
+                                DropdownMenuItem(value: 'Subsidy', child: Text('Subsidy (DCR Required)')),
+                                DropdownMenuItem(value: 'Non-Subsidy', child: Text('Non-Subsidy (DCR Not Required)')),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setDialogState(() {
+                                    selectedSiteType = val;
+                                    if (val == 'Non-Subsidy') {
+                                      cellMfrCtrl.text = 'N/A (Non-DCR / Non-Subsidy)';
+                                      cellGstCtrl.text = 'N/A (Non-Subsidy)';
+                                      categoryCtrl.text = 'Commercial / Non-Subsidy';
+                                    } else {
+                                      cellMfrCtrl.text = 'Premier Energies Ltd';
+                                      cellGstCtrl.text = 'PE/GST/2024/6710';
+                                      categoryCtrl.text = 'Private Sector / Residential';
+                                    }
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: selectedPhase,
+                              decoration: const InputDecoration(labelText: 'Electrical Phase', isDense: true, border: OutlineInputBorder()),
+                              items: const [
+                                DropdownMenuItem(value: '1-Phase', child: Text('1-Phase (230V, 50Hz)')),
+                                DropdownMenuItem(value: '3-Phase', child: Text('3-Phase (415V, 50Hz)')),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setDialogState(() {
+                                    selectedPhase = val;
+                                    final cap = double.tryParse(capKwCtrl.text.trim()) ?? 3.0;
+                                    if (val == '3-Phase') {
+                                      invRatingCtrl.text = '${cap.toStringAsFixed(1)} kW, 3-Phase 415V, 50Hz';
+                                      invModelCtrl.text = 'MOD ${cap.ceil()}KTL3-X';
+                                      invTypeCtrl.text = 'Dual MPPT / 3-Phase Grid-Tied';
+                                      earthDetailsCtrl.text = '4 Earthings (AC, DC, Body, LA) < 5 Ohms';
+                                    } else {
+                                      invRatingCtrl.text = '${cap.toStringAsFixed(1)} kW, 1-Phase 230V, 50Hz';
+                                      invModelCtrl.text = cap <= 3.3 ? 'MIC 3300TL-X' : 'MIN 6000TL-X';
+                                      invTypeCtrl.text = 'Dual MPPT / String Inverter';
+                                      earthDetailsCtrl.text = '3 Earthings (AC, DC, LA) < 5 Ohms';
+                                    }
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (currentCap > 6.0)
+                        Container(
+                          margin: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F3FF),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFDDD6FE)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.bolt, size: 16, color: Color(0xFF7C3AED)),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '⚡ Above 6 kW is configured as 3-Phase (415V) Non-Subsidy site (DCR not required).',
+                                  style: TextStyle(fontSize: 11.5, color: Color(0xFF5B21B6), fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: TextField(
+                              controller: aadharCtrl,
+                              decoration: InputDecoration(
+                                labelText: 'Consumer Aadhar No',
+                                isDense: true,
+                                border: const OutlineInputBorder(),
+                                suffixIcon: IconButton(
+                                  tooltip: (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                                      ? 'Aadhar Xerox Uploaded (Click to change)'
+                                      : 'Upload Aadhar Xerox',
+                                  icon: Icon(
+                                    (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                                        ? Icons.verified_user_rounded
+                                        : Icons.upload_file_rounded,
+                                    color: (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                                        ? const Color(0xFF047857)
+                                        : const Color(0xFF0F2D69),
+                                    size: 20,
+                                  ),
+                                  onPressed: () async {
+                                    Navigator.of(ctx).pop();
+                                    await _showAadharOptionsDialog();
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: categoryCtrl,
+                              decoration: const InputDecoration(labelText: 'Category', isDense: true, border: OutlineInputBorder()),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // SECTION 2: Solar Modules Specifications
+                      const Text('2. Solar PV Modules Specifications', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69))),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: modMakeCtrl, decoration: const InputDecoration(labelText: 'Module Make *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: modAlmmCtrl, decoration: const InputDecoration(labelText: 'ALMM Model No *', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: modWattCtrl, decoration: const InputDecoration(labelText: 'Wattage (Wp) *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: modCountCtrl, decoration: const InputDecoration(labelText: 'Module Count (Nos) *', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(controller: modWarrantyCtrl, decoration: const InputDecoration(labelText: 'Warranty Details *', isDense: true, border: OutlineInputBorder())),
+                      const SizedBox(height: 10),
+                      TextField(controller: modSerialCtrl, decoration: const InputDecoration(labelText: 'Module Serial Numbers', isDense: true, border: OutlineInputBorder())),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: cellMfrCtrl, decoration: const InputDecoration(labelText: 'Cell Manufacturer (DCR)', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: cellGstCtrl, decoration: const InputDecoration(labelText: 'Cell GST Invoice No', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // SECTION 3: PCU / Inverter Specifications
+                      const Text('3. Inverter / PCU Specifications', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69))),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: invMakeCtrl, decoration: const InputDecoration(labelText: 'Inverter Make *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: invModelCtrl, decoration: const InputDecoration(labelText: 'Model Number *', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: invRatingCtrl, decoration: const InputDecoration(labelText: 'Inverter Rating *', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: invCapCtrl, decoration: const InputDecoration(labelText: 'Inverter Capacity (KW) *', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: invTypeCtrl, decoration: const InputDecoration(labelText: 'MPPT / Controller Type', isDense: true, border: OutlineInputBorder()))),
+                          const SizedBox(width: 10),
+                          Expanded(child: TextField(controller: invYearCtrl, decoration: const InputDecoration(labelText: 'Year of Manufacturing', isDense: true, border: OutlineInputBorder()))),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // SECTION 4: Earthing & Protection
+                      const Text('4. Earthing & Safety Protections', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F2D69))),
+                      const SizedBox(height: 8),
+                      TextField(controller: earthDetailsCtrl, decoration: const InputDecoration(labelText: 'Earthing Resistance Details *', isDense: true, border: OutlineInputBorder())),
+                      const SizedBox(height: 10),
+                      TextField(controller: earthCertCtrl, decoration: const InputDecoration(labelText: 'Resistance Inspection Certification *', isDense: true, border: OutlineInputBorder())),
+                      const SizedBox(height: 10),
+                      TextField(controller: laCtrl, decoration: const InputDecoration(labelText: 'Lightening Arrester Specs *', isDense: true, border: OutlineInputBorder())),
+                      const SizedBox(height: 16),
+
+                      // Date picker
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_month, color: Color(0xFF0F2D69), size: 20),
+                          const SizedBox(width: 8),
+                          Text('Installation / Completion Date: ${DateFormat('dd MMM yyyy').format(compDate)}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: compDate,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2035),
+                              );
+                              if (picked != null) {
+                                setDialogState(() => compDate = picked);
+                              }
+                            },
+                            child: const Text('Change Date'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+                FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F2D69)),
+                  onPressed: () {
+                    final cap = double.tryParse(capKwCtrl.text.trim()) ?? _reportData.installedCapacityKw;
+                    final mCount = int.tryParse(modCountCtrl.text.trim()) ?? _reportData.moduleCount;
+                    final mWatt = int.tryParse(modWattCtrl.text.trim()) ?? _reportData.moduleWattage;
+                    final totalKwp = double.parse((mCount * mWatt / 1000.0).toStringAsFixed(2));
+
+                    setState(() {
+                      _reportData = _reportData.copyWith(
+                        customerName: nameCtrl.text.trim(),
+                        consumerNo: consumerCtrl.text.trim(),
+                        customerAddress: addressCtrl.text.trim(),
+                        customerMobile: mobileCtrl.text.trim(),
+                        category: categoryCtrl.text.trim(),
+                        siteType: selectedSiteType,
+                        electricalPhase: selectedPhase,
+                        sanctionNo: sanctionCtrl.text.trim(),
+                        consumerAadhar: aadharCtrl.text.trim(),
+                        sanctionedCapacityKw: cap,
+                        installedCapacityKw: cap,
+                        moduleMake: modMakeCtrl.text.trim(),
+                        moduleAlmmModel: modAlmmCtrl.text.trim(),
+                        moduleWattage: mWatt,
+                        moduleCount: mCount,
+                        moduleTotalCapacityKwp: totalKwp,
+                        moduleWarranty: modWarrantyCtrl.text.trim(),
+                        moduleSerialNos: modSerialCtrl.text.trim(),
+                        cellManufacturer: cellMfrCtrl.text.trim(),
+                        cellGstInvoiceNo: cellGstCtrl.text.trim(),
+                        inverterMake: invMakeCtrl.text.trim(),
+                        inverterModel: invModelCtrl.text.trim(),
+                        inverterRating: invRatingCtrl.text.trim(),
+                        inverterCapacityKw: double.tryParse(invCapCtrl.text.trim()) ?? _reportData.inverterCapacityKw,
+                        inverterControllerType: invTypeCtrl.text.trim(),
+                        inverterMfgYear: int.tryParse(invYearCtrl.text.trim()) ?? _reportData.inverterMfgYear,
+                        earthResistanceDetails: earthDetailsCtrl.text.trim(),
+                        earthResistanceCertified: earthCertCtrl.text.trim(),
+                        lightningArrester: laCtrl.text.trim(),
+                        completionDate: compDate,
+                      );
+                      _renderKey++;
+                    });
+                    _persistWcrDossier(_reportData);
+                    Navigator.of(ctx).pop();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Specifications saved & synchronized across all modules!'),
+                          backgroundColor: Color(0xFF047857),
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text('Apply Changes & Re-generate'),
+                ),
+              ],
             );
           },
         );
@@ -247,378 +797,568 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
     );
   }
 
-  Future<File?> _ensurePdfGenerated() async {
-    if (_cachedFile != null && await _cachedFile!.exists()) {
-      return _cachedFile;
-    }
-
-    setState(() {
-      _isGenerating = true;
-      _statusMessage = 'Generating A4 Certificate...';
-    });
-
-    try {
-      final file = await WorkCompletionCertificateService.generateCertificatePdf(
-        customer: widget.customer,
-        customCustomerName: _customerName,
-        customConsumerNo: _consumerNo,
-        customAddress: _address,
-        customCapacity: _capacity,
-        customCompletionDate: _completionDate,
-        includeStampAndSignature: _includeStampAndSignature,
-      );
-      if (mounted) {
-        setState(() {
-          _cachedFile = file;
-          _isGenerating = false;
-          _statusMessage = null;
-        });
-      }
-      return file;
-    } catch (e) {
-      debugPrint('Error generating certificate: $e');
-      if (mounted) {
-        setState(() {
-          _isGenerating = false;
-          _statusMessage = null;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to generate PDF: $e'),
-            backgroundColor: const Color(0xFFDC2626),
-          ),
-        );
-      }
-      return null;
-    }
-  }
-
-  Future<void> _handlePreview() async {
-    final file = await _ensurePdfGenerated();
-    if (file != null && mounted) {
-      await WorkCompletionCertificateService.previewCertificate(file);
-    }
-  }
-
-  Future<void> _handleShare() async {
-    final file = await _ensurePdfGenerated();
-    if (file != null && mounted) {
-      await WorkCompletionCertificateService.shareCertificate(file, widget.customer);
-    }
-  }
-
-  Future<void> _handleDownload() async {
-    final file = await _ensurePdfGenerated();
-    if (file != null && mounted) {
-      setState(() {
-        _isGenerating = true;
-        _statusMessage = 'Saving to device storage...';
-      });
-
-      try {
-        final downloaded = await WorkCompletionCertificateService.downloadCertificate(
-          file,
-          widget.customer,
-        );
-        if (mounted) {
-          setState(() => _isGenerating = false);
-          final fileName = downloaded.uri.pathSegments.last;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Saved: $fileName'),
-              backgroundColor: const Color(0xFF059669),
-              duration: const Duration(seconds: 4),
-              action: SnackBarAction(
-                label: 'OPEN',
-                textColor: Colors.white,
-                onPressed: () => WorkCompletionCertificateService.previewCertificate(downloaded),
-              ),
-            ),
-          );
+  Future<void> _printCurrentDocument() async {
+    final custSigBytes = CustomerSignatureHelper.getCustomerSignature(_reportData.consumerNo);
+    await Printing.layoutPdf(
+      onLayout: (format) async {
+        switch (_selectedTab) {
+          case 0:
+            return WorkCompletionCertificateService.generateBankWcrPdfBytes(
+              _reportData,
+              includeStampAndSignature: _includeStampAndSignature,
+              includeCustomerSignature: _includeCustomerSignature,
+              customCustomerSignatureBytes: custSigBytes,
+            );
+          case 1:
+            return WorkCompletionCertificateService.generateWcrPdfBytes(
+              _reportData,
+              includeStampAndSignature: _includeStampAndSignature,
+              includeCustomerSignature: _includeCustomerSignature,
+              customCustomerSignatureBytes: custSigBytes,
+              customAadharCardBytes: _reportData.aadharCardBytes ?? CustomerAadharHelper.getCustomerAadhar(_reportData.consumerNo),
+            );
+          case 2:
+            return WorkCompletionCertificateService.generateAnnexure1PdfBytes(
+              _reportData,
+              includeStampAndSignature: _includeStampAndSignature,
+            );
+          case 3:
+            return WorkCompletionCertificateService.generateDcrPdfBytes(
+              _reportData,
+              includeStampAndSignature: _includeStampAndSignature,
+            );
+          case 4:
+          default:
+            return WorkCompletionCertificateService.generateAnnexure3PdfBytes(
+              _reportData,
+              includeStampAndSignature: _includeStampAndSignature,
+              includeCustomerSignature: _includeCustomerSignature,
+              customCustomerSignatureBytes: custSigBytes,
+            );
         }
-      } catch (e) {
-        if (mounted) {
-          setState(() => _isGenerating = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error downloading certificate: $e'),
-              backgroundColor: const Color(0xFFDC2626),
-            ),
-          );
-        }
-      }
-    }
+      },
+      name: _selectedTab == 0
+          ? 'Bank_WCR_${_reportData.consumerNo}.pdf'
+          : (_selectedTab == 1
+              ? 'MSEDCL_WCR_${_reportData.consumerNo}.pdf'
+              : (_selectedTab == 2
+                  ? 'Annexure_1_${_reportData.consumerNo}.pdf'
+                  : (_selectedTab == 3
+                      ? 'DCR_Undertaking_${_reportData.consumerNo}.pdf'
+                      : 'Net_Metering_Agreement_${_reportData.consumerNo}.pdf'))),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final screenSize = MediaQuery.of(context).size;
+    final isCompact = screenSize.width < 900;
 
-    final dateDisplay = DateFormat('dd-MM-yyyy').format(_completionDate);
-    final addressDisplay = _address.isNotEmpty ? _address : 'Not Specified';
-
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-      contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFBFDBFE)),
-            ),
-            child: const Icon(Icons.workspace_premium_rounded, color: Color(0xFF1D4ED8), size: 24),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Work Completion Certificate',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'Bank / Financial Institution Submission A4 PDF',
-                  style: TextStyle(fontSize: 11, color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
-        ],
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 12 : 24,
+        vertical: isCompact ? 12 : 20,
       ),
-      content: SingleChildScrollView(
+      child: Container(
+        width: (screenSize.width * 0.94).clamp(750.0, 1200.0),
+        height: (screenSize.height * 0.94).clamp(650.0, 960.0),
+        padding: const EdgeInsets.all(18),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Details Header with Edit Button
+            // Row 1: Dialog Header (Icon + Title & Customer Name + Subtitle + Close Button)
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Certificate Specifications',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69)),
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F2D69).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.verified_outlined, color: Color(0xFF0F2D69), size: 24),
                 ),
-                TextButton.icon(
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Work Completion & Commissioning Dossier',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F2D69),
+                                letterSpacing: -0.2,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('—', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFCBD5E1)),
+                              ),
+                              child: Text(
+                                _reportData.customerName,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E293B),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Consumer No: ${_reportData.consumerNo} • Capacity: ${_reportData.installedCapacityKw.toStringAsFixed(1)} kW (${_reportData.moduleTotalCapacityKwp.toStringAsFixed(2)} kWp) • Sanction: ${_reportData.sanctionNo}',
+                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                  icon: const Icon(Icons.edit_note_rounded, size: 16, color: Color(0xFF0F2D69)),
-                  label: const Text(
-                    'Edit Details',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF0F2D69)),
+                ),
+                const SizedBox(width: 12),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 22),
+                  tooltip: 'Close',
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFF1F5F9),
+                    foregroundColor: const Color(0xFF475569),
+                    hoverColor: const Color(0xFFE2E8F0),
                   ),
-                  onPressed: _openEditDetailsModal,
+                  onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
-            ),
-            const SizedBox(height: 6),
-
-            // Option: [ Remove Stamp & Signature ] / [ Include Stamp & Signature ]
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  if (_includeStampAndSignature)
-                    InkWell(
-                      onTap: () {
-                        setState(() {
-                          _includeStampAndSignature = false;
-                          _cachedFile = null;
-                        });
-                      },
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF2F2),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFFCA5A5)),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.remove_circle_outline_rounded, size: 14, color: Color(0xFFDC2626)),
-                            SizedBox(width: 6),
-                            Text(
-                              'Remove Stamp & Signature',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFDC2626)),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  else
-                    InkWell(
-                      onTap: () {
-                        setState(() {
-                          _includeStampAndSignature = true;
-                          _cachedFile = null;
-                        });
-                      },
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFECFDF5),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFA7F3D0)),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.verified_rounded, size: 14, color: Color(0xFF047857)),
-                            SizedBox(width: 6),
-                            Text(
-                              'Include Stamp & Signature',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF047857)),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            // Details Summary Box
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.grey.shade900 : const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: isDark ? Colors.grey.shade800 : const Color(0xFFE2E8F0)),
-              ),
-              child: Column(
-                children: [
-                  _buildDetailRow('Customer Name', _customerName, isBold: true),
-                  const Divider(height: 14),
-                  _buildDetailRow('Consumer No.', _consumerNo),
-                  const Divider(height: 14),
-                  _buildDetailRow('Project Address', addressDisplay),
-                  const Divider(height: 14),
-                  _buildDetailRow('Solar Capacity', _capacity),
-                  const Divider(height: 14),
-                  _buildDetailRow('Completion Date', dateDisplay),
-                ],
-              ),
             ),
             const SizedBox(height: 12),
 
-            // Format Information Pill
+            // Row 2: Document Switcher Tabs (Left) + Primary Output Actions (Right)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Tabs Switcher Pills
+                Flexible(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                      padding: const EdgeInsets.all(3),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildTabButton(0, '1. Bank WCR (1P)', Icons.account_balance_rounded),
+                          const SizedBox(width: 4),
+                          _buildTabButton(1, '2. MSEDCL WCR (2P)', Icons.assignment_turned_in_rounded),
+                          const SizedBox(width: 4),
+                          _buildTabButton(2, '3. Annexure-I (2P)', Icons.description_rounded),
+                          const SizedBox(width: 4),
+                          _buildTabButton(
+                            3,
+                            _reportData.isNonSubsidy ? '4. DCR (Not Required)' : '4. DCR Undertaking (1P)',
+                            Icons.verified_user_rounded,
+                          ),
+                          const SizedBox(width: 4),
+                          _buildTabButton(4, '5. Net-Metering (5P)', Icons.handshake_outlined),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                // Primary Output Actions (WhatsApp, Print, Download)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
+                        foregroundColor: const Color(0xFF128C7E),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () => WorkCompletionCertificateService.sendOnWhatsApp(context, widget.customer, reportData: _reportData),
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
+                      label: const Text('WhatsApp', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    ),
+                    const SizedBox(width: 6),
+                    IconButton(
+                      tooltip: 'Print Document',
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        foregroundColor: const Color(0xFF1E293B),
+                        padding: const EdgeInsets.all(7),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: _printCurrentDocument,
+                      icon: const Icon(Icons.print_rounded, size: 16),
+                    ),
+                    const SizedBox(width: 6),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: _isDownloading
+                          ? null
+                          : () async {
+                              setState(() => _isDownloading = true);
+                              await WorkCompletionCertificateService.downloadCertificatePdf(
+                                context,
+                                widget.customer,
+                                reportData: _reportData,
+                                includeStampAndSignature: _includeStampAndSignature,
+                                includeCustomerSignature: _includeCustomerSignature,
+                                customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_reportData.consumerNo),
+                                customAadharCardBytes: _reportData.aadharCardBytes ?? CustomerAadharHelper.getCustomerAadhar(_reportData.consumerNo),
+                                documentType: _selectedTab,
+                              );
+                              if (mounted) setState(() => _isDownloading = false);
+                            },
+                      icon: _isDownloading
+                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.download_rounded, size: 15),
+                      label: const Text('Download PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Row 2.5: Document Controls & Toggles Strip
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0F2D69),
+                    side: const BorderSide(color: Color(0xFF0F2D69)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: _openEditDetailsDialog,
+                  icon: const Icon(Icons.tune_rounded, size: 14),
+                  label: const Text('Edit Specs / Details', style: TextStyle(fontSize: 11.5)),
+                ),
+
+                if (_includeStampAndSignature)
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFDC2626),
+                      side: const BorderSide(color: Color(0xFFFCA5A5)),
+                      backgroundColor: const Color(0xFFFEF2F2),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _includeStampAndSignature = false;
+                        _renderKey++;
+                      });
+                    },
+                    icon: const Icon(Icons.remove_circle_outline_rounded, size: 14, color: Color(0xFFDC2626)),
+                    label: const Text('Stamp & Sig: ON', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                  )
+                else
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      foregroundColor: const Color(0xFF64748B),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _includeStampAndSignature = true;
+                        _renderKey++;
+                      });
+                    },
+                    icon: const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF64748B)),
+                    label: const Text('Stamp & Sig: OFF', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11.5)),
+                  ),
+
+                if (_includeCustomerSignature)
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF0F3B7A),
+                      side: const BorderSide(color: Color(0xFF93C5FD)),
+                      backgroundColor: const Color(0xFFEFF6FF),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _includeCustomerSignature = false;
+                        _renderKey++;
+                      });
+                    },
+                    icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF0F3B7A)),
+                    label: const Text('Cust Sig: ON', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                  )
+                else
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      foregroundColor: const Color(0xFF64748B),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _includeCustomerSignature = true;
+                        _renderKey++;
+                      });
+                    },
+                    icon: const Icon(Icons.draw_outlined, size: 14, color: Color(0xFF64748B)),
+                    label: const Text('Cust Sig: OFF', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11.5)),
+                  ),
+
+                // Customer Signature Upload
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: CustomerSignatureHelper.hasCustomerSignature(widget.customer.consumerNo)
+                        ? const Color(0xFF047857)
+                        : const Color(0xFF0F3B7A),
+                    side: BorderSide(
+                      color: CustomerSignatureHelper.hasCustomerSignature(widget.customer.consumerNo)
+                          ? const Color(0xFFA7F3D0)
+                          : const Color(0xFF93C5FD),
+                    ),
+                    backgroundColor: CustomerSignatureHelper.hasCustomerSignature(widget.customer.consumerNo)
+                        ? const Color(0xFFECFDF5)
+                        : Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: _pickCustomerSignature,
+                  icon: Icon(
+                    CustomerSignatureHelper.hasCustomerSignature(widget.customer.consumerNo)
+                        ? Icons.check_circle_rounded
+                        : Icons.upload_file_rounded,
+                    size: 14,
+                    color: CustomerSignatureHelper.hasCustomerSignature(widget.customer.consumerNo)
+                        ? const Color(0xFF047857)
+                        : const Color(0xFF0F3B7A),
+                  ),
+                  label: Text(
+                    CustomerSignatureHelper.hasCustomerSignature(widget.customer.consumerNo)
+                        ? 'Sig Uploaded ✓'
+                        : 'Upload Cust Sig',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
+                  ),
+                ),
+
+                // Consumer Aadhar Card Xerox Upload
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                        ? const Color(0xFF047857)
+                        : const Color(0xFF0F3B7A),
+                    side: BorderSide(
+                      color: (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                          ? const Color(0xFFA7F3D0)
+                          : const Color(0xFF93C5FD),
+                    ),
+                    backgroundColor: (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                        ? const Color(0xFFECFDF5)
+                        : Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: _showAadharOptionsDialog,
+                  icon: Icon(
+                    (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                        ? Icons.check_circle_rounded
+                        : Icons.badge_outlined,
+                    size: 14,
+                    color: (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                        ? const Color(0xFF047857)
+                        : const Color(0xFF0F3B7A),
+                  ),
+                  label: Text(
+                    (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                        ? 'Aadhar Uploaded ✓'
+                        : 'Upload Aadhar Card',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Summary Pill
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
                 color: const Color(0xFFECFDF5),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: const Color(0xFFA7F3D0)),
               ),
-              child: const Row(
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                alignment: WrapAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.check_circle_outline, size: 16, color: Color(0xFF059669)),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'A4 Single-Page • Clean Bank-Submission Format',
-                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF047857)),
-                    ),
-                  ),
+                  Text('Modules: ${_reportData.moduleCount}x ${_reportData.moduleMake} (${_reportData.moduleWattage}Wp)', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF065F46), fontSize: 11.5)),
+                  Text('Inverter: ${_reportData.inverterMake} ${_reportData.inverterModel} (${_reportData.inverterRating})', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF047857), fontSize: 11.5)),
+                  Text('Site: ${_reportData.siteType} • ${_reportData.electricalPhase} (${_reportData.isDcrRequired ? "DCR Required" : "DCR Not Required"})', style: TextStyle(fontWeight: FontWeight.bold, color: _reportData.isNonSubsidy ? const Color(0xFF7C3AED) : const Color(0xFF0F2D69), fontSize: 11.5)),
+                  Text('Date: ${DateFormat('dd MMM yyyy').format(_reportData.completionDate)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF334155), fontSize: 11.5)),
                 ],
               ),
             ),
+            const SizedBox(height: 8),
 
-            if (_isGenerating) ...[
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    _statusMessage ?? 'Processing...',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                ],
+            // Non-Subsidy DCR Notice Banner
+            if (_selectedTab == 3 && _reportData.isNonSubsidy)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, color: Color(0xFFB45309), size: 18),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Notice: DCR (Domestic Content Requirement) undertaking is NOT required for Non-Subsidy sites. Domestic Content Requirement applies only to PM Surya Ghar CFA subsidy schemes. Available here if custom requested by DISCOM.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
+
+            // Live Interactive PDF Preview
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: PdfPreview(
+                    key: ValueKey('wcr_preview_${_selectedTab}_${_renderKey}_${_includeStampAndSignature}_${_includeCustomerSignature}_${CustomerSignatureHelper.hasCustomerSignature(_reportData.consumerNo)}_${CustomerAadharHelper.hasCustomerAadhar(_reportData.consumerNo)}_${_reportData.aadharCardBytes != null}'),
+                    build: (PdfPageFormat format) async {
+                      final custSigBytes = CustomerSignatureHelper.getCustomerSignature(_reportData.consumerNo);
+                      switch (_selectedTab) {
+                        case 0:
+                          return WorkCompletionCertificateService.generateBankWcrPdfBytes(
+                            _reportData,
+                            includeStampAndSignature: _includeStampAndSignature,
+                            includeCustomerSignature: _includeCustomerSignature,
+                            customCustomerSignatureBytes: custSigBytes,
+                          );
+                        case 1:
+                          return WorkCompletionCertificateService.generateWcrPdfBytes(
+                            _reportData,
+                            includeStampAndSignature: _includeStampAndSignature,
+                            includeCustomerSignature: _includeCustomerSignature,
+                            customCustomerSignatureBytes: custSigBytes,
+                            customAadharCardBytes: _reportData.aadharCardBytes ?? CustomerAadharHelper.getCustomerAadhar(_reportData.consumerNo),
+                          );
+                        case 2:
+                          return WorkCompletionCertificateService.generateAnnexure1PdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
+                        case 3:
+                          return WorkCompletionCertificateService.generateDcrPdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
+                        case 4:
+                        default:
+                          return WorkCompletionCertificateService.generateAnnexure3PdfBytes(
+                            _reportData,
+                            includeStampAndSignature: _includeStampAndSignature,
+                            includeCustomerSignature: _includeCustomerSignature,
+                            customCustomerSignatureBytes: custSigBytes,
+                          );
+                      }
+                    },
+                    canChangeOrientation: false,
+                    canChangePageFormat: false,
+                    allowPrinting: true,
+                    allowSharing: true,
+                    initialPageFormat: PdfPageFormat.a4,
+                    pdfFileName: _selectedTab == 0
+                        ? 'Bank_WCR_${_reportData.consumerNo}.pdf'
+                        : (_selectedTab == 1
+                            ? 'MSEDCL_WCR_${_reportData.consumerNo}.pdf'
+                            : (_selectedTab == 2
+                                ? 'Annexure_1_${_reportData.consumerNo}.pdf'
+                                : (_selectedTab == 3
+                                    ? 'DCR_Undertaking_${_reportData.consumerNo}.pdf'
+                                    : 'Net_Metering_Agreement_${_reportData.consumerNo}.pdf'))),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
-      actions: [
-        // Preview Button
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: const Color(0xFF0F2D69),
-            side: const BorderSide(color: Color(0xFF0F2D69), width: 1.2),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          ),
-          onPressed: _isGenerating ? null : _handlePreview,
-          icon: const Icon(Icons.visibility_rounded, size: 17),
-          label: const Text('Preview'),
-        ),
-
-        // Share Button (WhatsApp, Email, etc.)
-        FilledButton.tonalIcon(
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.15),
-            foregroundColor: const Color(0xFF128C7E),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          ),
-          onPressed: _isGenerating ? null : _handleShare,
-          icon: const Icon(Icons.share_rounded, size: 17),
-          label: const Text('Share'),
-        ),
-
-        // Download Button
-        FilledButton.icon(
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF059669),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          ),
-          onPressed: _isGenerating ? null : _handleDownload,
-          icon: const Icon(Icons.download_rounded, size: 17),
-          label: const Text('Download'),
-        ),
-      ],
     );
   }
 
-  Widget _buildDetailRow(String label, String value, {bool isBold = false}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 110,
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
+  Widget _buildTabButton(int index, String title, IconData icon) {
+    final isSelected = _selectedTab == index;
+    return InkWell(
+      onTap: () => setState(() {
+        _selectedTab = index;
+        _renderKey++;
+      }),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF0D2B6F) : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: isSelected
+              ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))]
+              : null,
         ),
-        const Text(': ', style: TextStyle(fontSize: 12, color: Colors.grey)),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-              color: isBold ? const Color(0xFF0F2D69) : null,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: isSelected ? Colors.white : const Color(0xFF475569)),
+            const SizedBox(width: 6),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? Colors.white : const Color(0xFF475569),
+              ),
             ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

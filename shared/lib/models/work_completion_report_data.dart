@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import '../models/company_master.dart';
 import '../models/consumer_record.dart';
 
@@ -54,6 +56,16 @@ class WorkCompletionReportData {
 
   // Consumer Identity
   final String consumerAadhar;
+  final String? aadharCardBase64;
+
+  Uint8List? get aadharCardBytes {
+    if (aadharCardBase64 == null || aadharCardBase64!.trim().isEmpty) return null;
+    try {
+      return base64Decode(aadharCardBase64!.trim());
+    } catch (_) {
+      return null;
+    }
+  }
 
   bool get isNonSubsidy => siteType.trim().toLowerCase() == 'non-subsidy';
   bool get isSubsidy => !isNonSubsidy;
@@ -102,6 +114,7 @@ class WorkCompletionReportData {
     String? authorizedPerson,
     String? discomName,
     this.consumerAadhar = '',
+    this.aadharCardBase64,
   })  : vendorFirmName = vendorFirmName ?? CompanyMaster.current.companyName,
         vendorGstin = vendorGstin ?? CompanyMaster.current.gstin,
         vendorAddress = vendorAddress ?? CompanyMaster.current.address,
@@ -118,6 +131,7 @@ class WorkCompletionReportData {
     String? customCapacity,
     DateTime? customCompletionDate,
     String? customAadhar,
+    String? customAadharCardBase64,
     CompanyMaster? company,
   }) {
     final comp = company ?? CompanyMaster.current;
@@ -220,6 +234,7 @@ class WorkCompletionReportData {
       authorizedPerson: comp.signatoryName,
       discomName: comp.discomName,
       consumerAadhar: customAadhar ?? '',
+      aadharCardBase64: customAadharCardBase64,
     );
   }
 
@@ -265,6 +280,8 @@ class WorkCompletionReportData {
     String? authorizedPerson,
     String? discomName,
     String? consumerAadhar,
+    String? aadharCardBase64,
+    Uint8List? aadharCardBytes,
   }) {
     return WorkCompletionReportData(
       customerName: customerName ?? this.customerName,
@@ -308,6 +325,9 @@ class WorkCompletionReportData {
       authorizedPerson: authorizedPerson ?? this.authorizedPerson,
       discomName: discomName ?? this.discomName,
       consumerAadhar: consumerAadhar ?? this.consumerAadhar,
+      aadharCardBase64: aadharCardBytes != null
+          ? base64Encode(aadharCardBytes)
+          : (aadharCardBase64 ?? this.aadharCardBase64),
     );
   }
 
@@ -353,6 +373,7 @@ class WorkCompletionReportData {
     'authorized_person': authorizedPerson,
     'discom_name': discomName,
     'consumer_aadhar': consumerAadhar,
+    'aadhar_card_base64': aadharCardBase64,
   };
 
   factory WorkCompletionReportData.fromJson(Map<String, dynamic> json) {
@@ -402,6 +423,7 @@ class WorkCompletionReportData {
       authorizedPerson: json['authorized_person']?.toString() ?? 'Authorized Signatory',
       discomName: json['discom_name']?.toString() ?? 'MSEDCL',
       consumerAadhar: json['consumer_aadhar']?.toString() ?? '',
+      aadharCardBase64: json['aadhar_card_base64']?.toString(),
     );
   }
 }

@@ -11,6 +11,7 @@ import '../models/consumer_record.dart';
 import '../models/work_completion_report_data.dart';
 import 'company_stamp_helper.dart';
 import 'customer_signature_helper.dart';
+import 'customer_aadhar_helper.dart';
 import '../utils/universal_file_saver.dart';
 
 class WorkCompletionCertificateService {
@@ -551,6 +552,7 @@ class WorkCompletionCertificateService {
     Uint8List? customStampAndSignatureBytes,
     bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
+    Uint8List? customAadharCardBytes,
   }) async {
     final pdf = pw.Document();
 
@@ -572,6 +574,17 @@ class WorkCompletionCertificateService {
         } catch (e) {
           debugPrint('Stamp decode error: $e');
         }
+      }
+    }
+
+    // Resolve Consumer Aadhar Card Image
+    pw.MemoryImage? aadharCardImage;
+    final aBytes = customAadharCardBytes ?? data.aadharCardBytes ?? CustomerAadharHelper.getCustomerAadhar(data.consumerNo);
+    if (aBytes != null && aBytes.isNotEmpty) {
+      try {
+        aadharCardImage = pw.MemoryImage(aBytes);
+      } catch (e) {
+        debugPrint('Aadhar image decode error: $e');
       }
     }
 
@@ -794,22 +807,29 @@ class WorkCompletionCertificateService {
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: blackColor, width: 0.8),
                 ),
-                child: pw.Center(
-                  child: pw.Column(
-                    mainAxisAlignment: pw.MainAxisAlignment.center,
-                    children: [
-                      pw.Text(
-                        'Upload Xerox of AADHAR CARD HERE',
-                        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: blackColor),
+                child: aadharCardImage != null
+                    ? pw.Padding(
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Center(
+                          child: pw.Image(aadharCardImage, fit: pw.BoxFit.contain),
+                        ),
+                      )
+                    : pw.Center(
+                        child: pw.Column(
+                          mainAxisAlignment: pw.MainAxisAlignment.center,
+                          children: [
+                            pw.Text(
+                              'Upload Xerox of AADHAR CARD HERE',
+                              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: blackColor),
+                            ),
+                            pw.SizedBox(height: 8),
+                            pw.Text(
+                              'SHOULD BE SELF ATTESTED BY CONSUMER',
+                              style: const pw.TextStyle(fontSize: 8.5, color: blackColor),
+                            ),
+                          ],
+                        ),
                       ),
-                      pw.SizedBox(height: 8),
-                      pw.Text(
-                        'SHOULD BE SELF ATTESTED BY CONSUMER',
-                        style: const pw.TextStyle(fontSize: 8.5, color: blackColor),
-                      ),
-                    ],
-                  ),
-                ),
               ),
             ],
           );
@@ -1416,6 +1436,7 @@ class WorkCompletionCertificateService {
     DateTime? customCompletionDate,
     bool includeStampAndSignature = false,
     Uint8List? customStampAndSignatureBytes,
+    Uint8List? customAadharCardBytes,
   }) async {
     final data = WorkCompletionReportData.fromCustomer(
       customer,
@@ -1430,6 +1451,7 @@ class WorkCompletionCertificateService {
       data,
       includeStampAndSignature: includeStampAndSignature,
       customStampAndSignatureBytes: customStampAndSignatureBytes,
+      customAadharCardBytes: customAadharCardBytes,
     );
   }
 
@@ -1445,6 +1467,7 @@ class WorkCompletionCertificateService {
     bool includeStampAndSignature = false,
     bool includeCustomerSignature = false,
     Uint8List? customCustomerSignatureBytes,
+    Uint8List? customAadharCardBytes,
     int documentType = 0, // 0: WCR, 1: Annexure-1, 2: DCR, 3: Annexure-3
     WorkCompletionReportData? reportData,
   }) async {
@@ -1476,6 +1499,7 @@ class WorkCompletionCertificateService {
             includeStampAndSignature: includeStampAndSignature,
             includeCustomerSignature: includeCustomerSignature,
             customCustomerSignatureBytes: customCustomerSignatureBytes,
+            customAadharCardBytes: customAadharCardBytes,
           );
           docPrefix = 'MSEDCL_WCR_Report';
           break;

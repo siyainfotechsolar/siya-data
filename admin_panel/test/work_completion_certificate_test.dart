@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:admin_panel/models/consumer_record.dart';
 import 'package:admin_panel/models/work_completion_report_data.dart';
 import 'package:admin_panel/services/work_completion_certificate_service.dart';
+import 'package:admin_panel/services/customer_aadhar_helper.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -165,6 +168,68 @@ void main() {
       expect(reportSub.isDcrRequired, isTrue);
       expect(reportSub.cellManufacturer, equals('Premier Energies Ltd'));
       expect(reportSub.cellGstInvoiceNo, equals('PE/GST/2024/6710'));
+    });
+
+    test('10. CustomerAadharHelper and WorkCompletionReportData aadharCardBase64 serialization', () {
+      final sampleImg = img.Image(width: 400, height: 250);
+      img.fill(sampleImg, color: img.ColorRgba8(240, 240, 240, 255));
+      img.drawString(sampleImg, 'GOVERNMENT OF INDIA - AADHAAR', font: img.arial14, x: 20, y: 20, color: img.ColorRgba8(20, 20, 20, 255));
+      final rawBytes = Uint8List.fromList(img.encodeJpg(sampleImg));
+
+      CustomerAadharHelper.setCustomerAadhar('012345678901', rawBytes);
+      expect(CustomerAadharHelper.hasCustomerAadhar('012345678901'), isTrue);
+      final retrieved = CustomerAadharHelper.getCustomerAadhar('012345678901');
+      expect(retrieved, isNotNull);
+      expect(retrieved!.length, greaterThan(100));
+
+      final updatedData = reportData.copyWith(
+        consumerAadhar: '4567 8901 2345',
+        aadharCardBytes: retrieved,
+      );
+      expect(updatedData.consumerAadhar, equals('4567 8901 2345'));
+      expect(updatedData.aadharCardBytes, isNotNull);
+      expect(updatedData.aadharCardBase64, isNotNull);
+
+      // JSON roundtrip
+      final jsonMap = updatedData.toJson();
+      expect(jsonMap['consumer_aadhar'], equals('4567 8901 2345'));
+      expect(jsonMap['aadhar_card_base64'], isNotNull);
+
+      final fromJson = WorkCompletionReportData.fromJson(jsonMap);
+      expect(fromJson.consumerAadhar, equals('4567 8901 2345'));
+      expect(fromJson.aadharCardBytes, isNotNull);
+      expect(fromJson.aadharCardBytes!.length, equals(retrieved.length));
+    });
+
+    test('11. generateWcrPdfBytes embeds uploaded Aadhar Card Xerox on Page 2 in designated box', () async {
+      final sampleImg = img.Image(width: 600, height: 380);
+      img.fill(sampleImg, color: img.ColorRgba8(245, 245, 250, 255));
+      img.drawString(sampleImg, 'AADHAAR CARD XEROX', font: img.arial24, x: 50, y: 50, color: img.ColorRgba8(15, 35, 90, 255));
+      img.drawString(sampleImg, 'PRABHAKAR KASHINATH BHADANE', font: img.arial14, x: 50, y: 120, color: img.ColorRgba8(0, 0, 0, 255));
+      img.drawString(sampleImg, 'Aadhar: 4567 8901 2345', font: img.arial14, x: 50, y: 150, color: img.ColorRgba8(0, 0, 0, 255));
+      final aadharBytes = Uint8List.fromList(img.encodeJpg(sampleImg));
+
+      final wcrData = reportData.copyWith(
+        consumerAadhar: '4567 8901 2345',
+        aadharCardBytes: aadharBytes,
+      );
+
+      final pdfBytes = await WorkCompletionCertificateService.generateWcrPdfBytes(
+        wcrData,
+        includeStampAndSignature: true,
+        includeCustomerSignature: true,
+        customAadharCardBytes: aadharBytes,
+      );
+
+      expect(pdfBytes, isNotEmpty);
+      expect(pdfBytes.length, greaterThan(5000));
+      final header = ascii.decode(pdfBytes.take(5).toList());
+      expect(header, equals('%PDF-'));
+
+      try {
+        const userArtifactDir = 'C:/Users/Admin/.gemini/antigravity/brain/830e2504-7b0c-4ee4-8264-23b83985f796';
+        File('$userArtifactDir/MSEDCL_WCR_With_Aadhar_Card_Sample.pdf').writeAsBytesSync(pdfBytes);
+      } catch (_) {}
     });
   });
 }

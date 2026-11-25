@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_record.dart';
 import '../models/work_completion_report_data.dart';
 import '../services/customer_signature_helper.dart';
+import '../services/customer_aadhar_helper.dart';
 import '../services/work_completion_certificate_service.dart';
 
 class WorkCompletionCertificateDialog extends StatefulWidget {
@@ -101,6 +102,19 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
               _renderKey++;
             });
           }
+        }
+      }
+    } catch (_) {}
+
+    // Preload Customer Aadhar Card Xerox if available
+    try {
+      final aadharBytes = await CustomerAadharHelper.loadCustomerAadharAsync(consumerNo);
+      if (aadharBytes != null && aadharBytes.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _reportData = _reportData.copyWith(aadharCardBytes: aadharBytes);
+            _renderKey++;
+          });
         }
       }
     } catch (_) {}
@@ -224,6 +238,151 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
         );
       }
     }
+  }
+
+  Future<void> _pickCustomerAadhar() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+        withData: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final rawBytes = result.files.first.bytes;
+        if (rawBytes != null && rawBytes.isNotEmpty) {
+          final processedBytes = CustomerAadharHelper.compressAadharCardImage(rawBytes);
+          CustomerAadharHelper.setCustomerAadhar(widget.customer.consumerNo, processedBytes);
+
+          String currentAadhar = _reportData.consumerAadhar.trim();
+          if (currentAadhar.isEmpty && mounted) {
+            final aadharCtrl = TextEditingController();
+            await showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Row(
+                  children: [
+                    Icon(Icons.badge_outlined, color: Color(0xFF0F2D69), size: 22),
+                    SizedBox(width: 8),
+                    Text('Consumer Aadhar Number', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Aadhar Card Xerox selected. Enter the 12-digit Aadhar number to print above the box:', style: TextStyle(fontSize: 12)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: aadharCtrl,
+                      keyboardType: TextInputType.number,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Aadhar Number (e.g. 4567 8901 2345)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Skip')),
+                  FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F2D69)),
+                    onPressed: () {
+                      currentAadhar = aadharCtrl.text.trim();
+                      Navigator.of(ctx).pop();
+                    },
+                    child: const Text('Save & Apply'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          setState(() {
+            _reportData = _reportData.copyWith(
+              aadharCardBytes: processedBytes,
+              consumerAadhar: currentAadhar.isNotEmpty ? currentAadhar : _reportData.consumerAadhar,
+            );
+            _renderKey++;
+          });
+          _persistWcrDossier(_reportData);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Aadhar Card Xerox uploaded & embedded into Work Completion Report!'),
+                backgroundColor: Color(0xFF047857),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload Aadhar Card: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _removeCustomerAadhar() {
+    CustomerAadharHelper.clearCustomerAadhar(widget.customer.consumerNo);
+    setState(() {
+      _reportData = _reportData.copyWith(aadharCardBase64: '');
+      _renderKey++;
+    });
+    _persistWcrDossier(_reportData);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aadhar Card removed from Work Completion Report.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showAadharOptionsDialog() async {
+    final hasAadhar = CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null;
+    if (!hasAadhar) {
+      await _pickCustomerAadhar();
+      return;
+    }
+
+    await showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.file_upload_outlined, color: Color(0xFF0F2D69)),
+              title: const Text('Replace Aadhar Card Xerox'),
+              subtitle: const Text('Upload a new photo or scan of the consumer Aadhar card'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _pickCustomerAadhar();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+              title: const Text('Remove Aadhar Card', style: TextStyle(color: Colors.red)),
+              subtitle: const Text('Clear the embedded Xerox and revert to blank box'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _removeCustomerAadhar();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.close_rounded),
+              title: const Text('Cancel'),
+              onTap: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _openEditDetailsDialog() async {
@@ -434,9 +593,43 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                       const SizedBox(height: 10),
                       Row(
                         children: [
-                          Expanded(child: TextField(controller: aadharCtrl, decoration: const InputDecoration(labelText: 'Consumer Aadhar No', isDense: true, border: OutlineInputBorder()))),
+                          Expanded(
+                            flex: 3,
+                            child: TextField(
+                              controller: aadharCtrl,
+                              decoration: InputDecoration(
+                                labelText: 'Consumer Aadhar No',
+                                isDense: true,
+                                border: const OutlineInputBorder(),
+                                suffixIcon: IconButton(
+                                  tooltip: (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                                      ? 'Aadhar Xerox Uploaded (Click to change)'
+                                      : 'Upload Aadhar Xerox',
+                                  icon: Icon(
+                                    (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                                        ? Icons.verified_user_rounded
+                                        : Icons.upload_file_rounded,
+                                    color: (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                                        ? const Color(0xFF047857)
+                                        : const Color(0xFF0F2D69),
+                                    size: 20,
+                                  ),
+                                  onPressed: () async {
+                                    Navigator.of(ctx).pop();
+                                    await _showAadharOptionsDialog();
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
                           const SizedBox(width: 10),
-                          Expanded(child: TextField(controller: categoryCtrl, decoration: const InputDecoration(labelText: 'Category', isDense: true, border: OutlineInputBorder()))),
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: categoryCtrl,
+                              decoration: const InputDecoration(labelText: 'Category', isDense: true, border: OutlineInputBorder()),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -622,6 +815,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
               includeStampAndSignature: _includeStampAndSignature,
               includeCustomerSignature: _includeCustomerSignature,
               customCustomerSignatureBytes: custSigBytes,
+              customAadharCardBytes: _reportData.aadharCardBytes ?? CustomerAadharHelper.getCustomerAadhar(_reportData.consumerNo),
             );
           case 2:
             return WorkCompletionCertificateService.generateAnnexure1PdfBytes(
@@ -837,6 +1031,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                                 includeStampAndSignature: _includeStampAndSignature,
                                 includeCustomerSignature: _includeCustomerSignature,
                                 customCustomerSignatureBytes: CustomerSignatureHelper.getCustomerSignature(_reportData.consumerNo),
+                                customAadharCardBytes: _reportData.aadharCardBytes ?? CustomerAadharHelper.getCustomerAadhar(_reportData.consumerNo),
                                 documentType: _selectedTab,
                               );
                               if (mounted) setState(() => _isDownloading = false);
@@ -978,6 +1173,41 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
                   ),
                 ),
+
+                // Consumer Aadhar Card Xerox Upload
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                        ? const Color(0xFF047857)
+                        : const Color(0xFF0F3B7A),
+                    side: BorderSide(
+                      color: (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                          ? const Color(0xFFA7F3D0)
+                          : const Color(0xFF93C5FD),
+                    ),
+                    backgroundColor: (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                        ? const Color(0xFFECFDF5)
+                        : Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: _showAadharOptionsDialog,
+                  icon: Icon(
+                    (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                        ? Icons.check_circle_rounded
+                        : Icons.badge_outlined,
+                    size: 14,
+                    color: (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                        ? const Color(0xFF047857)
+                        : const Color(0xFF0F3B7A),
+                  ),
+                  label: Text(
+                    (CustomerAadharHelper.hasCustomerAadhar(widget.customer.consumerNo) || _reportData.aadharCardBytes != null)
+                        ? 'Aadhar Uploaded ✓'
+                        : 'Upload Aadhar Card',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -1039,7 +1269,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: PdfPreview(
-                    key: ValueKey('wcr_preview_${_selectedTab}_${_renderKey}_${_includeStampAndSignature}_${_includeCustomerSignature}_${CustomerSignatureHelper.hasCustomerSignature(_reportData.consumerNo)}'),
+                    key: ValueKey('wcr_preview_${_selectedTab}_${_renderKey}_${_includeStampAndSignature}_${_includeCustomerSignature}_${CustomerSignatureHelper.hasCustomerSignature(_reportData.consumerNo)}_${CustomerAadharHelper.hasCustomerAadhar(_reportData.consumerNo)}_${_reportData.aadharCardBytes != null}'),
                     build: (PdfPageFormat format) async {
                       final custSigBytes = CustomerSignatureHelper.getCustomerSignature(_reportData.consumerNo);
                       switch (_selectedTab) {
@@ -1056,6 +1286,7 @@ class _WorkCompletionCertificateDialogState extends State<WorkCompletionCertific
                             includeStampAndSignature: _includeStampAndSignature,
                             includeCustomerSignature: _includeCustomerSignature,
                             customCustomerSignatureBytes: custSigBytes,
+                            customAadharCardBytes: _reportData.aadharCardBytes ?? CustomerAadharHelper.getCustomerAadhar(_reportData.consumerNo),
                           );
                         case 2:
                           return WorkCompletionCertificateService.generateAnnexure1PdfBytes(_reportData, includeStampAndSignature: _includeStampAndSignature);
