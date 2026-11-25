@@ -2095,8 +2095,8 @@ class _SubVendorCompleteFinancialDashboardScreenState
     final s = _summary;
     if (s == null) return const Center(child: Text('No data'));
 
-    final totalRealizedCollection = _assignments.fold<double>(0.0, (acc, a) => acc + a.totalCustomerReceived);
-    final effectiveCollection = totalRealizedCollection > 0 ? totalRealizedCollection : s.totalSiteAmount;
+    final totalRealizedCollection = _assignments.fold<double>(0.0, (acc, a) => acc + a.effectiveReceivedAmount);
+    final effectiveCollection = totalRealizedCollection;
     final totalMaterialCost = s.totalMaterialCost;
     final vendorCharges = s.totalVendorCharges;
     final otherExpenses = s.totalOtherExpenses;

@@ -48,17 +48,14 @@ class SiteFinancialDetail {
   final double totalPaidToVendor;
   final double outstandingVendorPayable; // legacy vendor charges minus paid
 
-  /// Effective collection realized (Bank loan credited + customer cash) or total site quotation
-  double get effectiveCollection => amountReceivedBySiya > 0 ? amountReceivedBySiya : totalSiteAmount;
+  /// Effective collection realized (Bank loan credited + customer cash)
+  double get effectiveCollection => amountReceivedBySiya;
 
   /// Net balance payable to Sub-Vendor under Net Balance model:
   /// (Collection - Material Cost - SIYA Charges - Expenses - Net GST Liability - Paid to Vendor)
   double get netSubVendorBalance {
-    if (effectiveCollection > 0) {
-      return double.parse((effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - netGstLiability - totalPaidToVendor).toStringAsFixed(2));
-    }
-    return outstandingVendorPayable;
-  } // totalVendorPayable - totalPaidToVendor
+    return double.parse((effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - netGstLiability - totalPaidToVendor).toStringAsFixed(2));
+  }
 
   const SiteFinancialDetail({
     required this.assignment,
