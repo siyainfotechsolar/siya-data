@@ -8,6 +8,7 @@ import 'package:siya_shared/siya_shared.dart';
 import '../services/sub_vendor_service.dart';
 import '../services/sub_vendor_pdf_service.dart';
 import '../widgets/sub_vendor_dialogs.dart';
+import 'sub_vendor_account_dashboard_screen.dart';
 import 'sub_vendor_complete_financial_dashboard_screen.dart';
 import 'sub_vendor_material_outward_screen.dart';
 import '../utils/universal_file_saver.dart';
@@ -45,7 +46,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     _loadAllData();
   }
 
@@ -214,6 +215,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
           unselectedLabelColor: Colors.white70,
           tabs: const [
             Tab(icon: Icon(Icons.people, size: 18), text: 'Vendor Accounts'),
+            Tab(icon: Icon(Icons.account_balance_wallet_rounded, size: 18), text: 'Account Dashboard & Ledger'),
             Tab(icon: Icon(Icons.assignment, size: 18), text: 'Site Assignments'),
             Tab(icon: Icon(Icons.inventory, size: 18), text: 'Material Tracking'),
             Tab(icon: Icon(Icons.outbox_rounded, size: 18), text: 'Material Outward'),
@@ -228,6 +230,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
               controller: _tabController,
               children: [
                 _buildVendorsListTab(),
+                const SubVendorAccountDashboardScreen(),
                 _buildAssignmentsTab(),
                 _buildMaterialTrackingTab(),
                 const SubVendorMaterialOutwardScreen(),
@@ -1007,7 +1010,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                   side: const BorderSide(color: Color(0xFF0D2B6F)),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 ),
-                onPressed: () => _tabController.animateTo(3),
+                onPressed: () => _tabController.animateTo(4),
               ),
               const SizedBox(width: 8),
               ElevatedButton.icon(

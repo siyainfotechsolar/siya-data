@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:siya_shared/siya_shared.dart';
 import 'sub_vendor_service.dart';
+import 'sub_vendor_account_ledger_service.dart';
 import 'supabase_service.dart';
 
 /// Database & State Service for Sub-Vendor Material Outward Tracking & Inventory Stock Management.
@@ -161,6 +162,25 @@ class SubVendorMaterialOutwardService {
         _inMemoryOutwards.insert(0, createdOutward);
         _applyLocalStockDeduction(items);
         await _saveOutwardsToCache(_inMemoryOutwards);
+
+        // Auto-sync with Credit/Debit Ledger
+        double totalVal = 0.0;
+        for (final item in items) {
+          final r = masterMap[item.materialId]?.defaultRate ?? 1000.0;
+          totalVal += (item.quantity * r);
+        }
+        await SubVendorAccountLedgerService.syncFromMaterialOutward(
+          outwardId: outwardId,
+          outwardNumber: outwardNumber,
+          vendorId: vendorId,
+          vendorName: vendorName,
+          outwardDate: outwardDate,
+          totalOutwardValue: totalVal,
+          totalItems: items.length,
+          totalQuantity: createdOutward.totalQuantity,
+          remarks: remarks,
+        );
+
         return createdOutward;
       }
     } catch (e) {
@@ -173,6 +193,20 @@ class SubVendorMaterialOutwardService {
     final outwardNumber = 'OUT-$dateStr-${seq.toString().padLeft(4, '0')}';
     final outwardId = 'outward-${DateTime.now().millisecondsSinceEpoch}-$seq';
 
+    // Calculate item pricing and total valuation
+    double totalVal = 0.0;
+    final processedItems = items.map((i) {
+      final rate = i.unitRate > 0 ? i.unitRate : (masterMap[i.materialId]?.defaultRate ?? 1000.0);
+      final price = i.totalPrice > 0 ? i.totalPrice : (i.quantity * rate);
+      totalVal += price;
+      return i.copyWith(
+        outwardId: outwardId,
+        id: 'item-${DateTime.now().microsecondsSinceEpoch}',
+        unitRate: rate,
+        totalPrice: price,
+      );
+    }).toList();
+
     final createdOutward = SubVendorMaterialOutward(
       id: outwardId,
       outwardNumber: outwardNumber,
@@ -181,9 +215,10 @@ class SubVendorMaterialOutwardService {
       outwardDate: outwardDate,
       totalItems: items.length,
       totalQuantity: items.fold<double>(0.0, (double sum, i) => sum + i.quantity),
+      totalValue: totalVal,
       remarks: remarks,
       status: 'Active',
-      items: items.map((i) => i.copyWith(outwardId: outwardId, id: 'item-${DateTime.now().microsecondsSinceEpoch}')).toList(),
+      items: processedItems,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -196,12 +231,26 @@ class SubVendorMaterialOutwardService {
       outwardId: outwardId,
       outwardNumber: outwardNumber,
       action: 'CREATE',
-      description: 'Created outward entry with ${items.length} materials, total quantity: ${createdOutward.totalQuantity}',
+      description: 'Created outward entry with ${items.length} materials, total quantity: ${createdOutward.totalQuantity}, total value: $totalVal',
       details: createdOutward.toJson(),
     );
 
     await _saveOutwardsToCache(_inMemoryOutwards);
     await _saveMaterialsToCache(_inMemoryMaterials);
+
+    // Auto-sync with Credit/Debit Ledger
+    await SubVendorAccountLedgerService.syncFromMaterialOutward(
+      outwardId: outwardId,
+      outwardNumber: outwardNumber,
+      vendorId: vendorId,
+      vendorName: vendorName,
+      outwardDate: outwardDate,
+      totalOutwardValue: totalVal,
+      totalItems: items.length,
+      totalQuantity: createdOutward.totalQuantity,
+      remarks: remarks,
+    );
+
     return createdOutward;
   }
 
@@ -328,6 +377,28 @@ class SubVendorMaterialOutwardService {
 
     await _saveOutwardsToCache(_inMemoryOutwards);
     await _saveMaterialsToCache(_inMemoryMaterials);
+
+    // Auto-sync ledger update
+    final masterList = await fetchMaterialMaster();
+    final rateMap = {for (var m in masterList) m.id: m};
+    double updatedVal = 0.0;
+    for (final item in items) {
+      final r = rateMap[item.materialId]?.defaultRate ?? 1000.0;
+      updatedVal += (item.quantity * r);
+    }
+    await SubVendorAccountLedgerService.syncFromMaterialOutward(
+      outwardId: outwardId,
+      outwardNumber: updated.outwardNumber,
+      vendorId: vendorId,
+      vendorName: vendorName,
+      outwardDate: outwardDate,
+      totalOutwardValue: updatedVal,
+      totalItems: items.length,
+      totalQuantity: updated.totalQuantity,
+      remarks: remarks,
+      isUpdate: true,
+    );
+
     return updated;
   }
 
@@ -399,6 +470,10 @@ class SubVendorMaterialOutwardService {
 
     await _saveOutwardsToCache(_inMemoryOutwards);
     await _saveMaterialsToCache(_inMemoryMaterials);
+
+    // Auto-sync ledger cancellation
+    await SubVendorAccountLedgerService.cancelLedgerEntryByReferenceId(outwardId, reason: reason);
+
     return cancelled;
   }
 

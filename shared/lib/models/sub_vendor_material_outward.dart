@@ -83,6 +83,8 @@ class SubVendorMaterialOutwardItem {
   final String materialName;
   final String unit;
   final double quantity;
+  final double unitRate;
+  final double totalPrice;
   final DateTime? createdAt;
 
   const SubVendorMaterialOutwardItem({
@@ -92,17 +94,25 @@ class SubVendorMaterialOutwardItem {
     required this.materialName,
     this.unit = 'NOS',
     required this.quantity,
+    this.unitRate = 0.0,
+    this.totalPrice = 0.0,
     this.createdAt,
   });
 
   factory SubVendorMaterialOutwardItem.fromJson(Map<String, dynamic> json) {
+    final qty = (json['quantity'] as num?)?.toDouble() ?? 0.0;
+    final rate = (json['unit_rate'] as num?)?.toDouble() ?? 0.0;
+    final price = (json['total_price'] as num?)?.toDouble() ?? (qty * rate);
+
     return SubVendorMaterialOutwardItem(
       id: json['id']?.toString() ?? '',
       outwardId: json['outward_id']?.toString() ?? '',
       materialId: json['material_id']?.toString(),
       materialName: json['material_name']?.toString() ?? '',
       unit: (json['unit']?.toString() ?? 'NOS').toUpperCase(),
-      quantity: (json['quantity'] as num?)?.toDouble() ?? 0.0,
+      quantity: qty,
+      unitRate: rate,
+      totalPrice: price,
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
     );
   }
@@ -114,6 +124,8 @@ class SubVendorMaterialOutwardItem {
         'material_name': materialName,
         'unit': unit,
         'quantity': quantity,
+        'unit_rate': unitRate,
+        'total_price': totalPrice,
         if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
       };
 
@@ -124,6 +136,8 @@ class SubVendorMaterialOutwardItem {
     String? materialName,
     String? unit,
     double? quantity,
+    double? unitRate,
+    double? totalPrice,
     DateTime? createdAt,
   }) {
     return SubVendorMaterialOutwardItem(
@@ -133,6 +147,8 @@ class SubVendorMaterialOutwardItem {
       materialName: materialName ?? this.materialName,
       unit: unit ?? this.unit,
       quantity: quantity ?? this.quantity,
+      unitRate: unitRate ?? this.unitRate,
+      totalPrice: totalPrice ?? this.totalPrice,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -147,6 +163,7 @@ class SubVendorMaterialOutward {
   final DateTime outwardDate;
   final int totalItems;
   final double totalQuantity;
+  final double totalValue;
   final String? remarks;
   final String status; // 'Active', 'Cancelled'
   final DateTime? cancelledAt;
@@ -165,6 +182,7 @@ class SubVendorMaterialOutward {
     required this.outwardDate,
     this.totalItems = 0,
     this.totalQuantity = 0.0,
+    this.totalValue = 0.0,
     this.remarks,
     this.status = 'Active',
     this.cancelledAt,
@@ -194,6 +212,8 @@ class SubVendorMaterialOutward {
     final totalItems = (json['total_items'] as num?)?.toInt() ?? parsedItems.length;
     final double totalQuantity = (json['total_quantity'] as num?)?.toDouble() ??
         parsedItems.fold<double>(0.0, (double sum, i) => sum + i.quantity);
+    final double totalValue = (json['total_value'] as num?)?.toDouble() ??
+        parsedItems.fold<double>(0.0, (double sum, i) => sum + i.totalPrice);
 
     return SubVendorMaterialOutward(
       id: json['id']?.toString() ?? '',
@@ -205,6 +225,7 @@ class SubVendorMaterialOutward {
           : DateTime.now(),
       totalItems: totalItems,
       totalQuantity: totalQuantity,
+      totalValue: totalValue,
       remarks: json['remarks']?.toString(),
       status: json['status']?.toString() ?? 'Active',
       cancelledAt: json['cancelled_at'] != null ? DateTime.tryParse(json['cancelled_at'].toString()) : null,
@@ -225,6 +246,7 @@ class SubVendorMaterialOutward {
         'outward_date': outwardDate.toIso8601String().split('T').first,
         'total_items': totalItems,
         'total_quantity': totalQuantity,
+        'total_value': totalValue,
         if (remarks != null) 'remarks': remarks,
         'status': status,
         if (cancelledAt != null) 'cancelled_at': cancelledAt!.toIso8601String(),
@@ -244,6 +266,7 @@ class SubVendorMaterialOutward {
     DateTime? outwardDate,
     int? totalItems,
     double? totalQuantity,
+    double? totalValue,
     String? remarks,
     String? status,
     DateTime? cancelledAt,
@@ -257,6 +280,7 @@ class SubVendorMaterialOutward {
     final effectiveItems = items ?? this.items;
     final effTotalItems = totalItems ?? effectiveItems.length;
     final double effTotalQty = totalQuantity ?? effectiveItems.fold<double>(0.0, (double sum, i) => sum + i.quantity);
+    final double effTotalVal = totalValue ?? effectiveItems.fold<double>(0.0, (double sum, i) => sum + i.totalPrice);
 
     return SubVendorMaterialOutward(
       id: id ?? this.id,
@@ -266,6 +290,7 @@ class SubVendorMaterialOutward {
       outwardDate: outwardDate ?? this.outwardDate,
       totalItems: effTotalItems,
       totalQuantity: effTotalQty,
+      totalValue: effTotalVal,
       remarks: remarks ?? this.remarks,
       status: status ?? this.status,
       cancelledAt: cancelledAt ?? this.cancelledAt,
