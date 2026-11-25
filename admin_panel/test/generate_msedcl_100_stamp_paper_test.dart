@@ -73,6 +73,7 @@ void main() {
     // 2. ₹100 Physical Stamp Paper Application - Marathi (80mm Top Margin)
     // -------------------------------------------------------------------------
     final app100PhysicalStamp = app100MarathiPlain.copyWith(
+      isPhysicalStampPaper: true,
       stampTopMarginMm: 80.0, // 80mm top margin for physical government stamp paper
     );
     final bytes2 = await MsedclPdfService.generateAffidavitPdf(app100PhysicalStamp);
@@ -85,6 +86,7 @@ void main() {
     // -------------------------------------------------------------------------
     final app100English = app100MarathiPlain.copyWith(
       stampPaperLanguage: 'English',
+      isPhysicalStampPaper: false,
       stampTopMarginMm: 0.0,
     );
     final bytes3 = await MsedclPdfService.generateAffidavitPdf(app100English);
@@ -108,6 +110,14 @@ void main() {
     await file5.writeAsBytes(bytes5);
     expect(file5.existsSync(), isTrue);
 
-    print('All 5 MSEDCL ₹100 Stamp Paper and Application PDFs successfully generated in $artifactDir');
+    // -------------------------------------------------------------------------
+    // 6. Complete Master Application PDF (Form U + Checklist/Form X + ₹100 Stamp Affidavit)
+    // -------------------------------------------------------------------------
+    final bytes6 = await MsedclPdfService.generateCompleteApplicationPdf(app100MarathiPlain);
+    final file6 = File('$artifactDir/msedcl_complete_master_application.pdf');
+    await file6.writeAsBytes(bytes6);
+    expect(file6.existsSync(), isTrue);
+
+    print('All 6 MSEDCL ₹100 Stamp Paper and Application PDFs successfully generated in $artifactDir');
   });
 }

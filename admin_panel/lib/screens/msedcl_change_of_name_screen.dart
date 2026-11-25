@@ -1186,7 +1186,8 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
   // 3. Stamp Paper Controllers
   double _stampValue = 100.0;
   String _stampLanguage = 'English'; // Default English Self Undertaking for MSEDCL / Net Metering
-  double _stampTopMarginMm = 80.0;
+  bool _isPhysicalStampPaper = false;
+  double _stampTopMarginMm = 0.0;
   final _affidavitPlaceCtrl = TextEditingController(text: 'Dhule');
   final _affidavitCustomTextCtrl = TextEditingController();
 
@@ -1371,6 +1372,7 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
 
       _stampValue = e.stampPaperValue;
       _stampLanguage = e.stampPaperLanguage;
+      _isPhysicalStampPaper = e.isPhysicalStampPaper;
       _stampTopMarginMm = e.stampTopMarginMm;
       _affidavitPlaceCtrl.text = e.affidavitPlace;
       _affidavitCustomTextCtrl.text = e.affidavitCustomText ?? '';
@@ -1567,7 +1569,8 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
         stampPaperValue: _stampValue,
         stampPaperState: 'Maharashtra',
         stampPaperLanguage: _stampLanguage,
-        stampTopMarginMm: _stampTopMarginMm,
+        isPhysicalStampPaper: _isPhysicalStampPaper,
+        stampTopMarginMm: _isPhysicalStampPaper ? (_stampTopMarginMm > 0 ? _stampTopMarginMm : 80.0) : 0.0,
         affidavitCustomText: _affidavitCustomTextCtrl.text.trim().isNotEmpty ? _affidavitCustomTextCtrl.text.trim() : null,
         affidavitPlace: _affidavitPlaceCtrl.text.trim(),
         formXOption: _formXOption,
@@ -2211,24 +2214,61 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
           Row(
             children: [
               Expanded(
-                child: TextFormField(
-                  initialValue: _stampTopMarginMm.toStringAsFixed(0),
+                flex: 3,
+                child: DropdownButtonFormField<bool>(
+                  value: _isPhysicalStampPaper,
                   decoration: const InputDecoration(
-                    labelText: 'Top Margin for Physical Stamp (mm)',
-                    suffixText: 'mm',
-                    helperText: '80mm to print below physical e-stamp header; 0 for plain A4',
+                    labelText: 'Stamp Paper Output Mode *',
                     border: OutlineInputBorder(),
                     isDense: true,
+                    helperText: 'Default: Official ₹100 Stamp Paper Graphic (Portal / Color Print)',
                   ),
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) {
-                    final d = double.tryParse(v);
-                    if (d != null) _stampTopMarginMm = d;
+                  items: const [
+                    DropdownMenuItem(
+                      value: false,
+                      child: Text('₹100 Maharashtra Stamp Paper Graphic (Default - Portal & Print)'),
+                    ),
+                    DropdownMenuItem(
+                      value: true,
+                      child: Text('Physical Stamp Paper Feed (Blank header for printer tray)'),
+                    ),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _isPhysicalStampPaper = val;
+                        if (_isPhysicalStampPaper && _stampTopMarginMm == 0) {
+                          _stampTopMarginMm = 80.0;
+                        }
+                      });
+                    }
                   },
                 ),
               ),
+              if (_isPhysicalStampPaper) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 1,
+                  child: TextFormField(
+                    initialValue: (_stampTopMarginMm > 0 ? _stampTopMarginMm : 80.0).toStringAsFixed(0),
+                    decoration: const InputDecoration(
+                      labelText: 'Top Margin',
+                      suffixText: 'mm',
+                      helperText: 'Usually 80mm',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    keyboardType: TextInputType.number,
+                    onChanged: (v) {
+                      final d = double.tryParse(v);
+                      if (d != null) _stampTopMarginMm = d;
+                    },
+                  ),
+                ),
+              ],
               const SizedBox(width: 8),
               Expanded(
+                flex: 2,
                 child: TextFormField(
                   controller: _affidavitPlaceCtrl,
                   decoration: const InputDecoration(
@@ -3786,7 +3826,12 @@ class _ViewMsedclApplicationDialog extends StatelessWidget {
                 _detailColumn('Configurable Stamp Value:', '₹ ${application.stampPaperValue.toStringAsFixed(0)}'),
                 _detailColumn('State:', application.stampPaperState),
                 _detailColumn('Language:', application.stampPaperLanguage),
-                _detailColumn('Top Margin for Physical Stamp:', '${application.stampTopMarginMm.toStringAsFixed(0)} mm'),
+                _detailColumn(
+                  'Stamp Output Mode:',
+                  application.isPhysicalStampPaper
+                      ? 'Physical Feed (${application.stampTopMarginMm.toStringAsFixed(0)} mm margin)'
+                      : 'Official ₹100 Maharashtra Stamp Graphic (Standard)',
+                ),
                 _detailColumn('Place of Execution:', application.affidavitPlace),
               ],
             ),

@@ -980,7 +980,13 @@ class MsedclPdfService {
 
   /// Generate Editable Stamp Paper Affidavit / Undertaking for the NEW CUSTOMER
   /// Renders on official Rs. 100 Non-Judicial Maharashtra Stamp Paper (matching Net Metering Agreement)
-  static Future<Uint8List> generateAffidavitPdf(MsedclChangeOfNameApplication app, {Uint8List? customStampPaperBytes}) async {
+  static Future<Uint8List> generateAffidavitPdf(
+    MsedclChangeOfNameApplication app, {
+    Uint8List? customStampPaperBytes,
+    bool forceStampPaperBackground = false,
+    int? maxStampDimension,
+    int? stampQuality,
+  }) async {
     final pdf = pw.Document(
       title: 'MSEDCL Affidavit - ${app.computedNewFullName}',
       author: 'Siya Infotech & Solar Energy',
@@ -992,13 +998,20 @@ class MsedclPdfService {
     // Load official Rs. 100 Maharashtra Non-Judicial Stamp Paper graphic (identical to Net Meter Agreement)
     final stampBytes = await AdminCompanyStampHelper.loadStampPaperBytes(customBytes: customStampPaperBytes);
     Uint8List? optimizedStampBytes = stampBytes;
-    if (stampBytes != null && stampBytes.isNotEmpty && stampBytes.lengthInBytes > 200 * 1024) {
-      optimizedStampBytes = compressImageForA4(stampBytes, maxDimension: 1200, quality: 75);
+    if (stampBytes != null && stampBytes.isNotEmpty && stampBytes.lengthInBytes > 150 * 1024) {
+      optimizedStampBytes = compressImageForA4(
+        stampBytes,
+        maxDimension: maxStampDimension ?? 1200,
+        quality: stampQuality ?? 75,
+      );
     }
     final pw.MemoryImage? stampPaperImage = (optimizedStampBytes != null && optimizedStampBytes.isNotEmpty) ? pw.MemoryImage(optimizedStampBytes) : null;
 
-    final isPhysicalStamp = app.stampTopMarginMm > 0;
-    final topMarginPt = isPhysicalStamp ? (app.stampTopMarginMm * 2.83465) : 465.0;
+    // Physical stamp feed is ONLY active when isPhysicalStampPaper is true and not forced to render graphic
+    final isPhysicalStamp = !forceStampPaperBackground && app.isPhysicalStampPaper;
+    final topMarginPt = isPhysicalStamp
+        ? ((app.stampTopMarginMm > 0 ? app.stampTopMarginMm : 80.0) * 2.83465)
+        : 465.0;
 
     pdf.addPage(
       pw.MultiPage(
@@ -1655,7 +1668,12 @@ class MsedclPdfService {
         masterDoc.compressionLevel = sf.PdfCompressionLevel.best;
 
         if (includeAffidavit) {
-          final affidavitBytes = await generateAffidavitPdf(app);
+          final affidavitBytes = await generateAffidavitPdf(
+            app,
+            forceStampPaperBackground: true,
+            maxStampDimension: imageMaxDimension,
+            stampQuality: imageQuality,
+          );
           final affidavitDoc = sf.PdfDocument(inputBytes: affidavitBytes);
           for (int i = 0; i < affidavitDoc.pages.count; i++) {
             final template = affidavitDoc.pages[i].createTemplate();

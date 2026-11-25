@@ -224,6 +224,7 @@ class MsedclChangeOfNameApplication {
   final double stampPaperValue; // Configurable: e.g. 100, 200, 500
   final String stampPaperState; // Default 'Maharashtra'
   final String stampPaperLanguage; // 'Marathi' or 'English'
+  final bool isPhysicalStampPaper; // True if feeding physical pre-bought stamp paper into printer tray
   final double stampTopMarginMm; // Gap at top for physical non-judicial stamp paper
   final String? affidavitCustomText; // Custom edited affidavit content
   final String affidavitPlace; // Default e.g. 'Dhule' / 'Nardana'
@@ -285,7 +286,8 @@ class MsedclChangeOfNameApplication {
     this.stampPaperValue = 100.0,
     this.stampPaperState = 'Maharashtra',
     this.stampPaperLanguage = 'English', // Default English Self Undertaking for MSEDCL / Net Metering
-    this.stampTopMarginMm = 80.0, // Default 80mm top margin for physical stamp paper
+    this.isPhysicalStampPaper = false, // Default false: renders official ₹100 stamp paper graphic
+    this.stampTopMarginMm = 0.0, // Default 0.0mm: graphic header handles 465pt top clearance
     this.affidavitCustomText,
     this.affidavitPlace = 'Dhule',
     // Form X Configuration
@@ -389,6 +391,7 @@ class MsedclChangeOfNameApplication {
     double? stampPaperValue,
     String? stampPaperState,
     String? stampPaperLanguage,
+    bool? isPhysicalStampPaper,
     double? stampTopMarginMm,
     String? affidavitCustomText,
     String? affidavitPlace,
@@ -440,6 +443,7 @@ class MsedclChangeOfNameApplication {
       stampPaperValue: stampPaperValue ?? this.stampPaperValue,
       stampPaperState: stampPaperState ?? this.stampPaperState,
       stampPaperLanguage: stampPaperLanguage ?? this.stampPaperLanguage,
+      isPhysicalStampPaper: isPhysicalStampPaper ?? this.isPhysicalStampPaper,
       stampTopMarginMm: stampTopMarginMm ?? this.stampTopMarginMm,
       affidavitCustomText: affidavitCustomText ?? this.affidavitCustomText,
       affidavitPlace: affidavitPlace ?? this.affidavitPlace,
@@ -494,6 +498,7 @@ class MsedclChangeOfNameApplication {
       'stamp_paper_value': stampPaperValue,
       'stamp_paper_state': stampPaperState,
       'stamp_paper_language': stampPaperLanguage,
+      'is_physical_stamp_paper': isPhysicalStampPaper,
       'stamp_top_margin_mm': stampTopMarginMm,
       'affidavit_custom_text': affidavitCustomText,
       'affidavit_place': affidavitPlace,
@@ -569,7 +574,8 @@ class MsedclChangeOfNameApplication {
       stampPaperValue: (json['stamp_paper_value'] as num?)?.toDouble() ?? 100.0,
       stampPaperState: json['stamp_paper_state'] as String? ?? 'Maharashtra',
       stampPaperLanguage: json['stamp_paper_language'] as String? ?? 'Marathi',
-      stampTopMarginMm: (json['stamp_top_margin_mm'] as num?)?.toDouble() ?? 80.0,
+      isPhysicalStampPaper: json['is_physical_stamp_paper'] as bool? ?? false,
+      stampTopMarginMm: (json['stamp_top_margin_mm'] as num?)?.toDouble() ?? 0.0,
       affidavitCustomText: json['affidavit_custom_text'] as String?,
       affidavitPlace: json['affidavit_place'] as String? ?? 'Dhule',
       formXOption: json['form_x_option'] as String? ?? 'transfer',
