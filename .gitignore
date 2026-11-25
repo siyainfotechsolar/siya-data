@@ -43,6 +43,13 @@ supabase/.temp/
 *.key
 *.pem
 service-account*.json
+*.jks
+*.jks*
+*.keystore
+key.properties
+*KEYSTORE*
+
+
 
 # Symbol processing related
 **/app.*.symbols
