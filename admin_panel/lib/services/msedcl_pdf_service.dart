@@ -1011,13 +1011,13 @@ class MsedclPdfService {
     final isPhysicalStamp = !forceStampPaperBackground && app.isPhysicalStampPaper;
     final topMarginPt = isPhysicalStamp
         ? ((app.stampTopMarginMm > 0 ? app.stampTopMarginMm : 80.0) * 2.83465)
-        : 355.0;
+        : 365.0; // Comfortably below "महाराष्ट्र MAHARASHTRA 2024" stamp line
 
     pdf.addPage(
       pw.MultiPage(
         pageTheme: pw.PageTheme(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.fromLTRB(36, 14, 36, 14),
+          margin: const pw.EdgeInsets.fromLTRB(72, 20, 36, 25), // 72pt left margin clears the left vertical decorative line
           theme: pdfTheme,
           buildBackground: (context) {
             // Render the official Rs. 100 Stamp Paper as full background on Page 1 (unless physical stamp feed is selected)
@@ -1042,17 +1042,17 @@ class MsedclPdfService {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text(
-                    isMarathi ? 'प्रतिज्ञापत्र / हमीपत्र (पान २)' : 'SELF DECLARATION & UNDERTAKING (Continuation Sheet - Page ${context.pageNumber})',
-                    style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: primaryBlue),
+                    isMarathi ? 'प्रतिज्ञापत्र / हमीपत्र (पान २)' : 'SELF UNDERTAKING (Continuation Sheet - Page ${context.pageNumber})',
+                    style: pw.TextStyle(fontSize: 9.0, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
                   ),
                   pw.Text(
                     'Consumer No: ${app.consumerNo}',
-                    style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                    style: pw.TextStyle(fontSize: 9.0, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
                   ),
                 ],
               ),
-              pw.Divider(color: borderColor, thickness: 0.8),
-              pw.SizedBox(height: 6),
+              pw.Divider(color: PdfColors.black, thickness: 0.8),
+              pw.SizedBox(height: 8),
             ],
           );
         },
@@ -1068,108 +1068,88 @@ class MsedclPdfService {
                   children: [
                     pw.Text(
                       'SELF UNDERTAKING',
-                      style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, color: primaryBlue),
+                      style: pw.TextStyle(fontSize: 14.0, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
                       textAlign: pw.TextAlign.center,
                     ),
-                    pw.SizedBox(height: 1.5),
+                    pw.SizedBox(height: 4),
                     pw.Text(
                       'FOR CHANGE OF NAME OF ELECTRICITY CONNECTION',
-                      style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: darkText),
+                      style: pw.TextStyle(fontSize: 11.0, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
                       textAlign: pw.TextAlign.center,
                     ),
                   ],
                 ),
               ),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 14),
 
-              // Preamble
-              pw.Container(
-                padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: borderColor, width: 0.5),
-                  color: lightBg,
-                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(2)),
+              // Preamble (Clean legal paragraph - no box, no background)
+              pw.RichText(
+                text: pw.TextSpan(
+                  style: const pw.TextStyle(fontSize: 10.5, color: PdfColors.black, lineSpacing: 1.4),
+                  children: [
+                    const pw.TextSpan(text: 'I, '),
+                    pw.TextSpan(text: app.computedNewFullName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                    pw.TextSpan(text: ', Age: ${app.newAge} Years, residing at '),
+                    pw.TextSpan(text: app.propertyAddress, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                    const pw.TextSpan(text: ', do hereby solemnly declare and undertake as follows:'),
+                  ],
                 ),
-                child: pw.RichText(
-                  text: pw.TextSpan(
-                    style: const pw.TextStyle(fontSize: 7.2, color: darkText, lineSpacing: 1.15),
-                    children: [
-                      const pw.TextSpan(text: 'I, '),
-                      pw.TextSpan(text: app.computedNewFullName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                      pw.TextSpan(text: ', Age: ${app.newAge} Years, residing at '),
-                      pw.TextSpan(text: app.propertyAddress, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                      const pw.TextSpan(text: ', do hereby solemnly declare and undertake as follows:'),
-                    ],
-                  ),
-                ),
+                textAlign: pw.TextAlign.justify,
               ),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 12),
 
               // Clauses
               if (app.affidavitCustomText != null && app.affidavitCustomText!.trim().isNotEmpty)
-                pw.Container(
-                  padding: const pw.EdgeInsets.all(5),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 4),
                   child: pw.Text(
                     app.affidavitCustomText!,
-                    style: const pw.TextStyle(fontSize: 7.0, height: 1.2),
+                    style: const pw.TextStyle(fontSize: 10.0, height: 1.4, color: PdfColors.black),
+                    textAlign: pw.TextAlign.justify,
                   ),
                 )
               else ...[
-                _buildClauseText('1.', 'That I am applying for the change of name of the electricity connection in respect of the premises mentioned below.', fontSize: 7.0, bottomPadding: 2.5),
+                _buildClauseText('1.', 'That I am applying for the change of name of the electricity connection in respect of the premises mentioned below.', fontSize: 10.5, bottomPadding: 14.0),
                 pw.Padding(
-                  padding: const pw.EdgeInsets.only(bottom: 2.5),
+                  padding: const pw.EdgeInsets.only(bottom: 14.0),
                   child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      _buildClauseText('2.', 'That the details of the electricity connection are as follows:', fontSize: 7.0, bottomPadding: 1.5),
-                      pw.Container(
-                        margin: const pw.EdgeInsets.only(left: 14, top: 1, bottom: 2),
-                        padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: pw.BoxDecoration(
-                          border: pw.Border.all(color: borderColor, width: 0.5),
-                          color: lightBg,
-                          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(2)),
-                        ),
+                      _buildClauseText('2.', 'That the details of the electricity connection are as follows:', fontSize: 10.5, bottomPadding: 8.0),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(left: 20, top: 4, bottom: 8),
                         child: pw.Column(
                           crossAxisAlignment: pw.CrossAxisAlignment.start,
                           children: [
-                            _buildBulletItem('Consumer Number', app.consumerNo),
-                            _buildBulletItem('Existing Consumer Name', app.computedOldFullName),
-                            _buildBulletItem('New Consumer Name', app.computedNewFullName),
-                            _buildBulletItem('Premises Address', app.propertyAddress),
+                            _buildBulletItem('Consumer Number', app.consumerNo, fontSize: 10.0),
+                            _buildBulletItem('Existing Consumer Name', app.computedOldFullName, fontSize: 10.0),
+                            _buildBulletItem('New Consumer Name', app.computedNewFullName, fontSize: 10.0),
+                            _buildBulletItem('Premises Address', app.propertyAddress, fontSize: 10.0),
                           ],
                         ),
                       ),
                     ],
                   ),
                 ),
-                _buildClauseText('3.', 'That I am the lawful owner / occupier / possessor of the above-mentioned premises and I am submitting relevant supporting documents as proof.', fontSize: 7.0, bottomPadding: 2.5),
-                _buildClauseText('4.', 'That I request Maharashtra State Electricity Distribution Company Limited (MSEDCL) to transfer the electricity connection into my name, subject to applicable rules and regulations.', fontSize: 7.0, bottomPadding: 2.5),
-                _buildClauseText('5.', 'That all information and documents submitted by me are true and correct to the best of my knowledge and belief.', fontSize: 7.0, bottomPadding: 2.5),
-                _buildClauseText('6.', 'That I undertake to pay all applicable electricity bills and comply with the terms and conditions of MSEDCL.', fontSize: 7.0, bottomPadding: 2.5),
-                _buildClauseText('7.', 'That I shall be responsible for any false information or incorrect documents submitted by me.', fontSize: 7.0, bottomPadding: 2.5),
-                _buildClauseText('8.', 'I hereby undertake that I will comply with the applicable rules and requirements of MSEDCL regarding the change of name.', fontSize: 7.0, bottomPadding: 3.5),
+                _buildClauseText('3.', 'That I am the lawful owner / occupier / possessor of the above-mentioned premises and I am submitting relevant supporting documents as proof.', fontSize: 10.5, bottomPadding: 14.0),
+                _buildClauseText('4.', 'That I request Maharashtra State Electricity Distribution Company Limited (MSEDCL) to transfer the electricity connection into my name, subject to applicable rules and regulations.', fontSize: 10.5, bottomPadding: 14.0),
+                _buildClauseText('5.', 'That all information and documents submitted by me are true and correct to the best of my knowledge and belief.', fontSize: 10.5, bottomPadding: 14.0),
+                _buildClauseText('6.', 'That I undertake to pay all applicable electricity bills and comply with the terms and conditions of MSEDCL.', fontSize: 10.5, bottomPadding: 14.0),
+                _buildClauseText('7.', 'That I shall be responsible for any false information or incorrect documents submitted by me.', fontSize: 10.5, bottomPadding: 14.0),
+                _buildClauseText('8.', 'I hereby undertake that I will comply with the applicable rules and requirements of MSEDCL regarding the change of name.', fontSize: 10.5, bottomPadding: 16.0),
               ],
 
-              pw.SizedBox(height: 3),
+              pw.SizedBox(height: 10),
 
-              // DECLARATION
-              pw.Container(
-                padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2.5),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text('DECLARATION', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: primaryBlue)),
-                    pw.SizedBox(height: 1),
-                    pw.Text(
-                      'I declare that the above information is true and correct to the best of my knowledge and belief.',
-                      style: const pw.TextStyle(fontSize: 7.0),
-                    ),
-                  ],
-                ),
+              // DECLARATION (No box, pure clean black heading and paragraph)
+              pw.Text('DECLARATION', style: pw.TextStyle(fontSize: 11.0, fontWeight: pw.FontWeight.bold, color: PdfColors.black)),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                'I declare that the above information is true and correct to the best of my knowledge and belief.',
+                style: const pw.TextStyle(fontSize: 10.0, height: 1.4, color: PdfColors.black),
               ),
 
-              pw.SizedBox(height: 6),
+              pw.SizedBox(height: 22),
 
               // Signatures & Place / Date
               pw.Row(
@@ -1179,9 +1159,9 @@ class MsedclPdfService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('Place: ${app.affidavitPlace.isNotEmpty ? app.affidavitPlace : "__________________"}', style: const pw.TextStyle(fontSize: 7.2)),
-                      pw.SizedBox(height: 2),
-                      pw.Text('Date: ${_dateFormat.format(app.applicationDate)}', style: const pw.TextStyle(fontSize: 7.2)),
+                      pw.Text('Place: ${app.affidavitPlace.isNotEmpty ? app.affidavitPlace : "__________________"}', style: const pw.TextStyle(fontSize: 10.0, color: PdfColors.black)),
+                      pw.SizedBox(height: 8),
+                      pw.Text('Date: ${_dateFormat.format(app.applicationDate)}', style: const pw.TextStyle(fontSize: 10.0, color: PdfColors.black)),
                     ],
                   ),
                   pw.Column(
@@ -1189,24 +1169,24 @@ class MsedclPdfService {
                     children: [
                       pw.Text(
                         'SIGNATURE OF APPLICANT / NEW CONSUMER',
-                        style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold),
+                        style: pw.TextStyle(fontSize: 10.0, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
                       ),
-                      pw.SizedBox(height: 2),
-                      pw.Text('Full Name: ${app.computedNewFullName}', style: const pw.TextStyle(fontSize: 6.8)),
-                      pw.SizedBox(height: 1),
-                      pw.Text('Mobile Number: ${app.newMobileNo.isNotEmpty ? app.newMobileNo : "__________________"}', style: const pw.TextStyle(fontSize: 6.8)),
-                      pw.SizedBox(height: 3),
+                      pw.SizedBox(height: 5),
+                      pw.Text('Full Name: ${app.computedNewFullName}', style: const pw.TextStyle(fontSize: 9.5, color: PdfColors.black)),
+                      pw.SizedBox(height: 4),
+                      pw.Text('Mobile Number: ${app.newMobileNo.isNotEmpty ? app.newMobileNo : "__________________"}', style: const pw.TextStyle(fontSize: 9.5, color: PdfColors.black)),
+                      pw.SizedBox(height: 10),
                       if (app.hasNewConsumerSignature)
                         pw.Container(
-                          height: 22,
-                          child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 20, fit: pw.BoxFit.contain),
+                          height: 36,
+                          child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 34, fit: pw.BoxFit.contain),
                         )
                       else
                         pw.Container(
-                          width: 140,
-                          height: 16,
+                          width: 170,
+                          height: 26,
                           alignment: pw.Alignment.bottomRight,
-                          child: pw.Text('Signature: __________________', style: const pw.TextStyle(fontSize: 6.8)),
+                          child: pw.Text('Signature: ______________________', style: const pw.TextStyle(fontSize: 9.5, color: PdfColors.black)),
                         ),
                     ],
                   ),
@@ -1225,68 +1205,62 @@ class MsedclPdfService {
                 children: [
                   pw.Text(
                     '।। प्रतिज्ञापत्र / हमीपत्र ।।',
-                    style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, color: primaryBlue),
+                    style: pw.TextStyle(fontSize: 13.0, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
                     textAlign: pw.TextAlign.center,
                   ),
-                  pw.SizedBox(height: 1.5),
+                  pw.SizedBox(height: 3),
                   pw.Text(
                     '(महाराष्ट्र राज्य विद्युत वितरण कंपनी मर्यादित - वीज ग्राहक नाव बदल कामी)',
-                    style: const pw.TextStyle(fontSize: 7.2, color: mutedText),
+                    style: const pw.TextStyle(fontSize: 9.0, color: PdfColors.black),
                     textAlign: pw.TextAlign.center,
                   ),
                 ],
               ),
             ),
-            pw.SizedBox(height: 4),
+            pw.SizedBox(height: 10),
 
-            // Deponent Box
-            pw.Container(
-              padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-              decoration: pw.BoxDecoration(border: pw.Border.all(color: borderColor, width: 0.6), color: lightBg),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text(
-                    'मी खालीलप्रमाणे सत्य प्रतिज्ञेवर लिहून देतो / देते की —',
-                    style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold),
-                  ),
-                  pw.SizedBox(height: 2),
-                  pw.Text(
-                    'अर्जदार / नवीन ग्राहक: ${app.computedNewFullName}, वय: ${app.newAge} वर्षे, व्यवसाय: शेती/व्यवसाय/नोकरी, '
-                    'रा. ${app.propertyAddress}. '
-                    'ग्राहक क्र.: ${app.consumerNo}, कार्यालय: ${app.subDivisionOffice}${app.circleOffice.isNotEmpty ? ", " + app.circleOffice : ""}. '
-                    'आधार क्र.: ${app.newAadhaarNo.isNotEmpty ? app.newAadhaarNo : "लागू नाही"}, मो.: ${app.newMobileNo}.',
-                    style: const pw.TextStyle(fontSize: 7.0, height: 1.2),
-                  ),
-                ],
-              ),
+            // Deponent Paragraph (Clean text - no box, no background)
+            pw.Text(
+              'मी खालीलप्रमाणे सत्य प्रतिज्ञेवर लिहून देतो / देते की —',
+              style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
             ),
-            pw.SizedBox(height: 4),
+            pw.SizedBox(height: 3),
+            pw.Text(
+              'अर्जदार / नवीन ग्राहक: ${app.computedNewFullName}, वय: ${app.newAge} वर्षे, व्यवसाय: शेती/व्यवसाय/नोकरी, '
+              'रा. ${app.propertyAddress}. '
+              'ग्राहक क्र.: ${app.consumerNo}, कार्यालय: ${app.subDivisionOffice}${app.circleOffice.isNotEmpty ? ", " + app.circleOffice : ""}. '
+              'आधार क्र.: ${app.newAadhaarNo.isNotEmpty ? app.newAadhaarNo : "लागू नाही"}, मो.: ${app.newMobileNo}.',
+              style: const pw.TextStyle(fontSize: 9.2, height: 1.35, color: PdfColors.black),
+              textAlign: pw.TextAlign.justify,
+            ),
+            pw.SizedBox(height: 8),
 
             // Clauses
             if (app.affidavitCustomText != null && app.affidavitCustomText!.trim().isNotEmpty)
-              pw.Container(
-                padding: const pw.EdgeInsets.all(5),
+              pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(vertical: 4),
                 child: pw.Text(
                   app.affidavitCustomText!,
-                  style: const pw.TextStyle(fontSize: 7.0, height: 1.2),
+                  style: const pw.TextStyle(fontSize: 9.2, height: 1.35, color: PdfColors.black),
+                  textAlign: pw.TextAlign.justify,
                 ),
               )
             else ...[
-              _buildClauseText('१.', 'सदर मिळकतीवर महावितरणचा वीज ग्राहक क्रमांक ${app.consumerNo} हा असून तो सध्या जुने ग्राहक ${app.computedOldFullName} यांच्या नावावर नोंदणीकृत आहे.'),
-              _buildClauseText('२.', 'मी सदर मिळकत / जागा (${app.propertyAddress}) ही कायदेशीररित्या (${app.reasonForChange}) अन्वये प्राप्त केली असून सध्या सदर जागेचा संपूर्ण कायदेशीर ताबा व मालकी हक्क माझ्याकडे आहे.'),
-              _buildClauseText('३.', 'सदर जागेवरील वीज मीटर ग्राहक क्र. ${app.consumerNo} हे माझ्या नावाने (${app.computedNewFullName}) हस्तांतरित / नाव बदल करून मिळण्यासाठी मी हा अर्ज सादर करत आहे.'),
-              _buildClauseText('४.', 'सदर वीज जोडणी माझ्या नावावर झाल्यानंतर भविष्यात येणारे सर्व वीज देयक (Bills) नियमाप्रमाणे विहित मुदतीत भरण्याची संपूर्ण जबाबदारी माझी राहील.'),
-              _buildClauseText('५.', 'सदर वीज जोडणीवर जुनी थकबाकी किंवा कायदेशीर देणी असल्यास, ती महावितरणच्या नियमानुसार भरण्यास मी वैयक्तिकरीत्या बांधील व सहमत आहे.'),
-              _buildClauseText('६.', 'सदर नाव बदलाबाबत भविष्यात कोणताही वाद किंवा आक्षेप उद्भवल्यास त्याची संपूर्ण जबाबदारी माझी राहील. मी सादर केलेली सर्व कागदपत्रे व माहिती खरी व कायदेशीर आहे.'),
+              _buildClauseText('१.', 'सदर मिळकतीवर महावितरणचा वीज ग्राहक क्रमांक ${app.consumerNo} हा असून तो सध्या जुने ग्राहक ${app.computedOldFullName} यांच्या नावावर नोंदणीकृत आहे.', fontSize: 9.2, bottomPadding: 5.5),
+              _buildClauseText('२.', 'मी सदर मिळकत / जागा (${app.propertyAddress}) ही कायदेशीररित्या (${app.reasonForChange}) अन्वये प्राप्त केली असून सध्या सदर जागेचा संपूर्ण कायदेशीर ताबा व मालकी हक्क माझ्याकडे आहे.', fontSize: 9.2, bottomPadding: 5.5),
+              _buildClauseText('३.', 'सदर जागेवरील वीज मीटर ग्राहक क्र. ${app.consumerNo} हे माझ्या नावाने (${app.computedNewFullName}) हस्तांतरित / नाव बदल करून मिळण्यासाठी मी हा अर्ज सादर करत आहे.', fontSize: 9.2, bottomPadding: 5.5),
+              _buildClauseText('४.', 'सदर वीज जोडणी माझ्या नावावर झाल्यानंतर भविष्यात येणारे सर्व वीज देयक (Bills) नियमाप्रमाणे विहित मुदतीत भरण्याची संपूर्ण जबाबदारी माझी राहील.', fontSize: 9.2, bottomPadding: 5.5),
+              _buildClauseText('५.', 'सदर वीज जोडणीवर जुनी थकबाकी किंवा कायदेशीर देणी असल्यास, ती महावितरणच्या नियमानुसार भरण्यास मी वैयक्तिकरीत्या बांधील व सहमत आहे.', fontSize: 9.2, bottomPadding: 5.5),
+              _buildClauseText('६.', 'सदर नाव बदलाबाबत भविष्यात कोणताही वाद किंवा आक्षेप उद्भवल्यास त्याची संपूर्ण जबाबदारी माझी राहील. मी सादर केलेली सर्व कागदपत्रे व माहिती खरी व कायदेशीर आहे.', fontSize: 9.2, bottomPadding: 8.0),
             ],
 
-            pw.SizedBox(height: 4),
+            pw.SizedBox(height: 6),
             pw.Text(
               'करिता हे प्रतिज्ञापत्र / हमीपत्र मी स्वतःच्या राजीखुशीने, कोणत्याही दबावाशिवाय लिहून सही केली आहे. जेणेकरून महावितरण कार्यालयात पुरावा म्हणून सादर करता येईल.',
-              style: const pw.TextStyle(fontSize: 7.0),
+              style: const pw.TextStyle(fontSize: 9.0, height: 1.3, color: PdfColors.black),
+              textAlign: pw.TextAlign.justify,
             ),
-            pw.SizedBox(height: 6),
+            pw.SizedBox(height: 12),
 
             // Date, Place & Applicant Signature
             pw.Row(
@@ -1296,9 +1270,9 @@ class MsedclPdfService {
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('दिनांक: ${_dateFormat.format(app.applicationDate)}', style: const pw.TextStyle(fontSize: 7.5)),
-                    pw.SizedBox(height: 2),
-                    pw.Text('ठिकाण: ${app.affidavitPlace}', style: const pw.TextStyle(fontSize: 7.5)),
+                    pw.Text('दिनांक: ${_dateFormat.format(app.applicationDate)}', style: const pw.TextStyle(fontSize: 9.2, color: PdfColors.black)),
+                    pw.SizedBox(height: 4),
+                    pw.Text('ठिकाण: ${app.affidavitPlace}', style: const pw.TextStyle(fontSize: 9.2, color: PdfColors.black)),
                   ],
                 ),
                 pw.Column(
@@ -1306,47 +1280,47 @@ class MsedclPdfService {
                   children: [
                     if (app.hasNewConsumerSignature)
                       pw.Container(
-                        height: 24,
-                        child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 22, fit: pw.BoxFit.contain),
+                        height: 30,
+                        child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 28, fit: pw.BoxFit.contain),
                       )
                     else
-                      pw.SizedBox(height: 24),
-                    pw.Container(width: 140, height: 0.7, color: darkText),
-                    pw.SizedBox(height: 2),
+                      pw.SizedBox(height: 28),
+                    pw.Container(width: 150, height: 0.8, color: PdfColors.black),
+                    pw.SizedBox(height: 3),
                     pw.Text(
                       'प्रतिज्ञापत्र देणारा / अर्जदार (सही)',
-                      style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(fontSize: 9.2, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
                     ),
-                    pw.Text('(${app.computedNewFullName})', style: const pw.TextStyle(fontSize: 7.0, color: mutedText)),
+                    pw.Text('(${app.computedNewFullName})', style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.black)),
                   ],
                 ),
               ],
             ),
-            pw.SizedBox(height: 6),
+            pw.SizedBox(height: 14),
 
-            // Blank Notary / Attestation Block (for physical attestation)
+            // Blank Notary / Attestation Block (Clean lines - no grey background, pure black)
             pw.Container(
-              padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: pw.BoxDecoration(border: pw.Border.all(color: borderColor, width: 0.7)),
+              padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.black, width: 0.8)),
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('BEFORE ME', style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold)),
-                      pw.SizedBox(height: 10),
-                      pw.Text('Notary Public / Executive Magistrate', style: const pw.TextStyle(fontSize: 6.8)),
-                      pw.Text('(Affix Notary Stamp & Seal here)', style: const pw.TextStyle(fontSize: 6.2, color: mutedText)),
+                      pw.Text('BEFORE ME', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.black)),
+                      pw.SizedBox(height: 12),
+                      pw.Text('Notary Public / Executive Magistrate', style: const pw.TextStyle(fontSize: 8.0, color: PdfColors.black)),
+                      pw.Text('(Affix Notary Stamp & Seal here)', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.black)),
                     ],
                   ),
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
-                      pw.Text('IDENTIFIED BY', style: pw.TextStyle(fontSize: 7.2, fontWeight: pw.FontWeight.bold)),
-                      pw.SizedBox(height: 10),
-                      pw.Text('Advocate / Witness Signature', style: const pw.TextStyle(fontSize: 6.8)),
-                      pw.Text('Name: ______________________', style: const pw.TextStyle(fontSize: 6.2, color: mutedText)),
+                      pw.Text('IDENTIFIED BY', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.black)),
+                      pw.SizedBox(height: 12),
+                      pw.Text('Advocate / Witness Signature', style: const pw.TextStyle(fontSize: 8.0, color: PdfColors.black)),
+                      pw.Text('Name: ______________________', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.black)),
                     ],
                   ),
                 ],
@@ -2059,11 +2033,11 @@ class MsedclPdfService {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.SizedBox(
-            width: 14,
-            child: pw.Text('$num ', style: pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold)),
+            width: 18,
+            child: pw.Text('$num ', style: pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold, color: PdfColors.black)),
           ),
           pw.Expanded(
-            child: pw.Text(text, style: pw.TextStyle(fontSize: fontSize, height: 1.2), textAlign: pw.TextAlign.justify),
+            child: pw.Text(text, style: pw.TextStyle(fontSize: fontSize, height: 1.35, color: PdfColors.black), textAlign: pw.TextAlign.justify),
           ),
         ],
       ),
@@ -2072,14 +2046,14 @@ class MsedclPdfService {
 
   static pw.Widget _buildBulletItem(String label, String value, {double fontSize = 6.8}) {
     return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 0.8),
+      padding: const pw.EdgeInsets.symmetric(vertical: 1.2),
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text('   -  ', style: pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold, color: darkText)),
-          pw.Text('$label: ', style: pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold, color: darkText)),
+          pw.Text('   -  ', style: pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold, color: PdfColors.black)),
+          pw.Text('$label: ', style: pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold, color: PdfColors.black)),
           pw.Expanded(
-            child: pw.Text(value.isNotEmpty ? value : '—', style: pw.TextStyle(fontSize: fontSize, color: darkText)),
+            child: pw.Text(value.isNotEmpty ? value : '—', style: pw.TextStyle(fontSize: fontSize, color: PdfColors.black)),
           ),
         ],
       ),

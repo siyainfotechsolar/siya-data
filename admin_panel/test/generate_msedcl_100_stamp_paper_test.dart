@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
 import 'package:admin_panel/models/msedcl_change_of_name.dart';
 import 'package:admin_panel/services/msedcl_pdf_service.dart';
 
@@ -119,5 +120,25 @@ void main() {
     expect(file6.existsSync(), isTrue);
 
     print('All 6 MSEDCL ₹100 Stamp Paper and Application PDFs successfully generated in $artifactDir');
+
+    for (final entry in [
+      MapEntry('Marathi Preview', file1),
+      MapEntry('Physical Marathi', file2),
+      MapEntry('English Affidavit', file3),
+      MapEntry('Form U', file4),
+      MapEntry('Form X', file5),
+      MapEntry('Master Application', file6),
+    ]) {
+      final doc = sf.PdfDocument(inputBytes: entry.value.readAsBytesSync());
+      print('--> [${entry.key}] Pages: ${doc.pages.count}, Size: ${entry.value.lengthSync()} bytes');
+      if (entry.key == 'English Affidavit') {
+        final extractor = sf.PdfTextExtractor(doc);
+        for (int i = 0; i < doc.pages.count; i++) {
+          print('--- ENGLISH AFFIDAVIT PAGE ${i + 1} ---');
+          print(extractor.extractText(startPageIndex: i, endPageIndex: i).trim());
+        }
+      }
+      doc.dispose();
+    }
   });
 }
