@@ -581,6 +581,49 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
           ),
         ),
 
+        // Dynamic Total Credit / Total Debit / Net Balance Bar
+        () {
+          final double filteredCredit = _ledgerEntries.where((e) => e.isActive).fold<double>(0.0, (s, e) => s + e.creditAmount);
+          final double filteredDebit = _ledgerEntries.where((e) => e.isActive).fold<double>(0.0, (s, e) => s + e.debitAmount);
+          final double filteredNet = filteredCredit - filteredDebit;
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF8FAFC),
+              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Wrap(
+                  spacing: 16,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.spaceBetween,
+                  children: [
+                    _buildLedgerTotalPill(
+                      'Total Credit',
+                      _currency.format(filteredCredit),
+                      Icons.arrow_downward_rounded,
+                      greenColor,
+                    ),
+                    _buildLedgerTotalPill(
+                      'Total Debit',
+                      _currency.format(filteredDebit),
+                      Icons.arrow_upward_rounded,
+                      amberColor,
+                    ),
+                    _buildLedgerTotalPill(
+                      'Net Balance',
+                      '${_currency.format(filteredNet.abs())} ${filteredNet >= 0 ? "Cr" : "Dr"}',
+                      Icons.account_balance_wallet_rounded,
+                      navyColor,
+                    ),
+                  ],
+                );
+              },
+            ),
+          );
+        }(),
+
         // Ledger List
         Expanded(
           child: _ledgerEntries.isEmpty
@@ -660,6 +703,35 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                 ),
         ),
       ],
+    );
+  }
+
+  Widget _buildLedgerTotalPill(String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: color.withValues(alpha: 0.12),
+            child: Icon(icon, size: 16, color: color),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+              Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
