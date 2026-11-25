@@ -546,12 +546,10 @@ class SubVendorMaterialOutwardService {
           .order('created_at', ascending: false);
 
       final List<dynamic> rows = res as List<dynamic>;
-      if (rows.isNotEmpty) {
-        final list = rows.map((e) => SubVendorMaterialOutward.fromJson(e as Map<String, dynamic>)).toList();
-        _inMemoryOutwards = list;
-        _saveOutwardsToCache(list);
-        return list;
-      }
+      final list = rows.map((e) => SubVendorMaterialOutward.fromJson(e as Map<String, dynamic>)).toList();
+      _inMemoryOutwards = list;
+      _saveOutwardsToCache(list);
+      return list;
     } catch (e) {
       debugPrint('Warning: Could not fetch outwards from Supabase: $e');
     }
