@@ -1011,7 +1011,7 @@ class MsedclPdfService {
     final isPhysicalStamp = !forceStampPaperBackground && app.isPhysicalStampPaper;
     final topMarginPt = isPhysicalStamp
         ? ((app.stampTopMarginMm > 0 ? app.stampTopMarginMm : 80.0) * 2.83465)
-        : 365.0; // Comfortably below "महाराष्ट्र MAHARASHTRA 2024" stamp line
+        : 415.0; // Generous margin below "महाराष्ट्र MAHARASHTRA 2024" stamp line
 
     pdf.addPage(
       pw.MultiPage(
