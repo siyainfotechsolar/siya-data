@@ -263,147 +263,200 @@ class SubVendorAccountLedgerService {
 
     try {
       final client = SupabaseService.client;
-      var query = client.from(_ledgerTable).select();
+      final String? vFilter =
+          (vendorId != null && vendorId.isNotEmpty && vendorId != 'All') ? vendorId : null;
 
-      if (vendorId != null && vendorId.isNotEmpty && vendorId != 'All') {
-        query = query.eq('vendor_id', vendorId);
-      }
-      if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {
-        query = query.eq('status', statusFilter);
-      }
+      List<SubVendorAccountLedgerEntry> list = [];
 
-      final res = await query.order('transaction_date', ascending: true).order('created_at', ascending: true);
-      final List<dynamic> rows = res as List<dynamic>;
-      final list = rows.map((e) => SubVendorAccountLedgerEntry.fromJson(e as Map<String, dynamic>)).toList();
-
-      // Central Database Unification: Also pull Bank Loans / Customer Payments, Vendor Payouts,
-      // and Site Material Transactions from Supabase using SubVendorService so all Sub-Vendor data is 100% unified.
+      // -----------------------------------------------------------------------
+      // PRIMARY PATH: Query the centralised v_sub_vendor_unified_ledger VIEW
+      // (Created in migration 20261126000049_sub_vendor_central_database_audit_fix.sql)
+      // This single view UNIONs all 4 sources — no double-counting.
+      // -----------------------------------------------------------------------
+      bool unifiedViewLoaded = false;
       try {
-        final String? vFilter = (vendorId != null && vendorId.isNotEmpty && vendorId != 'All') ? vendorId : null;
-        final vendorsList = await SubVendorService.fetchAllVendors();
-        final vendorNameMap = {for (final v in vendorsList) v.id: v.name};
-        final existingIds = list.map((e) => e.id).toSet();
-
-        // 1. Bank Loans & Customer Payments (vendor_customer_payments via SubVendorService)
-        final cpList = await SubVendorService.fetchCustomerPayments(vendorId: vFilter);
-        final Set<String> assignmentIdsWithPayments = {};
-        for (final cp in cpList) {
-          if (!cp.isApproved) continue;
-          assignmentIdsWithPayments.add(cp.assignmentId);
-          final synthId = 'cp_${cp.id}';
-          if (existingIds.contains(synthId)) continue;
-
-          final custName = cp.customerName ?? 'Customer';
-          list.add(SubVendorAccountLedgerEntry(
-            id: synthId,
-            vendorId: cp.vendorId,
-            vendorName: vendorNameMap[cp.vendorId] ?? cp.vendorName ?? 'Sub-Vendor',
-            transactionDate: cp.paymentDate,
-            transactionType: 'MATERIAL_PAYMENT',
-            category: 'MATERIAL',
-            creditAmount: 0.0,
-            debitAmount: cp.amount,
-            runningBalance: 0.0,
-            referenceNumber: cp.referenceNumber ?? cp.loanApplicationId ?? '-',
-            referenceId: cp.id,
-            paymentMode: cp.paymentMode,
-            particulars: cp.isLoan ? 'Bank Loan Credited ($custName)' : 'Customer Payment ($custName)',
-            remarks: cp.remarks,
-            status: 'Active',
-            createdAt: cp.createdAt ?? cp.paymentDate,
-          ));
+        var viewQuery = client.from('v_sub_vendor_unified_ledger').select();
+        if (vFilter != null) {
+          viewQuery = viewQuery.eq('vendor_id', vFilter);
         }
+        final viewRes = await viewQuery
+            .order('transaction_date', ascending: true)
+            .order('created_at', ascending: true);
 
-        // 1B. Fallback: Site Assignments with received collection if no individual payment rows exist
-        final assignList = await SubVendorService.fetchAssignments(vendorId: vFilter);
-        for (final a in assignList) {
-          if (assignmentIdsWithPayments.contains(a.id)) continue;
-          final coll = a.effectiveReceivedAmount;
-          if (coll <= 0) continue;
-          final synthId = 'a_coll_${a.id}';
-          if (existingIds.contains(synthId)) continue;
-
-          list.add(SubVendorAccountLedgerEntry(
-            id: synthId,
-            vendorId: a.vendorId,
-            vendorName: vendorNameMap[a.vendorId] ?? a.vendorName ?? 'Sub-Vendor',
-            transactionDate: a.assignedDate,
-            transactionType: 'MATERIAL_PAYMENT',
-            category: 'MATERIAL',
-            creditAmount: 0.0,
-            debitAmount: coll,
-            runningBalance: 0.0,
-            referenceNumber: a.loanApplicationId ?? a.consumerNo ?? '-',
-            referenceId: a.id,
-            paymentMode: a.paymentType,
-            particulars: a.isBankLoan
-                ? 'Bank Loan Credited (${a.customerName ?? "Site"})'
-                : 'Customer Collection (${a.customerName ?? "Site"})',
-            status: 'Active',
-            createdAt: a.createdAt ?? a.assignedDate,
-          ));
+        final List<dynamic> viewRows = viewRes as List<dynamic>;
+        if (viewRows.isNotEmpty) {
+          list = viewRows.map((e) {
+            final row = e as Map<String, dynamic>;
+            final credit = (row['credit_amount'] as num?)?.toDouble() ?? 0.0;
+            final debit  = (row['debit_amount']  as num?)?.toDouble() ?? 0.0;
+            final type   = (row['transaction_type'] as String? ?? 'MATERIAL_PAYMENT').toUpperCase();
+            final cat    = (row['category'] as String? ?? 'MATERIAL').toUpperCase();
+            return SubVendorAccountLedgerEntry(
+              id: row['id'] as String? ?? '',
+              vendorId: row['vendor_id'] as String? ?? '',
+              vendorName: row['vendor_name'] as String? ?? 'Sub-Vendor',
+              transactionDate: row['transaction_date'] != null
+                  ? DateTime.tryParse(row['transaction_date'] as String) ?? DateTime.now()
+                  : DateTime.now(),
+              transactionType: type,
+              category: cat,
+              creditAmount: credit,
+              debitAmount: debit,
+              runningBalance: (row['running_balance'] as num?)?.toDouble() ?? 0.0,
+              referenceNumber: row['reference_number'] as String? ?? '-',
+              referenceId: row['reference_id'] as String?,
+              paymentMode: row['payment_mode'] as String? ?? 'Bank Transfer',
+              particulars: row['particulars'] as String? ?? '',
+              remarks: row['remarks'] as String?,
+              status: row['status'] as String? ?? 'Active',
+              createdAt: row['created_at'] != null
+                  ? DateTime.tryParse(row['created_at'] as String)
+                  : null,
+            );
+          }).toList();
+          unifiedViewLoaded = true;
         }
+      } catch (viewErr) {
+        debugPrint('Notice: v_sub_vendor_unified_ledger view not available ($viewErr). Using multi-table fallback.');
+      }
 
-        // 2. Vendor Payouts (vendor_payouts)
-        final vpRes = await client.from('vendor_payouts').select();
-        for (final row in (vpRes as List<dynamic>)) {
-          final vp = VendorPayout.fromJson(row as Map<String, dynamic>);
-          if (vp.status.toLowerCase() == 'rejected') continue;
-          if (vFilter != null && vp.vendorId != vFilter) continue;
-          final synthId = 'vp_${vp.id}';
-          if (existingIds.contains(synthId)) continue;
-
-          list.add(SubVendorAccountLedgerEntry(
-            id: synthId,
-            vendorId: vp.vendorId,
-            vendorName: vendorNameMap[vp.vendorId] ?? 'Sub-Vendor',
-            transactionDate: vp.payoutDate,
-            transactionType: 'ADVANCE_GIVEN',
-            category: 'ADVANCE',
-            creditAmount: 0.0,
-            debitAmount: vp.amount,
-            runningBalance: 0.0,
-            referenceNumber: vp.referenceNumber ?? '-',
-            referenceId: vp.id,
-            paymentMode: vp.paymentMode,
-            particulars: 'Payout / Advance to Sub-Vendor',
-            remarks: vp.remarks,
-            status: 'Active',
-            createdAt: vp.createdAt ?? vp.payoutDate,
-          ));
+      // -----------------------------------------------------------------------
+      // FALLBACK PATH: Multi-table merge (used if unified view not yet deployed)
+      // -----------------------------------------------------------------------
+      if (!unifiedViewLoaded) {
+        var query = client.from(_ledgerTable).select();
+        if (vFilter != null) {
+          query = query.eq('vendor_id', vFilter);
         }
-
-        // 3. Site Material Issues & Returns (vendor_material_transactions)
-        final vmtRes = await client.from('vendor_material_transactions').select();
-        for (final row in (vmtRes as List<dynamic>)) {
-          final vmt = VendorMaterialTransaction.fromJson(row as Map<String, dynamic>);
-          if (vFilter != null && vmt.vendorId != vFilter) continue;
-          final synthId = 'vmt_${vmt.id}';
-          if (existingIds.contains(synthId)) continue;
-
-          list.add(SubVendorAccountLedgerEntry(
-            id: synthId,
-            vendorId: vmt.vendorId,
-            vendorName: vendorNameMap[vmt.vendorId] ?? 'Sub-Vendor',
-            transactionDate: vmt.transactionDate,
-            transactionType: vmt.isReturn ? 'MATERIAL_PAYMENT' : 'MATERIAL_OUTWARD',
-            category: 'MATERIAL',
-            creditAmount: vmt.isReturn ? 0.0 : vmt.totalAmount,
-            debitAmount: vmt.isReturn ? vmt.totalAmount : 0.0,
-            runningBalance: 0.0,
-            referenceNumber: vmt.challanNumber ?? vmt.invoiceNumber ?? '-',
-            referenceId: vmt.id,
-            paymentMode: 'Inventory',
-            particulars: vmt.isReturn
-                ? 'Site Material Return: ${vmt.itemName} (${vmt.quantity} ${vmt.unit})'
-                : 'Site Material Issued: ${vmt.itemName} (${vmt.quantity} ${vmt.unit})',
-            remarks: vmt.remarks,
-            status: 'Active',
-            createdAt: vmt.createdAt ?? vmt.transactionDate,
-          ));
+        if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {
+          query = query.eq('status', statusFilter);
         }
-      } catch (mergeErr) {
-        debugPrint('Notice: Merging central tables into ledger ($mergeErr)');
+        final res = await query.order('transaction_date', ascending: true).order('created_at', ascending: true);
+        final List<dynamic> rows = res as List<dynamic>;
+        list = rows.map((e) => SubVendorAccountLedgerEntry.fromJson(e as Map<String, dynamic>)).toList();
+
+        try {
+          final vendorsList = await SubVendorService.fetchAllVendors();
+          final vendorNameMap = {for (final v in vendorsList) v.id: v.name};
+          final existingIds = list.map((e) => e.id).toSet();
+
+          // 1. Bank Loans & Customer Payments (vendor_customer_payments via SubVendorService)
+          final cpList = await SubVendorService.fetchCustomerPayments(vendorId: vFilter);
+          final Set<String> assignmentIdsWithPayments = {};
+          for (final cp in cpList) {
+            if (!cp.isApproved) continue;
+            assignmentIdsWithPayments.add(cp.assignmentId);
+            final synthId = 'cp_${cp.id}';
+            if (existingIds.contains(synthId)) continue;
+            final custName = cp.customerName ?? 'Customer';
+            list.add(SubVendorAccountLedgerEntry(
+              id: synthId,
+              vendorId: cp.vendorId,
+              vendorName: vendorNameMap[cp.vendorId] ?? cp.vendorName ?? 'Sub-Vendor',
+              transactionDate: cp.paymentDate,
+              transactionType: 'MATERIAL_PAYMENT',
+              category: 'MATERIAL',
+              creditAmount: 0.0,
+              debitAmount: cp.amount,
+              runningBalance: 0.0,
+              referenceNumber: cp.referenceNumber ?? cp.loanApplicationId ?? '-',
+              referenceId: cp.id,
+              paymentMode: cp.paymentMode,
+              particulars: cp.isLoan ? 'Bank Loan Credited ($custName)' : 'Customer Payment ($custName)',
+              remarks: cp.remarks,
+              status: 'Active',
+              createdAt: cp.createdAt ?? cp.paymentDate,
+            ));
+          }
+
+          // 1B. Fallback: Site Assignments with received collection
+          final assignList = await SubVendorService.fetchAssignments(vendorId: vFilter);
+          for (final a in assignList) {
+            if (assignmentIdsWithPayments.contains(a.id)) continue;
+            final coll = a.effectiveReceivedAmount;
+            if (coll <= 0) continue;
+            final synthId = 'a_coll_${a.id}';
+            if (existingIds.contains(synthId)) continue;
+            list.add(SubVendorAccountLedgerEntry(
+              id: synthId,
+              vendorId: a.vendorId,
+              vendorName: vendorNameMap[a.vendorId] ?? a.vendorName ?? 'Sub-Vendor',
+              transactionDate: a.assignedDate,
+              transactionType: 'MATERIAL_PAYMENT',
+              category: 'MATERIAL',
+              creditAmount: 0.0,
+              debitAmount: coll,
+              runningBalance: 0.0,
+              referenceNumber: a.loanApplicationId ?? a.consumerNo ?? '-',
+              referenceId: a.id,
+              paymentMode: a.paymentType,
+              particulars: a.isBankLoan
+                  ? 'Bank Loan Credited (${a.customerName ?? "Site"})'
+                  : 'Customer Collection (${a.customerName ?? "Site"})',
+              status: 'Active',
+              createdAt: a.createdAt ?? a.assignedDate,
+            ));
+          }
+
+          // 2. Vendor Payouts (vendor_payouts)
+          final vpRes = await client.from('vendor_payouts').select();
+          for (final row in (vpRes as List<dynamic>)) {
+            final vp = VendorPayout.fromJson(row as Map<String, dynamic>);
+            if (vp.status.toLowerCase() == 'rejected') continue;
+            if (vFilter != null && vp.vendorId != vFilter) continue;
+            final synthId = 'vp_${vp.id}';
+            if (existingIds.contains(synthId)) continue;
+            list.add(SubVendorAccountLedgerEntry(
+              id: synthId,
+              vendorId: vp.vendorId,
+              vendorName: vendorNameMap[vp.vendorId] ?? 'Sub-Vendor',
+              transactionDate: vp.payoutDate,
+              transactionType: 'ADVANCE_GIVEN',
+              category: 'ADVANCE',
+              creditAmount: 0.0,
+              debitAmount: vp.amount,
+              runningBalance: 0.0,
+              referenceNumber: vp.referenceNumber ?? '-',
+              referenceId: vp.id,
+              paymentMode: vp.paymentMode,
+              particulars: 'Payout / Advance to Sub-Vendor',
+              remarks: vp.remarks,
+              status: 'Active',
+              createdAt: vp.createdAt ?? vp.payoutDate,
+            ));
+          }
+
+          // 3. Site Material Issues & Returns (vendor_material_transactions)
+          final vmtRes = await client.from('vendor_material_transactions').select();
+          for (final row in (vmtRes as List<dynamic>)) {
+            final vmt = VendorMaterialTransaction.fromJson(row as Map<String, dynamic>);
+            if (vFilter != null && vmt.vendorId != vFilter) continue;
+            final synthId = 'vmt_${vmt.id}';
+            if (existingIds.contains(synthId)) continue;
+            list.add(SubVendorAccountLedgerEntry(
+              id: synthId,
+              vendorId: vmt.vendorId,
+              vendorName: vendorNameMap[vmt.vendorId] ?? 'Sub-Vendor',
+              transactionDate: vmt.transactionDate,
+              transactionType: vmt.isReturn ? 'MATERIAL_PAYMENT' : 'MATERIAL_OUTWARD',
+              category: 'MATERIAL',
+              creditAmount: vmt.isReturn ? 0.0 : vmt.totalAmount,
+              debitAmount: vmt.isReturn ? vmt.totalAmount : 0.0,
+              runningBalance: 0.0,
+              referenceNumber: vmt.challanNumber ?? vmt.invoiceNumber ?? '-',
+              referenceId: vmt.id,
+              paymentMode: 'Inventory',
+              particulars: vmt.isReturn
+                  ? 'Site Material Return: ${vmt.itemName} (${vmt.quantity} ${vmt.unit})'
+                  : 'Site Material Issued: ${vmt.itemName} (${vmt.quantity} ${vmt.unit})',
+              remarks: vmt.remarks,
+              status: 'Active',
+              createdAt: vmt.createdAt ?? vmt.transactionDate,
+            ));
+          }
+        } catch (mergeErr) {
+          debugPrint('Notice: Merging central tables into ledger ($mergeErr)');
+        }
       }
 
       _inMemoryLedger = list;
