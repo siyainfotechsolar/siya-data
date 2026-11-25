@@ -869,14 +869,14 @@ class _SubVendorCompleteFinancialDashboardScreenState
     final materialReturnedValue = _materials.where((m) => m.isReturn).fold<double>(0.0, (acc, m) => acc + m.totalAmount);
 
     // Section E: Settlement Summary
-    final totalRealizedCollection = _assignments.fold<double>(0.0, (acc, a) => acc + a.totalCustomerReceived);
+    final totalRealizedCollection = _assignments.fold<double>(0.0, (acc, a) => acc + a.effectiveReceivedAmount);
     final vendorCharges = _assignments.fold<double>(0.0, (acc, a) => acc + a.vendorCharges);
     final otherExpenses = _assignments.fold<double>(0.0, (acc, a) => acc + a.otherExpenses);
     final previousPayments = s.totalPaidAmount;
 
     // Option A Final Net Balance:
     // Realized Collection - Material Cost - SIYA Platform Charges (₹1,000/kW) - Net GST Liability - Other Expenses - Approved GST Recovery - Previous Advances
-    final effectiveCollection = totalRealizedCollection > 0 ? totalRealizedCollection : totalQuotation;
+    final effectiveCollection = totalRealizedCollection;
     final netGstLiability = (totalCustomerOutputGst - totalEligibleItc) > 0
         ? (totalCustomerOutputGst - totalEligibleItc)
         : 0.0;
