@@ -36,16 +36,20 @@ void main() {
             outwardId: '',
             materialId: panelMat.id,
             materialName: panelMat.itemName,
-            unit: panelMat.unit,
+            unit: 'NOS',
             quantity: 6.0,
+            unitRate: 10000.0,
+            gstPercentage: 18.0,
           ),
           SubVendorMaterialOutwardItem(
             id: '',
             outwardId: '',
             materialId: inverterMat.id,
             materialName: inverterMat.itemName,
-            unit: inverterMat.unit,
+            unit: 'NOS',
             quantity: 1.0,
+            unitRate: 25000.0,
+            gstPercentage: 0.0,
           ),
         ],
       );
@@ -54,16 +58,21 @@ void main() {
       expect(outward.outwardNumber, startsWith('OUT-20261125-'));
       expect(outward.totalItems, equals(2));
       expect(outward.totalQuantity, equals(7.0));
+      // Row 1: 6 * 10000 = 60000 + 18% GST (10800) = 70800
+      // Row 2: 1 * 25000 = 25000 + 0% GST (0) = 25000
+      expect(outward.subtotal, equals(85000.0));
+      expect(outward.totalGst, equals(10800.0));
+      expect(outward.totalValue, equals(95800.0));
       expect(outward.status, equals('Active'));
       expect(outward.isActive, isTrue);
 
-      // Verify stock was deducted
+      // Verify Main Inventory stock was NOT deducted
       final updatedMaterials = await SubVendorMaterialOutwardService.fetchMaterialMaster();
       final updatedPanel = updatedMaterials.firstWhere((m) => m.id == panelMat.id);
       final updatedInverter = updatedMaterials.firstWhere((m) => m.id == inverterMat.id);
 
-      expect(updatedPanel.availableStock, equals(initialPanelStock - 6.0));
-      expect(updatedInverter.availableStock, equals(initialInverterStock - 1.0));
+      expect(updatedPanel.availableStock, equals(initialPanelStock));
+      expect(updatedInverter.availableStock, equals(initialInverterStock));
     });
 
     // -------------------------------------------------------------------------
@@ -256,15 +265,23 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
-    // Scenario 6: Verify inventory stock deduction
+    // Scenario 6: Verify NO Main Inventory deduction & custom material addition
     // -------------------------------------------------------------------------
-    test('Scenario 6: Verify inventory stock deduction and prevent exceeding available stock', () async {
+    test('Scenario 6: Verify NO Main Inventory stock deduction and support adding custom material', () async {
       final materials = await SubVendorMaterialOutwardService.fetchMaterialMaster();
       final structureMat = materials.firstWhere((m) => m.itemName.contains('Structure'));
-      final availableStock = structureMat.availableStock; // e.g. 40.0
+      final availableStock = structureMat.availableStock;
 
-      // 1. Valid deduction
-      await SubVendorMaterialOutwardService.recordOutward(
+      // 1. Add custom material to master
+      final customMat = await SubVendorMaterialOutwardService.addMaterialToMaster(
+        itemName: 'MC4 Connector Pair (Custom)',
+        unit: 'PCS',
+        defaultRate: 120.0,
+      );
+      expect(customMat.itemName, equals('MC4 Connector Pair (Custom)'));
+
+      // 2. Record outward with large quantity - must NOT fail or deduct Main Inventory
+      final outward = await SubVendorMaterialOutwardService.recordOutward(
         vendorId: 'vnd-001',
         vendorName: 'Shree Balaji',
         outwardDate: DateTime(2026, 11, 25),
@@ -274,93 +291,95 @@ void main() {
             outwardId: '',
             materialId: structureMat.id,
             materialName: structureMat.itemName,
-            unit: structureMat.unit,
+            unit: 'SET',
             quantity: 10.0,
+            unitRate: 14000.0,
+            gstPercentage: 18.0,
+          ),
+          SubVendorMaterialOutwardItem(
+            id: '',
+            outwardId: '',
+            materialId: customMat.id,
+            materialName: customMat.itemName,
+            unit: 'PCS',
+            quantity: 50.0,
+            unitRate: 120.0,
+            gstPercentage: 5.0,
           ),
         ],
       );
 
+      // Structure: 10 * 14000 = 140000 + 18% (25200) = 165200
+      // Custom MC4: 50 * 120 = 6000 + 5% (300) = 6300
+      expect(outward.subtotal, equals(146000.0));
+      expect(outward.totalGst, equals(25500.0));
+      expect(outward.totalValue, equals(171500.0));
+
       final updatedMats = await SubVendorMaterialOutwardService.fetchMaterialMaster();
       final updatedStruct = updatedMats.firstWhere((m) => m.id == structureMat.id);
-      expect(updatedStruct.availableStock, equals(availableStock - 10.0));
-
-      // 2. Prevent exceeding remaining stock
-      expect(
-        () => SubVendorMaterialOutwardService.recordOutward(
-          vendorId: 'vnd-001',
-          vendorName: 'Shree Balaji',
-          outwardDate: DateTime(2026, 11, 25),
-          items: [
-            SubVendorMaterialOutwardItem(
-              id: '',
-              outwardId: '',
-              materialId: structureMat.id,
-              materialName: structureMat.itemName,
-              unit: structureMat.unit,
-              quantity: 9999.0, // Exceeds available stock
-            ),
-          ],
-        ),
-        throwsA(isA<StateError>()),
-      );
+      expect(updatedStruct.availableStock, equals(availableStock));
     });
 
     // -------------------------------------------------------------------------
-    // Scenario 7: Edit an existing outward entry and verify stock adjustments
+    // Scenario 7: Edit an existing outward entry and verify pricing & no stock change
     // -------------------------------------------------------------------------
-    test('Scenario 7: Edit outward entry reverses old stock and applies updated quantities', () async {
+    test('Scenario 7: Edit outward entry updates Rate/GST totals without modifying stock', () async {
       final materials = await SubVendorMaterialOutwardService.fetchMaterialMaster();
       final panel = materials.firstWhere((m) => m.category == 'PANEL');
-      final baselineStock = panel.availableStock; // e.g. 500
+      final baselineStock = panel.availableStock;
 
-      // Create entry issuing 10 panels
       final created = await SubVendorMaterialOutwardService.recordOutward(
         vendorId: 'vnd-001',
         vendorName: 'Vendor A',
         outwardDate: DateTime(2026, 11, 25),
         items: [
-          SubVendorMaterialOutwardItem(id: '', outwardId: '', materialId: panel.id, materialName: panel.itemName, unit: panel.unit, quantity: 10.0),
+          SubVendorMaterialOutwardItem(
+            id: '',
+            outwardId: '',
+            materialId: panel.id,
+            materialName: panel.itemName,
+            unit: 'NOS',
+            quantity: 10.0,
+            unitRate: 10000.0,
+            gstPercentage: 0.0,
+          ),
         ],
       );
+      expect(created.totalValue, equals(100000.0));
 
-      var matsAfterCreate = await SubVendorMaterialOutwardService.fetchMaterialMaster();
-      expect(matsAfterCreate.firstWhere((m) => m.id == panel.id).availableStock, equals(baselineStock - 10.0));
-
-      // Edit entry to issue 15 panels instead of 10 (net -5 more from baseline)
-      await SubVendorMaterialOutwardService.updateOutward(
+      // Edit entry to 15 panels with 12% GST
+      final updated = await SubVendorMaterialOutwardService.updateOutward(
         outwardId: created.id,
         vendorId: 'vnd-001',
         vendorName: 'Vendor A',
         outwardDate: DateTime(2026, 11, 25),
-        remarks: 'Updated to 15 panels',
+        remarks: 'Updated to 15 panels @ 12% GST',
         items: [
-          SubVendorMaterialOutwardItem(id: '', outwardId: created.id, materialId: panel.id, materialName: panel.itemName, unit: panel.unit, quantity: 15.0),
+          SubVendorMaterialOutwardItem(
+            id: '',
+            outwardId: created.id,
+            materialId: panel.id,
+            materialName: panel.itemName,
+            unit: 'NOS',
+            quantity: 15.0,
+            unitRate: 10000.0,
+            gstPercentage: 12.0,
+          ),
         ],
       );
 
-      var matsAfterEdit = await SubVendorMaterialOutwardService.fetchMaterialMaster();
-      expect(matsAfterEdit.firstWhere((m) => m.id == panel.id).availableStock, equals(baselineStock - 15.0));
+      expect(updated.subtotal, equals(150000.0));
+      expect(updated.totalGst, equals(18000.0));
+      expect(updated.totalValue, equals(168000.0));
 
-      // Edit again to reduce to 4 panels (restores 11 panels)
-      await SubVendorMaterialOutwardService.updateOutward(
-        outwardId: created.id,
-        vendorId: 'vnd-001',
-        vendorName: 'Vendor A',
-        outwardDate: DateTime(2026, 11, 25),
-        remarks: 'Reduced to 4 panels',
-        items: [
-          SubVendorMaterialOutwardItem(id: '', outwardId: created.id, materialId: panel.id, materialName: panel.itemName, unit: panel.unit, quantity: 4.0),
-        ],
-      );
-
-      var matsAfterSecondEdit = await SubVendorMaterialOutwardService.fetchMaterialMaster();
-      expect(matsAfterSecondEdit.firstWhere((m) => m.id == panel.id).availableStock, equals(baselineStock - 4.0));
+      final matsAfterEdit = await SubVendorMaterialOutwardService.fetchMaterialMaster();
+      expect(matsAfterEdit.firstWhere((m) => m.id == panel.id).availableStock, equals(baselineStock));
     });
 
     // -------------------------------------------------------------------------
-    // Scenario 8: Cancel outward entry and verify stock restoration
+    // Scenario 8: Cancel outward entry and verify exclusion from active reports
     // -------------------------------------------------------------------------
-    test('Scenario 8: Cancel outward entry restores stock and excludes from active reports', () async {
+    test('Scenario 8: Cancel outward entry excludes from active reports without modifying stock', () async {
       final materials = await SubVendorMaterialOutwardService.fetchMaterialMaster();
       final panel = materials.firstWhere((m) => m.category == 'PANEL');
       final baselineStock = panel.availableStock;
@@ -370,12 +389,18 @@ void main() {
         vendorName: 'Vendor A',
         outwardDate: DateTime(2026, 11, 25),
         items: [
-          SubVendorMaterialOutwardItem(id: '', outwardId: '', materialId: panel.id, materialName: panel.itemName, unit: panel.unit, quantity: 20.0),
+          SubVendorMaterialOutwardItem(
+            id: '',
+            outwardId: '',
+            materialId: panel.id,
+            materialName: panel.itemName,
+            unit: 'NOS',
+            quantity: 20.0,
+            unitRate: 11000.0,
+            gstPercentage: 5.0,
+          ),
         ],
       );
-
-      var mats = await SubVendorMaterialOutwardService.fetchMaterialMaster();
-      expect(mats.firstWhere((m) => m.id == panel.id).availableStock, equals(baselineStock - 20.0));
 
       // Cancel the outward
       final cancelled = await SubVendorMaterialOutwardService.cancelOutward(
@@ -388,8 +413,8 @@ void main() {
       expect(cancelled.isActive, isFalse);
       expect(cancelled.cancellationReason, equals('Client site cancelled installation'));
 
-      // Verify stock was restored to baseline
-      var matsAfterCancel = await SubVendorMaterialOutwardService.fetchMaterialMaster();
+      // Stock remains unchanged
+      final matsAfterCancel = await SubVendorMaterialOutwardService.fetchMaterialMaster();
       expect(matsAfterCancel.firstWhere((m) => m.id == panel.id).availableStock, equals(baselineStock));
 
       // Rule 7 Verification: Cancelled entries must not count in active outward reports
@@ -399,9 +424,9 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
-    // Scenario 9: Verify no duplicate stock deduction
+    // Scenario 9: Verify no duplicate ledger or stock side-effects on fetch
     // -------------------------------------------------------------------------
-    test('Scenario 9: Fetching and filtering does not re-deduct or duplicate stock deduction', () async {
+    test('Scenario 9: Fetching and filtering leaves stock unchanged and prevents double cancel', () async {
       final materials = await SubVendorMaterialOutwardService.fetchMaterialMaster();
       final panel = materials.firstWhere((m) => m.category == 'PANEL');
       final baselineStock = panel.availableStock;
@@ -411,7 +436,16 @@ void main() {
         vendorName: 'Vendor A',
         outwardDate: DateTime(2026, 11, 25),
         items: [
-          SubVendorMaterialOutwardItem(id: '', outwardId: '', materialId: panel.id, materialName: panel.itemName, unit: panel.unit, quantity: 5.0),
+          SubVendorMaterialOutwardItem(
+            id: '',
+            outwardId: '',
+            materialId: panel.id,
+            materialName: panel.itemName,
+            unit: 'NOS',
+            quantity: 5.0,
+            unitRate: 10000.0,
+            gstPercentage: 18.0,
+          ),
         ],
       );
 
@@ -423,9 +457,8 @@ void main() {
       SubVendorMaterialOutwardService.generateSubVendorWiseSummary(all);
       SubVendorMaterialOutwardService.generateMaterialWiseSummary(all);
 
-      // Stock should remain deducted by exactly 5.0 once
       final finalMats = await SubVendorMaterialOutwardService.fetchMaterialMaster();
-      expect(finalMats.firstWhere((m) => m.id == panel.id).availableStock, equals(baselineStock - 5.0));
+      expect(finalMats.firstWhere((m) => m.id == panel.id).availableStock, equals(baselineStock));
 
       // Cannot cancel twice
       expect(() => SubVendorMaterialOutwardService.cancelOutward(created.id), returnsNormally);

@@ -140,10 +140,14 @@ class SubVendorMaterialOutwardPdfService {
               pw.Table(
                 border: pw.TableBorder.all(color: borderGray, width: 0.6),
                 columnWidths: {
-                  0: const pw.FixedColumnWidth(30),
-                  1: const pw.FlexColumnWidth(4),
-                  2: const pw.FlexColumnWidth(1.5),
-                  3: const pw.FlexColumnWidth(1.5),
+                  0: const pw.FixedColumnWidth(24),
+                  1: const pw.FlexColumnWidth(3.2),
+                  2: const pw.FlexColumnWidth(0.9),
+                  3: const pw.FlexColumnWidth(0.8),
+                  4: const pw.FlexColumnWidth(1.2),
+                  5: const pw.FlexColumnWidth(0.8),
+                  6: const pw.FlexColumnWidth(1.1),
+                  7: const pw.FlexColumnWidth(1.3),
                 },
                 children: [
                   pw.TableRow(
@@ -151,8 +155,12 @@ class SubVendorMaterialOutwardPdfService {
                     children: [
                       _buildTableCell('#', isHeader: true, align: pw.TextAlign.center),
                       _buildTableCell('Material Description', isHeader: true),
+                      _buildTableCell('Qty', isHeader: true, align: pw.TextAlign.right),
                       _buildTableCell('Unit', isHeader: true, align: pw.TextAlign.center),
-                      _buildTableCell('Issued Qty', isHeader: true, align: pw.TextAlign.right),
+                      _buildTableCell('Rate', isHeader: true, align: pw.TextAlign.right),
+                      _buildTableCell('GST %', isHeader: true, align: pw.TextAlign.center),
+                      _buildTableCell('GST Amt', isHeader: true, align: pw.TextAlign.right),
+                      _buildTableCell('Final Price', isHeader: true, align: pw.TextAlign.right),
                     ],
                   ),
                   ...outward.items.asMap().entries.map((entry) {
@@ -163,8 +171,12 @@ class SubVendorMaterialOutwardPdfService {
                       children: [
                         _buildTableCell(idx.toString(), align: pw.TextAlign.center),
                         _buildTableCell(item.materialName),
+                        _buildTableCell(item.quantity.toStringAsFixed(2), align: pw.TextAlign.right),
                         _buildTableCell(item.unit, align: pw.TextAlign.center),
-                        _buildTableCell(item.quantity.toStringAsFixed(1), align: pw.TextAlign.right),
+                        _buildTableCell(item.unitRate.toStringAsFixed(2), align: pw.TextAlign.right),
+                        _buildTableCell('${item.gstPercentage.toStringAsFixed(0)}%', align: pw.TextAlign.center),
+                        _buildTableCell(item.gstAmount.toStringAsFixed(2), align: pw.TextAlign.right),
+                        _buildTableCell(item.totalPrice.toStringAsFixed(2), align: pw.TextAlign.right),
                       ],
                     );
                   }),
@@ -173,12 +185,57 @@ class SubVendorMaterialOutwardPdfService {
                     decoration: const pw.BoxDecoration(color: PdfColors.grey100),
                     children: [
                       _buildTableCell(''),
-                      _buildTableCell('TOTAL MATERIALS: ${outward.totalItems}', isHeader: true),
-                      _buildTableCell('TOTAL QTY', isHeader: true, align: pw.TextAlign.center),
-                      _buildTableCell(outward.totalQuantity.toStringAsFixed(1), isHeader: true, align: pw.TextAlign.right),
+                      _buildTableCell('TOTAL (${outward.totalItems} Items)', isHeader: true),
+                      _buildTableCell(outward.totalQuantity.toStringAsFixed(2), isHeader: true, align: pw.TextAlign.right),
+                      _buildTableCell(''),
+                      _buildTableCell('Subtotal:', isHeader: true, align: pw.TextAlign.right),
+                      _buildTableCell(outward.subtotal.toStringAsFixed(2), isHeader: true, align: pw.TextAlign.right),
+                      _buildTableCell(outward.totalGst.toStringAsFixed(2), isHeader: true, align: pw.TextAlign.right),
+                      _buildTableCell(outward.totalValue.toStringAsFixed(2), isHeader: true, align: pw.TextAlign.right),
                     ],
                   ),
                 ],
+              ),
+
+              pw.SizedBox(height: 10),
+              pw.Align(
+                alignment: pw.Alignment.centerRight,
+                child: pw.Container(
+                  width: 220,
+                  padding: const pw.EdgeInsets.all(8),
+                  decoration: pw.BoxDecoration(
+                    color: slateLight,
+                    border: pw.Border.all(color: borderGray, width: 0.6),
+                    borderRadius: pw.BorderRadius.circular(4),
+                  ),
+                  child: pw.Column(
+                    children: [
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text('Subtotal:', style: const pw.TextStyle(fontSize: 9, color: slateBody)),
+                          pw.Text('Rs. ${outward.subtotal.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 9, color: slateBody)),
+                        ],
+                      ),
+                      pw.SizedBox(height: 2),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text('Total GST:', style: const pw.TextStyle(fontSize: 9, color: slateBody)),
+                          pw.Text('Rs. ${outward.totalGst.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 9, color: slateBody)),
+                        ],
+                      ),
+                      pw.Divider(height: 6, color: borderGray),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text('Grand Total:', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                          pw.Text('Rs. ${outward.totalValue.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: greenColor)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
 
               pw.Spacer(),

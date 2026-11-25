@@ -6,6 +6,7 @@ import 'package:siya_shared/siya_shared.dart';
 import '../services/sub_vendor_service.dart';
 import '../services/sub_vendor_pdf_service.dart';
 import '../services/record_service.dart';
+import 'searchable_material_picker_dialog.dart';
 
 final _currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 2);
 final _dateFormat = DateFormat('dd-MM-yyyy');
@@ -1155,9 +1156,29 @@ class _IssueReturnMaterialDialogState extends State<IssueReturnMaterialDialog> {
                   _buildPresetChips(),
                   TextFormField(
                     controller: _itemCtrl,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Item Name & Technical Description *',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.search, color: Color(0xFF0D2B6F)),
+                        tooltip: 'Pick or Add from Central Material Master',
+                        onPressed: () async {
+                          final picked = await showCentralMaterialPickerDialog(
+                            context,
+                            defaultUnit: _unitCtrl.text.trim().isNotEmpty ? _unitCtrl.text.trim().toUpperCase() : 'NOS',
+                            defaultRate: double.tryParse(_rateCtrl.text.trim()) ?? 0.0,
+                          );
+                          if (picked != null && mounted) {
+                            setState(() {
+                              _itemCtrl.text = picked.itemName;
+                              _unitCtrl.text = picked.unit;
+                              if (picked.defaultRate > 0) {
+                                _rateCtrl.text = picked.defaultRate.toStringAsFixed(0);
+                              }
+                            });
+                          }
+                        },
+                      ),
                     ),
                     validator: (v) => v?.trim().isEmpty == true ? 'Required' : null,
                   ),

@@ -84,6 +84,9 @@ class SubVendorMaterialOutwardItem {
   final String unit;
   final double quantity;
   final double unitRate;
+  final double baseAmount;
+  final double gstPercentage;
+  final double gstAmount;
   final double totalPrice;
   final DateTime? createdAt;
 
@@ -95,6 +98,9 @@ class SubVendorMaterialOutwardItem {
     this.unit = 'NOS',
     required this.quantity,
     this.unitRate = 0.0,
+    this.baseAmount = 0.0,
+    this.gstPercentage = 0.0,
+    this.gstAmount = 0.0,
     this.totalPrice = 0.0,
     this.createdAt,
   });
@@ -102,7 +108,10 @@ class SubVendorMaterialOutwardItem {
   factory SubVendorMaterialOutwardItem.fromJson(Map<String, dynamic> json) {
     final qty = (json['quantity'] as num?)?.toDouble() ?? 0.0;
     final rate = (json['unit_rate'] as num?)?.toDouble() ?? 0.0;
-    final price = (json['total_price'] as num?)?.toDouble() ?? (qty * rate);
+    final base = (json['base_amount'] as num?)?.toDouble() ?? (qty * rate);
+    final gstPct = (json['gst_percentage'] as num?)?.toDouble() ?? 0.0;
+    final gstAmt = (json['gst_amount'] as num?)?.toDouble() ?? (base * gstPct / 100.0);
+    final price = (json['total_price'] as num?)?.toDouble() ?? (base + gstAmt);
 
     return SubVendorMaterialOutwardItem(
       id: json['id']?.toString() ?? '',
@@ -112,6 +121,9 @@ class SubVendorMaterialOutwardItem {
       unit: (json['unit']?.toString() ?? 'NOS').toUpperCase(),
       quantity: qty,
       unitRate: rate,
+      baseAmount: base,
+      gstPercentage: gstPct,
+      gstAmount: gstAmt,
       totalPrice: price,
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
     );
@@ -125,6 +137,9 @@ class SubVendorMaterialOutwardItem {
         'unit': unit,
         'quantity': quantity,
         'unit_rate': unitRate,
+        'base_amount': baseAmount,
+        'gst_percentage': gstPercentage,
+        'gst_amount': gstAmount,
         'total_price': totalPrice,
         if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
       };
@@ -137,6 +152,9 @@ class SubVendorMaterialOutwardItem {
     String? unit,
     double? quantity,
     double? unitRate,
+    double? baseAmount,
+    double? gstPercentage,
+    double? gstAmount,
     double? totalPrice,
     DateTime? createdAt,
   }) {
@@ -148,6 +166,9 @@ class SubVendorMaterialOutwardItem {
       unit: unit ?? this.unit,
       quantity: quantity ?? this.quantity,
       unitRate: unitRate ?? this.unitRate,
+      baseAmount: baseAmount ?? this.baseAmount,
+      gstPercentage: gstPercentage ?? this.gstPercentage,
+      gstAmount: gstAmount ?? this.gstAmount,
       totalPrice: totalPrice ?? this.totalPrice,
       createdAt: createdAt ?? this.createdAt,
     );
@@ -163,6 +184,8 @@ class SubVendorMaterialOutward {
   final DateTime outwardDate;
   final int totalItems;
   final double totalQuantity;
+  final double subtotal;
+  final double totalGst;
   final double totalValue;
   final String? remarks;
   final String status; // 'Active', 'Cancelled'
@@ -182,6 +205,8 @@ class SubVendorMaterialOutward {
     required this.outwardDate,
     this.totalItems = 0,
     this.totalQuantity = 0.0,
+    this.subtotal = 0.0,
+    this.totalGst = 0.0,
     this.totalValue = 0.0,
     this.remarks,
     this.status = 'Active',
@@ -212,6 +237,10 @@ class SubVendorMaterialOutward {
     final totalItems = (json['total_items'] as num?)?.toInt() ?? parsedItems.length;
     final double totalQuantity = (json['total_quantity'] as num?)?.toDouble() ??
         parsedItems.fold<double>(0.0, (double sum, i) => sum + i.quantity);
+    final double subtotal = (json['subtotal'] as num?)?.toDouble() ??
+        parsedItems.fold<double>(0.0, (double sum, i) => sum + i.baseAmount);
+    final double totalGst = (json['total_gst'] as num?)?.toDouble() ??
+        parsedItems.fold<double>(0.0, (double sum, i) => sum + i.gstAmount);
     final double totalValue = (json['total_value'] as num?)?.toDouble() ??
         parsedItems.fold<double>(0.0, (double sum, i) => sum + i.totalPrice);
 
@@ -225,6 +254,8 @@ class SubVendorMaterialOutward {
           : DateTime.now(),
       totalItems: totalItems,
       totalQuantity: totalQuantity,
+      subtotal: subtotal,
+      totalGst: totalGst,
       totalValue: totalValue,
       remarks: json['remarks']?.toString(),
       status: json['status']?.toString() ?? 'Active',
@@ -246,6 +277,8 @@ class SubVendorMaterialOutward {
         'outward_date': outwardDate.toIso8601String().split('T').first,
         'total_items': totalItems,
         'total_quantity': totalQuantity,
+        'subtotal': subtotal,
+        'total_gst': totalGst,
         'total_value': totalValue,
         if (remarks != null) 'remarks': remarks,
         'status': status,
@@ -266,6 +299,8 @@ class SubVendorMaterialOutward {
     DateTime? outwardDate,
     int? totalItems,
     double? totalQuantity,
+    double? subtotal,
+    double? totalGst,
     double? totalValue,
     String? remarks,
     String? status,
@@ -280,6 +315,8 @@ class SubVendorMaterialOutward {
     final effectiveItems = items ?? this.items;
     final effTotalItems = totalItems ?? effectiveItems.length;
     final double effTotalQty = totalQuantity ?? effectiveItems.fold<double>(0.0, (double sum, i) => sum + i.quantity);
+    final double effSubtotal = subtotal ?? effectiveItems.fold<double>(0.0, (double sum, i) => sum + i.baseAmount);
+    final double effTotalGst = totalGst ?? effectiveItems.fold<double>(0.0, (double sum, i) => sum + i.gstAmount);
     final double effTotalVal = totalValue ?? effectiveItems.fold<double>(0.0, (double sum, i) => sum + i.totalPrice);
 
     return SubVendorMaterialOutward(
@@ -290,6 +327,8 @@ class SubVendorMaterialOutward {
       outwardDate: outwardDate ?? this.outwardDate,
       totalItems: effTotalItems,
       totalQuantity: effTotalQty,
+      subtotal: effSubtotal,
+      totalGst: effTotalGst,
       totalValue: effTotalVal,
       remarks: remarks ?? this.remarks,
       status: status ?? this.status,

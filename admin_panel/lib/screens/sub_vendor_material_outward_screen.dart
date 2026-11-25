@@ -5,8 +5,12 @@ import 'package:printing/printing.dart';
 import 'package:siya_shared/siya_shared.dart';
 import '../services/sub_vendor_material_outward_pdf_service.dart';
 import '../services/sub_vendor_material_outward_service.dart';
+import '../widgets/searchable_material_picker_dialog.dart';
 
 final _dateFormat = DateFormat('dd-MM-yyyy');
+final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 2);
+const List<String> _unitOptions = ['NOS', 'PCS', 'KG', 'MTR', 'SET', 'BOX'];
+const List<double> _gstOptions = [0.0, 5.0, 12.0, 18.0, 28.0];
 
 /// Sub-Vendor Material Outward Tracking Screen — Complete Module containing:
 /// 1. Material Outward Entry (Bulk Entry with dynamic rows & stock deduction)
@@ -111,12 +115,25 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
     }
   }
 
+  static String _normalizeUnit(String rawUnit) {
+    final u = rawUnit.trim().toUpperCase();
+    if (u == 'SETS') return 'SET';
+    if (u == 'M' || u == 'METERS' || u == 'METRE') return 'MTR';
+    if (_unitOptions.contains(u)) return u;
+    return 'NOS';
+  }
+
   void _addMaterialRow([MaterialMasterItem? initialMat, double initialQty = 1.0]) {
     final mat = initialMat ?? (_materials.isNotEmpty ? _materials.first : null);
     setState(() {
       _entryRows.add(_OutwardRowState(
         selectedMaterial: mat,
+        selectedUnit: _normalizeUnit(mat?.unit ?? 'NOS'),
         quantityCtrl: TextEditingController(text: initialQty > 0 ? initialQty.toString() : '1'),
+        rateCtrl: TextEditingController(
+          text: mat != null && mat.defaultRate > 0 ? mat.defaultRate.toStringAsFixed(2) : '0',
+        ),
+        gstPercentage: 0.0,
       ));
     });
   }
@@ -134,14 +151,10 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
     });
   }
 
-  double get _currentTotalQty {
-    double total = 0.0;
-    for (final r in _entryRows) {
-      final q = double.tryParse(r.quantityCtrl.text.trim()) ?? 0.0;
-      total += q;
-    }
-    return total;
-  }
+  double get _currentTotalQty => _entryRows.fold<double>(0.0, (sum, r) => sum + r.quantity);
+  double get _currentSubtotal => _entryRows.fold<double>(0.0, (sum, r) => sum + r.baseAmount);
+  double get _currentTotalGst => _entryRows.fold<double>(0.0, (sum, r) => sum + r.gstAmount);
+  double get _currentGrandTotal => _entryRows.fold<double>(0.0, (sum, r) => sum + r.finalPrice);
 
   @override
   Widget build(BuildContext context) {
@@ -195,7 +208,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: navyColor),
               ),
               Text(
-                'Issue materials date-wise with real-time stock deduction, history & reports',
+                'Issue materials date-wise with Rate, GST billing, ledger sync, history & reports',
                 style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
               ),
             ],
@@ -355,127 +368,11 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
 
                   // Material Rows List
                   ..._entryRows.asMap().entries.map((entry) {
-                    final idx = entry.key;
-                    final row = entry.value;
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // Row Index Badge
-                          CircleAvatar(
-                            radius: 14,
-                            backgroundColor: navyColor.withOpacity(0.1),
-                            child: Text('${idx + 1}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyColor)),
-                          ),
-                          const SizedBox(width: 12),
-
-                          // Material Dropdown
-                          Expanded(
-                            flex: 5,
-                            child: DropdownButtonFormField<MaterialMasterItem>(
-                              value: row.selectedMaterial,
-                              isExpanded: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Select Material',
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                border: OutlineInputBorder(),
-                              ),
-                              items: _materials.map((m) {
-                                return DropdownMenuItem(
-                                  value: m,
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          m.itemName,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: m.availableStock > 0 ? Colors.green.shade50 : Colors.red.shade50,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          'Stock: ${m.availableStock.toStringAsFixed(1)} ${m.unit}',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: m.availableStock > 0 ? Colors.green.shade800 : Colors.red.shade800,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setState(() => row.selectedMaterial = val);
-                                }
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-
-                          // Unit Auto-fetch Box
-                          Container(
-                            width: 85,
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFFCBD5E1)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                const Text('UNIT', style: TextStyle(fontSize: 9, color: Color(0xFF64748B), fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 2),
-                                Text(
-                                  row.selectedMaterial?.unit ?? 'NOS',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: navyColor),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-
-                          // Quantity Text Field
-                          Expanded(
-                            flex: 2,
-                            child: TextField(
-                              controller: row.quantityCtrl,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'Quantity',
-                                hintText: '0.0',
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                border: OutlineInputBorder(),
-                              ),
-                              onChanged: (_) => setState(() {}),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // Remove Button
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, color: redColor, size: 20),
-                            tooltip: 'Remove Row',
-                            onPressed: () => _removeMaterialRow(idx),
-                          ),
-                        ],
-                      ),
+                    return _buildMaterialRowCard(
+                      idx: entry.key,
+                      row: entry.value,
+                      onChanged: () => setState(() {}),
+                      onRemove: () => _removeMaterialRow(entry.key),
                     );
                   }),
                 ],
@@ -496,52 +393,303 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                 BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
               ],
             ),
-            child: Row(
-              children: [
-                // KPI: Total Rows
-                _buildSummaryKpi('Total Materials', '${_entryRows.length} Items', Icons.layers_outlined, navyColor),
-                const SizedBox(width: 24),
-                // KPI: Total Quantity
-                _buildSummaryKpi('Total Quantity', _currentTotalQty.toStringAsFixed(1), Icons.numbers, amberColor),
-                const SizedBox(width: 24),
-                // Selected Vendor
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Target Sub-Vendor', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                      Text(
-                        _selectedVendor?.name ?? 'Please select a Sub-Vendor',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: _selectedVendor != null ? greenColor : redColor,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                // Bulk Save Button
-                ElevatedButton.icon(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 900;
+                final kpiWrap = Wrap(
+                  spacing: 24,
+                  runSpacing: 14,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _buildSummaryKpi('Total Materials', '${_entryRows.length} Items', Icons.layers_outlined, navyColor),
+                    _buildSummaryKpi('Total Quantity', _currentTotalQty.toStringAsFixed(2), Icons.numbers, amberColor),
+                    _buildSummaryKpi('Subtotal', _currencyFormat.format(_currentSubtotal), Icons.receipt_long_outlined, const Color(0xFF334155)),
+                    _buildSummaryKpi('Total GST', _currencyFormat.format(_currentTotalGst), Icons.percent_rounded, const Color(0xFF0284C7)),
+                    _buildSummaryKpi('Grand Total', _currencyFormat.format(_currentGrandTotal), Icons.currency_rupee_rounded, greenColor),
+                  ],
+                );
+
+                final saveBtn = ElevatedButton.icon(
                   onPressed: _isSavingEntry ? null : _handleSaveOutwardEntry,
                   icon: _isSavingEntry
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.check_circle_outline, size: 18),
-                  label: Text(_isSavingEntry ? 'Saving & Deducting...' : 'Save Material Outward'),
+                  label: Text(_isSavingEntry ? 'Saving Outward...' : 'Save Material Outward'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: navyColor,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                ),
-              ],
+                );
+
+                if (isCompact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      kpiWrap,
+                      const Divider(height: 24),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Target Sub-Vendor', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                                Text(
+                                  _selectedVendor?.name ?? 'Please select a Sub-Vendor',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: _selectedVendor != null ? greenColor : redColor,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          saveBtn,
+                        ],
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: kpiWrap),
+                    const SizedBox(width: 16),
+                    saveBtn,
+                  ],
+                );
+              },
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// Responsive Material Row Card (used in both Entry Tab and Edit Dialog).
+  Widget _buildMaterialRowCard({
+    required int idx,
+    required _OutwardRowState row,
+    required VoidCallback onChanged,
+    required VoidCallback onRemove,
+  }) {
+    final materialPicker = InkWell(
+      onTap: () => _openMaterialSearchDialog(row, onChanged),
+      borderRadius: BorderRadius.circular(6),
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Material Name *',
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          border: OutlineInputBorder(),
+          suffixIcon: Icon(Icons.search, size: 18),
+        ),
+        child: Text(
+          row.selectedMaterial?.itemName ?? 'Search or add material...',
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: row.selectedMaterial != null ? FontWeight.w600 : FontWeight.normal,
+            color: row.selectedMaterial != null ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+          ),
+        ),
+      ),
+    );
+
+    final qtyField = TextField(
+      controller: row.quantityCtrl,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: const InputDecoration(
+        labelText: 'Qty *',
+        hintText: '0',
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        border: OutlineInputBorder(),
+      ),
+      onChanged: (_) => onChanged(),
+    );
+
+    final unitField = DropdownButtonFormField<String>(
+      value: _unitOptions.contains(row.selectedUnit) ? row.selectedUnit : 'NOS',
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Unit',
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        border: OutlineInputBorder(),
+      ),
+      items: _unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
+      onChanged: (val) {
+        if (val != null) {
+          row.selectedUnit = val;
+          onChanged();
+        }
+      },
+    );
+
+    final rateField = TextField(
+      controller: row.rateCtrl,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: const InputDecoration(
+        labelText: 'Rate (₹)',
+        hintText: '0.00',
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        border: OutlineInputBorder(),
+      ),
+      onChanged: (_) => onChanged(),
+    );
+
+    final gstField = DropdownButtonFormField<double>(
+      value: _gstOptions.contains(row.gstPercentage) ? row.gstPercentage : 0.0,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'GST %',
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        border: OutlineInputBorder(),
+      ),
+      items: _gstOptions.map((g) => DropdownMenuItem(
+        value: g,
+        child: Text('${g.toInt()}%', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      )).toList(),
+      onChanged: (val) {
+        if (val != null) {
+          row.gstPercentage = val;
+          onChanged();
+        }
+      },
+    );
+
+    final priceSummary = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'GST: ${_currencyFormat.format(row.gstAmount)}',
+            style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+          ),
+          Text(
+            _currencyFormat.format(row.finalPrice),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: greenColor),
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth >= 900;
+          if (isDesktop) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: navyColor.withOpacity(0.1),
+                  child: Text('${idx + 1}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyColor)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(flex: 4, child: materialPicker),
+                const SizedBox(width: 10),
+                Expanded(flex: 2, child: qtyField),
+                const SizedBox(width: 10),
+                SizedBox(width: 92, child: unitField),
+                const SizedBox(width: 10),
+                Expanded(flex: 2, child: rateField),
+                const SizedBox(width: 10),
+                SizedBox(width: 88, child: gstField),
+                const SizedBox(width: 10),
+                SizedBox(width: 130, child: priceSummary),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: redColor, size: 20),
+                  tooltip: 'Remove Row',
+                  onPressed: onRemove,
+                ),
+              ],
+            );
+          }
+
+          // Mobile / Tablet stacked layout
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 13,
+                    backgroundColor: navyColor.withOpacity(0.1),
+                    child: Text('${idx + 1}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: materialPicker),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: redColor, size: 20),
+                    tooltip: 'Remove Row',
+                    onPressed: onRemove,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(flex: 2, child: qtyField),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 2, child: unitField),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 3, child: rateField),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(flex: 2, child: gstField),
+                  const SizedBox(width: 10),
+                  Expanded(flex: 3, child: priceSummary),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// Opens the Central Searchable Material Master Dialog with "+ Add New Material".
+  Future<void> _openMaterialSearchDialog(_OutwardRowState row, VoidCallback onChanged) async {
+    final picked = await showCentralMaterialPickerDialog(
+      context,
+      initialMaterials: _materials,
+      currentSelection: row.selectedMaterial,
+      defaultUnit: row.selectedUnit,
+      defaultRate: row.rate,
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        row.selectedMaterial = picked;
+        row.selectedUnit = _normalizeUnit(picked.unit);
+        if (picked.defaultRate > 0) {
+          row.rateCtrl.text = picked.defaultRate.toStringAsFixed(2);
+        }
+      });
+      onChanged();
+    }
   }
 
   Widget _buildDatePickerField() {
@@ -636,10 +784,16 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
         );
         return;
       }
-      final q = double.tryParse(r.quantityCtrl.text.trim()) ?? 0.0;
+      final q = r.quantity;
       if (q <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Row ${i + 1}: Quantity must be greater than zero.'), backgroundColor: redColor),
+        );
+        return;
+      }
+      if (r.rate < 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Row ${i + 1}: Rate cannot be negative.'), backgroundColor: redColor),
         );
         return;
       }
@@ -649,8 +803,13 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
         outwardId: '',
         materialId: r.selectedMaterial!.id,
         materialName: r.selectedMaterial!.itemName,
-        unit: r.selectedMaterial!.unit,
+        unit: r.selectedUnit,
         quantity: q,
+        unitRate: r.rate,
+        baseAmount: r.baseAmount,
+        gstPercentage: r.gstPercentage,
+        gstAmount: r.gstAmount,
+        totalPrice: r.finalPrice,
       ));
     }
 
@@ -665,7 +824,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
         items: items,
       );
 
-      // Refresh master stock and outwards
+      // Refresh outwards list
       await _loadInitialData();
 
       // Reset form
@@ -681,7 +840,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                 const Icon(Icons.check_circle, color: Colors.white, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text('Material Outward ${created.outwardNumber} successfully recorded & stock deducted!'),
+                  child: Text('Material Outward ${created.outwardNumber} saved (${_currencyFormat.format(created.totalValue)})!'),
                 ),
               ],
             ),
@@ -1294,7 +1453,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
             ],
           ),
           content: SizedBox(
-            width: 600,
+            width: 720,
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1308,14 +1467,26 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                   const SizedBox(height: 8),
                   Table(
                     border: TableBorder.all(color: const Color(0xFFE2E8F0)),
+                    columnWidths: const {
+                      0: FixedColumnWidth(32),
+                      1: FlexColumnWidth(3),
+                      2: FixedColumnWidth(55),
+                      3: FixedColumnWidth(65),
+                      4: FixedColumnWidth(85),
+                      5: FixedColumnWidth(55),
+                      6: FixedColumnWidth(95),
+                    },
                     children: [
                       const TableRow(
                         decoration: BoxDecoration(color: Color(0xFFF1F5F9)),
                         children: [
-                          Padding(padding: EdgeInsets.all(6), child: Text('#', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                          Padding(padding: EdgeInsets.all(6), child: Text('Material Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                          Padding(padding: EdgeInsets.all(6), child: Text('Unit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                          Padding(padding: EdgeInsets.all(6), child: Text('Quantity', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                          Padding(padding: EdgeInsets.all(6), child: Text('#', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                          Padding(padding: EdgeInsets.all(6), child: Text('Material Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                          Padding(padding: EdgeInsets.all(6), child: Text('Unit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                          Padding(padding: EdgeInsets.all(6), child: Text('Qty', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                          Padding(padding: EdgeInsets.all(6), child: Text('Rate', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                          Padding(padding: EdgeInsets.all(6), child: Text('GST %', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                          Padding(padding: EdgeInsets.all(6), child: Text('Final Price', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
                         ],
                       ),
                       ...outward.items.asMap().entries.map((entry) {
@@ -1323,14 +1494,30 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                         final item = entry.value;
                         return TableRow(
                           children: [
-                            Padding(padding: const EdgeInsets.all(6), child: Text('$idx', style: const TextStyle(fontSize: 12))),
-                            Padding(padding: const EdgeInsets.all(6), child: Text(item.materialName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
-                            Padding(padding: const EdgeInsets.all(6), child: Text(item.unit, style: const TextStyle(fontSize: 12))),
-                            Padding(padding: const EdgeInsets.all(6), child: Text(item.quantity.toStringAsFixed(1), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                            Padding(padding: const EdgeInsets.all(6), child: Text('$idx', style: const TextStyle(fontSize: 11))),
+                            Padding(padding: const EdgeInsets.all(6), child: Text(item.materialName, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600))),
+                            Padding(padding: const EdgeInsets.all(6), child: Text(item.unit, style: const TextStyle(fontSize: 11))),
+                            Padding(padding: const EdgeInsets.all(6), child: Text(item.quantity.toStringAsFixed(2), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
+                            Padding(padding: const EdgeInsets.all(6), child: Text(_currencyFormat.format(item.unitRate), style: const TextStyle(fontSize: 11))),
+                            Padding(padding: const EdgeInsets.all(6), child: Text('${item.gstPercentage.toStringAsFixed(0)}%', style: const TextStyle(fontSize: 11))),
+                            Padding(padding: const EdgeInsets.all(6), child: Text(_currencyFormat.format(item.totalPrice), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: greenColor))),
                           ],
                         );
                       }),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE2E8F0))),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Subtotal: ${_currencyFormat.format(outward.subtotal)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        Text('Total GST: ${_currencyFormat.format(outward.totalGst)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0284C7))),
+                        Text('Grand Total: ${_currencyFormat.format(outward.totalValue)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: greenColor)),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1371,7 +1558,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Cancelling entry "${outward.outwardNumber}" will automatically restore all ${outward.totalQuantity} items back to Main Inventory.',
+                'Cancelling entry "${outward.outwardNumber}" will exclude it from active outward totals and reverse its ledger credit.',
                 style: const TextStyle(fontSize: 13),
               ),
               const SizedBox(height: 14),
@@ -1394,7 +1581,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                   await _loadInitialData();
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Outward ${outward.outwardNumber} cancelled and stock restored!'), backgroundColor: greenColor),
+                      SnackBar(content: Text('Outward ${outward.outwardNumber} cancelled!'), backgroundColor: greenColor),
                     );
                   }
                 } catch (e) {
@@ -1404,7 +1591,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: redColor, foregroundColor: Colors.white),
-              child: const Text('Yes, Cancel & Restore Stock'),
+              child: const Text('Yes, Cancel Outward'),
             ),
           ],
         );
@@ -1419,11 +1606,14 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
     final List<_OutwardRowState> editRows = outward.items.map((i) {
       final matchedMat = _materials.firstWhere(
         (m) => m.id == i.materialId || m.itemName.toLowerCase() == i.materialName.toLowerCase(),
-        orElse: () => MaterialMasterItem(id: i.materialId ?? '', itemName: i.materialName, unit: i.unit),
+        orElse: () => MaterialMasterItem(id: i.materialId ?? '', itemName: i.materialName, unit: i.unit, defaultRate: i.unitRate),
       );
       return _OutwardRowState(
         selectedMaterial: matchedMat,
+        selectedUnit: _normalizeUnit(i.unit),
         quantityCtrl: TextEditingController(text: i.quantity.toString()),
+        rateCtrl: TextEditingController(text: i.unitRate.toStringAsFixed(2)),
+        gstPercentage: _gstOptions.contains(i.gstPercentage) ? i.gstPercentage : 0.0,
       );
     }).toList();
 
@@ -1432,6 +1622,11 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
+            final editQty = editRows.fold<double>(0.0, (s, r) => s + r.quantity);
+            final editSub = editRows.fold<double>(0.0, (s, r) => s + r.baseAmount);
+            final editGst = editRows.fold<double>(0.0, (s, r) => s + r.gstAmount);
+            final editGrand = editRows.fold<double>(0.0, (s, r) => s + r.finalPrice);
+
             return AlertDialog(
               title: Row(
                 children: [
@@ -1441,14 +1636,14 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                 ],
               ),
               content: SizedBox(
-                width: 700,
+                width: 980,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Note: Editing this entry will automatically reverse previous stock deduction and apply new quantities.',
+                        'Note: Editing this entry updates the outward record and recalculates the Sub-Vendor ledger.',
                         style: TextStyle(fontSize: 12, color: amberColor, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 12),
@@ -1496,9 +1691,13 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                           TextButton.icon(
                             onPressed: () {
                               setDialogState(() {
+                                final mat = _materials.isNotEmpty ? _materials.first : null;
                                 editRows.add(_OutwardRowState(
-                                  selectedMaterial: _materials.isNotEmpty ? _materials.first : null,
+                                  selectedMaterial: mat,
+                                  selectedUnit: _normalizeUnit(mat?.unit ?? 'NOS'),
                                   quantityCtrl: TextEditingController(text: '1'),
+                                  rateCtrl: TextEditingController(text: mat != null && mat.defaultRate > 0 ? mat.defaultRate.toStringAsFixed(2) : '0'),
+                                  gstPercentage: 0.0,
                                 ));
                               });
                             },
@@ -1509,49 +1708,34 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                       ),
                       const SizedBox(height: 8),
                       ...editRows.asMap().entries.map((entry) {
-                        final idx = entry.key;
-                        final r = entry.value;
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(6), border: Border.all(color: const Color(0xFFE2E8F0))),
-                          child: Row(
-                            children: [
-                              Text('${idx + 1}.', style: const TextStyle(fontWeight: FontWeight.bold)),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                flex: 4,
-                                child: DropdownButtonFormField<MaterialMasterItem>(
-                                  value: r.selectedMaterial,
-                                  isExpanded: true,
-                                  decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
-                                  items: _materials.map((m) => DropdownMenuItem(value: m, child: Text(m.itemName, overflow: TextOverflow.ellipsis))).toList(),
-                                  onChanged: (val) {
-                                    if (val != null) setDialogState(() => r.selectedMaterial = val);
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                flex: 2,
-                                child: TextField(
-                                  controller: r.quantityCtrl,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  decoration: const InputDecoration(labelText: 'Qty', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              IconButton(
-                                icon: const Icon(Icons.delete, color: redColor, size: 18),
-                                onPressed: () {
-                                  if (editRows.length <= 1) return;
-                                  setDialogState(() => editRows.removeAt(idx));
-                                },
-                              ),
-                            ],
-                          ),
+                        return _buildMaterialRowCard(
+                          idx: entry.key,
+                          row: entry.value,
+                          onChanged: () => setDialogState(() {}),
+                          onRemove: () {
+                            if (editRows.length <= 1) return;
+                            setDialogState(() {
+                              final removed = editRows.removeAt(entry.key);
+                              removed.dispose();
+                            });
+                          },
                         );
                       }),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE2E8F0))),
+                        child: Wrap(
+                          spacing: 20,
+                          runSpacing: 8,
+                          children: [
+                            Text('Total Qty: ${editQty.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            Text('Subtotal: ${_currencyFormat.format(editSub)}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                            Text('Total GST: ${_currencyFormat.format(editGst)}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF0284C7))),
+                            Text('Grand Total: ${_currencyFormat.format(editGrand)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: greenColor)),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1564,15 +1748,19 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                     final List<SubVendorMaterialOutwardItem> updatedItems = [];
                     for (final r in editRows) {
                       if (r.selectedMaterial == null) continue;
-                      final q = double.tryParse(r.quantityCtrl.text.trim()) ?? 0.0;
-                      if (q <= 0) continue;
+                      if (r.quantity <= 0) continue;
                       updatedItems.add(SubVendorMaterialOutwardItem(
                         id: '',
                         outwardId: outward.id,
                         materialId: r.selectedMaterial!.id,
                         materialName: r.selectedMaterial!.itemName,
-                        unit: r.selectedMaterial!.unit,
-                        quantity: q,
+                        unit: r.selectedUnit,
+                        quantity: r.quantity,
+                        unitRate: r.rate,
+                        baseAmount: r.baseAmount,
+                        gstPercentage: r.gstPercentage,
+                        gstAmount: r.gstAmount,
+                        totalPrice: r.finalPrice,
                       ));
                     }
 
@@ -1601,7 +1789,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                     }
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: navyColor, foregroundColor: Colors.white),
-                  child: const Text('Save Changes & Re-Apply Stock'),
+                  child: const Text('Save Changes'),
                 ),
               ],
             );
@@ -1627,14 +1815,27 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
 /// Helper state class for each dynamic row in Material Outward Entry.
 class _OutwardRowState {
   MaterialMasterItem? selectedMaterial;
+  String selectedUnit;
   final TextEditingController quantityCtrl;
+  final TextEditingController rateCtrl;
+  double gstPercentage;
 
   _OutwardRowState({
     required this.selectedMaterial,
+    this.selectedUnit = 'NOS',
     required this.quantityCtrl,
+    required this.rateCtrl,
+    this.gstPercentage = 0.0,
   });
+
+  double get quantity => double.tryParse(quantityCtrl.text.trim()) ?? 0.0;
+  double get rate => double.tryParse(rateCtrl.text.trim()) ?? 0.0;
+  double get baseAmount => double.parse((quantity * rate).toStringAsFixed(2));
+  double get gstAmount => double.parse((baseAmount * (gstPercentage / 100.0)).toStringAsFixed(2));
+  double get finalPrice => double.parse((baseAmount + gstAmount).toStringAsFixed(2));
 
   void dispose() {
     quantityCtrl.dispose();
+    rateCtrl.dispose();
   }
 }

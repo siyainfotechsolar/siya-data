@@ -83,8 +83,85 @@ class SubVendorMaterialOutwardService {
     return _defaultInitialMaterials;
   }
 
+  /// Adds a custom new material to the existing Material Master (or local fallback).
+  static Future<MaterialMasterItem> addMaterialToMaster({
+    required String itemName,
+    String unit = 'NOS',
+    double defaultRate = 0.0,
+    String category = 'OTHER',
+  }) async {
+    await _ensureLocalInitialized();
+    final trimmed = itemName.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError('Material name cannot be empty.');
+    }
+
+    // Check if already exists case-insensitively
+    final existingIdx = _inMemoryMaterials.indexWhere(
+      (m) => m.itemName.toLowerCase() == trimmed.toLowerCase(),
+    );
+    if (existingIdx >= 0) {
+      return _inMemoryMaterials[existingIdx];
+    }
+
+    try {
+      final client = SupabaseService.client;
+      final res = await client.from(_materialMasterTable).insert({
+        'item_name': trimmed,
+        'unit': unit.toUpperCase(),
+        'category': category,
+        'default_rate': defaultRate,
+        'is_active': true,
+        'display_order': _inMemoryMaterials.length + 1,
+      }).select().single();
+
+      final created = MaterialMasterItem.fromJson(res);
+      _inMemoryMaterials.add(created);
+      await _saveMaterialsToCache(_inMemoryMaterials);
+      return created;
+    } catch (e) {
+      debugPrint('Notice: Could not insert new material to Supabase ($e). Adding locally.');
+    }
+
+    final localNew = MaterialMasterItem(
+      id: 'mat-custom-${DateTime.now().millisecondsSinceEpoch}',
+      itemName: trimmed,
+      unit: unit.toUpperCase(),
+      category: category,
+      defaultRate: defaultRate,
+      displayOrder: _inMemoryMaterials.length + 1,
+    );
+    _inMemoryMaterials.add(localNew);
+    await _saveMaterialsToCache(_inMemoryMaterials);
+    return localNew;
+  }
+
+  /// Helper to compute normalized pricing fields for outward items.
+  static List<SubVendorMaterialOutwardItem> _normalizeItemsPricing(
+    List<SubVendorMaterialOutwardItem> items,
+    String outwardId,
+    Map<String, MaterialMasterItem> masterMap,
+  ) {
+    return items.map((i) {
+      final rate = i.unitRate >= 0 ? i.unitRate : (masterMap[i.materialId]?.defaultRate ?? 0.0);
+      final base = double.parse((i.quantity * rate).toStringAsFixed(2));
+      final gstPct = i.gstPercentage;
+      final gstAmt = double.parse((base * gstPct / 100.0).toStringAsFixed(2));
+      final finalPrice = double.parse((base + gstAmt).toStringAsFixed(2));
+      return i.copyWith(
+        outwardId: outwardId,
+        id: i.id.isNotEmpty ? i.id : 'item-${DateTime.now().microsecondsSinceEpoch}',
+        unitRate: rate,
+        baseAmount: base,
+        gstPercentage: gstPct,
+        gstAmount: gstAmt,
+        totalPrice: finalPrice,
+      );
+    }).toList();
+  }
+
   // ---------------------------------------------------------------------------
-  // 3. RECORD OUTWARD ENTRY (BULK SAVE + INVENTORY DEDUCTION)
+  // 3. RECORD OUTWARD ENTRY (BULK SAVE WITH RATE & GST, NO STOCK DEDUCTION)
   // ---------------------------------------------------------------------------
   static Future<SubVendorMaterialOutward> recordOutward({
     required String vendorId,
@@ -104,33 +181,35 @@ class SubVendorMaterialOutwardService {
       if (item.quantity <= 0) {
         throw ArgumentError('Quantity for "${item.materialName}" must be greater than zero.');
       }
-    }
-
-    // 2. Stock Availability Check
-    final masterList = await fetchMaterialMaster();
-    final masterMap = {for (var m in masterList) m.id: m};
-
-    for (final item in items) {
-      if (item.materialId != null && masterMap.containsKey(item.materialId)) {
-        final available = masterMap[item.materialId]!.availableStock;
-        if (item.quantity > available) {
-          throw StateError(
-            'Cannot issue ${item.quantity} ${item.unit} of "${item.materialName}". Available stock is only $available ${item.unit}.',
-          );
-        }
+      if (item.unitRate < 0) {
+        throw ArgumentError('Rate for "${item.materialName}" cannot be negative.');
       }
     }
 
-    // 3. Try Supabase Atomic RPC
+    final masterList = await fetchMaterialMaster();
+    final masterMap = {for (var m in masterList) m.id: m};
+    final normalizedItems = _normalizeItemsPricing(items, '', masterMap);
+
+    final double totalQty = normalizedItems.fold<double>(0.0, (sum, i) => sum + i.quantity);
+    final double subtotal = normalizedItems.fold<double>(0.0, (sum, i) => sum + i.baseAmount);
+    final double totalGst = normalizedItems.fold<double>(0.0, (sum, i) => sum + i.gstAmount);
+    final double grandTotal = normalizedItems.fold<double>(0.0, (sum, i) => sum + i.totalPrice);
+
+    // 2. Try Supabase Atomic RPC (NO inventory stock deduction)
     try {
       final client = SupabaseService.client;
       final currentUser = SupabaseService.currentUser;
 
-      final itemsPayload = items.map((i) => {
+      final itemsPayload = normalizedItems.map((i) => {
         'material_id': i.materialId,
         'material_name': i.materialName,
         'unit': i.unit,
         'quantity': i.quantity,
+        'unit_rate': i.unitRate,
+        'base_amount': i.baseAmount,
+        'gst_percentage': i.gstPercentage,
+        'gst_amount': i.gstAmount,
+        'total_price': i.totalPrice,
       }).toList();
 
       final rpcRes = await client.rpc('record_sub_vendor_material_outward', params: {
@@ -151,61 +230,48 @@ class SubVendorMaterialOutwardService {
           vendorId: vendorId,
           vendorName: vendorName,
           outwardDate: outwardDate,
-          totalItems: items.length,
-          totalQuantity: items.fold<double>(0.0, (double sum, i) => sum + i.quantity),
+          totalItems: normalizedItems.length,
+          totalQuantity: totalQty,
+          subtotal: subtotal,
+          totalGst: totalGst,
+          totalValue: grandTotal,
           remarks: remarks,
           status: 'Active',
-          items: items.map((i) => i.copyWith(outwardId: outwardId)).toList(),
+          items: normalizedItems.map((i) => i.copyWith(outwardId: outwardId)).toList(),
           createdAt: DateTime.now(),
         );
 
         _inMemoryOutwards.insert(0, createdOutward);
-        _applyLocalStockDeduction(items);
         await _saveOutwardsToCache(_inMemoryOutwards);
 
         // Auto-sync with Credit/Debit Ledger
-        double totalVal = 0.0;
-        for (final item in items) {
-          final r = masterMap[item.materialId]?.defaultRate ?? 1000.0;
-          totalVal += (item.quantity * r);
+        if (grandTotal > 0) {
+          await SubVendorAccountLedgerService.syncFromMaterialOutward(
+            outwardId: outwardId,
+            outwardNumber: outwardNumber,
+            vendorId: vendorId,
+            vendorName: vendorName,
+            outwardDate: outwardDate,
+            totalOutwardValue: grandTotal,
+            totalItems: normalizedItems.length,
+            totalQuantity: totalQty,
+            remarks: remarks,
+          );
         }
-        await SubVendorAccountLedgerService.syncFromMaterialOutward(
-          outwardId: outwardId,
-          outwardNumber: outwardNumber,
-          vendorId: vendorId,
-          vendorName: vendorName,
-          outwardDate: outwardDate,
-          totalOutwardValue: totalVal,
-          totalItems: items.length,
-          totalQuantity: createdOutward.totalQuantity,
-          remarks: remarks,
-        );
 
         return createdOutward;
       }
     } catch (e) {
-      debugPrint('Notice: RPC call failed ($e). Processing with atomic local inventory engine.');
+      debugPrint('Notice: RPC call failed ($e). Processing with local outward engine.');
     }
 
-    // 4. Atomic Local Fallback Execution (for offline/tests)
+    // 3. Local Fallback Execution (NO inventory stock deduction)
     final seq = _inMemoryOutwards.length + 1;
     final dateStr = '${outwardDate.year}${outwardDate.month.toString().padLeft(2, '0')}${outwardDate.day.toString().padLeft(2, '0')}';
     final outwardNumber = 'OUT-$dateStr-${seq.toString().padLeft(4, '0')}';
     final outwardId = 'outward-${DateTime.now().millisecondsSinceEpoch}-$seq';
 
-    // Calculate item pricing and total valuation
-    double totalVal = 0.0;
-    final processedItems = items.map((i) {
-      final rate = i.unitRate > 0 ? i.unitRate : (masterMap[i.materialId]?.defaultRate ?? 1000.0);
-      final price = i.totalPrice > 0 ? i.totalPrice : (i.quantity * rate);
-      totalVal += price;
-      return i.copyWith(
-        outwardId: outwardId,
-        id: 'item-${DateTime.now().microsecondsSinceEpoch}',
-        unitRate: rate,
-        totalPrice: price,
-      );
-    }).toList();
+    final processedItems = normalizedItems.map((i) => i.copyWith(outwardId: outwardId)).toList();
 
     final createdOutward = SubVendorMaterialOutward(
       id: outwardId,
@@ -213,9 +279,11 @@ class SubVendorMaterialOutwardService {
       vendorId: vendorId,
       vendorName: vendorName,
       outwardDate: outwardDate,
-      totalItems: items.length,
-      totalQuantity: items.fold<double>(0.0, (double sum, i) => sum + i.quantity),
-      totalValue: totalVal,
+      totalItems: processedItems.length,
+      totalQuantity: totalQty,
+      subtotal: subtotal,
+      totalGst: totalGst,
+      totalValue: grandTotal,
       remarks: remarks,
       status: 'Active',
       items: processedItems,
@@ -223,39 +291,37 @@ class SubVendorMaterialOutwardService {
       updatedAt: DateTime.now(),
     );
 
-    // Deduct stock
-    _applyLocalStockDeduction(items);
-
     _inMemoryOutwards.insert(0, createdOutward);
     _logAudit(
       outwardId: outwardId,
       outwardNumber: outwardNumber,
       action: 'CREATE',
-      description: 'Created outward entry with ${items.length} materials, total quantity: ${createdOutward.totalQuantity}, total value: $totalVal',
+      description: 'Created outward entry with ${processedItems.length} materials, total qty: $totalQty, grand total: $grandTotal',
       details: createdOutward.toJson(),
     );
 
     await _saveOutwardsToCache(_inMemoryOutwards);
-    await _saveMaterialsToCache(_inMemoryMaterials);
 
     // Auto-sync with Credit/Debit Ledger
-    await SubVendorAccountLedgerService.syncFromMaterialOutward(
-      outwardId: outwardId,
-      outwardNumber: outwardNumber,
-      vendorId: vendorId,
-      vendorName: vendorName,
-      outwardDate: outwardDate,
-      totalOutwardValue: totalVal,
-      totalItems: items.length,
-      totalQuantity: createdOutward.totalQuantity,
-      remarks: remarks,
-    );
+    if (grandTotal > 0) {
+      await SubVendorAccountLedgerService.syncFromMaterialOutward(
+        outwardId: outwardId,
+        outwardNumber: outwardNumber,
+        vendorId: vendorId,
+        vendorName: vendorName,
+        outwardDate: outwardDate,
+        totalOutwardValue: grandTotal,
+        totalItems: processedItems.length,
+        totalQuantity: totalQty,
+        remarks: remarks,
+      );
+    }
 
     return createdOutward;
   }
 
   // ---------------------------------------------------------------------------
-  // 4. UPDATE OUTWARD ENTRY (REVERSE OLD STOCK + APPLY NEW STOCK)
+  // 4. UPDATE OUTWARD ENTRY (WITH RATE & GST, NO STOCK MODIFICATION)
   // ---------------------------------------------------------------------------
   static Future<SubVendorMaterialOutward> updateOutward({
     required String outwardId,
@@ -275,6 +341,9 @@ class SubVendorMaterialOutwardService {
       if (item.quantity <= 0) {
         throw ArgumentError('Quantity for "${item.materialName}" must be greater than zero.');
       }
+      if (item.unitRate < 0) {
+        throw ArgumentError('Rate for "${item.materialName}" cannot be negative.');
+      }
     }
 
     final existingIndex = _inMemoryOutwards.indexWhere((o) => o.id == outwardId);
@@ -287,16 +356,30 @@ class SubVendorMaterialOutwardService {
       throw StateError('Cannot edit a Cancelled Material Outward record.');
     }
 
+    final masterList = await fetchMaterialMaster();
+    final masterMap = {for (var m in masterList) m.id: m};
+    final processedItems = _normalizeItemsPricing(items, outwardId, masterMap);
+
+    final double totalQty = processedItems.fold<double>(0.0, (sum, i) => sum + i.quantity);
+    final double subtotal = processedItems.fold<double>(0.0, (sum, i) => sum + i.baseAmount);
+    final double totalGst = processedItems.fold<double>(0.0, (sum, i) => sum + i.gstAmount);
+    final double grandTotal = processedItems.fold<double>(0.0, (sum, i) => sum + i.totalPrice);
+
     // Try Supabase RPC first
     try {
       final client = SupabaseService.client;
       final currentUser = SupabaseService.currentUser;
 
-      final itemsPayload = items.map((i) => {
+      final itemsPayload = processedItems.map((i) => {
         'material_id': i.materialId,
         'material_name': i.materialName,
         'unit': i.unit,
         'quantity': i.quantity,
+        'unit_rate': i.unitRate,
+        'base_amount': i.baseAmount,
+        'gst_percentage': i.gstPercentage,
+        'gst_amount': i.gstAmount,
+        'total_price': i.totalPrice,
       }).toList();
 
       final rpcRes = await client.rpc('update_sub_vendor_material_outward', params: {
@@ -309,60 +392,51 @@ class SubVendorMaterialOutwardService {
       });
 
       if (rpcRes != null && rpcRes['success'] == true) {
-        // Reverse old local stock and apply new
-        _applyLocalStockRestoration(existing.items);
-        _applyLocalStockDeduction(items);
-
         final updated = existing.copyWith(
           vendorId: vendorId,
           vendorName: vendorName,
           outwardDate: outwardDate,
           remarks: remarks,
-          items: items.map((i) => i.copyWith(outwardId: outwardId)).toList(),
-          totalItems: items.length,
-          totalQuantity: items.fold<double>(0.0, (double sum, i) => sum + i.quantity),
+          items: processedItems,
+          totalItems: processedItems.length,
+          totalQuantity: totalQty,
+          subtotal: subtotal,
+          totalGst: totalGst,
+          totalValue: grandTotal,
           updatedAt: DateTime.now(),
         );
 
         _inMemoryOutwards[existingIndex] = updated;
         await _saveOutwardsToCache(_inMemoryOutwards);
-        await _saveMaterialsToCache(_inMemoryMaterials);
+        await SubVendorAccountLedgerService.syncFromMaterialOutward(
+          outwardId: outwardId,
+          outwardNumber: updated.outwardNumber,
+          vendorId: vendorId,
+          vendorName: vendorName,
+          outwardDate: outwardDate,
+          totalOutwardValue: grandTotal,
+          totalItems: processedItems.length,
+          totalQuantity: totalQty,
+          remarks: remarks,
+          isUpdate: true,
+        );
         return updated;
       }
     } catch (e) {
-      debugPrint('Notice: RPC update failed ($e). Processing local reversal and re-apply.');
+      debugPrint('Notice: RPC update failed ($e). Processing local update.');
     }
-
-    // Local Stock Reversal & Re-apply
-    // 1. Temporarily restore old stock
-    _applyLocalStockRestoration(existing.items);
-
-    // 2. Check if new quantities exceed restored stock
-    final masterMap = {for (var m in _inMemoryMaterials) m.id: m};
-    for (final item in items) {
-      if (item.materialId != null && masterMap.containsKey(item.materialId)) {
-        final available = masterMap[item.materialId]!.availableStock;
-        if (item.quantity > available) {
-          // Re-deduct old stock to leave state unchanged
-          _applyLocalStockDeduction(existing.items);
-          throw StateError(
-            'Cannot update: Insufficient stock for "${item.materialName}". Available: $available ${item.unit}, Requested: ${item.quantity}',
-          );
-        }
-      }
-    }
-
-    // 3. Deduct new stock
-    _applyLocalStockDeduction(items);
 
     final updated = existing.copyWith(
       vendorId: vendorId,
       vendorName: vendorName,
       outwardDate: outwardDate,
       remarks: remarks,
-      items: items.map((i) => i.copyWith(outwardId: outwardId)).toList(),
-      totalItems: items.length,
-      totalQuantity: items.fold<double>(0.0, (double sum, i) => sum + i.quantity),
+      items: processedItems,
+      totalItems: processedItems.length,
+      totalQuantity: totalQty,
+      subtotal: subtotal,
+      totalGst: totalGst,
+      totalValue: grandTotal,
       updatedAt: DateTime.now(),
     );
 
@@ -371,30 +445,22 @@ class SubVendorMaterialOutwardService {
       outwardId: outwardId,
       outwardNumber: existing.outwardNumber,
       action: 'UPDATE',
-      description: 'Updated outward entry: reversed old stock and applied new quantities. New Total Qty: ${updated.totalQuantity}',
+      description: 'Updated outward entry. New Total Qty: $totalQty, Grand Total: $grandTotal',
       details: updated.toJson(),
     );
 
     await _saveOutwardsToCache(_inMemoryOutwards);
-    await _saveMaterialsToCache(_inMemoryMaterials);
 
     // Auto-sync ledger update
-    final masterList = await fetchMaterialMaster();
-    final rateMap = {for (var m in masterList) m.id: m};
-    double updatedVal = 0.0;
-    for (final item in items) {
-      final r = rateMap[item.materialId]?.defaultRate ?? 1000.0;
-      updatedVal += (item.quantity * r);
-    }
     await SubVendorAccountLedgerService.syncFromMaterialOutward(
       outwardId: outwardId,
       outwardNumber: updated.outwardNumber,
       vendorId: vendorId,
       vendorName: vendorName,
       outwardDate: outwardDate,
-      totalOutwardValue: updatedVal,
-      totalItems: items.length,
-      totalQuantity: updated.totalQuantity,
+      totalOutwardValue: grandTotal,
+      totalItems: processedItems.length,
+      totalQuantity: totalQty,
       remarks: remarks,
       isUpdate: true,
     );
@@ -403,7 +469,7 @@ class SubVendorMaterialOutwardService {
   }
 
   // ---------------------------------------------------------------------------
-  // 5. CANCEL OUTWARD ENTRY (RESTORE INVENTORY STOCK)
+  // 5. CANCEL OUTWARD ENTRY (NO STOCK MODIFICATION)
   // ---------------------------------------------------------------------------
   static Future<SubVendorMaterialOutward> cancelOutward(
     String outwardId, {
@@ -433,7 +499,6 @@ class SubVendorMaterialOutwardService {
       });
 
       if (rpcRes != null && rpcRes['success'] == true) {
-        _applyLocalStockRestoration(existing.items);
         final cancelled = existing.copyWith(
           status: 'Cancelled',
           cancelledAt: DateTime.now(),
@@ -442,15 +507,12 @@ class SubVendorMaterialOutwardService {
         );
         _inMemoryOutwards[existingIndex] = cancelled;
         await _saveOutwardsToCache(_inMemoryOutwards);
-        await _saveMaterialsToCache(_inMemoryMaterials);
+        await SubVendorAccountLedgerService.cancelLedgerEntryByReferenceId(outwardId, reason: reason);
         return cancelled;
       }
     } catch (e) {
-      debugPrint('Notice: RPC cancellation failed ($e). Processing local stock restoration.');
+      debugPrint('Notice: RPC cancellation failed ($e). Processing local cancellation.');
     }
-
-    // Restore stock in local state
-    _applyLocalStockRestoration(existing.items);
 
     final cancelled = existing.copyWith(
       status: 'Cancelled',
@@ -464,12 +526,11 @@ class SubVendorMaterialOutwardService {
       outwardId: outwardId,
       outwardNumber: existing.outwardNumber,
       action: 'CANCEL',
-      description: 'Cancelled outward entry and restored stock: $reason',
+      description: 'Cancelled outward entry: $reason',
       details: {'reason': reason},
     );
 
     await _saveOutwardsToCache(_inMemoryOutwards);
-    await _saveMaterialsToCache(_inMemoryMaterials);
 
     // Auto-sync ledger cancellation
     await SubVendorAccountLedgerService.cancelLedgerEntryByReferenceId(outwardId, reason: reason);
