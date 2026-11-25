@@ -253,14 +253,31 @@ class VendorSiteAssignment {
       customerPaidAmount: custPaid,
       vendorCode: vendor?['vendor_code'] as String?,
       vendorName: vendor?['name'] as String?,
-      // Payment & Bank Loan Fields
-      paymentType: json['payment_type'] as String? ?? 'Cash Customer',
+      // Payment & Bank Loan Fields (sync from Customer Module if loan_required == 'Yes')
+      paymentType: () {
+        final rawPayType = json['payment_type'] as String?;
+        final custLoanReq = (customer?['loan_required'] as String?)?.toLowerCase() == 'yes';
+        if (custLoanReq && (rawPayType == null || rawPayType.isEmpty || rawPayType == 'Cash Customer')) {
+          return 'Bank Loan Customer';
+        }
+        return rawPayType ?? (custLoanReq ? 'Bank Loan Customer' : 'Cash Customer');
+      }(),
       totalCustomerSiteAmount: totCustSiteAmt,
       loanBankName: json['loan_bank_name'] as String?,
       loanApplicationId: json['loan_application_id'] as String?,
       loanAppliedAmount: (json['loan_applied_amount'] as num?)?.toDouble() ?? 0.0,
       loanSanctionedAmount: (json['loan_sanctioned_amount'] as num?)?.toDouble() ?? 0.0,
-      loanStatus: json['loan_status'] as String? ?? 'Not Required',
+      loanStatus: () {
+        final rawLoanStatus = json['loan_status'] as String?;
+        final custLoanReq = (customer?['loan_required'] as String?)?.toLowerCase() == 'yes';
+        final custLoanStatus = customer?['loan_status'] as String?;
+        if (custLoanReq && (rawLoanStatus == null || rawLoanStatus.isEmpty || rawLoanStatus == 'Not Required')) {
+          return (custLoanStatus != null && custLoanStatus.isNotEmpty && custLoanStatus != 'Not Required')
+              ? custLoanStatus
+              : (customer?['loan_sub_stage'] as String? ?? 'Loan Applied');
+        }
+        return rawLoanStatus ?? 'Not Required';
+      }(),
       totalCashReceived: totCashRecv,
       totalLoanCredited: totLoanCredit,
       totalCustomerReceived: totCustRecv,

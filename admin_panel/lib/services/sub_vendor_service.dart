@@ -263,7 +263,10 @@ class SubVendorService {
           system_capacity,
           total_amount,
           paid_amount,
-          installation_status
+          installation_status,
+          loan_required,
+          loan_status,
+          loan_sub_stage
         ),
         sub_vendors!vendor_id (
           id,
