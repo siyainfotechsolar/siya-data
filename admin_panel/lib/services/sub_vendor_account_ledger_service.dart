@@ -277,29 +277,27 @@ class SubVendorAccountLedgerService {
       final list = rows.map((e) => SubVendorAccountLedgerEntry.fromJson(e as Map<String, dynamic>)).toList();
 
       // Central Database Unification: Also pull Bank Loans / Customer Payments, Vendor Payouts,
-      // and Site Material Transactions from Supabase so all Sub-Vendor data is 100% unified.
+      // and Site Material Transactions from Supabase using SubVendorService so all Sub-Vendor data is 100% unified.
       try {
+        final String? vFilter = (vendorId != null && vendorId.isNotEmpty && vendorId != 'All') ? vendorId : null;
         final vendorsList = await SubVendorService.fetchAllVendors();
         final vendorNameMap = {for (final v in vendorsList) v.id: v.name};
         final existingIds = list.map((e) => e.id).toSet();
 
-        // 1. Bank Loans & Customer Payments (vendor_customer_payments)
-        final cpRes = await client.from('vendor_customer_payments').select('*, vendor_site_assignments(vendor_id, consumer_records!customer_id(name, consumer_no))');
-        for (final row in (cpRes as List<dynamic>)) {
-          final cp = VendorCustomerPayment.fromJson(row as Map<String, dynamic>);
+        // 1. Bank Loans & Customer Payments (vendor_customer_payments via SubVendorService)
+        final cpList = await SubVendorService.fetchCustomerPayments(vendorId: vFilter);
+        final Set<String> assignmentIdsWithPayments = {};
+        for (final cp in cpList) {
           if (!cp.isApproved) continue;
-          final vsa = row['vendor_site_assignments'] as Map<String, dynamic>?;
-          final vId = cp.vendorId.isNotEmpty ? cp.vendorId : (vsa?['vendor_id']?.toString() ?? '');
-          if (vId.isEmpty) continue;
-          if (vendorId != null && vendorId != 'All' && vId != vendorId) continue;
+          assignmentIdsWithPayments.add(cp.assignmentId);
           final synthId = 'cp_${cp.id}';
           if (existingIds.contains(synthId)) continue;
 
-          final custName = (vsa?['consumer_records'] as Map<String, dynamic>?)?['name']?.toString() ?? cp.customerName ?? 'Customer';
+          final custName = cp.customerName ?? 'Customer';
           list.add(SubVendorAccountLedgerEntry(
             id: synthId,
-            vendorId: vId,
-            vendorName: vendorNameMap[vId] ?? 'Sub-Vendor',
+            vendorId: cp.vendorId,
+            vendorName: vendorNameMap[cp.vendorId] ?? cp.vendorName ?? 'Sub-Vendor',
             transactionDate: cp.paymentDate,
             transactionType: 'MATERIAL_PAYMENT',
             category: 'MATERIAL',
@@ -316,12 +314,42 @@ class SubVendorAccountLedgerService {
           ));
         }
 
+        // 1B. Fallback: Site Assignments with received collection if no individual payment rows exist
+        final assignList = await SubVendorService.fetchAssignments(vendorId: vFilter);
+        for (final a in assignList) {
+          if (assignmentIdsWithPayments.contains(a.id)) continue;
+          final coll = a.effectiveReceivedAmount;
+          if (coll <= 0) continue;
+          final synthId = 'a_coll_${a.id}';
+          if (existingIds.contains(synthId)) continue;
+
+          list.add(SubVendorAccountLedgerEntry(
+            id: synthId,
+            vendorId: a.vendorId,
+            vendorName: vendorNameMap[a.vendorId] ?? a.vendorName ?? 'Sub-Vendor',
+            transactionDate: a.assignedDate,
+            transactionType: 'MATERIAL_PAYMENT',
+            category: 'MATERIAL',
+            creditAmount: 0.0,
+            debitAmount: coll,
+            runningBalance: 0.0,
+            referenceNumber: a.loanApplicationId ?? a.consumerNo ?? '-',
+            referenceId: a.id,
+            paymentMode: a.paymentType,
+            particulars: a.isBankLoan
+                ? 'Bank Loan Credited (${a.customerName ?? "Site"})'
+                : 'Customer Collection (${a.customerName ?? "Site"})',
+            status: 'Active',
+            createdAt: a.createdAt ?? a.assignedDate,
+          ));
+        }
+
         // 2. Vendor Payouts (vendor_payouts)
         final vpRes = await client.from('vendor_payouts').select();
         for (final row in (vpRes as List<dynamic>)) {
           final vp = VendorPayout.fromJson(row as Map<String, dynamic>);
           if (vp.status.toLowerCase() == 'rejected') continue;
-          if (vendorId != null && vendorId != 'All' && vp.vendorId != vendorId) continue;
+          if (vFilter != null && vp.vendorId != vFilter) continue;
           final synthId = 'vp_${vp.id}';
           if (existingIds.contains(synthId)) continue;
 
@@ -349,7 +377,7 @@ class SubVendorAccountLedgerService {
         final vmtRes = await client.from('vendor_material_transactions').select();
         for (final row in (vmtRes as List<dynamic>)) {
           final vmt = VendorMaterialTransaction.fromJson(row as Map<String, dynamic>);
-          if (vendorId != null && vendorId != 'All' && vmt.vendorId != vendorId) continue;
+          if (vFilter != null && vmt.vendorId != vFilter) continue;
           final synthId = 'vmt_${vmt.id}';
           if (existingIds.contains(synthId)) continue;
 
