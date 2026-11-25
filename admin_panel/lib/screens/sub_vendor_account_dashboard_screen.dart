@@ -625,21 +625,32 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                           'Date: ${_dateFormat.format(e.transactionDate)} | Ref: ${e.referenceNumber} | Mode: ${e.paymentMode} | Vendor: ${e.vendorName}',
                           style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
                         ),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              e.creditAmount > 0 ? '+ ${_currency.format(e.creditAmount)} (Cr)' : '- ${_currency.format(e.debitAmount)} (Dr)',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: e.creditAmount > 0 ? greenColor : amberColor,
-                              ),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  e.creditAmount > 0 ? '+ ${_currency.format(e.creditAmount)} (Cr)' : '- ${_currency.format(e.debitAmount)} (Dr)',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: e.creditAmount > 0 ? greenColor : amberColor,
+                                  ),
+                                ),
+                                Text(
+                                  'Running Bal: ${_currency.format(e.runningBalance.abs())} ${e.runningBalance >= 0 ? "Cr" : "Dr"}',
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyColor),
+                                ),
+                              ],
                             ),
-                            Text(
-                              'Running Bal: ${_currency.format(e.runningBalance.abs())} ${e.runningBalance >= 0 ? "Cr" : "Dr"}',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyColor),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: redColor, size: 20),
+                              tooltip: 'Remove Entry',
+                              onPressed: () => _confirmRemoveEntry(e),
                             ),
                           ],
                         ),
@@ -649,6 +660,50 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                 ),
         ),
       ],
+    );
+  }
+
+  void _confirmRemoveEntry(SubVendorAccountLedgerEntry entry) {
+    final amt = entry.creditAmount > 0 ? entry.creditAmount : entry.debitAmount;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.delete_outline, color: redColor),
+            SizedBox(width: 8),
+            Text('Remove Ledger Entry?'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to remove "${entry.particulars}" (${_currency.format(amt)}) dated ${_dateFormat.format(entry.transactionDate)}?\n\nRunning balances will be recalculated automatically.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: redColor, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await SubVendorAccountLedgerService.deleteTransaction(entry.id);
+                await _loadAllData();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Entry removed & balances recalculated!'), backgroundColor: greenColor),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Remove failed: $e'), backgroundColor: redColor),
+                  );
+                }
+              }
+            },
+            child: const Text('Yes, Remove'),
+          ),
+        ],
+      ),
     );
   }
 

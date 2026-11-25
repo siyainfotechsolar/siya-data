@@ -216,6 +216,29 @@ class SubVendorAccountLedgerService {
     return cancelled;
   }
 
+  /// Permanently removes a manual ledger entry from Supabase & local cache and recalculates running balances.
+  static Future<void> deleteTransaction(String entryId) async {
+    await _ensureLocalInitialized();
+
+    final idx = _inMemoryLedger.indexWhere((e) => e.id == entryId);
+    final vendorId = idx >= 0 ? _inMemoryLedger[idx].vendorId : null;
+
+    try {
+      final client = SupabaseService.client;
+      await client.from(_ledgerTable).delete().eq('id', entryId);
+    } catch (e) {
+      debugPrint('Notice: Supabase delete ledger entry ($e). Removing locally.');
+    }
+
+    if (idx >= 0) {
+      _inMemoryLedger.removeAt(idx);
+      if (vendorId != null) {
+        _recalculateLocalRunningBalances(vendorId);
+      }
+      await _saveLedgerToCache(_inMemoryLedger);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // 4. FETCH LEDGER ENTRIES & ALIASES
   // ---------------------------------------------------------------------------
