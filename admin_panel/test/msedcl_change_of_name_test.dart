@@ -1,4 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:admin_panel/models/msedcl_change_of_name.dart';
 import 'package:admin_panel/services/msedcl_change_of_name_service.dart';
 import 'package:admin_panel/services/msedcl_pdf_service.dart';
@@ -347,6 +350,76 @@ void main() {
       // Generate Complete Master Application PDF
       final masterPdf = await MsedclPdfService.generateCompleteApplicationPdf(appWithSignatures);
       expect(masterPdf.length, greaterThan(1500));
+      expect(masterPdf.length, lessThanOrEqualTo(1024 * 1024), reason: 'Complete Master Application PDF must be strictly <= 1 MB for portal upload');
+    });
+
+    test('12. Strict MSEDCL Portal Document Size Limit (Upto 1 MB / 1024 KB) with Heavy Attachments', () async {
+      // 1. Generate realistic image bytes for 5 document enclosures
+      final dummyImg = img.Image(width: 800, height: 1100);
+      img.fill(dummyImg, color: img.ColorRgba8(245, 245, 245, 255));
+      for (int y = 50; y < 1050; y += 40) {
+        img.drawLine(dummyImg, x1: 50, y1: y, x2: 750, y2: y, color: img.ColorRgba8(50, 50, 50, 255));
+      }
+      final rawDocBytes = Uint8List.fromList(img.encodePng(dummyImg));
+      final rawDocBase64 = base64Encode(rawDocBytes);
+
+      // Verify compressImageForA4 works and produces valid image bytes
+      final compressedBytes = MsedclPdfService.compressImageForA4(rawDocBytes, maxDimension: 800, quality: 60);
+      expect(compressedBytes.length, greaterThan(100));
+
+      // 2. Build application with 5 attached received documents
+      final heavyApp = MsedclChangeOfNameApplication(
+        id: 'heavy-doc-app',
+        applicationNo: 'MSEDCL-CN-202611-1MB',
+        applicationDate: DateTime.now(),
+        subDivisionOffice: 'Nardana Sub-Division',
+        circleOffice: 'Dhule Circle',
+        village: 'Nardana',
+        reasonForChange: MsedclReasonForChange.purchaseOfProperty,
+        assignedEmployee: 'Avinash',
+        status: MsedclApplicationStatus.docsCompleted,
+        oldFirstName: 'AALIEM',
+        oldSurname: 'PATEL',
+        oldConsumerFullName: 'AALIEM BABUMIYA PATEL',
+        consumerNo: '096570003663',
+        newFirstName: 'RAJU',
+        newSurname: 'CHAUDHARI',
+        newConsumerFullName: 'RAJU VASANT CHAUDHARI',
+        newMobileNo: '9423187654',
+        propertyAddress: 'Nardana, Tal. Shindkheda, Dist. Dhule',
+        stampPaperValue: 100.0,
+        stampPaperLanguage: 'English',
+        documents: [
+          MsedclDocumentItem(docType: MsedclDocumentType.electricityBill, status: 'Received', fileName: 'bill.png', fileBytesBase64: rawDocBase64),
+          MsedclDocumentItem(docType: MsedclDocumentType.extract712, status: 'Received', fileName: '712.png', fileBytesBase64: rawDocBase64),
+          MsedclDocumentItem(docType: MsedclDocumentType.ownershipProof, status: 'Received', fileName: 'sale_deed.png', fileBytesBase64: rawDocBase64),
+          MsedclDocumentItem(docType: MsedclDocumentType.propertyTaxReceipt, status: 'Received', fileName: 'tax.png', fileBytesBase64: rawDocBase64),
+          MsedclDocumentItem(docType: MsedclDocumentType.affidavitGazette, status: 'Received', fileName: 'affidavit.png', fileBytesBase64: rawDocBase64),
+        ],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      // 3. Generate all documents and verify size constraints
+      final uForm = await MsedclPdfService.generateUFormPdf(heavyApp);
+      expect(uForm.lengthInBytes, lessThanOrEqualTo(1024 * 1024), reason: 'Form U PDF must be <= 1 MB');
+
+      final affidavit = await MsedclPdfService.generateAffidavitPdf(heavyApp);
+      expect(affidavit.lengthInBytes, lessThanOrEqualTo(1024 * 1024), reason: 'Affidavit PDF must be <= 1 MB');
+
+      final formX = await MsedclPdfService.generateFormXPdf(heavyApp);
+      expect(formX.lengthInBytes, lessThanOrEqualTo(1024 * 1024), reason: 'Form X PDF must be <= 1 MB');
+
+      final checklist = await MsedclPdfService.generateChecklistPdf(heavyApp);
+      expect(checklist.lengthInBytes, lessThanOrEqualTo(1024 * 1024), reason: 'Checklist PDF must be <= 1 MB');
+
+      final completeApp = await MsedclPdfService.generateCompleteApplicationPdf(heavyApp);
+      expect(completeApp.lengthInBytes, greaterThan(10000));
+      expect(completeApp.lengthInBytes, lessThanOrEqualTo(1024 * 1024),
+          reason: 'Complete Application PDF with 5 heavy attachments MUST be <= 1 MB (1024 KB) for portal upload');
+
+      // Verify portal size limit constant
+      expect(MsedclPdfService.maxPortalPdfSizeBytes, 1024 * 1024);
     });
   });
 }

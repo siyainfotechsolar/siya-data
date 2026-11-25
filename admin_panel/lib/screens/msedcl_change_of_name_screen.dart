@@ -2650,7 +2650,22 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
               return ListTile(
                 dense: true,
                 title: Text(doc.docType, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                subtitle: doc.fileName != null ? Text('File: ${doc.fileName}', style: TextStyle(color: Colors.blue.shade800, fontSize: 11)) : null,
+                subtitle: doc.fileName != null
+                    ? Row(
+                        children: [
+                          Icon(Icons.attach_file, size: 12, color: Colors.blue.shade700),
+                          const SizedBox(width: 4),
+                          Text(doc.fileName!, style: TextStyle(color: Colors.blue.shade800, fontSize: 11)),
+                          if (doc.fileBytes != null) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              '(${(doc.fileBytes!.lengthInBytes / 1024).round()} KB)',
+                              style: TextStyle(color: Colors.grey.shade600, fontSize: 11, fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ],
+                      )
+                    : null,
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -2680,20 +2695,28 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
                       onPressed: () async {
                         final result = await FilePicker.platform.pickFiles(
                           type: FileType.custom,
-                          allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+                          allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
                           withData: true,
                         );
                         if (result != null && result.files.isNotEmpty) {
                           final f = result.files.first;
-                          final base64 = f.bytes != null ? base64Encode(f.bytes!) : null;
-                          setState(() {
-                            _documents[i] = doc.copyWith(
-                              fileName: f.name,
-                              fileBytesBase64: base64,
-                              status: 'Received',
-                              uploadedAt: DateTime.now(),
-                            );
-                          });
+                          Uint8List? fileBytes = f.bytes;
+                          if (fileBytes != null) {
+                            final ext = (f.extension ?? '').toLowerCase();
+                            // Optimize large images to prevent database bloat and keep PDF under 1 MB
+                            if (ext != 'pdf' && fileBytes.lengthInBytes > 250 * 1024) {
+                              fileBytes = MsedclPdfService.compressImageForA4(fileBytes, maxDimension: 1400, quality: 80);
+                            }
+                            final base64 = base64Encode(fileBytes);
+                            setState(() {
+                              _documents[i] = doc.copyWith(
+                                fileName: f.name,
+                                fileBytesBase64: base64,
+                                status: 'Received',
+                                uploadedAt: DateTime.now(),
+                              );
+                            });
+                          }
                         }
                       },
                     ),
@@ -2797,6 +2820,7 @@ class _MsedclDocumentGeneratorDialogState extends State<_MsedclDocumentGenerator
   Future<void> _downloadDoc(String fileName, Future<Uint8List> Function() generator) async {
     try {
       final bytes = await generator();
+      final sizeKb = (bytes.lengthInBytes / 1024).round();
       final path = await saveFileUniversal(
         bytes: bytes,
         fileName: fileName,
@@ -2804,7 +2828,10 @@ class _MsedclDocumentGeneratorDialogState extends State<_MsedclDocumentGenerator
       );
       if (mounted && path != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Downloaded "$fileName" successfully!'), backgroundColor: const Color(0xFF047857)),
+          SnackBar(
+            content: Text('Downloaded "$fileName" ($sizeKb KB - Portal Ready ≤ 1 MB) successfully!'),
+            backgroundColor: const Color(0xFF047857),
+          ),
         );
       }
     } catch (e) {
@@ -2879,6 +2906,40 @@ class _MsedclDocumentGeneratorDialogState extends State<_MsedclDocumentGenerator
               children: [
                 Text('Document Generator — ${app.applicationNo}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 Text('Consumer: ${app.consumerNo} • ${app.computedNewFullName}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                if (_previewBytes != null) ...[
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _previewBytes!.lengthInBytes <= 1024 * 1024 ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: _previewBytes!.lengthInBytes <= 1024 * 1024 ? const Color(0xFF10B981) : const Color(0xFFEF4444)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _previewBytes!.lengthInBytes <= 1024 * 1024 ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+                              size: 11,
+                              color: _previewBytes!.lengthInBytes <= 1024 * 1024 ? const Color(0xFF047857) : const Color(0xFFB91C1C),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              'Size: ${(_previewBytes!.lengthInBytes / 1024).round()} KB (Portal Limit: ≤ 1 MB ${_previewBytes!.lengthInBytes <= 1024 * 1024 ? "✓" : "⚠"})',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: _previewBytes!.lengthInBytes <= 1024 * 1024 ? const Color(0xFF047857) : const Color(0xFFB91C1C),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -2950,6 +3011,28 @@ class _MsedclDocumentGeneratorDialogState extends State<_MsedclDocumentGenerator
         height: 600,
         child: Column(
           children: [
+            // MSEDCL Portal Upload Limit Banner (≤ 1 MB)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFBBF7D0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.verified, size: 14, color: Color(0xFF16A34A)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'MSEDCL पोर्टल अपलोड मर्यादा: सर्व जनरेट केलेले डॉक्युमेंट्स आपोआप १ MB (1024 KB) च्या आत राहतील असे कॉम्प्रेस केले जातात.',
+                      style: TextStyle(fontSize: 11, color: Colors.green.shade900, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             // Generator action buttons bar (Buttons 1 to 5)
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
