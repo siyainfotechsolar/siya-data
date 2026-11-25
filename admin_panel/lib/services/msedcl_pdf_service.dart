@@ -995,7 +995,7 @@ class MsedclPdfService {
     );
 
     final pdfTheme = await SolarQuotationFontHelper.loadPdfTheme();
-    final isMarathi = app.stampPaperLanguage.toLowerCase() == 'marathi';
+    const isMarathi = false; // User requested: Marathi cancelled due to Devanagari font breaking; English Self Undertaking is official standard default
 
     // Load official Rs. 100 Maharashtra Non-Judicial Stamp Paper graphic (identical to Net Meter Agreement)
     final stampBytes = await AdminCompanyStampHelper.loadStampPaperBytes(customBytes: customStampPaperBytes);
@@ -2196,7 +2196,7 @@ class MsedclPdfService {
   }
 
   static pw.Widget _buildAffidavitContent(MsedclChangeOfNameApplication app) {
-    final isMarathi = app.stampPaperLanguage.toLowerCase() == 'marathi';
+    const isMarathi = false; // User requested: Marathi cancelled; English Self Undertaking is official standard
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [

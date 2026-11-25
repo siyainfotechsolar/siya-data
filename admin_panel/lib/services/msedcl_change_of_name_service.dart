@@ -73,7 +73,7 @@ class MsedclChangeOfNameService {
         // Stamp Paper Configuration
         stampPaperValue: 100.0,
         stampPaperState: 'Maharashtra',
-        stampPaperLanguage: 'Marathi',
+        stampPaperLanguage: 'English',
         isPhysicalStampPaper: false,
         stampTopMarginMm: 0.0,
         affidavitPlace: 'Nardana',
@@ -192,7 +192,7 @@ class MsedclChangeOfNameService {
         // Stamp Paper Configuration
         stampPaperValue: 100.0,
         stampPaperState: 'Maharashtra',
-        stampPaperLanguage: 'Marathi',
+        stampPaperLanguage: 'English',
         isPhysicalStampPaper: false,
         stampTopMarginMm: 0.0,
         affidavitPlace: 'Shindkheda',
@@ -295,7 +295,7 @@ class MsedclChangeOfNameService {
         // Stamp Paper Configuration
         stampPaperValue: 100.0,
         stampPaperState: 'Maharashtra',
-        stampPaperLanguage: 'Marathi',
+        stampPaperLanguage: 'English',
         isPhysicalStampPaper: false,
         stampTopMarginMm: 0.0,
         affidavitPlace: 'Dhule',

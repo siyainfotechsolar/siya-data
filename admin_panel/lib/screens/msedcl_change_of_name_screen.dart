@@ -2197,14 +2197,13 @@ class _MsedclApplicationFormDialogState extends State<_MsedclApplicationFormDial
               const SizedBox(width: 8),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _stampLanguage,
+                  value: 'English',
                   decoration: const InputDecoration(labelText: 'Language *', border: OutlineInputBorder(), isDense: true),
                   items: const [
-                    DropdownMenuItem(value: 'English', child: Text('English (Self Undertaking - Official)')),
-                    DropdownMenuItem(value: 'Marathi', child: Text('मराठी (Marathi - प्रतिज्ञापत्र / हमीपत्र)')),
+                    DropdownMenuItem(value: 'English', child: Text('English (Official MSEDCL Self Undertaking)')),
                   ],
                   onChanged: (val) {
-                    if (val != null) setState(() => _stampLanguage = val);
+                    if (val != null) setState(() => _stampLanguage = 'English');
                   },
                 ),
               ),
