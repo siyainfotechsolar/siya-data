@@ -1011,13 +1011,13 @@ class MsedclPdfService {
     final isPhysicalStamp = !forceStampPaperBackground && app.isPhysicalStampPaper;
     final topMarginPt = isPhysicalStamp
         ? ((app.stampTopMarginMm > 0 ? app.stampTopMarginMm : 80.0) * 2.83465)
-        : 465.0;
+        : 355.0;
 
     pdf.addPage(
       pw.MultiPage(
         pageTheme: pw.PageTheme(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.fromLTRB(42, 20, 42, 20),
+          margin: const pw.EdgeInsets.fromLTRB(36, 14, 36, 14),
           theme: pdfTheme,
           buildBackground: (context) {
             // Render the official Rs. 100 Stamp Paper as full background on Page 1 (unless physical stamp feed is selected)
@@ -1666,6 +1666,9 @@ class MsedclPdfService {
         final uFormOverlayBytes = _generateUFormOverlayPdf(app, templateBytes);
         final masterDoc = sf.PdfDocument(inputBytes: uFormOverlayBytes);
         masterDoc.compressionLevel = sf.PdfCompressionLevel.best;
+        // Ensure added pages have zero margin so imported A4 page templates fit 1:1 without right/bottom clipping
+        masterDoc.pageSettings.setMargins(0);
+        masterDoc.pageSettings.size = sf.PdfPageSize.a4;
 
         if (includeAffidavit) {
           final affidavitBytes = await generateAffidavitPdf(
@@ -1678,7 +1681,8 @@ class MsedclPdfService {
           for (int i = 0; i < affidavitDoc.pages.count; i++) {
             final template = affidavitDoc.pages[i].createTemplate();
             final newPage = masterDoc.pages.add();
-            newPage.graphics.drawPdfTemplate(template, ui.Offset.zero);
+            final clientSize = newPage.getClientSize();
+            newPage.graphics.drawPdfTemplate(template, ui.Offset.zero, clientSize);
           }
           affidavitDoc.dispose();
         }
@@ -1694,7 +1698,8 @@ class MsedclPdfService {
                   for (int p = 0; p < subDoc.pages.count; p++) {
                     final t = subDoc.pages[p].createTemplate();
                     final newPage = masterDoc.pages.add();
-                    newPage.graphics.drawPdfTemplate(t, ui.Offset.zero);
+                    final clientSize = newPage.getClientSize();
+                    newPage.graphics.drawPdfTemplate(t, ui.Offset.zero, clientSize);
                   }
                   subDoc.dispose();
                 } else {
