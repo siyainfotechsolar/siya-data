@@ -90,21 +90,10 @@ class UserRole {
           'rts': ['view', 'edit'],
           'subsidy': ['view', 'edit'],
           'payment': ['view', 'create'],
-          'invoices': ['view', 'create'],
-          'customer_hishob': ['view'],
-          'sub_vendor': ['view'],
-          'commission': ['view', 'create'],
-          'solar_quotation': ['view', 'create', 'edit'],
-          'solar_cost_calculator': ['view'],
-          'team_expenses': ['view', 'create', 'edit'],
-          'sales_commission': ['view', 'create', 'edit'],
-          'leads': ['view', 'create', 'edit'],
-          'whatsapp': ['view', 'create', 'edit'],
           'followup': ['view', 'create', 'complete'],
           'general_issue': ['view', 'create', 'edit', 'close'],
           'misc': ['view', 'create', 'complete'],
           'export_excel': ['view'],
-          'reports': ['view'],
         };
 
       case 'sales':
@@ -249,41 +238,7 @@ class UserProfile {
     final mKey = module.toLowerCase();
     final act = action.toLowerCase();
 
-    List<String>? actions = permissions[mKey];
-
-    // Fallbacks for legacy keys or aliases
-    if (actions == null) {
-      if (mKey == 'sub_vendor' && permissions.containsKey('commission')) {
-        actions = permissions['commission'];
-      } else if (mKey == 'solar_quotation' && permissions.containsKey('customer')) {
-        actions = permissions['customer'];
-      } else if (mKey == 'solar_cost_calculator' && permissions.containsKey('customer')) {
-        actions = permissions['customer'];
-      } else if (mKey == 'customer_hishob' && permissions.containsKey('payment')) {
-        actions = permissions['payment'];
-      } else if (mKey == 'invoices' && permissions.containsKey('payment')) {
-        actions = permissions['payment'];
-      } else if (mKey == 'leads' && permissions.containsKey('customer')) {
-        actions = permissions['customer'];
-      } else if (mKey == 'whatsapp' && permissions.containsKey('customer')) {
-        actions = permissions['customer'];
-      } else if (mKey == 'team_expenses') {
-        if (permissions.containsKey('installation')) {
-          actions = permissions['installation'];
-        } else if (permissions.containsKey('solar_cost_calculator')) {
-          actions = permissions['solar_cost_calculator'];
-        } else if (permissions.containsKey('customer')) {
-          actions = permissions['customer'];
-        }
-      } else if (mKey == 'sales_commission') {
-        if (permissions.containsKey('commission')) {
-          actions = permissions['commission'];
-        } else if (permissions.containsKey('customer')) {
-          actions = permissions['customer'];
-        }
-      }
-    }
-
+    final actions = permissions[mKey];
     if (actions == null) return false;
     if (actions.contains('*')) return true;
 

@@ -62,21 +62,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItem(id: 'payments', label: 'Payments', icon: Icons.payments_outlined, selectedIcon: Icons.payments, isMainBottomNav: true, moduleKey: 'payment'),
     _NavItem(id: 'invoices', label: 'Invoices', icon: Icons.receipt_long_outlined, selectedIcon: Icons.receipt_long, isMainBottomNav: true, moduleKey: 'invoices'),
     _NavItem(id: 'hishob', label: 'Customer Hishob', icon: Icons.account_balance_wallet_outlined, selectedIcon: Icons.account_balance_wallet, isMainBottomNav: true, moduleKey: 'customer_hishob'),
-    _NavItem(id: 'quotations', label: 'Quotations', icon: Icons.request_quote_outlined, selectedIcon: Icons.request_quote, isMainBottomNav: false, moduleKey: 'customer'),
-    _NavItem(id: 'margin_receipts', label: 'Margin Receipts', icon: Icons.description_outlined, selectedIcon: Icons.description, isMainBottomNav: false, moduleKey: 'customer'),
+    _NavItem(id: 'quotations', label: 'Quotations', icon: Icons.request_quote_outlined, selectedIcon: Icons.request_quote, isMainBottomNav: false, moduleKey: 'solar_quotation'),
+    _NavItem(id: 'margin_receipts', label: 'Margin Receipts', icon: Icons.description_outlined, selectedIcon: Icons.description, isMainBottomNav: false, moduleKey: 'payment'),
     _NavItem(id: 'commissions', label: 'Commissions', icon: Icons.monetization_on_outlined, selectedIcon: Icons.monetization_on, isMainBottomNav: false, moduleKey: 'commission'),
     _NavItem(id: 'sales_commissions', label: 'Sales Person Commission', icon: Icons.price_check_outlined, selectedIcon: Icons.price_check, isMainBottomNav: false, moduleKey: 'sales_commission'),
     _NavItem(id: 'sub_vendors', label: 'Sub-Vendors', icon: Icons.engineering_outlined, selectedIcon: Icons.engineering, isMainBottomNav: false, moduleKey: 'sub_vendor'),
-    _NavItem(id: 'office_tasks', label: 'Office Tasks', icon: Icons.assignment_ind_outlined, selectedIcon: Icons.assignment_ind, isMainBottomNav: false),
+    _NavItem(id: 'office_tasks', label: 'Office Tasks', icon: Icons.assignment_ind_outlined, selectedIcon: Icons.assignment_ind, isMainBottomNav: false, moduleKey: 'followup'),
     _NavItem(id: 'whatsapp', label: 'WhatsApp', icon: Icons.share_rounded, selectedIcon: Icons.share, isMainBottomNav: false, moduleKey: 'whatsapp'),
     _NavItem(id: 'leads', label: 'Leads', icon: Icons.leaderboard_outlined, selectedIcon: Icons.leaderboard, isMainBottomNav: false, moduleKey: 'leads'),
     _NavItem(id: 'import', label: 'Import', icon: Icons.upload_file_outlined, selectedIcon: Icons.upload_file, isMainBottomNav: false, moduleKey: 'import'),
     _NavItem(id: 'reports', label: 'Reports', icon: Icons.bar_chart_outlined, selectedIcon: Icons.bar_chart, isMainBottomNav: false, moduleKey: 'reports'),
-    _NavItem(id: 'doc_enhancer', label: 'Document Clear & A4 Print', icon: Icons.document_scanner_outlined, selectedIcon: Icons.document_scanner, isMainBottomNav: false, category: 'Tools'),
+    _NavItem(id: 'doc_enhancer', label: 'Document Clear & A4 Print', icon: Icons.document_scanner_outlined, selectedIcon: Icons.document_scanner, isMainBottomNav: false, moduleKey: 'customer', category: 'Tools'),
     _NavItem(id: 'solar_quotation_generator', label: 'Solar Quotation Generator', icon: Icons.solar_power_outlined, selectedIcon: Icons.solar_power, isMainBottomNav: false, moduleKey: 'solar_quotation', category: 'Tools'),
     _NavItem(id: 'solar_site_cost_calculator', label: 'Site Cost Calculator', icon: Icons.calculate_outlined, selectedIcon: Icons.calculate, isMainBottomNav: false, moduleKey: 'solar_cost_calculator', category: 'Tools'),
     _NavItem(id: 'team_expenses', label: 'Team Work & Expenses', icon: Icons.group_work_outlined, selectedIcon: Icons.group_work, isMainBottomNav: false, moduleKey: 'team_expenses', category: 'Tools'),
-    _NavItem(id: 'msedcl_change_of_name', label: 'MSEDCL Name Change & Stamp', icon: Icons.assignment_turned_in_outlined, selectedIcon: Icons.assignment_turned_in, isMainBottomNav: false, category: 'Tools'),
+    _NavItem(id: 'msedcl_change_of_name', label: 'MSEDCL Name Change & Stamp', icon: Icons.assignment_turned_in_outlined, selectedIcon: Icons.assignment_turned_in, isMainBottomNav: false, moduleKey: 'rts', category: 'Tools'),
     _NavItem(id: 'history', label: 'History', icon: Icons.history_outlined, selectedIcon: Icons.history, isMainBottomNav: false, moduleKey: 'customer'),
     _NavItem(id: 'audit', label: 'Audit', icon: Icons.shield_outlined, selectedIcon: Icons.shield, isMainBottomNav: false, moduleKey: 'settings'),
     _NavItem(id: 'duplicates', label: 'Duplicates', icon: Icons.find_in_page_outlined, selectedIcon: Icons.find_in_page, isMainBottomNav: false, moduleKey: 'customer'),
@@ -89,7 +89,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final isAdmin = _userRole == 'admin' || _userRole == 'super_admin' || _userRole == 'owner';
     if (isAdmin) return true;
     if (item.adminOnly) return false;
-    if (item.moduleKey == null) return true;
+    if (item.moduleKey == null) {
+      return item.id == 'dashboard';
+    }
 
     // Check granular permissions from profile if available
     final perms = _userProfile?['permissions'];
@@ -98,9 +100,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       if (actions is List) {
         return actions.isNotEmpty;
       }
+      return false; // Custom permissions exist for this user; non-granted modules are blocked!
     }
 
-    // Default role-based fallback
+    // Default role-based fallback only when no custom permissions are configured
     final defaultPerms = UserRole.defaultPermissions(_userRole);
     final roleActions = defaultPerms[item.moduleKey];
     return roleActions != null && roleActions.isNotEmpty;
@@ -124,6 +127,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       final profile = await SupabaseService.fetchProfile(user.id);
       if (profile != null && mounted) {
         setState(() {
+          _userProfile = profile;
           final fullName = (profile['full_name'] as String?)?.trim() ?? '';
           _userName = fullName.isNotEmpty ? fullName : (user.email?.split('@').first ?? 'User');
           _userRole = (profile['role'] as String?) ?? 'staff';
@@ -133,6 +137,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     } catch (_) {}
     if (mounted) {
       setState(() {
+        _userProfile = null;
         _userName = user.email?.split('@').first ?? 'User';
         _userRole = 'staff';
       });
