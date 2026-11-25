@@ -573,7 +573,7 @@ class MsedclChangeOfNameApplication {
       propertyAddress: json['property_address'] as String? ?? '',
       stampPaperValue: (json['stamp_paper_value'] as num?)?.toDouble() ?? 100.0,
       stampPaperState: json['stamp_paper_state'] as String? ?? 'Maharashtra',
-      stampPaperLanguage: json['stamp_paper_language'] as String? ?? 'Marathi',
+      stampPaperLanguage: json['stamp_paper_language'] as String? ?? 'English',
       isPhysicalStampPaper: json['is_physical_stamp_paper'] as bool? ?? false,
       stampTopMarginMm: (json['stamp_top_margin_mm'] as num?)?.toDouble() ?? 0.0,
       affidavitCustomText: json['affidavit_custom_text'] as String?,

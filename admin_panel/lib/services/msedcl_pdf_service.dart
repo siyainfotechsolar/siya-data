@@ -1196,7 +1196,7 @@ class MsedclPdfService {
           }
 
           // =========================================================================
-          // MARATHI AFFIDAVIT / UNDERTAKING (प्रतिज्ञापत्र / हमीपत्र)
+          // MARATHI AFFIDAVIT / UNDERTAKING (प्रतिज्ञापत्र / हमीपत्र - 8 CLAUSES)
           // =========================================================================
           return [
             // Title
@@ -1204,36 +1204,36 @@ class MsedclPdfService {
               child: pw.Column(
                 children: [
                   pw.Text(
-                    '।। प्रतिज्ञापत्र / हमीपत्र ।।',
-                    style: pw.TextStyle(fontSize: 13.0, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
+                    '।। हमीपत्र / SELF UNDERTAKING ।।',
+                    style: pw.TextStyle(fontSize: 14.0, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
                     textAlign: pw.TextAlign.center,
                   ),
-                  pw.SizedBox(height: 3),
+                  pw.SizedBox(height: 4),
                   pw.Text(
-                    '(महाराष्ट्र राज्य विद्युत वितरण कंपनी मर्यादित - वीज ग्राहक नाव बदल कामी)',
-                    style: const pw.TextStyle(fontSize: 9.0, color: PdfColors.black),
+                    'वीज जोडणी नाव बदल कामी (FOR CHANGE OF NAME OF ELECTRICITY CONNECTION)',
+                    style: pw.TextStyle(fontSize: 11.0, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
                     textAlign: pw.TextAlign.center,
                   ),
                 ],
               ),
             ),
-            pw.SizedBox(height: 10),
+            pw.SizedBox(height: 14),
 
             // Deponent Paragraph (Clean text - no box, no background)
-            pw.Text(
-              'मी खालीलप्रमाणे सत्य प्रतिज्ञेवर लिहून देतो / देते की —',
-              style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
-            ),
-            pw.SizedBox(height: 3),
-            pw.Text(
-              'अर्जदार / नवीन ग्राहक: ${app.computedNewFullName}, वय: ${app.newAge} वर्षे, व्यवसाय: शेती/व्यवसाय/नोकरी, '
-              'रा. ${app.propertyAddress}. '
-              'ग्राहक क्र.: ${app.consumerNo}, कार्यालय: ${app.subDivisionOffice}${app.circleOffice.isNotEmpty ? ", " + app.circleOffice : ""}. '
-              'आधार क्र.: ${app.newAadhaarNo.isNotEmpty ? app.newAadhaarNo : "लागू नाही"}, मो.: ${app.newMobileNo}.',
-              style: const pw.TextStyle(fontSize: 9.2, height: 1.35, color: PdfColors.black),
+            pw.RichText(
+              text: pw.TextSpan(
+                style: const pw.TextStyle(fontSize: 10.5, color: PdfColors.black, lineSpacing: 1.4),
+                children: [
+                  const pw.TextSpan(text: 'मी, '),
+                  pw.TextSpan(text: app.computedNewFullName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  pw.TextSpan(text: ', वय: ${app.newAge} वर्षे, रा. '),
+                  pw.TextSpan(text: app.propertyAddress, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  const pw.TextSpan(text: ', याद्वारे सत्यप्रतिज्ञेवर खालीलप्रमाणे हमीपत्र लिहून देतो / देते की —'),
+                ],
+              ),
               textAlign: pw.TextAlign.justify,
             ),
-            pw.SizedBox(height: 8),
+            pw.SizedBox(height: 12),
 
             // Clauses
             if (app.affidavitCustomText != null && app.affidavitCustomText!.trim().isNotEmpty)
@@ -1241,26 +1241,52 @@ class MsedclPdfService {
                 padding: const pw.EdgeInsets.symmetric(vertical: 4),
                 child: pw.Text(
                   app.affidavitCustomText!,
-                  style: const pw.TextStyle(fontSize: 9.2, height: 1.35, color: PdfColors.black),
+                  style: const pw.TextStyle(fontSize: 10.0, height: 1.4, color: PdfColors.black),
                   textAlign: pw.TextAlign.justify,
                 ),
               )
             else ...[
-              _buildClauseText('१.', 'सदर मिळकतीवर महावितरणचा वीज ग्राहक क्रमांक ${app.consumerNo} हा असून तो सध्या जुने ग्राहक ${app.computedOldFullName} यांच्या नावावर नोंदणीकृत आहे.', fontSize: 9.2, bottomPadding: 5.5),
-              _buildClauseText('२.', 'मी सदर मिळकत / जागा (${app.propertyAddress}) ही कायदेशीररित्या (${app.reasonForChange}) अन्वये प्राप्त केली असून सध्या सदर जागेचा संपूर्ण कायदेशीर ताबा व मालकी हक्क माझ्याकडे आहे.', fontSize: 9.2, bottomPadding: 5.5),
-              _buildClauseText('३.', 'सदर जागेवरील वीज मीटर ग्राहक क्र. ${app.consumerNo} हे माझ्या नावाने (${app.computedNewFullName}) हस्तांतरित / नाव बदल करून मिळण्यासाठी मी हा अर्ज सादर करत आहे.', fontSize: 9.2, bottomPadding: 5.5),
-              _buildClauseText('४.', 'सदर वीज जोडणी माझ्या नावावर झाल्यानंतर भविष्यात येणारे सर्व वीज देयक (Bills) नियमाप्रमाणे विहित मुदतीत भरण्याची संपूर्ण जबाबदारी माझी राहील.', fontSize: 9.2, bottomPadding: 5.5),
-              _buildClauseText('५.', 'सदर वीज जोडणीवर जुनी थकबाकी किंवा कायदेशीर देणी असल्यास, ती महावितरणच्या नियमानुसार भरण्यास मी वैयक्तिकरीत्या बांधील व सहमत आहे.', fontSize: 9.2, bottomPadding: 5.5),
-              _buildClauseText('६.', 'सदर नाव बदलाबाबत भविष्यात कोणताही वाद किंवा आक्षेप उद्भवल्यास त्याची संपूर्ण जबाबदारी माझी राहील. मी सादर केलेली सर्व कागदपत्रे व माहिती खरी व कायदेशीर आहे.', fontSize: 9.2, bottomPadding: 8.0),
+              _buildClauseText('१.', 'मी खाली नमूद केलेल्या जागेतील वीज जोडणीचे नाव बदलून मिळण्यासाठी अर्ज सादर करत आहे.', fontSize: 10.5, bottomPadding: 14.0),
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 14.0),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    _buildClauseText('२.', 'सदर वीज जोडणीचा तपशील खालीलप्रमाणे आहे:', fontSize: 10.5, bottomPadding: 8.0),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(left: 20, top: 4, bottom: 8),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          _buildBulletItem('ग्राहक क्रमांक (Consumer No.)', app.consumerNo, fontSize: 10.0),
+                          _buildBulletItem('सध्याचे वीज ग्राहक नाव (Existing Name)', app.computedOldFullName, fontSize: 10.0),
+                          _buildBulletItem('नवीन ग्राहक नाव (New Consumer Name)', app.computedNewFullName, fontSize: 10.0),
+                          _buildBulletItem('जागेचा पत्ता (Premises Address)', app.propertyAddress, fontSize: 10.0),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildClauseText('३.', 'मी वर नमूद केलेल्या जागेचा / मिळकतीचा कायदेशीर मालक / भोगवटादार / ताबेदार असून त्याबाबतचे आवश्यक पुरावे व कागदपत्रे सोबत सादर करत आहे.', fontSize: 10.5, bottomPadding: 14.0),
+              _buildClauseText('४.', 'मी महाराष्ट्र राज्य विद्युत वितरण कंपनी मर्यादित (महावितरण) यांना विनंती करतो / करते की, लागू नियमावलीनुसार सदर वीज जोडणी माझ्या नावावर हस्तांतरित करावी.', fontSize: 10.5, bottomPadding: 14.0),
+              _buildClauseText('५.', 'मी सादर केलेली सर्व माहिती आणि कागदपत्रे माझ्या माहिती व समजुतीनुसार खरी व बरोबर आहेत.', fontSize: 10.5, bottomPadding: 14.0),
+              _buildClauseText('६.', 'महावितरणच्या नियमावली व शर्तींचे पालन करण्यास तसेच भविष्यातील सर्व वीज देयके नियमितपणे भरण्यास मी बांधील व जबाबदार राहील.', fontSize: 10.5, bottomPadding: 14.0),
+              _buildClauseText('७.', 'माझ्याद्वारे सादर केलेली कोणतीही माहिती किंवा कागदपत्रे चुकीची अथवा खोटी आढळल्यास, त्यास मी वैयक्तिकरीत्या पूर्णपणे जबाबदार राहीन.', fontSize: 10.5, bottomPadding: 14.0),
+              _buildClauseText('८.', 'वीज जोडणी नाव बदलाबाबत महावितरणच्या सर्व अटी व नियमांचे मी काटेकोरपणे पालन करण्याची हमी देत आहे.', fontSize: 10.5, bottomPadding: 16.0),
             ],
 
-            pw.SizedBox(height: 6),
+            pw.SizedBox(height: 10),
+
+            // DECLARATION
+            pw.Text('प्रतिज्ञापत्र (DECLARATION)', style: pw.TextStyle(fontSize: 11.0, fontWeight: pw.FontWeight.bold, color: PdfColors.black)),
+            pw.SizedBox(height: 4),
             pw.Text(
-              'करिता हे प्रतिज्ञापत्र / हमीपत्र मी स्वतःच्या राजीखुशीने, कोणत्याही दबावाशिवाय लिहून सही केली आहे. जेणेकरून महावितरण कार्यालयात पुरावा म्हणून सादर करता येईल.',
-              style: const pw.TextStyle(fontSize: 9.0, height: 1.3, color: PdfColors.black),
-              textAlign: pw.TextAlign.justify,
+              'मी याद्वारे जाहीर करतो / करते की, वरील सर्व माहिती माझ्या माहिती व समजुतीनुसार खरी व बिनचूक आहे.',
+              style: const pw.TextStyle(fontSize: 10.0, height: 1.4, color: PdfColors.black),
             ),
-            pw.SizedBox(height: 12),
+
+            pw.SizedBox(height: 22),
 
             // Date, Place & Applicant Signature
             pw.Row(
@@ -1270,28 +1296,35 @@ class MsedclPdfService {
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('दिनांक: ${_dateFormat.format(app.applicationDate)}', style: const pw.TextStyle(fontSize: 9.2, color: PdfColors.black)),
-                    pw.SizedBox(height: 4),
-                    pw.Text('ठिकाण: ${app.affidavitPlace}', style: const pw.TextStyle(fontSize: 9.2, color: PdfColors.black)),
+                    pw.Text('ठिकाण: ${app.affidavitPlace.isNotEmpty ? app.affidavitPlace : "__________________"}', style: const pw.TextStyle(fontSize: 10.0, color: PdfColors.black)),
+                    pw.SizedBox(height: 8),
+                    pw.Text('दिनांक: ${_dateFormat.format(app.applicationDate)}', style: const pw.TextStyle(fontSize: 10.0, color: PdfColors.black)),
                   ],
                 ),
                 pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
+                    pw.Text(
+                      'अर्जदार / नवीन ग्राहकाची सही',
+                      style: pw.TextStyle(fontSize: 10.0, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
+                    ),
+                    pw.SizedBox(height: 5),
+                    pw.Text('पूर्ण नाव: ${app.computedNewFullName}', style: const pw.TextStyle(fontSize: 9.5, color: PdfColors.black)),
+                    pw.SizedBox(height: 4),
+                    pw.Text('मोबाईल क्रमांक: ${app.newMobileNo.isNotEmpty ? app.newMobileNo : "__________________"}', style: const pw.TextStyle(fontSize: 9.5, color: PdfColors.black)),
+                    pw.SizedBox(height: 10),
                     if (app.hasNewConsumerSignature)
                       pw.Container(
-                        height: 30,
-                        child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 28, fit: pw.BoxFit.contain),
+                        height: 36,
+                        child: pw.Image(pw.MemoryImage(app.newConsumerSignatureBytes!), height: 34, fit: pw.BoxFit.contain),
                       )
                     else
-                      pw.SizedBox(height: 28),
-                    pw.Container(width: 150, height: 0.8, color: PdfColors.black),
-                    pw.SizedBox(height: 3),
-                    pw.Text(
-                      'प्रतिज्ञापत्र देणारा / अर्जदार (सही)',
-                      style: pw.TextStyle(fontSize: 9.2, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
-                    ),
-                    pw.Text('(${app.computedNewFullName})', style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.black)),
+                      pw.Container(
+                        width: 170,
+                        height: 26,
+                        alignment: pw.Alignment.bottomRight,
+                        child: pw.Text('सही: ______________________', style: const pw.TextStyle(fontSize: 9.5, color: PdfColors.black)),
+                      ),
                   ],
                 ),
               ],

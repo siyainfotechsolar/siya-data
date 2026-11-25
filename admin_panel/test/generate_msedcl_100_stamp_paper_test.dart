@@ -113,13 +113,19 @@ void main() {
 
     // -------------------------------------------------------------------------
     // 6. Complete Master Application PDF (Form U + Checklist/Form X + ₹100 Stamp Affidavit)
+    // Uses app100English so the official English Self Undertaking is embedded in the master PDF
     // -------------------------------------------------------------------------
-    final bytes6 = await MsedclPdfService.generateCompleteApplicationPdf(app100MarathiPlain);
+    final bytes6 = await MsedclPdfService.generateCompleteApplicationPdf(app100English);
     final file6 = File('$artifactDir/msedcl_complete_master_application.pdf');
     await file6.writeAsBytes(bytes6);
     expect(file6.existsSync(), isTrue);
 
-    print('All 6 MSEDCL ₹100 Stamp Paper and Application PDFs successfully generated in $artifactDir');
+    final bytes6Marathi = await MsedclPdfService.generateCompleteApplicationPdf(app100MarathiPlain);
+    final file6Marathi = File('$artifactDir/msedcl_complete_master_application_marathi.pdf');
+    await file6Marathi.writeAsBytes(bytes6Marathi);
+    expect(file6Marathi.existsSync(), isTrue);
+
+    print('All MSEDCL ₹100 Stamp Paper and Application PDFs successfully generated in $artifactDir');
 
     for (final entry in [
       MapEntry('Marathi Preview', file1),
@@ -128,13 +134,14 @@ void main() {
       MapEntry('Form U', file4),
       MapEntry('Form X', file5),
       MapEntry('Master Application', file6),
+      MapEntry('Master Application (Marathi)', file6Marathi),
     ]) {
       final doc = sf.PdfDocument(inputBytes: entry.value.readAsBytesSync());
       print('--> [${entry.key}] Pages: ${doc.pages.count}, Size: ${entry.value.lengthSync()} bytes');
-      if (entry.key == 'English Affidavit') {
+      if (entry.key == 'English Affidavit' || entry.key == 'Master Application') {
         final extractor = sf.PdfTextExtractor(doc);
         for (int i = 0; i < doc.pages.count; i++) {
-          print('--- ENGLISH AFFIDAVIT PAGE ${i + 1} ---');
+          print('--- ${entry.key} PAGE ${i + 1} ---');
           print(extractor.extractText(startPageIndex: i, endPageIndex: i).trim());
         }
       }
