@@ -32,26 +32,20 @@ class SubVendorMaterialOutwardService {
       return vendors.where((v) => v.isActive && v.status.toLowerCase() != 'blocked').toList();
     } catch (e) {
       debugPrint('Warning: Could not fetch sub-vendors from Supabase: $e');
-      return [
-        const SubVendor(
-          id: 'vnd-001',
-          vendorCode: 'VND-101',
-          name: 'Shree Balaji Solar Works',
-          mobile: '9876543210',
-          email: 'balaji@siyasolar.com',
-          isActive: true,
-          status: 'Active',
-        ),
-        const SubVendor(
-          id: 'vnd-002',
-          vendorCode: 'VND-102',
-          name: 'Khandesh Solar EPC',
-          mobile: '9876543211',
-          email: 'khandesh@siyasolar.com',
-          isActive: true,
-          status: 'Active',
-        ),
-      ];
+      if (e.toString().contains('initialize')) {
+        return [
+          const SubVendor(
+            id: 'vnd-test-001',
+            vendorCode: 'VND-TEST',
+            name: 'Test Sub-Vendor',
+            mobile: '9999999999',
+            email: 'test@siyasolar.com',
+            isActive: true,
+            status: 'Active',
+          ),
+        ];
+      }
+      return [];
     }
   }
 

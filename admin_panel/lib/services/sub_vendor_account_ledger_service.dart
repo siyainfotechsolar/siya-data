@@ -243,11 +243,9 @@ class SubVendorAccountLedgerService {
 
       final res = await query.order('transaction_date', ascending: true).order('created_at', ascending: true);
       final List<dynamic> rows = res as List<dynamic>;
-      if (rows.isNotEmpty) {
-        final list = rows.map((e) => SubVendorAccountLedgerEntry.fromJson(e as Map<String, dynamic>)).toList();
-        _inMemoryLedger = list;
-        _saveLedgerToCache(list);
-      }
+      final list = rows.map((e) => SubVendorAccountLedgerEntry.fromJson(e as Map<String, dynamic>)).toList();
+      _inMemoryLedger = list;
+      _saveLedgerToCache(list);
     } catch (e) {
       debugPrint('Notice: Fetching ledger from Supabase: $e');
     }
@@ -549,12 +547,15 @@ class SubVendorAccountLedgerService {
       final str = prefs.getString(_localLedgerKey);
       if (str != null && str.isNotEmpty) {
         final decoded = jsonDecode(str) as List<dynamic>;
-        _inMemoryLedger = decoded.map((e) => SubVendorAccountLedgerEntry.fromJson(e as Map<String, dynamic>)).toList();
+        _inMemoryLedger = decoded
+            .map((e) => SubVendorAccountLedgerEntry.fromJson(e as Map<String, dynamic>))
+            .where((e) => !e.id.startsWith('ledg-sample-'))
+            .toList();
       } else {
-        _inMemoryLedger = _createSampleInitialLedger();
+        _inMemoryLedger = [];
       }
     } catch (_) {
-      _inMemoryLedger = _createSampleInitialLedger();
+      _inMemoryLedger = [];
     }
   }
 
@@ -563,60 +564,6 @@ class SubVendorAccountLedgerService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_localLedgerKey, jsonEncode(list.map((e) => e.toJson()).toList()));
     } catch (_) {}
-  }
-
-  static List<SubVendorAccountLedgerEntry> _createSampleInitialLedger() {
-    return [
-      SubVendorAccountLedgerEntry(
-        id: 'ledg-sample-1',
-        vendorId: 'vnd-001',
-        vendorName: 'Shree Balaji Solar Works',
-        transactionDate: DateTime(2026, 11, 15),
-        transactionType: 'MATERIAL_OUTWARD',
-        category: 'MATERIAL',
-        creditAmount: 180000.0,
-        debitAmount: 0.0,
-        runningBalance: 180000.0,
-        referenceNumber: 'OUT-20261115-0001',
-        paymentMode: 'Inventory',
-        particulars: 'Material Outward Dispatch (12 Panels + 1 Inverter)',
-        status: 'Active',
-        createdAt: DateTime(2026, 11, 15),
-      ),
-      SubVendorAccountLedgerEntry(
-        id: 'ledg-sample-2',
-        vendorId: 'vnd-001',
-        vendorName: 'Shree Balaji Solar Works',
-        transactionDate: DateTime(2026, 11, 20),
-        transactionType: 'MATERIAL_PAYMENT',
-        category: 'MATERIAL',
-        creditAmount: 0.0,
-        debitAmount: 120000.0,
-        runningBalance: 60000.0,
-        referenceNumber: 'UTR-SBIN-8932742',
-        paymentMode: 'NEFT/RTGS',
-        particulars: 'Material Payment Received via Bank',
-        remarks: 'Part payment for OUT-20261115-0001',
-        status: 'Active',
-        createdAt: DateTime(2026, 11, 20),
-      ),
-      SubVendorAccountLedgerEntry(
-        id: 'ledg-sample-3',
-        vendorId: 'vnd-001',
-        vendorName: 'Shree Balaji Solar Works',
-        transactionDate: DateTime(2026, 11, 22),
-        transactionType: 'ADVANCE_GIVEN',
-        category: 'ADVANCE',
-        creditAmount: 0.0,
-        debitAmount: 25000.0,
-        runningBalance: 35000.0,
-        referenceNumber: 'ADV-VND-001',
-        paymentMode: 'UPI',
-        particulars: 'Installation Advance Given for Site Work',
-        status: 'Active',
-        createdAt: DateTime(2026, 11, 22),
-      ),
-    ];
   }
 
   @visibleForTesting
