@@ -240,9 +240,10 @@ class MsedclPdfService {
     // FORM X
     if (app.isFormXTransfer) {
       // Option a) Transfer of Security Deposit
-      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(170, 412, 270, 14), format: centerFormat);
-      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(355, 424, 120, 14), format: centerFormat);
-      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(205, 436, 280, 14), format: centerFormat);
+      // Exact alignment inside designated blank underscores without colliding with any horizontal lines
+      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(168, 416.5, 284, 12), format: centerFormat);
+      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(352, 428.5, 120, 12), format: centerFormat);
+      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(195, 440.5, 290, 12), format: centerFormat);
 
       // Old Consumer Consent Signature
       if (app.hasOldConsumerSignature && app.oldConsumerSignatureBytes != null) {
@@ -256,9 +257,10 @@ class MsedclPdfService {
       }
     } else {
       // Option b) Refund of Security Deposit
-      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(170, 585, 270, 14), format: centerFormat);
-      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(365, 599, 140, 14), format: centerFormat);
-      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(345, 612, 125, 14), format: centerFormat);
+      // Exact alignment inside designated blank underscores
+      g1.drawString(app.oldConsumerFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(168, 589.5, 284, 12), format: centerFormat);
+      g1.drawString(app.computedNewFullName.toUpperCase(), fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(365, 603.5, 145, 12), format: centerFormat);
+      g1.drawString(app.consumerNo, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(77, 630.8, 120, 12), format: centerFormat);
 
       final holder = app.refundAccountHolderName.isNotEmpty ? app.refundAccountHolderName : app.oldConsumerFullName;
       g1.drawString(holder, fontBold, brush: textBrush, bounds: ui.Rect.fromLTWH(195, 672, 250, 14));
