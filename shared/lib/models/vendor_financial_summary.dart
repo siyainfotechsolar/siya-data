@@ -234,16 +234,35 @@ class VendorFinancialSummary {
   final double totalPaidAmount;
   final double outstandingSettlement; // totalSettlementAmount - totalPaidAmount
 
-  /// Total customer collection realized (or site quotations if pending collection)
-  double get effectiveTotalCollection => totalCustomerCollection > 0 ? totalCustomerCollection : totalSiteAmount;
+  /// Total customer collection realized (never inflated with unpaid quotations)
+  double get effectiveTotalCollection => totalCustomerCollection;
 
   /// Net Sub-Vendor settlement balance after deducting Material Cost, SIYA Charges, and Net GST from Collections:
   /// (Total Collections - Total Material Cost - Total SIYA Charges - Expenses - Net GST - Total Paid)
+  // Centralized Ledger / Unallocated Outward Additions
+  final double totalMaterialOutwardCost;
+  final double totalDirectVendorPayments;
+  final double totalDirectAdvancesGiven;
+  final double totalDirectAdvanceRefunds;
+
+  double get combinedMaterialCost =>
+      double.parse((totalMaterialCost + totalMaterialOutwardCost).toStringAsFixed(2));
+
+  double get combinedPaidAndAdvances =>
+      double.parse((totalPaidAmount + totalDirectAdvancesGiven).toStringAsFixed(2));
+
   double get netSettlementPayable {
-    if (effectiveTotalCollection > 0 && totalMaterialCost > 0) {
-      return double.parse((effectiveTotalCollection - totalMaterialCost - totalVendorCharges - totalOtherExpenses - totalNetGstLiability - totalPaidAmount).toStringAsFixed(2));
-    }
-    return outstandingSettlement;
+    return double.parse((effectiveTotalCollection +
+            totalDirectVendorPayments +
+            totalDirectAdvanceRefunds -
+            totalMaterialCost -
+            totalMaterialOutwardCost -
+            totalVendorCharges -
+            totalOtherExpenses -
+            totalNetGstLiability -
+            totalPaidAmount -
+            totalDirectAdvancesGiven)
+        .toStringAsFixed(2));
   }
 
   // Site-by-site breakdown
@@ -280,6 +299,10 @@ class VendorFinancialSummary {
     required this.totalSettlementAmount,
     required this.totalPaidAmount,
     required this.outstandingSettlement,
+    this.totalMaterialOutwardCost = 0.0,
+    this.totalDirectVendorPayments = 0.0,
+    this.totalDirectAdvancesGiven = 0.0,
+    this.totalDirectAdvanceRefunds = 0.0,
     required this.siteDetails,
   });
 
@@ -291,6 +314,10 @@ class VendorFinancialSummary {
     required List<VendorSiteAssignment> assignments,
     required List<VendorMaterialTransaction> allMaterials,
     required List<VendorPayout> allPayouts,
+    double extraMaterialOutwardCost = 0.0,
+    double extraDirectVendorPayments = 0.0,
+    double extraDirectAdvancesGiven = 0.0,
+    double extraDirectAdvanceRefunds = 0.0,
   }) {
     int completed = 0;
     int pending = 0;
@@ -398,6 +425,10 @@ class VendorFinancialSummary {
       totalSettlementAmount: double.parse(settlement.toStringAsFixed(2)),
       totalPaidAmount: double.parse(totalPaid.toStringAsFixed(2)),
       outstandingSettlement: double.parse(outstanding.toStringAsFixed(2)),
+      totalMaterialOutwardCost: double.parse(extraMaterialOutwardCost.toStringAsFixed(2)),
+      totalDirectVendorPayments: double.parse(extraDirectVendorPayments.toStringAsFixed(2)),
+      totalDirectAdvancesGiven: double.parse(extraDirectAdvancesGiven.toStringAsFixed(2)),
+      totalDirectAdvanceRefunds: double.parse(extraDirectAdvanceRefunds.toStringAsFixed(2)),
       siteDetails: siteDetails,
     );
   }

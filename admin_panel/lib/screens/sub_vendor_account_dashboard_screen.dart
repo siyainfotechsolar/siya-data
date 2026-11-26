@@ -995,7 +995,12 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
   Future<void> _printVendorStatement(String vendorId) async {
     try {
       final vendor = _vendors.firstWhere((v) => v.id == vendorId);
-      final entries = await SubVendorAccountLedgerService.fetchLedgerEntries(vendorId: vendorId, statusFilter: 'Active');
+      final entries = await SubVendorAccountLedgerService.fetchLedgerEntries(
+        vendorId: vendorId,
+        statusFilter: 'Active',
+        fromDate: _filterFromDate,
+        toDate: _filterToDate,
+      );
 
       double totalCredit = 0.0;
       double totalDebit = 0.0;

@@ -636,7 +636,7 @@ class SubVendorPdfService {
                 children: [
                   _kpiBox('Total Collection', _currency.format(summary.effectiveTotalCollection), emeraldColor),
                   pw.SizedBox(width: 5),
-                  _kpiBox('Less: Material Cost', '- ${_currency.format(summary.totalMaterialCost)}', PdfColors.red800),
+                  _kpiBox('Less: Material Cost', '- ${_currency.format(summary.combinedMaterialCost)}', PdfColors.red800),
                   pw.SizedBox(width: 5),
                   _kpiBox('Less: SIYA Charges', '- ${_currency.format(summary.totalVendorCharges)}', navyColor),
                   pw.SizedBox(width: 5),
@@ -772,10 +772,12 @@ class SubVendorPdfService {
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
                         _subSummary('Total Realized Collections:', _currency.format(summary.effectiveTotalCollection)),
-                        _subSummary('Material Cost:', '- ${_currency.format(summary.totalMaterialCost)}'),
+                        _subSummary('Material Cost:', '- ${_currency.format(summary.combinedMaterialCost)}'),
+                        if (summary.totalDirectVendorPayments > 0)
+                          _subSummary('Direct Paid:', '+ ${_currency.format(summary.totalDirectVendorPayments)}'),
                         _subSummary('SIYA Platform Fee:', '- ${_currency.format(summary.totalVendorCharges)}'),
                         _subSummary('Statutory Net GST:', '- ${_currency.format(summary.totalNetGstLiability)}'),
-                        _subSummary('Advances Paid:', '- ${_currency.format(summary.totalPaidAmount)}'),
+                        _subSummary('Advances Paid:', '- ${_currency.format(summary.combinedPaidAndAdvances)}'),
                         _subSummary(
                           summary.netSettlementPayable >= 0 ? 'Net Sub-Vendor Due:' : 'Amount Recoverable:',
                           _currency.format(summary.netSettlementPayable.abs()),

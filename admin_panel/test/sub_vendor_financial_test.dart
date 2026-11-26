@@ -1683,6 +1683,163 @@ void main() {
       expect(passbookPdf[2], equals(0x44)); // D
       expect(passbookPdf[3], equals(0x46)); // F
     });
+
+    test('24. Centralized reconciliation: Outwards & Direct Payments sync with FinancialSummary without double-counting', () {
+      final assignment = VendorSiteAssignment(
+        id: 'asg-recon-1',
+        vendorId: 'vnd-recon',
+        customerId: 'cust-recon',
+        customerName: 'Test Client',
+        consumerNo: '123456',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 12.0,
+        ratePerKw: 1000.0,
+        totalCustomerSiteAmount: 611111.0,
+        totalLoanCredited: 240000.0,
+        totalCashReceived: 371111.0,
+        totalCustomerReceived: 611111.0,
+      );
+
+      final unpaidSite = VendorSiteAssignment(
+        id: 'asg-unpaid',
+        vendorId: 'vnd-empty',
+        customerId: 'cust-empty',
+        assignedDate: DateTime(2026, 11, 1),
+        siteCapacityKw: 3.0,
+        totalCustomerSiteAmount: 200000.0,
+        totalCustomerReceived: 0.0,
+      );
+
+      // Verify effectiveTotalCollection never falsely counts unpaid site quotations
+      final unpaidSummary = VendorFinancialSummary.compute(
+        vendorId: 'vnd-empty',
+        vendorCode: 'V0',
+        vendorName: 'Empty Vendor',
+        assignments: [unpaidSite],
+        allMaterials: [],
+        allPayouts: [],
+      );
+      expect(unpaidSummary.effectiveTotalCollection, equals(0.0));
+      // SIYA fee (3,000) + statutory 70:30 Output GST on Rs 2L quotation (15,819.21) = -18,819.21 recoverable
+      expect(unpaidSummary.netSettlementPayable, closeTo(-18819.21, 0.01));
+
+      final siteMaterials = [
+        VendorMaterialTransaction(
+          id: 'mat-r1',
+          assignmentId: assignment.id,
+          vendorId: 'vnd-recon',
+          customerId: 'cust-recon',
+          itemName: 'Modules & BOS',
+          itemCategory: 'SOLAR_PANEL',
+          transactionType: 'ISSUE',
+          quantity: 1,
+          unitRate: 219240.0,
+          taxableAmount: 219240.0,
+          gstRate: 5.0,
+          gstAmount: 10962.0,
+          totalAmount: 230202.0,
+          isItcEligible: true,
+          transactionDate: DateTime(2026, 11, 2),
+        ),
+      ];
+
+      final outward = SubVendorMaterialOutward(
+        id: 'out-r1',
+        outwardNumber: 'OUT-20261126-0001',
+        vendorId: 'vnd-recon',
+        vendorName: 'Dhanshree solar',
+        outwardDate: DateTime(2026, 11, 22),
+        totalItems: 1,
+        totalQuantity: 618.0,
+        totalValue: 63809.74,
+      );
+
+      // Simulate unified accountLedgerEntries returned from SubVendorAccountLedgerService
+      // containing BOTH manual entries AND synthesized cp_/vmt_/mo_/vp_/a_coll_ rows
+      final accountLedgerEntries = [
+        SubVendorAccountLedgerEntry(
+          id: 'man-1',
+          vendorId: 'vnd-recon',
+          vendorName: 'Dhanshree solar',
+          transactionDate: DateTime(2026, 11, 24),
+          transactionType: 'MATERIAL_PAYMENT',
+          category: 'MATERIAL',
+          creditAmount: 0.0,
+          debitAmount: 50000.0,
+          referenceNumber: '9319',
+          paymentMode: 'Bank Transfer',
+          particulars: 'Payments Received',
+        ),
+        SubVendorAccountLedgerEntry(
+          id: 'man-2',
+          vendorId: 'vnd-recon',
+          vendorName: 'Dhanshree solar',
+          transactionDate: DateTime(2026, 11, 25),
+          transactionType: 'MATERIAL_PAYMENT',
+          category: 'MATERIAL',
+          creditAmount: 0.0,
+          debitAmount: 50000.0,
+          referenceNumber: '3793',
+          paymentMode: 'Bank Transfer',
+          particulars: 'Payments Received',
+        ),
+        SubVendorAccountLedgerEntry(
+          id: 'mo_out-r1',
+          vendorId: 'vnd-recon',
+          vendorName: 'Dhanshree solar',
+          transactionDate: DateTime(2026, 11, 22),
+          transactionType: 'MATERIAL_OUTWARD',
+          category: 'MATERIAL',
+          creditAmount: 63809.74,
+          debitAmount: 0.0,
+          referenceNumber: 'OUT-20261126-0001',
+          referenceId: 'out-r1',
+          paymentMode: 'Inventory',
+          particulars: 'Material Outward Dispatch',
+        ),
+        SubVendorAccountLedgerEntry(
+          id: 'a_coll_asg-recon-1',
+          vendorId: 'vnd-recon',
+          vendorName: 'Dhanshree solar',
+          transactionDate: DateTime(2026, 11, 1),
+          transactionType: 'MATERIAL_PAYMENT',
+          category: 'MATERIAL',
+          creditAmount: 0.0,
+          debitAmount: 611111.0,
+          referenceNumber: '123456',
+          referenceId: 'asg-recon-1',
+          paymentMode: 'Bank Transfer',
+          particulars: 'Site Collection',
+        ),
+      ];
+
+      final summary = VendorFinancialSummary.compute(
+        vendorId: 'vnd-recon',
+        vendorCode: 'SIYA-VND',
+        vendorName: 'Dhanshree solar',
+        assignments: [assignment],
+        allMaterials: siteMaterials,
+        allPayouts: [],
+        extraMaterialOutwardCost: 63809.74,
+        extraDirectVendorPayments: 100000.0,
+      );
+
+      final ledger = SubVendorLedgerBuilder.buildLedger(
+        vendorId: 'vnd-recon',
+        vendorName: 'Dhanshree solar',
+        vendorCode: 'SIYA-VND',
+        assignments: [assignment],
+        materials: siteMaterials,
+        payouts: [],
+        customerPayments: const [],
+        materialOutwards: [outward],
+        accountLedgerEntries: accountLedgerEntries,
+      );
+
+      // Summary netSettlementPayable & Chronological Ledger closingBalance MUST match to the paisa
+      expect(summary.combinedMaterialCost, closeTo(294011.74, 0.01));
+      expect(summary.netSettlementPayable, closeTo(ledger.closingBalance, 0.01));
+    });
   });
 }
 

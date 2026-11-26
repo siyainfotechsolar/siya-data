@@ -385,11 +385,34 @@ class SubVendorLedgerBuilder {
         );
       }
 
+      final Set<String> rawMaterialIds = materials.map((m) => m.id).toSet();
+      final Set<String> rawOutwardIds = materialOutwards.map((o) => o.id).toSet();
+      final Set<String> rawPaymentIds = customerPayments.map((p) => p.id).toSet();
+      final Set<String> rawPayoutIds = payouts.map((p) => p.id).toSet();
+      final Set<String> rawAssignmentIds = assignments.map((a) => a.id).toSet();
+
       for (final le in accountLedgerEntries) {
         if (!le.isActive) continue;
         final tType = le.transactionType.toUpperCase();
-        // Skip MATERIAL_OUTWARD here to avoid duplicating section 6B above
-        if (tType == 'MATERIAL_OUTWARD') continue;
+        // Skip synthesized / mirrored rows already sourced from dedicated tables above
+        if (tType == 'MATERIAL_OUTWARD' ||
+            le.id.startsWith('cp_') ||
+            le.id.startsWith('a_coll_') ||
+            le.id.startsWith('vp_') ||
+            le.id.startsWith('vmt_') ||
+            le.id.startsWith('mo_') ||
+            le.id.startsWith('cpt_')) {
+          continue;
+        }
+        final refId = le.referenceId;
+        if (refId != null &&
+            (rawMaterialIds.contains(refId) ||
+                rawOutwardIds.contains(refId) ||
+                rawPaymentIds.contains(refId) ||
+                rawPayoutIds.contains(refId) ||
+                rawAssignmentIds.contains(refId))) {
+          continue;
+        }
 
         if (tType == 'MATERIAL_PAYMENT' || tType == 'ADVANCE_REFUND') {
           final amt = le.debitAmount > 0 ? le.debitAmount : le.creditAmount;

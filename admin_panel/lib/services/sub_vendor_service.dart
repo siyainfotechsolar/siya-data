@@ -464,6 +464,24 @@ class SubVendorService {
     }
   }
 
+  /// Fetch all material transactions across ALL sub-vendors centrally
+  static Future<List<VendorMaterialTransaction>> fetchAllVendorMaterials() async {
+    try {
+      final response = await _client
+          .from('vendor_material_transactions')
+          .select('*')
+          .order('transaction_date', ascending: false);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data
+          .map((json) => VendorMaterialTransaction.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.fetchAllVendorMaterials: $e\n$stack');
+      rethrow;
+    }
+  }
+
   /// Record a material issue or return
   static Future<VendorMaterialTransaction> recordMaterialTransaction(
     VendorMaterialTransaction tx,
@@ -532,6 +550,39 @@ class SubVendorService {
       }).toList();
     } catch (e, stack) {
       debugPrint('Error in SubVendorService.fetchVendorPayouts: $e\n$stack');
+      rethrow;
+    }
+  }
+
+  /// Fetch all vendor payouts across ALL sub-vendors centrally
+  static Future<List<VendorPayout>> fetchAllVendorPayouts() async {
+    try {
+      final response = await _client
+          .from('vendor_payouts')
+          .select('''
+            *,
+            vendor_site_assignments!assignment_id (
+              consumer_records!customer_id (
+                consumer_no,
+                name
+              )
+            )
+          ''')
+          .order('payout_date', ascending: false);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data.map((json) {
+        final map = Map<String, dynamic>.from(json as Map);
+        final assignment = map['vendor_site_assignments'] as Map<String, dynamic>?;
+        final customer = assignment?['consumer_records'] as Map<String, dynamic>?;
+        if (customer != null) {
+          map['consumer_no'] = customer['consumer_no'];
+          map['customer_name'] = customer['name'];
+        }
+        return VendorPayout.fromJson(map);
+      }).toList();
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.fetchAllVendorPayouts: $e\n$stack');
       rethrow;
     }
   }
@@ -632,13 +683,168 @@ class SubVendorService {
     }
   }
 
-  /// Calculates full financial summary for a sub-vendor
+  /// Fetch active unallocated Material Outwards & non-duplicated direct ledger payments/advances
+  /// for a sub-vendor (or all vendors if vendorId is null/empty).
+  static Future<Map<String, double>> fetchVendorCentralLedgerExtras({
+    String? vendorId,
+    Set<String> knownRawIds = const {},
+  }) async {
+    double outwardCost = 0.0;
+    double directPayments = 0.0;
+    double directAdvancesGiven = 0.0;
+    double directAdvanceRefunds = 0.0;
+
+    final Set<String> outwardIds = {};
+    try {
+      var moQuery = _client
+          .from('sub_vendor_material_outwards')
+          .select('id, vendor_id, total_value, status')
+          .eq('status', 'Active');
+      if (vendorId != null && vendorId.isNotEmpty) {
+        moQuery = moQuery.eq('vendor_id', vendorId);
+      }
+      final moRes = await moQuery;
+      for (final row in (moRes as List<dynamic>)) {
+        final map = row as Map<String, dynamic>;
+        final id = map['id'] as String? ?? '';
+        if (id.isNotEmpty) outwardIds.add(id);
+        outwardCost += (map['total_value'] as num?)?.toDouble() ?? 0.0;
+      }
+    } catch (e) {
+      debugPrint('Notice: fetchVendorCentralLedgerExtras outwards ($e)');
+    }
+
+    try {
+      var ledgerQuery = _client
+          .from('sub_vendor_account_ledger')
+          .select('id, vendor_id, transaction_type, credit_amount, debit_amount, reference_id, status')
+          .eq('status', 'Active');
+      if (vendorId != null && vendorId.isNotEmpty) {
+        ledgerQuery = ledgerQuery.eq('vendor_id', vendorId);
+      }
+      final ledgerRes = await ledgerQuery;
+      final Set<String> allKnownRefs = {...knownRawIds, ...outwardIds};
+      for (final row in (ledgerRes as List<dynamic>)) {
+        final map = row as Map<String, dynamic>;
+        final refId = map['reference_id'] as String?;
+        if (refId != null && allKnownRefs.contains(refId)) continue;
+        final tType = (map['transaction_type'] as String? ?? '').toUpperCase();
+        final credit = (map['credit_amount'] as num?)?.toDouble() ?? 0.0;
+        final debit = (map['debit_amount'] as num?)?.toDouble() ?? 0.0;
+        if (tType == 'MATERIAL_PAYMENT') {
+          directPayments += debit > 0 ? debit : credit;
+        } else if (tType == 'ADVANCE_GIVEN') {
+          directAdvancesGiven += debit > 0 ? debit : credit;
+        } else if (tType == 'ADVANCE_REFUND') {
+          directAdvanceRefunds += credit > 0 ? credit : debit;
+        } else if (tType == 'MATERIAL_OUTWARD') {
+          outwardCost += credit > 0 ? credit : debit;
+        }
+      }
+    } catch (e) {
+      debugPrint('Notice: fetchVendorCentralLedgerExtras ledger ($e)');
+    }
+
+    return {
+      'materialOutwardCost': double.parse(outwardCost.toStringAsFixed(2)),
+      'directVendorPayments': double.parse(directPayments.toStringAsFixed(2)),
+      'directAdvancesGiven': double.parse(directAdvancesGiven.toStringAsFixed(2)),
+      'directAdvanceRefunds': double.parse(directAdvanceRefunds.toStringAsFixed(2)),
+    };
+  }
+
+  /// Fetch centralized unallocated Outwards & non-duplicated direct ledger payments/advances
+  /// grouped by vendorId across ALL sub-vendors in just two queries.
+  static Future<Map<String, Map<String, double>>> fetchAllVendorCentralLedgerExtras({
+    Set<String> knownRawIds = const {},
+  }) async {
+    final Map<String, Map<String, double>> byVendor = {};
+    final Set<String> outwardIds = {};
+
+    Map<String, double> _bucket(String vid) => byVendor.putIfAbsent(vid, () => {
+      'materialOutwardCost': 0.0,
+      'directVendorPayments': 0.0,
+      'directAdvancesGiven': 0.0,
+      'directAdvanceRefunds': 0.0,
+    });
+
+    try {
+      final moRes = await _client
+          .from('sub_vendor_material_outwards')
+          .select('id, vendor_id, total_value, status')
+          .eq('status', 'Active');
+      for (final row in (moRes as List<dynamic>)) {
+        final map = row as Map<String, dynamic>;
+        final vid = map['vendor_id'] as String? ?? '';
+        final id = map['id'] as String? ?? '';
+        if (vid.isEmpty) continue;
+        if (id.isNotEmpty) outwardIds.add(id);
+        final b = _bucket(vid);
+        b['materialOutwardCost'] = (b['materialOutwardCost'] ?? 0.0) +
+            ((map['total_value'] as num?)?.toDouble() ?? 0.0);
+      }
+    } catch (e) {
+      debugPrint('Notice: fetchAllVendorCentralLedgerExtras outwards ($e)');
+    }
+
+    try {
+      final ledgerRes = await _client
+          .from('sub_vendor_account_ledger')
+          .select('id, vendor_id, transaction_type, credit_amount, debit_amount, reference_id, status')
+          .eq('status', 'Active');
+      final Set<String> allKnownRefs = {...knownRawIds, ...outwardIds};
+      for (final row in (ledgerRes as List<dynamic>)) {
+        final map = row as Map<String, dynamic>;
+        final vid = map['vendor_id'] as String? ?? '';
+        if (vid.isEmpty) continue;
+        final refId = map['reference_id'] as String?;
+        if (refId != null && allKnownRefs.contains(refId)) continue;
+        final tType = (map['transaction_type'] as String? ?? '').toUpperCase();
+        final credit = (map['credit_amount'] as num?)?.toDouble() ?? 0.0;
+        final debit = (map['debit_amount'] as num?)?.toDouble() ?? 0.0;
+        final b = _bucket(vid);
+        if (tType == 'MATERIAL_PAYMENT') {
+          b['directVendorPayments'] = (b['directVendorPayments'] ?? 0.0) + (debit > 0 ? debit : credit);
+        } else if (tType == 'ADVANCE_GIVEN') {
+          b['directAdvancesGiven'] = (b['directAdvancesGiven'] ?? 0.0) + (debit > 0 ? debit : credit);
+        } else if (tType == 'ADVANCE_REFUND') {
+          b['directAdvanceRefunds'] = (b['directAdvanceRefunds'] ?? 0.0) + (credit > 0 ? credit : debit);
+        } else if (tType == 'MATERIAL_OUTWARD') {
+          b['materialOutwardCost'] = (b['materialOutwardCost'] ?? 0.0) + (credit > 0 ? credit : debit);
+        }
+      }
+    } catch (e) {
+      debugPrint('Notice: fetchAllVendorCentralLedgerExtras ledger ($e)');
+    }
+
+    return byVendor;
+  }
+
+  /// Calculates full financial summary for a sub-vendor (centralized with Outwards & Direct Ledger Entries)
   static Future<VendorFinancialSummary> getVendorFinancialSummary(String vendorId) async {
     try {
-      final vendor = await fetchVendorById(vendorId);
-      final assignments = await fetchAssignments(vendorId: vendorId);
-      final materials = await fetchVendorMaterials(vendorId);
-      final payouts = await fetchVendorPayouts(vendorId);
+      final results = await Future.wait([
+        fetchVendorById(vendorId),
+        fetchAssignments(vendorId: vendorId),
+        fetchVendorMaterials(vendorId),
+        fetchVendorPayouts(vendorId),
+        fetchCustomerPayments(vendorId: vendorId),
+      ]);
+      final vendor = results[0] as SubVendor?;
+      final assignments = results[1] as List<VendorSiteAssignment>;
+      final materials = results[2] as List<VendorMaterialTransaction>;
+      final payouts = results[3] as List<VendorPayout>;
+      final customerPayments = results[4] as List<VendorCustomerPayment>;
+
+      final extras = await fetchVendorCentralLedgerExtras(
+        vendorId: vendorId,
+        knownRawIds: {
+          ...assignments.map((a) => a.id),
+          ...materials.map((m) => m.id),
+          ...payouts.map((p) => p.id),
+          ...customerPayments.map((c) => c.id),
+        },
+      );
 
       return VendorFinancialSummary.compute(
         vendorId: vendorId,
@@ -647,6 +853,10 @@ class SubVendorService {
         assignments: assignments,
         allMaterials: materials,
         allPayouts: payouts,
+        extraMaterialOutwardCost: extras['materialOutwardCost'] ?? 0.0,
+        extraDirectVendorPayments: extras['directVendorPayments'] ?? 0.0,
+        extraDirectAdvancesGiven: extras['directAdvancesGiven'] ?? 0.0,
+        extraDirectAdvanceRefunds: extras['directAdvanceRefunds'] ?? 0.0,
       );
     } catch (e, stack) {
       debugPrint('Error in SubVendorService.getVendorFinancialSummary: $e\n$stack');

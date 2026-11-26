@@ -211,6 +211,63 @@ class SubVendorService {
     final materials = await fetchVendorMaterials(vendorId);
     final payouts = await fetchVendorPayouts(vendorId);
 
+    double extraOutwardCost = 0.0;
+    double extraDirectPayments = 0.0;
+    double extraDirectAdvances = 0.0;
+    double extraDirectRefunds = 0.0;
+
+    if (client != null) {
+      final Set<String> outwardIds = {};
+      try {
+        final moRes = await client
+            .from('sub_vendor_material_outwards')
+            .select('id, total_value, status')
+            .eq('vendor_id', vendorId)
+            .eq('status', 'Active');
+        for (final row in (moRes as List<dynamic>)) {
+          final map = row as Map<String, dynamic>;
+          final id = map['id'] as String? ?? '';
+          if (id.isNotEmpty) outwardIds.add(id);
+          extraOutwardCost += (map['total_value'] as num?)?.toDouble() ?? 0.0;
+        }
+      } catch (e) {
+        debugPrint('Notice: fetchVendorSummary outwards check ($e)');
+      }
+
+      try {
+        final knownIds = <String>{
+          ...materials.map((m) => m.id),
+          ...payouts.map((p) => p.id),
+          ...assignments.map((a) => a.id),
+          ...outwardIds,
+        };
+        final ledgerRes = await client
+            .from('sub_vendor_account_ledger')
+            .select('id, transaction_type, credit_amount, debit_amount, reference_id, status')
+            .eq('vendor_id', vendorId)
+            .eq('status', 'Active');
+        for (final row in (ledgerRes as List<dynamic>)) {
+          final map = row as Map<String, dynamic>;
+          final refId = map['reference_id'] as String?;
+          if (refId != null && knownIds.contains(refId)) continue;
+          final tType = (map['transaction_type'] as String? ?? '').toUpperCase();
+          final credit = (map['credit_amount'] as num?)?.toDouble() ?? 0.0;
+          final debit = (map['debit_amount'] as num?)?.toDouble() ?? 0.0;
+          if (tType == 'MATERIAL_PAYMENT') {
+            extraDirectPayments += debit > 0 ? debit : credit;
+          } else if (tType == 'ADVANCE_GIVEN') {
+            extraDirectAdvances += debit > 0 ? debit : credit;
+          } else if (tType == 'ADVANCE_REFUND') {
+            extraDirectRefunds += credit > 0 ? credit : debit;
+          } else if (tType == 'MATERIAL_OUTWARD') {
+            extraOutwardCost += credit > 0 ? credit : debit;
+          }
+        }
+      } catch (e) {
+        debugPrint('Notice: fetchVendorSummary ledger check ($e)');
+      }
+    }
+
     return VendorFinancialSummary.compute(
       vendorId: vendorId,
       vendorCode: vendorObj?.vendorCode ?? 'VND',
@@ -218,6 +275,10 @@ class SubVendorService {
       assignments: assignments,
       allMaterials: materials,
       allPayouts: payouts,
+      extraMaterialOutwardCost: extraOutwardCost,
+      extraDirectVendorPayments: extraDirectPayments,
+      extraDirectAdvancesGiven: extraDirectAdvances,
+      extraDirectAdvanceRefunds: extraDirectRefunds,
     );
   }
 

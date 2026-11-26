@@ -498,5 +498,194 @@ void main() {
       expect(searched.length, equals(1));
       expect(searched.first.referenceNumber, equals('PAY-SEARCH-BETA'));
     });
+
+    test('Scenario 11: Central merger includes Outwards, Site Materials, CRM/Loan Collections & Payouts with zero duplicates', () {
+      const vendorId = 'vnd-central-1';
+      const vendorName = 'Dhanshree solar';
+
+      final manualEntries = [
+        SubVendorAccountLedgerEntry(
+          id: 'man-9319',
+          vendorId: vendorId,
+          vendorName: vendorName,
+          transactionDate: DateTime(2026, 11, 24),
+          transactionType: 'MATERIAL_PAYMENT',
+          category: 'MATERIAL',
+          creditAmount: 0.0,
+          debitAmount: 50000.0,
+          referenceNumber: '9319',
+          paymentMode: 'Bank Transfer',
+          particulars: 'Payments Received',
+        ),
+        SubVendorAccountLedgerEntry(
+          id: 'man-3793',
+          vendorId: vendorId,
+          vendorName: vendorName,
+          transactionDate: DateTime(2026, 11, 25),
+          transactionType: 'MATERIAL_PAYMENT',
+          category: 'MATERIAL',
+          creditAmount: 0.0,
+          debitAmount: 50000.0,
+          referenceNumber: '3793',
+          paymentMode: 'Bank Transfer',
+          particulars: 'Payments Received',
+        ),
+      ];
+
+      final rawOutwards = [
+        {
+          'id': 'out-uuid-1',
+          'vendor_id': vendorId,
+          'vendor_name': vendorName,
+          'outward_date': '2026-11-22',
+          'outward_number': 'OUT-20261126-0001',
+          'total_items': 1,
+          'total_quantity': 618.0,
+          'total_value': 63809.74,
+          'status': 'Active',
+        },
+      ];
+
+      final siteMaterials = [
+        VendorMaterialTransaction(
+          id: 'vmt-uuid-1',
+          assignmentId: 'asg-1',
+          vendorId: vendorId,
+          customerId: 'cust-1',
+          transactionType: 'ISSUE',
+          itemName: '550W Solar Panels',
+          itemCategory: 'SOLAR_PANEL',
+          quantity: 10,
+          unitRate: 21924.0,
+          taxableAmount: 219240.0,
+          gstRate: 5.0,
+          gstAmount: 10962.0,
+          totalAmount: 230202.0,
+          transactionDate: DateTime(2026, 11, 15),
+        ),
+      ];
+
+      final assignments = [
+        VendorSiteAssignment(
+          id: 'asg-1',
+          vendorId: vendorId,
+          customerId: 'cust-1',
+          customerName: 'Pandurang Kshirsagar',
+          consumerNo: 'CONS-001',
+          assignedDate: DateTime(2026, 11, 10),
+          siteCapacityKw: 6.0,
+          paymentType: 'Part Cash + Part Loan',
+          totalCustomerSiteAmount: 611111.0,
+          totalLoanCredited: 240000.0,
+          totalCashReceived: 371111.0,
+          totalCustomerReceived: 611111.0,
+        ),
+      ];
+
+      final customerPayments = [
+        VendorCustomerPayment(
+          id: 'cp-uuid-loan',
+          assignmentId: 'asg-1',
+          vendorId: vendorId,
+          customerId: 'cust-1',
+          customerName: 'Pandurang Kshirsagar',
+          paymentType: 'BANK_LOAN',
+          paymentStage: 'LOAN_CREDIT',
+          amount: 240000.0,
+          paymentDate: DateTime(2026, 11, 20),
+          paymentMode: 'Bank Transfer',
+          referenceNumber: 'LOAN-UTR-240K',
+          bankName: 'SBI',
+          status: 'Approved',
+        ),
+      ];
+
+      // Include one CRM payment matching cp-uuid-loan (must be deduplicated) and one separate cash CRM payment
+      final crmPayments = [
+        {
+          'id': 'cpt-dup',
+          'customer_id': 'cust-1',
+          'amount': 240000.0,
+          'payment_date': '2026-11-20',
+          'payment_mode': 'Bank Transfer',
+          'payment_type': '2nd Payment',
+          'reference_number': 'LOAN-UTR-240K',
+          'status': 'Valid',
+          'deleted': false,
+          'verification_status': 'Verified',
+        },
+        {
+          'id': 'cpt-cash-1',
+          'customer_id': 'cust-1',
+          'amount': 371111.0,
+          'payment_date': '2026-11-18',
+          'payment_mode': 'Cash',
+          'payment_type': '1st Payment',
+          'reference_number': 'CASH-1',
+          'status': 'Valid',
+          'deleted': false,
+          'verification_status': 'Verified',
+        },
+      ];
+
+      final payouts = [
+        VendorPayout(
+          id: 'vp-uuid-1',
+          vendorId: vendorId,
+          vendorName: vendorName,
+          payoutDate: DateTime(2026, 11, 21),
+          amount: 10000.0,
+          paymentMode: 'Bank Transfer',
+          referenceNumber: 'PAYOUT-10K',
+          status: 'Paid',
+        ),
+      ];
+
+      // First merge (simulating fallback or partial 000049 view):
+      final merged = SubVendorAccountLedgerService.mergeSupplementalLedgerEntries(
+        baseEntries: manualEntries,
+        vendorNameMap: {vendorId: vendorName},
+        rawOutwards: rawOutwards,
+        siteMaterials: siteMaterials,
+        customerPayments: customerPayments,
+        assignments: assignments,
+        crmPaymentsRaw: crmPayments,
+        payouts: payouts,
+      );
+
+      // Should contain:
+      // 2 manual payments (50k + 50k)
+      // + 1 outward (63,809.74)
+      // + 1 site material (2,30,202)
+      // + 1 bank loan cp (2,40,000)
+      // + 1 CRM cash payment cpt-cash-1 (3,71,111) -- cpt-dup skipped & a_coll residual is 0!
+      // + 1 vendor payout vp-uuid-1 (10,000)
+      // = 7 entries
+      expect(merged.length, equals(7));
+      expect(merged.any((e) => e.id == 'mo_out-uuid-1'), isTrue);
+      expect(merged.any((e) => e.id == 'vmt_vmt-uuid-1'), isTrue);
+      expect(merged.any((e) => e.id == 'cp_cp-uuid-loan'), isTrue);
+      expect(merged.any((e) => e.id.startsWith('cpt_cpt-cash-1_')), isTrue);
+      expect(merged.any((e) => e.id.startsWith('cpt_cpt-dup_')), isFalse);
+      expect(merged.any((e) => e.id == 'a_coll_asg-1'), isFalse);
+
+      // Re-running merge on already unified rows must yield exact same 7 entries (0 duplicates)
+      final secondPass = SubVendorAccountLedgerService.mergeSupplementalLedgerEntries(
+        baseEntries: merged,
+        vendorNameMap: {vendorId: vendorName},
+        rawOutwards: rawOutwards,
+        siteMaterials: siteMaterials,
+        customerPayments: customerPayments,
+        assignments: assignments,
+        crmPaymentsRaw: crmPayments,
+        payouts: payouts,
+      );
+      expect(secondPass.length, equals(7));
+
+      final double totCr = merged.fold(0.0, (s, e) => s + e.creditAmount);
+      final double totDr = merged.fold(0.0, (s, e) => s + e.debitAmount);
+      expect(totCr, closeTo(294011.74, 0.01)); // 63,809.74 + 2,30,202.00
+      expect(totDr, closeTo(721111.0, 0.01)); // 1,00,000 + 2,40,000 + 3,71,111 + 10,000
+    });
   });
 }

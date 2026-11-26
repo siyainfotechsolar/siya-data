@@ -411,12 +411,71 @@ class _SubVendorCompleteFinancialDashboardScreenState
     );
   }
 
-  void _exportFinalSettlementCsv() {
+  ({
+    double effectiveCollection,
+    double siteMaterialCost,
+    double outwardMaterialCost,
+    double combinedMaterialCost,
+    double directVendorPayments,
+    double directAdvancesGiven,
+    double directAdvanceRefunds,
+    double vendorCharges,
+    double otherExpenses,
+    double totalCustomerOutputGst,
+    double totalEligibleItc,
+    double netGstLiability,
+    double approvedGstRecovery,
+    double previousPayouts,
+    double totalAdvancesPaid,
+    double netEntitlement,
+    double finalBalance,
+  }) _computeCentralSettlement() {
     final s = _summary;
-    final totalCollection = _assignments.fold<double>(0.0, (acc, a) => acc + a.totalCustomerReceived);
-    final totalMaterialCost = s?.totalMaterialCost ?? 0.0;
-    final vendorCharges = s?.totalVendorCharges ?? 0.0;
-    final otherExpenses = s?.totalOtherExpenses ?? 0.0;
+    final effectiveCollection = _assignments.fold<double>(0.0, (acc, a) => acc + a.effectiveReceivedAmount);
+    final siteMaterialCost = _materials.fold<double>(0.0, (acc, m) => acc + m.signedTotal);
+
+    double outwardMaterialCost = _materialOutwards
+        .where((o) => o.status == 'Active')
+        .fold<double>(0.0, (acc, o) => acc + o.totalValue);
+
+    final knownRawIds = <String>{
+      ..._assignments.map((a) => a.id),
+      ..._materials.map((m) => m.id),
+      ..._payouts.map((p) => p.id),
+      ..._customerPayments.map((c) => c.id),
+      ..._materialOutwards.map((o) => o.id),
+    };
+
+    double directVendorPayments = 0.0;
+    double directAdvancesGiven = 0.0;
+    double directAdvanceRefunds = 0.0;
+
+    for (final le in _accountLedgerEntries) {
+      if (!le.isActive) continue;
+      if (le.id.startsWith('mo_') ||
+          le.id.startsWith('vmt_') ||
+          le.id.startsWith('cp_') ||
+          le.id.startsWith('cpt_') ||
+          le.id.startsWith('a_coll_') ||
+          le.id.startsWith('vp_')) {
+        continue;
+      }
+      if (le.referenceId != null && knownRawIds.contains(le.referenceId)) continue;
+      final tType = le.transactionType.toUpperCase();
+      if (tType == 'MATERIAL_PAYMENT') {
+        directVendorPayments += le.debitAmount > 0 ? le.debitAmount : le.creditAmount;
+      } else if (tType == 'ADVANCE_GIVEN') {
+        directAdvancesGiven += le.debitAmount > 0 ? le.debitAmount : le.creditAmount;
+      } else if (tType == 'ADVANCE_REFUND') {
+        directAdvanceRefunds += le.creditAmount > 0 ? le.creditAmount : le.debitAmount;
+      } else if (tType == 'MATERIAL_OUTWARD') {
+        outwardMaterialCost += le.creditAmount > 0 ? le.creditAmount : le.debitAmount;
+      }
+    }
+
+    final combinedMaterialCost = siteMaterialCost + outwardMaterialCost;
+    final vendorCharges = _assignments.fold<double>(0.0, (acc, a) => acc + a.vendorCharges);
+    final otherExpenses = _assignments.fold<double>(0.0, (acc, a) => acc + a.otherExpenses);
     final totalCustomerOutputGst = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.totalGstIncluded);
     final totalEligibleItc = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcEligible);
     final netGstLiability = (totalCustomerOutputGst - totalEligibleItc) > 0
@@ -425,10 +484,50 @@ class _SubVendorCompleteFinancialDashboardScreenState
     final approvedGstRecovery = _gstRecoveries
         .where((r) => r.isApproved || r.isCollected)
         .fold<double>(0.0, (acc, r) => acc + r.totalRecovery);
-    final previousPayments = s?.totalPaidAmount ?? 0.0;
+    final previousPayouts = s?.totalPaidAmount ?? _payouts.fold<double>(0.0, (acc, p) => acc + p.amount);
+    final totalAdvancesPaid = previousPayouts + directAdvancesGiven;
 
-    final netSubVendorEntitlement = totalCollection - totalMaterialCost - vendorCharges - otherExpenses - netGstLiability - approvedGstRecovery;
-    final finalBalance = netSubVendorEntitlement - previousPayments;
+    final netEntitlement = effectiveCollection +
+        directVendorPayments +
+        directAdvanceRefunds -
+        combinedMaterialCost -
+        vendorCharges -
+        otherExpenses -
+        netGstLiability -
+        approvedGstRecovery;
+    final finalBalance = netEntitlement - totalAdvancesPaid;
+
+    return (
+      effectiveCollection: effectiveCollection,
+      siteMaterialCost: siteMaterialCost,
+      outwardMaterialCost: outwardMaterialCost,
+      combinedMaterialCost: combinedMaterialCost,
+      directVendorPayments: directVendorPayments,
+      directAdvancesGiven: directAdvancesGiven,
+      directAdvanceRefunds: directAdvanceRefunds,
+      vendorCharges: vendorCharges,
+      otherExpenses: otherExpenses,
+      totalCustomerOutputGst: totalCustomerOutputGst,
+      totalEligibleItc: totalEligibleItc,
+      netGstLiability: netGstLiability,
+      approvedGstRecovery: approvedGstRecovery,
+      previousPayouts: previousPayouts,
+      totalAdvancesPaid: totalAdvancesPaid,
+      netEntitlement: netEntitlement,
+      finalBalance: finalBalance,
+    );
+  }
+
+  void _exportFinalSettlementCsv() {
+    final calc = _computeCentralSettlement();
+    final totalCollection = calc.effectiveCollection;
+    final vendorCharges = calc.vendorCharges;
+    final otherExpenses = calc.otherExpenses;
+    final netGstLiability = calc.netGstLiability;
+    final approvedGstRecovery = calc.approvedGstRecovery;
+    final previousPayments = calc.totalAdvancesPaid;
+    final netSubVendorEntitlement = calc.netEntitlement;
+    final finalBalance = calc.finalBalance;
 
     final rows = <List<dynamic>>[
       ['SIYA INFOTECH & SOLAR ENERGY - SUB-VENDOR FINAL SETTLEMENT REPORT'],
@@ -439,13 +538,19 @@ class _SubVendorCompleteFinancialDashboardScreenState
       [],
       ['SETTLEMENT SUMMARY COMPONENT', 'AMOUNT (₹)'],
       ['Total Actual Realized Collections (Loan Credited + Cash Received)', totalCollection],
-      ['Less: Total Material Issued (Net of Returns)', -totalMaterialCost],
+      ['Less: Site-wise Materials Issued (Net of Returns)', -calc.siteMaterialCost],
+      if (calc.outwardMaterialCost > 0)
+        ['Less: Unallocated Material Outwards (Inventory)', -calc.outwardMaterialCost],
+      if (calc.directVendorPayments > 0)
+        ['Add: Direct Material Payments Paid to SIYA', calc.directVendorPayments],
+      if (calc.directAdvanceRefunds > 0)
+        ['Add: Direct Advance Refunds Received from Vendor', calc.directAdvanceRefunds],
       ['Less: SIYA Vendor Platform Fee (₹1,000/kW)', -vendorCharges],
       ['Less: Statutory Net GST Liability (70:30 Rule - Eligible ITC)', -netGstLiability],
       ['Less: Other Approved Site Expenses', -otherExpenses],
       ['Less: Approved Contractual GST Recovery', -approvedGstRecovery],
       ['Net Sub-Vendor Contract Entitlement', netSubVendorEntitlement],
-      ['Less: Previous Advances / Bank Payouts Already Paid', -previousPayments],
+      ['Less: Previous Advances & Bank Payouts Already Paid', -previousPayments],
       [
         finalBalance >= 0 ? 'FINAL AMOUNT PAYABLE TO SUB-VENDOR' : 'AMOUNT RECOVERABLE FROM SUB-VENDOR',
         finalBalance.abs(),
@@ -872,25 +977,21 @@ class _SubVendorCompleteFinancialDashboardScreenState
         .where((r) => r.isCollected)
         .fold<double>(0.0, (acc, r) => acc + r.totalRecovery);
 
+    final calc = _computeCentralSettlement();
+
     // Section D: Material Summary
-    final totalMaterialCost = _materials.fold<double>(0.0, (acc, m) => acc + m.signedTotal);
-    final materialIssuedValue = _materials.where((m) => m.isIssue).fold<double>(0.0, (acc, m) => acc + m.totalAmount);
+    final totalMaterialCost = calc.combinedMaterialCost;
+    final materialIssuedValue = _materials.where((m) => m.isIssue).fold<double>(0.0, (acc, m) => acc + m.totalAmount) + calc.outwardMaterialCost;
     final materialReturnedValue = _materials.where((m) => m.isReturn).fold<double>(0.0, (acc, m) => acc + m.totalAmount);
 
     // Section E: Settlement Summary
-    final totalRealizedCollection = _assignments.fold<double>(0.0, (acc, a) => acc + a.effectiveReceivedAmount);
-    final vendorCharges = _assignments.fold<double>(0.0, (acc, a) => acc + a.vendorCharges);
-    final otherExpenses = _assignments.fold<double>(0.0, (acc, a) => acc + a.otherExpenses);
-    final previousPayments = s.totalPaidAmount;
+    final vendorCharges = calc.vendorCharges;
+    final otherExpenses = calc.otherExpenses;
+    final previousPayments = calc.totalAdvancesPaid;
 
-    // Option A Final Net Balance:
-    // Realized Collection - Material Cost - SIYA Platform Charges (₹1,000/kW) - Net GST Liability - Other Expenses - Approved GST Recovery - Previous Advances
-    final effectiveCollection = totalRealizedCollection;
-    final netGstLiability = (totalCustomerOutputGst - totalEligibleItc) > 0
-        ? (totalCustomerOutputGst - totalEligibleItc)
-        : 0.0;
-    final netSubVendorEntitlement = effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - netGstLiability - approvedGstRecovery;
-    final finalBalance = netSubVendorEntitlement - previousPayments;
+    // Option A Final Net Balance (Unified with Material Outwards & Direct Ledger Payments):
+    final effectiveCollection = calc.effectiveCollection;
+    final finalBalance = calc.finalBalance;
 
     final isPayable = finalBalance >= 0;
 
@@ -983,14 +1084,18 @@ class _SubVendorCompleteFinancialDashboardScreenState
                   runSpacing: 8,
                   children: [
                     _buildBannerFormulaChip('Realized Collection', _currency.format(effectiveCollection), Colors.white),
-                    _buildBannerFormulaChip('Material Cost', '- ${_currency.format(totalMaterialCost)}', const Color(0xFFFECACA)),
+                    _buildBannerFormulaChip('Site Materials', '- ${_currency.format(calc.siteMaterialCost)}', const Color(0xFFFECACA)),
+                    if (calc.outwardMaterialCost > 0)
+                      _buildBannerFormulaChip('Material Outward', '- ${_currency.format(calc.outwardMaterialCost)}', const Color(0xFFFECACA)),
+                    if (calc.directVendorPayments > 0)
+                      _buildBannerFormulaChip('Direct Paid to SIYA', '+ ${_currency.format(calc.directVendorPayments)}', const Color(0xFFA7F3D0)),
                     _buildBannerFormulaChip('SIYA Fee (₹1,000/kW)', '- ${_currency.format(vendorCharges)}', const Color(0xFFFED7AA)),
-                    _buildBannerFormulaChip('Net GST Liability', '- ${_currency.format(netGstLiability)}', const Color(0xFFFDE68A)),
+                    _buildBannerFormulaChip('Net GST Liability', '- ${_currency.format(calc.netGstLiability)}', const Color(0xFFFDE68A)),
                     if (approvedGstRecovery > 0)
                       _buildBannerFormulaChip('Approved GST Recovery', '- ${_currency.format(approvedGstRecovery)}', const Color(0xFFFDE68A)),
                     if (otherExpenses > 0)
                       _buildBannerFormulaChip('Approved Expenses', '- ${_currency.format(otherExpenses)}', const Color(0xFFE9D5FF)),
-                    _buildBannerFormulaChip('Previous Advances', '- ${_currency.format(previousPayments)}', const Color(0xFFBFDBFE)),
+                    _buildBannerFormulaChip('Advances Paid', '- ${_currency.format(previousPayments)}', const Color(0xFFBFDBFE)),
                   ],
                 ),
               ],
@@ -1077,7 +1182,10 @@ class _SubVendorCompleteFinancialDashboardScreenState
             spacing: 12,
             runSpacing: 12,
             children: [
-              _buildMetricCard('Net Material Cost', _currency.format(totalMaterialCost), Icons.inventory_2, const Color(0xFFDC2626)),
+              _buildMetricCard('Combined Material Cost', _currency.format(totalMaterialCost), Icons.inventory_2, const Color(0xFFDC2626)),
+              _buildMetricCard('Site Materials (Net)', _currency.format(calc.siteMaterialCost), Icons.home_repair_service, const Color(0xFFB91C1C)),
+              if (calc.outwardMaterialCost > 0)
+                _buildMetricCard('Material Outward (OUT)', _currency.format(calc.outwardMaterialCost), Icons.local_shipping_outlined, const Color(0xFF9333EA)),
               _buildMetricCard('Purchase Invoice GST', _currency.format(totalMaterialGst), Icons.receipt, const Color(0xFFEA580C)),
               _buildMetricCard('Issued Material Value', _currency.format(materialIssuedValue), Icons.upload_outlined, const Color(0xFF0F172A)),
               _buildMetricCard('Material Return Value', _currency.format(materialReturnedValue), Icons.assignment_return, const Color(0xFF059669)),
@@ -1096,8 +1204,15 @@ class _SubVendorCompleteFinancialDashboardScreenState
               child: Column(
                 children: [
                   _buildSettlementRow('Total Actual Realized Collections', _currency.format(effectiveCollection), isPositive: true),
-                  _buildSettlementRow('Less: Total Material Cost (Net of Returns)', '- ${_currency.format(totalMaterialCost)}', isPositive: false),
+                  _buildSettlementRow('Less: Site Material Cost (Net of Returns)', '- ${_currency.format(calc.siteMaterialCost)}', isPositive: false),
+                  if (calc.outwardMaterialCost > 0)
+                    _buildSettlementRow('Less: Unallocated Material Outwards (Inventory)', '- ${_currency.format(calc.outwardMaterialCost)}', isPositive: false),
+                  if (calc.directVendorPayments > 0)
+                    _buildSettlementRow('Add: Direct Material Payments Paid to SIYA', '+ ${_currency.format(calc.directVendorPayments)}', isPositive: true),
+                  if (calc.directAdvanceRefunds > 0)
+                    _buildSettlementRow('Add: Direct Advance Refunds Received', '+ ${_currency.format(calc.directAdvanceRefunds)}', isPositive: true),
                   _buildSettlementRow('Less: SIYA Platform Charges (₹1,000/kW)', '- ${_currency.format(vendorCharges)}', isPositive: false),
+                  _buildSettlementRow('Less: Statutory Net GST Liability (70:30 - Eligible ITC)', '- ${_currency.format(calc.netGstLiability)}', isPositive: false),
                   _buildSettlementRow('Less: Other Approved Site Expenses', '- ${_currency.format(otherExpenses)}', isPositive: false),
                   _buildSettlementRow('Less: Approved Contractual GST Recovery', '- ${_currency.format(approvedGstRecovery)}', isPositive: false),
                   _buildSettlementRow('Less: Previous Advances & Bank Payouts', '- ${_currency.format(previousPayments)}', isPositive: false),
@@ -1497,9 +1612,10 @@ class _SubVendorCompleteFinancialDashboardScreenState
 
   Widget _buildMaterialAccountTab() {
     final s = _summary;
+    final calc = _computeCentralSettlement();
     final m5Total = s?.material5Total ?? 0.0;
     final m18Total = s?.material18Total ?? 0.0;
-    final totalMaterialCost = s?.totalMaterialCost ?? 0.0;
+    final totalMaterialCost = calc.combinedMaterialCost;
     final totalInputGst = s?.totalEligibleInputGst ?? 0.0;
 
     return SingleChildScrollView(
@@ -1514,9 +1630,13 @@ class _SubVendorCompleteFinancialDashboardScreenState
               const SizedBox(width: 12),
               Expanded(child: _buildMetricCard('18% Solar BOS & Structures', _currency.format(m18Total), Icons.construction, const Color(0xFF7C3AED))),
               const SizedBox(width: 12),
+              if (calc.outwardMaterialCost > 0) ...[
+                Expanded(child: _buildMetricCard('Unallocated Outwards', _currency.format(calc.outwardMaterialCost), Icons.local_shipping_outlined, const Color(0xFF9333EA))),
+                const SizedBox(width: 12),
+              ],
               Expanded(child: _buildMetricCard('Eligible Input GST Credit', _currency.format(totalInputGst), Icons.receipt_long, const Color(0xFF059669))),
               const SizedBox(width: 12),
-              Expanded(child: _buildMetricCard('Net Material Deducted', _currency.format(totalMaterialCost), Icons.inventory_2, const Color(0xFFDC2626))),
+              Expanded(child: _buildMetricCard('Combined Material Deducted', _currency.format(totalMaterialCost), Icons.inventory_2, const Color(0xFFDC2626))),
             ],
           ),
           const SizedBox(height: 16),
@@ -2104,30 +2224,26 @@ class _SubVendorCompleteFinancialDashboardScreenState
     final s = _summary;
     if (s == null) return const Center(child: Text('No data'));
 
-    final totalRealizedCollection = _assignments.fold<double>(0.0, (acc, a) => acc + a.effectiveReceivedAmount);
-    final effectiveCollection = totalRealizedCollection;
-    final totalMaterialCost = s.totalMaterialCost;
-    final vendorCharges = s.totalVendorCharges;
-    final otherExpenses = s.totalOtherExpenses;
+    final calc = _computeCentralSettlement();
+    final effectiveCollection = calc.effectiveCollection;
+    final totalMaterialCost = calc.combinedMaterialCost;
+    final vendorCharges = calc.vendorCharges;
+    final otherExpenses = calc.otherExpenses;
 
     // Statutory Net GST Liability (70:30 Output GST on quotation - Eligible Material Input GST Credit)
-    final totalCustomerOutputGst = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.totalGstIncluded);
+    final totalCustomerOutputGst = calc.totalCustomerOutputGst;
     final totalGoodTaxable70 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.taxable70);
     final totalGoodsGst5 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.gst5);
     final totalServicesTaxable30 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.taxable30);
     final totalServicesGst18 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.gst18);
-    final totalEligibleItc = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcEligible);
-    final netGstLiability = (totalCustomerOutputGst - totalEligibleItc) > 0
-        ? (totalCustomerOutputGst - totalEligibleItc)
-        : 0.0;
+    final totalEligibleItc = calc.totalEligibleItc;
+    final netGstLiability = calc.netGstLiability;
 
-    final approvedGstRecovery = _gstRecoveries
-        .where((r) => r.isApproved || r.isCollected)
-        .fold<double>(0.0, (acc, r) => acc + r.totalRecovery);
-    final previousPayments = s.totalPaidAmount;
+    final approvedGstRecovery = calc.approvedGstRecovery;
+    final previousPayments = calc.totalAdvancesPaid;
 
-    final netEntitlement = effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - netGstLiability - approvedGstRecovery;
-    final finalAmount = netEntitlement - previousPayments;
+    final netEntitlement = calc.netEntitlement;
+    final finalAmount = calc.finalBalance;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -2205,7 +2321,13 @@ class _SubVendorCompleteFinancialDashboardScreenState
                   const SizedBox(height: 16),
 
                   _buildSettlementRow('Total Realized Collections (Loan Credited + Cash Received)', _currency.format(effectiveCollection), isPositive: true),
-                  _buildSettlementRow('Less: Total Material Issued (Net of Returns)', '- ${_currency.format(totalMaterialCost)}', isPositive: false),
+                  _buildSettlementRow('Less: Site Materials Issued (Net of Returns)', '- ${_currency.format(calc.siteMaterialCost)}', isPositive: false),
+                  if (calc.outwardMaterialCost > 0)
+                    _buildSettlementRow('Less: Unallocated Material Outwards (Inventory)', '- ${_currency.format(calc.outwardMaterialCost)}', isPositive: false),
+                  if (calc.directVendorPayments > 0)
+                    _buildSettlementRow('Add: Direct Material Payments Paid to SIYA', '+ ${_currency.format(calc.directVendorPayments)}', isPositive: true),
+                  if (calc.directAdvanceRefunds > 0)
+                    _buildSettlementRow('Add: Direct Advance Refunds Received', '+ ${_currency.format(calc.directAdvanceRefunds)}', isPositive: true),
                   _buildSettlementRow('Less: SIYA Vendor Charges (₹1,000/kW)', '- ${_currency.format(vendorCharges)}', isPositive: false),
                   _buildSettlementRow('Less: Statutory Net GST Liability (70:30 Rule - Eligible ITC)', '- ${_currency.format(netGstLiability)}', isPositive: false),
                   if (approvedGstRecovery > 0)

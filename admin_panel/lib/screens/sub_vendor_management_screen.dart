@@ -34,6 +34,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   List<VendorMaterialTransaction> _allMaterials = [];
   List<VendorPayout> _allPayouts = [];
   List<VendorCustomerPayment> _allCustomerPayments = [];
+  Map<String, Map<String, double>> _vendorCentralExtras = {};
 
   bool _isLoading = true;
   String? _errorMessage;
@@ -64,11 +65,19 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
     try {
       final vendors = await SubVendorService.fetchAllVendors();
       final assignments = await SubVendorService.fetchAssignments();
-      final payouts = vendors.isNotEmpty ? await SubVendorService.fetchVendorPayouts(vendors.first.id) : <VendorPayout>[];
+
+      List<VendorPayout> payouts = [];
+      try {
+        payouts = await SubVendorService.fetchAllVendorPayouts();
+      } catch (e) {
+        debugPrint('All vendor payouts fetch: $e');
+      }
 
       List<VendorMaterialTransaction> materials = [];
-      if (vendors.isNotEmpty) {
-        materials = await SubVendorService.fetchVendorMaterials(vendors.first.id);
+      try {
+        materials = await SubVendorService.fetchAllVendorMaterials();
+      } catch (e) {
+        debugPrint('All vendor materials fetch: $e');
       }
 
       List<VendorCustomerPayment> customerPayments = [];
@@ -78,6 +87,20 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
         debugPrint('Customer payments fetch: $e');
       }
 
+      Map<String, Map<String, double>> centralExtras = {};
+      try {
+        centralExtras = await SubVendorService.fetchAllVendorCentralLedgerExtras(
+          knownRawIds: {
+            ...assignments.map((a) => a.id),
+            ...materials.map((m) => m.id),
+            ...payouts.map((p) => p.id),
+            ...customerPayments.map((c) => c.id),
+          },
+        );
+      } catch (e) {
+        debugPrint('Central ledger extras fetch: $e');
+      }
+
       if (mounted) {
         setState(() {
           _vendors = vendors;
@@ -85,6 +108,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
           _allMaterials = materials;
           _allPayouts = payouts;
           _allCustomerPayments = customerPayments;
+          _vendorCentralExtras = centralExtras;
           _errorMessage = null;
           _isLoading = false;
         });
@@ -552,7 +576,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                                     _buildVendorCardKpi('Total Sites', '$totalSites Sites', Icons.layers, const Color(0xFF0D2B6F)),
                                     _buildVendorCardKpi('Installed Capacity', '${totalKw.toStringAsFixed(1)} kW', Icons.solar_power, const Color(0xFF0284C7)),
                                     _buildVendorCardKpi('Total Quotation', _currency.format(totalQuotation), Icons.receipt, const Color(0xFF1E3A8A)),
-                                    _buildVendorCardKpi('Total Receivable', _currency.format(totalReceivable), Icons.payments, const Color(0xFF0D9488)),
+                                    _buildVendorCardKpi('Total Received', _currency.format(totalReceivable), Icons.payments, const Color(0xFF0D9488)),
                                     _buildVendorCardKpi('Loan Credited', _currency.format(totalLoanCredited), Icons.account_balance, const Color(0xFF047857)),
                                     _buildVendorCardKpi(
                                       'Pending Amount',
@@ -1107,6 +1131,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
     double totalOutstanding = 0.0;
 
     for (final a in _assignments) {
+      if (_selectedVendorFilter != null && a.vendorId != _selectedVendorFilter) continue;
       totalCash += a.totalCashReceived;
       totalLoanCredited += a.totalLoanCredited;
       totalLoanSanctioned += a.loanSanctionedAmount;
@@ -1653,6 +1678,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
         final vendorAssignments = _assignments.where((a) => a.vendorId == v.id).toList();
         final vendorMaterials = _allMaterials.where((m) => m.vendorId == v.id).toList();
         final vendorPayouts = _allPayouts.where((p) => p.vendorId == v.id).toList();
+        final extras = _vendorCentralExtras[v.id] ?? const <String, double>{};
 
         final summary = VendorFinancialSummary.compute(
           vendorId: v.id,
@@ -1661,6 +1687,10 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
           assignments: vendorAssignments,
           allMaterials: vendorMaterials,
           allPayouts: vendorPayouts,
+          extraMaterialOutwardCost: extras['materialOutwardCost'] ?? 0.0,
+          extraDirectVendorPayments: extras['directVendorPayments'] ?? 0.0,
+          extraDirectAdvancesGiven: extras['directAdvancesGiven'] ?? 0.0,
+          extraDirectAdvanceRefunds: extras['directAdvanceRefunds'] ?? 0.0,
         );
 
         return Card(
@@ -1751,7 +1781,9 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                     _sumBox('Sites', '${summary.totalAssignedSites} (${summary.completedSites} Done)'),
                     _sumBox('Capacity', '${summary.totalCapacityKw} kW'),
                     _sumBox('Collection', _currency.format(summary.effectiveTotalCollection)),
-                    _sumBox('Material Cost', '- ${_currency.format(summary.totalMaterialCost)}'),
+                    _sumBox('Material Cost', '- ${_currency.format(summary.combinedMaterialCost)}'),
+                    if (summary.totalDirectVendorPayments > 0)
+                      _sumBox('Direct Paid', '+ ${_currency.format(summary.totalDirectVendorPayments)}'),
                     _sumBox('SIYA Fee', '- ${_currency.format(summary.totalVendorCharges)}'),
                     _sumBox('Net GST', '- ${_currency.format(summary.totalNetGstLiability)}'),
                     _sumBox('Net Due', _currency.format(summary.netSettlementPayable), isHighlight: true),
