@@ -445,6 +445,10 @@ class _SubVendorCompleteFinancialDashboardScreenState
       ..._customerPayments.map((c) => c.id),
       ..._materialOutwards.map((o) => o.id),
     };
+    final knownOutwardNumbers = _materialOutwards
+        .where((o) => o.status == 'Active')
+        .map((o) => o.outwardNumber.trim().toUpperCase())
+        .toSet();
 
     double directVendorPayments = 0.0;
     double directAdvancesGiven = 0.0;
@@ -462,6 +466,10 @@ class _SubVendorCompleteFinancialDashboardScreenState
       }
       if (le.referenceId != null && knownRawIds.contains(le.referenceId)) continue;
       final tType = le.transactionType.toUpperCase();
+      if (tType == 'MATERIAL_OUTWARD' &&
+          knownOutwardNumbers.contains(le.referenceNumber.trim().toUpperCase())) {
+        continue;
+      }
       if (tType == 'MATERIAL_PAYMENT') {
         directVendorPayments += le.debitAmount > 0 ? le.debitAmount : le.creditAmount;
       } else if (tType == 'ADVANCE_GIVEN') {
@@ -2226,7 +2234,6 @@ class _SubVendorCompleteFinancialDashboardScreenState
 
     final calc = _computeCentralSettlement();
     final effectiveCollection = calc.effectiveCollection;
-    final totalMaterialCost = calc.combinedMaterialCost;
     final vendorCharges = calc.vendorCharges;
     final otherExpenses = calc.otherExpenses;
 

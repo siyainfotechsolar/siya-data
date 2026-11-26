@@ -535,8 +535,13 @@ class SubVendorMaterialOutwardService {
   // ---------------------------------------------------------------------------
   // 6. FETCH OUTWARDS (WITH REMOTE & LOCAL SYNC)
   // ---------------------------------------------------------------------------
+  static final RegExp _uuidPattern = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
   static Future<List<SubVendorMaterialOutward>> fetchOutwards() async {
     await _ensureLocalInitialized();
+    final localCached = List<SubVendorMaterialOutward>.from(_inMemoryOutwards);
     try {
       final client = SupabaseService.client;
       final res = await client
@@ -547,8 +552,71 @@ class SubVendorMaterialOutwardService {
 
       final List<dynamic> rows = res as List<dynamic>;
       final list = rows.map((e) => SubVendorMaterialOutward.fromJson(e as Map<String, dynamic>)).toList();
+
+      // Auto-sync any unsynced browser-cached local outward entries (e.g. recorded before SQL migration)
+      final unsyncedLocal = localCached
+          .where((o) => o.id.startsWith('outward-') && !list.any((r) => r.outwardNumber == o.outwardNumber))
+          .toList();
+
+      if (unsyncedLocal.isNotEmpty) {
+        final currentUserId = SupabaseService.currentUser?.id;
+        for (final localOut in unsyncedLocal) {
+          try {
+            final insertedHeader = await client
+                .from(_outwardsTable)
+                .insert({
+                  'outward_number': localOut.outwardNumber,
+                  'vendor_id': localOut.vendorId,
+                  'vendor_name': localOut.vendorName,
+                  'outward_date': localOut.outwardDate.toIso8601String().split('T').first,
+                  'total_items': localOut.totalItems,
+                  'total_quantity': localOut.totalQuantity,
+                  'subtotal': localOut.subtotal,
+                  'total_gst': localOut.totalGst,
+                  'total_value': localOut.totalValue,
+                  'remarks': localOut.remarks,
+                  'status': localOut.status,
+                  'created_by': currentUserId,
+                })
+                .select()
+                .single();
+
+            final newServerId = insertedHeader['id'].toString();
+            if (localOut.items.isNotEmpty) {
+              final itemsPayload = localOut.items
+                  .map((i) => {
+                        'outward_id': newServerId,
+                        'material_id': (i.materialId != null && _uuidPattern.hasMatch(i.materialId!))
+                            ? i.materialId
+                            : null,
+                        'material_name': i.materialName,
+                        'unit': i.unit,
+                        'quantity': i.quantity,
+                        'unit_rate': i.unitRate,
+                        'base_amount': i.baseAmount,
+                        'gst_percentage': i.gstPercentage,
+                        'gst_amount': i.gstAmount,
+                        'total_price': i.totalPrice,
+                      })
+                  .toList();
+              await client.from(_itemsTable).insert(itemsPayload);
+            }
+            list.insert(
+              0,
+              localOut.copyWith(
+                id: newServerId,
+                items: localOut.items.map((i) => i.copyWith(outwardId: newServerId)).toList(),
+              ),
+            );
+          } catch (syncErr) {
+            debugPrint('Notice: Preserving unsynced local outward ${localOut.outwardNumber} ($syncErr)');
+            list.insert(0, localOut);
+          }
+        }
+      }
+
       _inMemoryOutwards = list;
-      _saveOutwardsToCache(list);
+      await _saveOutwardsToCache(list);
       return list;
     } catch (e) {
       debugPrint('Warning: Could not fetch outwards from Supabase: $e');

@@ -2,19 +2,528 @@
 -- Migration: 20261126000050_sub_vendor_unified_ledger_complete_sync.sql
 -- Module: Sub-Vendor Central Database Unified Sync & RLS Security Hardening
 -- Description:
---   1. Fixes v_sub_vendor_unified_ledger VIEW (which previously omitted
---      vendor_material_transactions, customer_payment_transactions, and
---      vendor_site_assignments / consumer_records collection residuals) so EVERY
---      material dispatch, site material issue/return, bank loan credit, customer
---      CRM payment, vendor payout, and manual ledger entry appears in one
---      central chronological ledger without duplicates.
---   2. Uses WITH (security_invoker = true) on views so underlying RLS applies.
---   3. Tightens permissive SELECT RLS policies on sub_vendor_account_ledger and
---      sub_vendor_material_outwards* so sub_vendor users can ONLY read their own
---      vendor records while Admin & non-sub-vendor staff keep full visibility.
---   4. Updates get_vendor_account_summary() and v_sub_vendor_audit_check.
---   5. Adds central reconciliation RPC get_sub_vendor_central_reconciliation().
+--   0. Self-contained prerequisite creation (safe / idempotent even if migrations
+--      0046, 0047, 0048, 0049 were NOT executed on this database yet): creates
+--      sub_vendor_material_outwards, sub_vendor_material_outward_items,
+--      sub_vendor_material_outward_audit, sub_vendor_account_ledger & their RPCs.
+--   1. Fixes v_sub_vendor_unified_ledger VIEW so EVERY material outward,
+--      site material issue/return, bank loan credit, customer CRM payment,
+--      vendor payout, and manual ledger entry appears in one central ledger.
+--   2. Uses WITH (security_invoker = true) on views & hardens Sub-Vendor RLS.
+--   3. Updates get_vendor_account_summary() and v_sub_vendor_audit_check.
+--   4. Adds central reconciliation RPC get_sub_vendor_central_reconciliation().
 -- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 0. SELF-CONTAINED TABLES & RPCS (OUTWARD TRACKING + CREDIT/DEBIT LEDGER)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.sub_vendor_material_outwards (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    outward_number TEXT NOT NULL UNIQUE,
+    vendor_id UUID NOT NULL REFERENCES public.sub_vendors(id) ON DELETE RESTRICT,
+    vendor_name TEXT NOT NULL,
+    outward_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    total_items INT NOT NULL DEFAULT 0 CHECK (total_items >= 0),
+    total_quantity NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (total_quantity >= 0),
+    subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    total_gst NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    total_value NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    remarks TEXT,
+    status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Cancelled')),
+    cancelled_at TIMESTAMPTZ,
+    cancelled_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    cancellation_reason TEXT,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.sub_vendor_material_outwards
+    ADD COLUMN IF NOT EXISTS subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS total_gst NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS total_value NUMERIC(14, 2) NOT NULL DEFAULT 0.00;
+
+CREATE INDEX IF NOT EXISTS idx_svmo_vendor_id ON public.sub_vendor_material_outwards (vendor_id);
+CREATE INDEX IF NOT EXISTS idx_svmo_outward_date ON public.sub_vendor_material_outwards (outward_date DESC);
+CREATE INDEX IF NOT EXISTS idx_svmo_outward_number ON public.sub_vendor_material_outwards (outward_number);
+CREATE INDEX IF NOT EXISTS idx_svmo_status ON public.sub_vendor_material_outwards (status);
+CREATE INDEX IF NOT EXISTS idx_svmo_vendor_date ON public.sub_vendor_material_outwards (vendor_id, outward_date DESC);
+
+CREATE TABLE IF NOT EXISTS public.sub_vendor_material_outward_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    outward_id UUID NOT NULL REFERENCES public.sub_vendor_material_outwards(id) ON DELETE CASCADE,
+    material_id UUID,
+    material_name TEXT NOT NULL,
+    unit TEXT NOT NULL DEFAULT 'NOS',
+    quantity NUMERIC(12, 2) NOT NULL CHECK (quantity > 0),
+    unit_rate NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    base_amount NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    gst_percentage NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
+    gst_amount NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    total_price NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.sub_vendor_material_outward_items
+    ADD COLUMN IF NOT EXISTS unit_rate NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS base_amount NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS gst_percentage NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS gst_amount NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS total_price NUMERIC(14, 2) NOT NULL DEFAULT 0.00;
+
+CREATE INDEX IF NOT EXISTS idx_svmoi_outward_id ON public.sub_vendor_material_outward_items (outward_id);
+CREATE INDEX IF NOT EXISTS idx_svmoi_material_id ON public.sub_vendor_material_outward_items (material_id);
+
+CREATE TABLE IF NOT EXISTS public.sub_vendor_material_outward_audit (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    outward_id UUID NOT NULL REFERENCES public.sub_vendor_material_outwards(id) ON DELETE CASCADE,
+    outward_number TEXT NOT NULL,
+    action TEXT NOT NULL CHECK (action IN ('CREATE', 'UPDATE', 'CANCEL')),
+    description TEXT NOT NULL,
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    performed_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_svmoa_outward_id ON public.sub_vendor_material_outward_audit (outward_id);
+
+CREATE TABLE IF NOT EXISTS public.sub_vendor_account_ledger (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    vendor_id UUID NOT NULL REFERENCES public.sub_vendors(id) ON DELETE CASCADE,
+    vendor_name TEXT NOT NULL,
+    transaction_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    transaction_type TEXT NOT NULL CHECK (transaction_type IN ('MATERIAL_OUTWARD', 'MATERIAL_PAYMENT', 'ADVANCE_GIVEN', 'ADVANCE_REFUND')),
+    category TEXT NOT NULL CHECK (category IN ('MATERIAL', 'ADVANCE')),
+    credit_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (credit_amount >= 0),
+    debit_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (debit_amount >= 0),
+    running_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    reference_number TEXT NOT NULL,
+    reference_id UUID,
+    payment_mode TEXT NOT NULL DEFAULT 'Bank Transfer' CHECK (payment_mode IN ('Bank Transfer', 'NEFT/RTGS', 'UPI', 'Cheque', 'Cash', 'Inventory')),
+    particulars TEXT NOT NULL,
+    remarks TEXT,
+    status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Cancelled')),
+    cancelled_at TIMESTAMPTZ,
+    cancellation_reason TEXT,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_sval_vendor_id ON public.sub_vendor_account_ledger (vendor_id);
+CREATE INDEX IF NOT EXISTS idx_sval_tx_date ON public.sub_vendor_account_ledger (transaction_date DESC);
+CREATE INDEX IF NOT EXISTS idx_sval_tx_type ON public.sub_vendor_account_ledger (transaction_type);
+CREATE INDEX IF NOT EXISTS idx_sval_category ON public.sub_vendor_account_ledger (category);
+CREATE INDEX IF NOT EXISTS idx_sval_status ON public.sub_vendor_account_ledger (status);
+CREATE INDEX IF NOT EXISTS idx_sval_ref_id ON public.sub_vendor_account_ledger (reference_id);
+CREATE INDEX IF NOT EXISTS idx_sval_vendor_date ON public.sub_vendor_account_ledger (vendor_id, transaction_date DESC);
+CREATE INDEX IF NOT EXISTS idx_sval_created_at ON public.sub_vendor_account_ledger (created_at DESC);
+
+ALTER TABLE public.sub_vendor_material_outwards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sub_vendor_material_outward_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sub_vendor_material_outward_audit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sub_vendor_account_ledger ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admin full control on sub_vendor_material_outwards" ON public.sub_vendor_material_outwards;
+CREATE POLICY "Admin full control on sub_vendor_material_outwards"
+    ON public.sub_vendor_material_outwards FOR ALL TO authenticated
+    USING ((SELECT public.is_admin()) OR (auth.jwt()->>'role') IN ('admin', 'super_admin'))
+    WITH CHECK ((SELECT public.is_admin()) OR (auth.jwt()->>'role') IN ('admin', 'super_admin'));
+
+DROP POLICY IF EXISTS "Admin full control on sub_vendor_material_outward_items" ON public.sub_vendor_material_outward_items;
+CREATE POLICY "Admin full control on sub_vendor_material_outward_items"
+    ON public.sub_vendor_material_outward_items FOR ALL TO authenticated
+    USING ((SELECT public.is_admin()) OR (auth.jwt()->>'role') IN ('admin', 'super_admin'))
+    WITH CHECK ((SELECT public.is_admin()) OR (auth.jwt()->>'role') IN ('admin', 'super_admin'));
+
+DROP POLICY IF EXISTS "Admin full control on sub_vendor_material_outward_audit" ON public.sub_vendor_material_outward_audit;
+CREATE POLICY "Admin full control on sub_vendor_material_outward_audit"
+    ON public.sub_vendor_material_outward_audit FOR ALL TO authenticated
+    USING ((SELECT public.is_admin()) OR (auth.jwt()->>'role') IN ('admin', 'super_admin'))
+    WITH CHECK ((SELECT public.is_admin()) OR (auth.jwt()->>'role') IN ('admin', 'super_admin'));
+
+DROP POLICY IF EXISTS "Admin full control on sub_vendor_account_ledger" ON public.sub_vendor_account_ledger;
+CREATE POLICY "Admin full control on sub_vendor_account_ledger"
+    ON public.sub_vendor_account_ledger FOR ALL TO authenticated
+    USING ((SELECT public.is_admin()) OR (auth.jwt()->>'role') IN ('admin', 'super_admin'))
+    WITH CHECK ((SELECT public.is_admin()) OR (auth.jwt()->>'role') IN ('admin', 'super_admin'));
+
+-- Outward RPCs (Rate + GST, NO Main Inventory stock deduction)
+CREATE OR REPLACE FUNCTION public.record_sub_vendor_material_outward(
+    p_vendor_id UUID,
+    p_outward_date DATE,
+    p_remarks TEXT,
+    p_items JSONB,
+    p_created_by UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_vendor_name TEXT;
+    v_outward_id UUID;
+    v_outward_number TEXT;
+    v_total_items INT := 0;
+    v_total_qty NUMERIC(12, 2) := 0.00;
+    v_subtotal NUMERIC(14, 2) := 0.00;
+    v_total_gst NUMERIC(14, 2) := 0.00;
+    v_grand_total NUMERIC(14, 2) := 0.00;
+    v_item JSONB;
+    v_material_id UUID;
+    v_material_name TEXT;
+    v_unit TEXT;
+    v_qty NUMERIC(12, 2);
+    v_rate NUMERIC(12, 2);
+    v_base NUMERIC(14, 2);
+    v_gst_pct NUMERIC(5, 2);
+    v_gst_amt NUMERIC(14, 2);
+    v_final_price NUMERIC(14, 2);
+    v_seq_val INT;
+BEGIN
+    SELECT name INTO v_vendor_name FROM public.sub_vendors WHERE id = p_vendor_id;
+    IF v_vendor_name IS NULL THEN
+        RAISE EXCEPTION 'Sub-Vendor with ID % not found.', p_vendor_id;
+    END IF;
+    IF p_items IS NULL OR jsonb_array_length(p_items) = 0 THEN
+        RAISE EXCEPTION 'Material Outward entry must contain at least one material row.';
+    END IF;
+
+    SELECT COALESCE(COUNT(*), 0) + 1 INTO v_seq_val
+    FROM public.sub_vendor_material_outwards WHERE outward_date = p_outward_date;
+
+    v_outward_number := 'OUT-' || to_char(p_outward_date, 'YYYYMMDD') || '-' || LPAD(v_seq_val::TEXT, 4, '0');
+    WHILE EXISTS (SELECT 1 FROM public.sub_vendor_material_outwards WHERE outward_number = v_outward_number) LOOP
+        v_seq_val := v_seq_val + 1;
+        v_outward_number := 'OUT-' || to_char(p_outward_date, 'YYYYMMDD') || '-' || LPAD(v_seq_val::TEXT, 4, '0');
+    END LOOP;
+
+    INSERT INTO public.sub_vendor_material_outwards (
+        outward_number, vendor_id, vendor_name, outward_date,
+        total_items, total_quantity, subtotal, total_gst, total_value,
+        remarks, status, created_by
+    ) VALUES (
+        v_outward_number, p_vendor_id, v_vendor_name, p_outward_date,
+        0, 0, 0, 0, 0, p_remarks, 'Active', p_created_by
+    ) RETURNING id INTO v_outward_id;
+
+    FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+    LOOP
+        BEGIN
+            v_material_id := NULLIF(v_item->>'material_id', '')::UUID;
+        EXCEPTION WHEN others THEN
+            v_material_id := NULL;
+        END;
+        v_material_name := COALESCE(v_item->>'material_name', 'Unknown Material');
+        v_unit := UPPER(COALESCE(v_item->>'unit', 'NOS'));
+        v_qty := COALESCE((v_item->>'quantity')::NUMERIC, 0);
+        v_rate := COALESCE((v_item->>'unit_rate')::NUMERIC, 0);
+        v_gst_pct := COALESCE((v_item->>'gst_percentage')::NUMERIC, 0);
+
+        IF v_qty <= 0 THEN
+            RAISE EXCEPTION 'Quantity for "%" must be greater than zero.', v_material_name;
+        END IF;
+
+        v_base := ROUND(v_qty * v_rate, 2);
+        v_gst_amt := ROUND(v_base * v_gst_pct / 100.0, 2);
+        v_final_price := v_base + v_gst_amt;
+
+        INSERT INTO public.sub_vendor_material_outward_items (
+            outward_id, material_id, material_name, unit, quantity,
+            unit_rate, base_amount, gst_percentage, gst_amount, total_price
+        ) VALUES (
+            v_outward_id, v_material_id, v_material_name, v_unit, v_qty,
+            v_rate, v_base, v_gst_pct, v_gst_amt, v_final_price
+        );
+
+        v_total_items := v_total_items + 1;
+        v_total_qty := v_total_qty + v_qty;
+        v_subtotal := v_subtotal + v_base;
+        v_total_gst := v_total_gst + v_gst_amt;
+        v_grand_total := v_grand_total + v_final_price;
+    END LOOP;
+
+    UPDATE public.sub_vendor_material_outwards
+    SET total_items = v_total_items,
+        total_quantity = v_total_qty,
+        subtotal = v_subtotal,
+        total_gst = v_total_gst,
+        total_value = v_grand_total
+    WHERE id = v_outward_id;
+
+    INSERT INTO public.sub_vendor_material_outward_audit (
+        outward_id, outward_number, action, description, details, performed_by
+    ) VALUES (
+        v_outward_id,
+        v_outward_number,
+        'CREATE',
+        format('Created outward entry with %s items, qty: %s, grand total: %s', v_total_items, v_total_qty, v_grand_total),
+        jsonb_build_object('vendor_id', p_vendor_id, 'subtotal', v_subtotal, 'total_gst', v_total_gst, 'grand_total', v_grand_total, 'items', p_items),
+        p_created_by
+    );
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'id', v_outward_id,
+        'outward_number', v_outward_number,
+        'subtotal', v_subtotal,
+        'total_gst', v_total_gst,
+        'total_value', v_grand_total
+    );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.update_sub_vendor_material_outward(
+    p_outward_id UUID,
+    p_vendor_id UUID,
+    p_outward_date DATE,
+    p_remarks TEXT,
+    p_items JSONB,
+    p_updated_by UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_existing RECORD;
+    v_vendor_name TEXT;
+    v_total_items INT := 0;
+    v_total_qty NUMERIC(12, 2) := 0.00;
+    v_subtotal NUMERIC(14, 2) := 0.00;
+    v_total_gst NUMERIC(14, 2) := 0.00;
+    v_grand_total NUMERIC(14, 2) := 0.00;
+    v_item JSONB;
+    v_material_id UUID;
+    v_material_name TEXT;
+    v_unit TEXT;
+    v_qty NUMERIC(12, 2);
+    v_rate NUMERIC(12, 2);
+    v_base NUMERIC(14, 2);
+    v_gst_pct NUMERIC(5, 2);
+    v_gst_amt NUMERIC(14, 2);
+    v_final_price NUMERIC(14, 2);
+BEGIN
+    SELECT * INTO v_existing FROM public.sub_vendor_material_outwards WHERE id = p_outward_id FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Material Outward entry not found.'; END IF;
+    IF v_existing.status = 'Cancelled' THEN RAISE EXCEPTION 'Cannot edit a Cancelled Material Outward record.'; END IF;
+
+    SELECT name INTO v_vendor_name FROM public.sub_vendors WHERE id = p_vendor_id;
+    IF v_vendor_name IS NULL THEN RAISE EXCEPTION 'Sub-Vendor not found.'; END IF;
+
+    DELETE FROM public.sub_vendor_material_outward_items WHERE outward_id = p_outward_id;
+
+    FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+    LOOP
+        BEGIN
+            v_material_id := NULLIF(v_item->>'material_id', '')::UUID;
+        EXCEPTION WHEN others THEN
+            v_material_id := NULL;
+        END;
+        v_material_name := COALESCE(v_item->>'material_name', 'Unknown Material');
+        v_unit := UPPER(COALESCE(v_item->>'unit', 'NOS'));
+        v_qty := COALESCE((v_item->>'quantity')::NUMERIC, 0);
+        v_rate := COALESCE((v_item->>'unit_rate')::NUMERIC, 0);
+        v_gst_pct := COALESCE((v_item->>'gst_percentage')::NUMERIC, 0);
+
+        IF v_qty <= 0 THEN RAISE EXCEPTION 'Quantity for "%" must be greater than zero.', v_material_name; END IF;
+
+        v_base := ROUND(v_qty * v_rate, 2);
+        v_gst_amt := ROUND(v_base * v_gst_pct / 100.0, 2);
+        v_final_price := v_base + v_gst_amt;
+
+        INSERT INTO public.sub_vendor_material_outward_items (
+            outward_id, material_id, material_name, unit, quantity,
+            unit_rate, base_amount, gst_percentage, gst_amount, total_price
+        ) VALUES (
+            p_outward_id, v_material_id, v_material_name, v_unit, v_qty,
+            v_rate, v_base, v_gst_pct, v_gst_amt, v_final_price
+        );
+
+        v_total_items := v_total_items + 1;
+        v_total_qty := v_total_qty + v_qty;
+        v_subtotal := v_subtotal + v_base;
+        v_total_gst := v_total_gst + v_gst_amt;
+        v_grand_total := v_grand_total + v_final_price;
+    END LOOP;
+
+    UPDATE public.sub_vendor_material_outwards
+    SET vendor_id = p_vendor_id,
+        vendor_name = v_vendor_name,
+        outward_date = p_outward_date,
+        total_items = v_total_items,
+        total_quantity = v_total_qty,
+        subtotal = v_subtotal,
+        total_gst = v_total_gst,
+        total_value = v_grand_total,
+        remarks = p_remarks,
+        updated_at = timezone('utc'::text, now())
+    WHERE id = p_outward_id;
+
+    INSERT INTO public.sub_vendor_material_outward_audit (
+        outward_id, outward_number, action, description, details, performed_by
+    ) VALUES (
+        p_outward_id, v_existing.outward_number, 'UPDATE',
+        format('Updated outward entry. New total qty: %s, grand total: %s', v_total_qty, v_grand_total),
+        jsonb_build_object('subtotal', v_subtotal, 'total_gst', v_total_gst, 'grand_total', v_grand_total, 'items', p_items),
+        p_updated_by
+    );
+
+    RETURN jsonb_build_object('success', true, 'id', p_outward_id, 'total_value', v_grand_total);
+END;
+$$;
+
+DROP FUNCTION IF EXISTS public.cancel_sub_vendor_material_outward(UUID, TEXT, UUID);
+CREATE OR REPLACE FUNCTION public.cancel_sub_vendor_material_outward(
+    p_outward_id UUID,
+    p_cancellation_reason TEXT DEFAULT 'Cancelled by Admin',
+    p_cancelled_by UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_existing RECORD;
+BEGIN
+    SELECT * INTO v_existing FROM public.sub_vendor_material_outwards WHERE id = p_outward_id FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Material Outward entry not found.'; END IF;
+    IF v_existing.status = 'Cancelled' THEN RAISE EXCEPTION 'Material Outward entry is already cancelled.'; END IF;
+
+    UPDATE public.sub_vendor_material_outwards
+    SET status = 'Cancelled',
+        cancelled_at = timezone('utc'::text, now()),
+        cancelled_by = p_cancelled_by,
+        cancellation_reason = p_cancellation_reason,
+        updated_at = timezone('utc'::text, now())
+    WHERE id = p_outward_id;
+
+    INSERT INTO public.sub_vendor_material_outward_audit (
+        outward_id, outward_number, action, description, details, performed_by
+    ) VALUES (
+        p_outward_id, v_existing.outward_number, 'CANCEL',
+        format('Cancelled outward entry. Reason: %s', COALESCE(p_cancellation_reason, 'None')),
+        jsonb_build_object('cancellation_reason', p_cancellation_reason),
+        p_cancelled_by
+    );
+
+    RETURN jsonb_build_object('success', true, 'id', p_outward_id, 'status', 'Cancelled');
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.recalculate_sub_vendor_ledger_balances(p_vendor_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_entry RECORD;
+    v_balance NUMERIC(12, 2) := 0.00;
+BEGIN
+    FOR v_entry IN
+        SELECT id, credit_amount, debit_amount, status
+        FROM public.sub_vendor_account_ledger
+        WHERE vendor_id = p_vendor_id
+        ORDER BY transaction_date ASC, created_at ASC
+    LOOP
+        IF v_entry.status = 'Active' THEN
+            v_balance := v_balance + (v_entry.credit_amount - v_entry.debit_amount);
+        END IF;
+
+        UPDATE public.sub_vendor_account_ledger
+        SET running_balance = v_balance
+        WHERE id = v_entry.id;
+    END LOOP;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.record_sub_vendor_ledger_entry(
+    p_vendor_id UUID,
+    p_transaction_date DATE,
+    p_transaction_type TEXT,
+    p_amount NUMERIC(12, 2),
+    p_reference_number TEXT,
+    p_payment_mode TEXT,
+    p_particulars TEXT,
+    p_remarks TEXT DEFAULT NULL,
+    p_reference_id UUID DEFAULT NULL,
+    p_created_by UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_vendor_name TEXT;
+    v_category TEXT;
+    v_credit NUMERIC(12, 2) := 0.00;
+    v_debit NUMERIC(12, 2) := 0.00;
+    v_entry_id UUID;
+BEGIN
+    SELECT name INTO v_vendor_name FROM public.sub_vendors WHERE id = p_vendor_id;
+    IF v_vendor_name IS NULL THEN
+        RAISE EXCEPTION 'Sub-Vendor with ID % not found.', p_vendor_id;
+    END IF;
+    IF p_amount <= 0 THEN
+        RAISE EXCEPTION 'Transaction amount must be greater than zero.';
+    END IF;
+
+    IF p_transaction_type = 'MATERIAL_OUTWARD' THEN
+        v_category := 'MATERIAL';
+        v_credit := p_amount;
+        v_debit := 0.00;
+    ELSIF p_transaction_type = 'MATERIAL_PAYMENT' THEN
+        v_category := 'MATERIAL';
+        v_credit := 0.00;
+        v_debit := p_amount;
+    ELSIF p_transaction_type = 'ADVANCE_GIVEN' THEN
+        v_category := 'ADVANCE';
+        v_credit := 0.00;
+        v_debit := p_amount;
+    ELSIF p_transaction_type = 'ADVANCE_REFUND' THEN
+        v_category := 'ADVANCE';
+        v_credit := p_amount;
+        v_debit := 0.00;
+    ELSE
+        RAISE EXCEPTION 'Invalid transaction type: %', p_transaction_type;
+    END IF;
+
+    INSERT INTO public.sub_vendor_account_ledger (
+        vendor_id, vendor_name, transaction_date, transaction_type, category,
+        credit_amount, debit_amount, running_balance, reference_number, reference_id,
+        payment_mode, particulars, remarks, status, created_by
+    ) VALUES (
+        p_vendor_id, v_vendor_name, p_transaction_date, p_transaction_type, v_category,
+        v_credit, v_debit, 0.00, p_reference_number, p_reference_id,
+        COALESCE(p_payment_mode, 'Bank Transfer'), p_particulars, p_remarks, 'Active', p_created_by
+    ) RETURNING id INTO v_entry_id;
+
+    PERFORM public.recalculate_sub_vendor_ledger_balances(p_vendor_id);
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'id', v_entry_id,
+        'vendor_id', p_vendor_id,
+        'credit_amount', v_credit,
+        'debit_amount', v_debit
+    );
+END;
+$$;
+
+GRANT ALL ON public.sub_vendor_material_outwards TO authenticated, anon, service_role;
+GRANT ALL ON public.sub_vendor_material_outward_items TO authenticated, anon, service_role;
+GRANT ALL ON public.sub_vendor_material_outward_audit TO authenticated, anon, service_role;
+GRANT ALL ON public.sub_vendor_account_ledger TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.record_sub_vendor_material_outward TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.update_sub_vendor_material_outward TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.cancel_sub_vendor_material_outward TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.record_sub_vendor_ledger_entry TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.recalculate_sub_vendor_ledger_balances TO authenticated, anon, service_role;
 
 -- ------------------------------------------------------------------------------
 -- 1. ENSURE PREREQUISITE SELF-DESCRIBING COLUMNS (Safe / Idempotent if 0049 ran)
@@ -166,7 +675,15 @@ FROM public.sub_vendor_material_outwards mo
 WHERE mo.status = 'Active'
   AND NOT EXISTS (
       SELECT 1 FROM public.sub_vendor_account_ledger l2
-      WHERE l2.reference_id = mo.id AND l2.status = 'Active'
+      WHERE l2.status = 'Active'
+        AND (
+            l2.reference_id = mo.id
+            OR (
+                l2.transaction_type = 'MATERIAL_OUTWARD'
+                AND l2.vendor_id = mo.vendor_id
+                AND UPPER(TRIM(l2.reference_number)) = UPPER(TRIM(mo.outward_number))
+            )
+        )
   )
 
 UNION ALL

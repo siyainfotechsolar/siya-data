@@ -287,7 +287,10 @@ class SubVendorAccountLedgerService {
       // (Created in migration 20261126000049_sub_vendor_central_database_audit_fix.sql)
       // This single view UNIONs all 4 sources — no double-counting.
       // -----------------------------------------------------------------------
+      final localCachedEntries = List<SubVendorAccountLedgerEntry>.from(_inMemoryLedger);
       bool unifiedViewLoaded = false;
+      bool ledgerTableLoaded = false;
+
       try {
         var viewQuery = client.from('v_sub_vendor_unified_ledger').select();
         if (vFilter != null) {
@@ -300,20 +303,88 @@ class SubVendorAccountLedgerService {
         final List<dynamic> viewRows = viewRes as List<dynamic>;
         list = viewRows.map((e) => _entryFromUnifiedRow(e as Map<String, dynamic>)).toList();
         unifiedViewLoaded = true;
+        ledgerTableLoaded = true;
       } catch (viewErr) {
         debugPrint('Notice: v_sub_vendor_unified_ledger view not available ($viewErr). Using multi-table fallback.');
       }
 
       if (!unifiedViewLoaded) {
-        var query = client.from(_ledgerTable).select();
-        if (vFilter != null) {
-          query = query.eq('vendor_id', vFilter);
+        try {
+          var query = client.from(_ledgerTable).select();
+          if (vFilter != null) {
+            query = query.eq('vendor_id', vFilter);
+          }
+          final res = await query
+              .order('transaction_date', ascending: true)
+              .order('created_at', ascending: true);
+          final List<dynamic> rows = res as List<dynamic>;
+          list = rows.map((e) => SubVendorAccountLedgerEntry.fromJson(e as Map<String, dynamic>)).toList();
+          ledgerTableLoaded = true;
+        } catch (ledgerErr) {
+          debugPrint('Notice: $_ledgerTable table query unavailable ($ledgerErr). Preserving local manual entries.');
         }
-        final res = await query
-            .order('transaction_date', ascending: true)
-            .order('created_at', ascending: true);
-        final List<dynamic> rows = res as List<dynamic>;
-        list = rows.map((e) => SubVendorAccountLedgerEntry.fromJson(e as Map<String, dynamic>)).toList();
+      }
+
+      // Preserve or auto-sync any browser-cached local entries (recorded while SQL tables were missing)
+      final uuidRegex = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+      final localManual = localCachedEntries.where((loc) {
+        if (vFilter != null && loc.vendorId != vFilter) return false;
+        return loc.id.startsWith('ledger-') && loc.isActive;
+      }).toList();
+
+      if (ledgerTableLoaded && localManual.isNotEmpty) {
+        final currentUserId = SupabaseService.currentUser?.id;
+        for (final loc in localManual) {
+          final alreadySynced = list.any((s) =>
+              s.isActive &&
+              s.vendorId == loc.vendorId &&
+              s.transactionType == loc.transactionType &&
+              s.referenceNumber.trim().toUpperCase() == loc.referenceNumber.trim().toUpperCase() &&
+              (s.creditAmount - loc.creditAmount).abs() < 0.01 &&
+              (s.debitAmount - loc.debitAmount).abs() < 0.01);
+          if (alreadySynced) continue;
+
+          // If this was a mirrored outward and outward_number already exists in list/mo, skip auto-inserting duplicate
+          if (loc.transactionType == 'MATERIAL_OUTWARD' &&
+              list.any((s) =>
+                  s.transactionType == 'MATERIAL_OUTWARD' &&
+                  s.referenceNumber.trim().toUpperCase() == loc.referenceNumber.trim().toUpperCase())) {
+            continue;
+          }
+
+          try {
+            final amt = loc.creditAmount > 0 ? loc.creditAmount : loc.debitAmount;
+            final refUuid = (loc.referenceId != null && uuidRegex.hasMatch(loc.referenceId!))
+                ? loc.referenceId
+                : null;
+            final rpcRes = await client.rpc('record_sub_vendor_ledger_entry', params: {
+              'p_vendor_id': loc.vendorId,
+              'p_transaction_date': loc.transactionDate.toIso8601String().split('T').first,
+              'p_transaction_type': loc.transactionType,
+              'p_amount': amt,
+              'p_reference_number': loc.referenceNumber,
+              'p_payment_mode': loc.paymentMode,
+              'p_particulars': loc.particulars,
+              'p_remarks': loc.remarks,
+              'p_reference_id': refUuid,
+              'p_created_by': currentUserId,
+            });
+            if (rpcRes != null && rpcRes['id'] != null) {
+              list.add(loc.copyWith(id: rpcRes['id'].toString()));
+            } else {
+              list.add(loc);
+            }
+          } catch (syncErr) {
+            debugPrint('Notice: Could not auto-sync local entry ${loc.referenceNumber} ($syncErr)');
+            list.add(loc);
+          }
+        }
+      } else if (!ledgerTableLoaded && localManual.isNotEmpty) {
+        for (final loc in localManual) {
+          if (!list.any((e) => e.id == loc.id)) {
+            list.add(loc);
+          }
+        }
       }
 
       // Defensive supplemental merge across ALL central sub-vendor & CRM tables
@@ -514,6 +585,10 @@ class SubVendorAccountLedgerService {
         .where((e) => e.isActive && e.referenceId != null && e.referenceId!.isNotEmpty)
         .map((e) => e.referenceId!)
         .toSet();
+    final existingActiveOutwardKeys = merged
+        .where((e) => e.isActive && e.transactionType.toUpperCase() == 'MATERIAL_OUTWARD')
+        .map((e) => '${e.vendorId}::${e.referenceNumber.trim().toUpperCase()}')
+        .toSet();
 
     // 1. Active Material Outwards (sub_vendor_material_outwards)
     for (final row in rawOutwards) {
@@ -524,7 +599,13 @@ class SubVendorAccountLedgerService {
       final moId = row['id'] as String? ?? '';
       if (moId.isEmpty) continue;
       final synthId = 'mo_$moId';
-      if (existingIds.contains(synthId) || existingActiveRefIds.contains(moId)) continue;
+      final outwardNo = (row['outward_number'] as String? ?? '-').trim();
+      final outKey = '$vid::${outwardNo.toUpperCase()}';
+      if (existingIds.contains(synthId) ||
+          existingActiveRefIds.contains(moId) ||
+          existingActiveOutwardKeys.contains(outKey)) {
+        continue;
+      }
 
       final outwardDate = row['outward_date'] != null
           ? DateTime.tryParse(row['outward_date'] as String) ?? DateTime.now()

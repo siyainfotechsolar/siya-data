@@ -695,10 +695,11 @@ class SubVendorService {
     double directAdvanceRefunds = 0.0;
 
     final Set<String> outwardIds = {};
+    final Set<String> outwardNumbers = {};
     try {
       var moQuery = _client
           .from('sub_vendor_material_outwards')
-          .select('id, vendor_id, total_value, status')
+          .select('id, vendor_id, outward_number, total_value, status')
           .eq('status', 'Active');
       if (vendorId != null && vendorId.isNotEmpty) {
         moQuery = moQuery.eq('vendor_id', vendorId);
@@ -707,7 +708,9 @@ class SubVendorService {
       for (final row in (moRes as List<dynamic>)) {
         final map = row as Map<String, dynamic>;
         final id = map['id'] as String? ?? '';
+        final outNo = (map['outward_number'] as String? ?? '').trim().toUpperCase();
         if (id.isNotEmpty) outwardIds.add(id);
+        if (outNo.isNotEmpty) outwardNumbers.add(outNo);
         outwardCost += (map['total_value'] as num?)?.toDouble() ?? 0.0;
       }
     } catch (e) {
@@ -717,7 +720,7 @@ class SubVendorService {
     try {
       var ledgerQuery = _client
           .from('sub_vendor_account_ledger')
-          .select('id, vendor_id, transaction_type, credit_amount, debit_amount, reference_id, status')
+          .select('id, vendor_id, transaction_type, reference_number, credit_amount, debit_amount, reference_id, status')
           .eq('status', 'Active');
       if (vendorId != null && vendorId.isNotEmpty) {
         ledgerQuery = ledgerQuery.eq('vendor_id', vendorId);
@@ -729,6 +732,10 @@ class SubVendorService {
         final refId = map['reference_id'] as String?;
         if (refId != null && allKnownRefs.contains(refId)) continue;
         final tType = (map['transaction_type'] as String? ?? '').toUpperCase();
+        final refNo = (map['reference_number'] as String? ?? '').trim().toUpperCase();
+        if (tType == 'MATERIAL_OUTWARD' && refNo.isNotEmpty && outwardNumbers.contains(refNo)) {
+          continue;
+        }
         final credit = (map['credit_amount'] as num?)?.toDouble() ?? 0.0;
         final debit = (map['debit_amount'] as num?)?.toDouble() ?? 0.0;
         if (tType == 'MATERIAL_PAYMENT') {
@@ -760,6 +767,7 @@ class SubVendorService {
   }) async {
     final Map<String, Map<String, double>> byVendor = {};
     final Set<String> outwardIds = {};
+    final Set<String> outwardVendorKeys = {};
 
     Map<String, double> _bucket(String vid) => byVendor.putIfAbsent(vid, () => {
       'materialOutwardCost': 0.0,
@@ -771,14 +779,16 @@ class SubVendorService {
     try {
       final moRes = await _client
           .from('sub_vendor_material_outwards')
-          .select('id, vendor_id, total_value, status')
+          .select('id, vendor_id, outward_number, total_value, status')
           .eq('status', 'Active');
       for (final row in (moRes as List<dynamic>)) {
         final map = row as Map<String, dynamic>;
         final vid = map['vendor_id'] as String? ?? '';
         final id = map['id'] as String? ?? '';
+        final outNo = (map['outward_number'] as String? ?? '').trim().toUpperCase();
         if (vid.isEmpty) continue;
         if (id.isNotEmpty) outwardIds.add(id);
+        if (outNo.isNotEmpty) outwardVendorKeys.add('$vid::$outNo');
         final b = _bucket(vid);
         b['materialOutwardCost'] = (b['materialOutwardCost'] ?? 0.0) +
             ((map['total_value'] as num?)?.toDouble() ?? 0.0);
@@ -790,7 +800,7 @@ class SubVendorService {
     try {
       final ledgerRes = await _client
           .from('sub_vendor_account_ledger')
-          .select('id, vendor_id, transaction_type, credit_amount, debit_amount, reference_id, status')
+          .select('id, vendor_id, transaction_type, reference_number, credit_amount, debit_amount, reference_id, status')
           .eq('status', 'Active');
       final Set<String> allKnownRefs = {...knownRawIds, ...outwardIds};
       for (final row in (ledgerRes as List<dynamic>)) {
@@ -800,6 +810,10 @@ class SubVendorService {
         final refId = map['reference_id'] as String?;
         if (refId != null && allKnownRefs.contains(refId)) continue;
         final tType = (map['transaction_type'] as String? ?? '').toUpperCase();
+        final refNo = (map['reference_number'] as String? ?? '').trim().toUpperCase();
+        if (tType == 'MATERIAL_OUTWARD' && refNo.isNotEmpty && outwardVendorKeys.contains('$vid::$refNo')) {
+          continue;
+        }
         final credit = (map['credit_amount'] as num?)?.toDouble() ?? 0.0;
         final debit = (map['debit_amount'] as num?)?.toDouble() ?? 0.0;
         final b = _bucket(vid);
