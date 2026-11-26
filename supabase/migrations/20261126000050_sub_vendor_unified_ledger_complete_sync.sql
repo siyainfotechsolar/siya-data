@@ -43,10 +43,16 @@ WHERE cp.vendor_id = sv.id
   AND cp.customer_id = cr.id
   AND (cp.vendor_name IS NULL OR cp.customer_name IS NULL);
 
+ALTER TABLE public.customer_payment_transactions
+    ADD COLUMN IF NOT EXISTS deleted BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS verification_status TEXT NOT NULL DEFAULT 'Pending',
+    ADD COLUMN IF NOT EXISTS payment_type TEXT DEFAULT 'Payment';
+
 -- ------------------------------------------------------------------------------
 -- 2. TIGHTEN RLS ON LEDGER & OUTWARD TABLES (ISOLATE SUB-VENDORS BY vendor_id)
 -- ------------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Staff can read sub_vendor_account_ledger" ON public.sub_vendor_account_ledger;
+DROP POLICY IF EXISTS "Staff and own sub-vendor can read sub_vendor_account_ledger" ON public.sub_vendor_account_ledger;
 CREATE POLICY "Staff and own sub-vendor can read sub_vendor_account_ledger"
     ON public.sub_vendor_account_ledger
     FOR SELECT
@@ -58,6 +64,7 @@ CREATE POLICY "Staff and own sub-vendor can read sub_vendor_account_ledger"
     );
 
 DROP POLICY IF EXISTS "Staff can read sub_vendor_material_outwards" ON public.sub_vendor_material_outwards;
+DROP POLICY IF EXISTS "Staff and own sub-vendor can read sub_vendor_material_outwards" ON public.sub_vendor_material_outwards;
 CREATE POLICY "Staff and own sub-vendor can read sub_vendor_material_outwards"
     ON public.sub_vendor_material_outwards
     FOR SELECT
@@ -69,6 +76,7 @@ CREATE POLICY "Staff and own sub-vendor can read sub_vendor_material_outwards"
     );
 
 DROP POLICY IF EXISTS "Staff can read sub_vendor_material_outward_items" ON public.sub_vendor_material_outward_items;
+DROP POLICY IF EXISTS "Staff and own sub-vendor can read sub_vendor_material_outward_items" ON public.sub_vendor_material_outward_items;
 CREATE POLICY "Staff and own sub-vendor can read sub_vendor_material_outward_items"
     ON public.sub_vendor_material_outward_items
     FOR SELECT
@@ -83,6 +91,7 @@ CREATE POLICY "Staff and own sub-vendor can read sub_vendor_material_outward_ite
     );
 
 DROP POLICY IF EXISTS "Staff can read sub_vendor_material_outward_audit" ON public.sub_vendor_material_outward_audit;
+DROP POLICY IF EXISTS "Staff and own sub-vendor can read sub_vendor_material_outward_audit" ON public.sub_vendor_material_outward_audit;
 CREATE POLICY "Staff and own sub-vendor can read sub_vendor_material_outward_audit"
     ON public.sub_vendor_material_outward_audit
     FOR SELECT
@@ -304,7 +313,7 @@ WHERE vsa.status <> 'Cancelled'
             (NULLIF(TRIM(cp_dup.reference_number), '') IS NOT NULL
              AND NULLIF(TRIM(cpt.reference_number), '') IS NOT NULL
              AND UPPER(TRIM(cp_dup.reference_number)) = UPPER(TRIM(cpt.reference_number)))
-            OR (cp_dup.amount = cpt.amount AND ABS(cp_dup.payment_date - cpt.payment_date) <= 1)
+            OR (cp_dup.amount = cpt.amount AND ABS(cp_dup.payment_date::DATE - cpt.payment_date::DATE) <= 1)
         )
   )
 
@@ -343,7 +352,7 @@ SELECT
                         (NULLIF(TRIM(cp_dup2.reference_number), '') IS NOT NULL
                          AND NULLIF(TRIM(cpt2.reference_number), '') IS NOT NULL
                          AND UPPER(TRIM(cp_dup2.reference_number)) = UPPER(TRIM(cpt2.reference_number)))
-                        OR (cp_dup2.amount = cpt2.amount AND ABS(cp_dup2.payment_date - cpt2.payment_date) <= 1)
+                        OR (cp_dup2.amount = cpt2.amount AND ABS(cp_dup2.payment_date::DATE - cpt2.payment_date::DATE) <= 1)
                     )
               )
         ), 0.00)
@@ -434,6 +443,8 @@ GRANT SELECT ON public.v_sub_vendor_unified_ledger TO authenticated, service_rol
 -- ------------------------------------------------------------------------------
 -- 5. UPDATE get_vendor_account_summary() RPC TO READ FROM UNIFIED LEDGER VIEW
 -- ------------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.get_vendor_account_summary(UUID);
+
 CREATE OR REPLACE FUNCTION public.get_vendor_account_summary(
     p_vendor_id UUID DEFAULT NULL
 )
@@ -478,6 +489,8 @@ GRANT EXECUTE ON FUNCTION public.get_vendor_account_summary(UUID) TO authenticat
 -- ------------------------------------------------------------------------------
 -- 6. CENTRAL RECONCILIATION RPC (RECONCILES FINANCIAL SUMMARY & ACCOUNT LEDGER)
 -- ------------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.get_sub_vendor_central_reconciliation(UUID);
+
 CREATE OR REPLACE FUNCTION public.get_sub_vendor_central_reconciliation(
     p_vendor_id UUID DEFAULT NULL
 )
