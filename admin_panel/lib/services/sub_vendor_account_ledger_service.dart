@@ -36,8 +36,8 @@ class SubVendorAccountLedgerService {
 
     final String type = transactionType.toUpperCase();
     final String category = (type == 'MATERIAL_OUTWARD' || type == 'MATERIAL_PAYMENT') ? 'MATERIAL' : 'ADVANCE';
-    final double credit = (type == 'MATERIAL_OUTWARD' || type == 'ADVANCE_REFUND') ? amount : 0.0;
-    final double debit = (type == 'MATERIAL_PAYMENT' || type == 'ADVANCE_GIVEN') ? amount : 0.0;
+    final double credit = (type == 'MATERIAL_PAYMENT' || type == 'ADVANCE_REFUND') ? amount : 0.0;
+    final double debit = (type == 'MATERIAL_OUTWARD' || type == 'ADVANCE_GIVEN') ? amount : 0.0;
 
     // Try Supabase RPC first
     try {
@@ -144,8 +144,8 @@ class SubVendorAccountLedgerService {
         vendorId: vendorId,
         vendorName: vendorName,
         transactionDate: outwardDate,
-        creditAmount: totalOutwardValue,
-        debitAmount: 0.0,
+        creditAmount: 0.0,
+        debitAmount: totalOutwardValue,
         particulars: particulars,
         remarks: remarks,
         updatedAt: DateTime.now(),
@@ -340,8 +340,7 @@ class SubVendorAccountLedgerService {
               s.vendorId == loc.vendorId &&
               s.transactionType == loc.transactionType &&
               s.referenceNumber.trim().toUpperCase() == loc.referenceNumber.trim().toUpperCase() &&
-              (s.creditAmount - loc.creditAmount).abs() < 0.01 &&
-              (s.debitAmount - loc.debitAmount).abs() < 0.01);
+              ((s.creditAmount + s.debitAmount) - (loc.creditAmount + loc.debitAmount)).abs() < 0.01);
           if (alreadySynced) continue;
 
           // If this was a mirrored outward and outward_number already exists in list/mo, skip auto-inserting duplicate
@@ -621,8 +620,8 @@ class SubVendorAccountLedgerService {
         transactionDate: outwardDate,
         transactionType: 'MATERIAL_OUTWARD',
         category: 'MATERIAL',
-        creditAmount: totalVal,
-        debitAmount: 0.0,
+        creditAmount: 0.0,
+        debitAmount: totalVal,
         runningBalance: 0.0,
         referenceNumber: (row['outward_number'] as String?) ?? '-',
         referenceId: moId,
@@ -652,8 +651,8 @@ class SubVendorAccountLedgerService {
         transactionDate: vmt.transactionDate,
         transactionType: vmt.isReturn ? 'MATERIAL_PAYMENT' : 'MATERIAL_OUTWARD',
         category: 'MATERIAL',
-        creditAmount: vmt.isReturn ? 0.0 : vmt.totalAmount,
-        debitAmount: vmt.isReturn ? vmt.totalAmount : 0.0,
+        creditAmount: vmt.isReturn ? vmt.totalAmount : 0.0,
+        debitAmount: vmt.isReturn ? 0.0 : vmt.totalAmount,
         runningBalance: 0.0,
         referenceNumber: vmt.challanNumber ?? vmt.invoiceNumber ?? 'SITE-${vmt.assignmentId.length >= 8 ? vmt.assignmentId.substring(0, 8) : vmt.assignmentId}',
         referenceId: vmt.id,
@@ -691,8 +690,8 @@ class SubVendorAccountLedgerService {
         transactionDate: cp.paymentDate,
         transactionType: 'MATERIAL_PAYMENT',
         category: 'MATERIAL',
-        creditAmount: 0.0,
-        debitAmount: cp.amount,
+        creditAmount: cp.amount,
+        debitAmount: 0.0,
         runningBalance: 0.0,
         referenceNumber: cp.referenceNumber ?? cp.loanApplicationId ?? '-',
         referenceId: cp.id,
@@ -768,8 +767,8 @@ class SubVendorAccountLedgerService {
           transactionDate: pDate,
           transactionType: 'MATERIAL_PAYMENT',
           category: 'MATERIAL',
-          creditAmount: 0.0,
-          debitAmount: amt,
+          creditAmount: amt,
+          debitAmount: 0.0,
           runningBalance: 0.0,
           referenceNumber: cptRef.isNotEmpty ? cptRef : (a.consumerNo ?? row['consumer_no'] as String? ?? '-'),
           referenceId: cptId,
@@ -807,8 +806,8 @@ class SubVendorAccountLedgerService {
         transactionDate: a.assignedDate,
         transactionType: 'MATERIAL_PAYMENT',
         category: 'MATERIAL',
-        creditAmount: 0.0,
-        debitAmount: residual,
+        creditAmount: residual,
+        debitAmount: 0.0,
         runningBalance: 0.0,
         referenceNumber: a.loanApplicationId ?? a.consumerNo ?? 'COLL-${a.id.length >= 8 ? a.id.substring(0, 8) : a.id}',
         referenceId: a.id,
@@ -914,10 +913,10 @@ class SubVendorAccountLedgerService {
 
       switch (e.transactionType.toUpperCase()) {
         case 'MATERIAL_OUTWARD':
-          totalMaterialOutwardValue += e.creditAmount;
+          totalMaterialOutwardValue += e.debitAmount;
           break;
         case 'MATERIAL_PAYMENT':
-          totalMaterialPaymentsReceived += e.debitAmount;
+          totalMaterialPaymentsReceived += e.creditAmount;
           break;
         case 'ADVANCE_GIVEN':
           totalAdvanceGiven += e.debitAmount;
@@ -953,8 +952,8 @@ class SubVendorAccountLedgerService {
           lastDate = e.transactionDate;
         }
 
-        if (e.transactionType == 'MATERIAL_OUTWARD') vMatOutward += e.creditAmount;
-        if (e.transactionType == 'MATERIAL_PAYMENT') vMatPayment += e.debitAmount;
+        if (e.transactionType == 'MATERIAL_OUTWARD') vMatOutward += e.debitAmount;
+        if (e.transactionType == 'MATERIAL_PAYMENT') vMatPayment += e.creditAmount;
         if (e.transactionType == 'ADVANCE_GIVEN') vAdvGiven += e.debitAmount;
         if (e.transactionType == 'ADVANCE_REFUND') vAdvRefund += e.creditAmount;
       }

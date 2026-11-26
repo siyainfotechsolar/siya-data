@@ -13,11 +13,11 @@ void main() {
     SubVendorAccountLedgerService.resetInMemoryDataForTesting();
   });
 
-  group('SUB VENDOR ACCOUNT DASHBOARD & CREDIT/DEBIT LEDGER - 10 SCENARIO TEST SUITE', () {
+  group('SUB VENDOR ACCOUNT DASHBOARD & PASSBOOK LEDGER (OPTION A) - 11 SCENARIO TEST SUITE', () {
     // -------------------------------------------------------------------------
-    // Scenario 1: Material Outward automatically posts CREDIT to Sub Vendor Ledger
+    // Scenario 1: Material Outward automatically posts DEBIT (Passbook - Dr)
     // -------------------------------------------------------------------------
-    test('Scenario 1: Material Outward automatically posts CREDIT (receivable increases)', () async {
+    test('Scenario 1: Material Outward automatically posts DEBIT (Passbook - Dr / recoverable increases)', () async {
       final materials = await SubVendorMaterialOutwardService.fetchMaterialMaster();
       final panelMat = materials.firstWhere((m) => m.category == 'PANEL'); // defaultRate: 11,500
 
@@ -49,17 +49,17 @@ void main() {
       final entry = ledger.first;
       expect(entry.transactionType, equals('MATERIAL_OUTWARD'));
       expect(entry.category, equals('MATERIAL'));
-      expect(entry.creditAmount, equals(115000.0));
-      expect(entry.debitAmount, equals(0.0));
-      expect(entry.runningBalance, equals(115000.0)); // Positive = Receivable
+      expect(entry.creditAmount, equals(0.0));
+      expect(entry.debitAmount, equals(115000.0));
+      expect(entry.runningBalance, equals(-115000.0)); // Negative = Dr Recoverable
       expect(entry.referenceNumber, equals(outward.outwardNumber));
     });
 
     // -------------------------------------------------------------------------
-    // Scenario 2: Material Payment Received posts DEBIT and reduces receivable
+    // Scenario 2: Material Payment Received posts CREDIT (Passbook + Cr)
     // -------------------------------------------------------------------------
-    test('Scenario 2: Material Payment Received posts DEBIT and reduces receivable', () async {
-      // 1. Initial Outward Credit: ₹1,50,000
+    test('Scenario 2: Material Payment Received posts CREDIT and offsets Debit outward', () async {
+      // 1. Initial Outward Debit: ₹1,50,000
       await SubVendorAccountLedgerService.syncOutwardToLedger(
         SubVendorMaterialOutward(
           id: 'out-101',
@@ -75,7 +75,7 @@ void main() {
         ),
       );
 
-      // 2. Sub Vendor pays ₹1,00,000 via NEFT
+      // 2. Sub Vendor pays ₹1,00,000 via NEFT (Credit + Cr)
       final payment = await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-001',
         vendorName: 'Shree Balaji Solar Works',
@@ -87,22 +87,22 @@ void main() {
         particulars: 'Part Payment for Solar Panels received from Sub Vendor',
       );
 
-      expect(payment.creditAmount, equals(0.0));
-      expect(payment.debitAmount, equals(100000.0));
+      expect(payment.creditAmount, equals(100000.0));
+      expect(payment.debitAmount, equals(0.0));
       expect(payment.category, equals('MATERIAL'));
 
-      // Check running balance: 1,50,000 Cr - 1,00,000 Dr = 50,000 Cr (Receivable)
+      // Check running balance: +1,00,000 Cr - 1,50,000 Dr = -50,000 Dr (Recoverable)
       final ledger = await SubVendorAccountLedgerService.fetchLedger(vendorId: 'vnd-001');
       expect(ledger.length, equals(2));
 
       final latest = ledger.first; // sorted newest first
-      expect(latest.runningBalance, equals(50000.0));
+      expect(latest.runningBalance, equals(-50000.0));
     });
 
     // -------------------------------------------------------------------------
-    // Scenario 3: Advance Given posts DEBIT and increases advance balance payable
+    // Scenario 3: Advance Given posts DEBIT (Passbook - Dr)
     // -------------------------------------------------------------------------
-    test('Scenario 3: Advance Given posts DEBIT and increases advance balance', () async {
+    test('Scenario 3: Advance Given posts DEBIT and increases advance paid out', () async {
       final advance = await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-002',
         vendorName: 'Omkar Solar EPC',
@@ -121,13 +121,15 @@ void main() {
       final metrics = await SubVendorAccountLedgerService.fetchDashboardMetrics();
       expect(metrics.totalAdvanceGiven, equals(30000.0));
       expect(metrics.netAdvanceBalance, equals(30000.0));
+      expect(metrics.netBalance, equals(-30000.0));
+      expect(metrics.isReceivable, isTrue);
     });
 
     // -------------------------------------------------------------------------
-    // Scenario 4: Advance Refund Received posts CREDIT and reduces advance balance
+    // Scenario 4: Advance Refund Received posts CREDIT (Passbook + Cr)
     // -------------------------------------------------------------------------
     test('Scenario 4: Advance Refund Received posts CREDIT and reduces advance balance', () async {
-      // 1. Advance given ₹40,000
+      // 1. Advance given ₹40,000 (Dr)
       await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-002',
         vendorName: 'Omkar Solar EPC',
@@ -139,7 +141,7 @@ void main() {
         particulars: 'Security Deposit Given',
       );
 
-      // 2. Refund received ₹15,000
+      // 2. Refund received ₹15,000 (Cr)
       final refund = await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-002',
         vendorName: 'Omkar Solar EPC',
@@ -159,13 +161,14 @@ void main() {
       expect(metrics.totalAdvanceGiven, equals(40000.0));
       expect(metrics.totalAdvanceRefund, equals(15000.0));
       expect(metrics.netAdvanceBalance, equals(25000.0)); // 40,000 - 15,000 = 25,000
+      expect(metrics.netBalance, equals(-25000.0));
     });
 
     // -------------------------------------------------------------------------
     // Scenario 5: Running Balance calculation across multiple sequential transactions
     // -------------------------------------------------------------------------
     test('Scenario 5: Running Balance calculates accurately across sequential transactions', () async {
-      // T1: Outward ₹2,00,000 (Cr) -> Balance = +2,00,000
+      // T1: Outward ₹2,00,000 (Dr) -> Balance = -2,00,000
       await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-001',
         vendorName: 'Shree Balaji Solar Works',
@@ -176,7 +179,7 @@ void main() {
         particulars: 'Material Outward 1',
       );
 
-      // T2: Payment ₹80,000 (Dr) -> Balance = +1,20,000
+      // T2: Payment ₹80,000 (Cr) -> Balance = -1,20,000
       await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-001',
         vendorName: 'Shree Balaji Solar Works',
@@ -187,7 +190,7 @@ void main() {
         particulars: 'Payment 1',
       );
 
-      // T3: Advance Given ₹20,000 (Dr) -> Balance = +1,00,000
+      // T3: Advance Given ₹20,000 (Dr) -> Balance = -1,40,000
       await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-001',
         vendorName: 'Shree Balaji Solar Works',
@@ -198,7 +201,7 @@ void main() {
         particulars: 'Advance Given',
       );
 
-      // T4: Advance Refund ₹10,000 (Cr) -> Balance = +1,10,000
+      // T4: Advance Refund ₹10,000 (Cr) -> Balance = -1,30,000
       await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-001',
         vendorName: 'Shree Balaji Solar Works',
@@ -209,7 +212,7 @@ void main() {
         particulars: 'Advance Refund',
       );
 
-      // T5: Material Outward ₹50,000 (Cr) -> Balance = +1,60,000
+      // T5: Material Outward ₹50,000 (Dr) -> Balance = -1,80,000
       await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-001',
         vendorName: 'Shree Balaji Solar Works',
@@ -223,23 +226,23 @@ void main() {
       final ledger = await SubVendorAccountLedgerService.fetchLedger(vendorId: 'vnd-001');
       expect(ledger.length, equals(5));
 
-      // Latest entry (T5) running balance should be exactly 1,60,000
-      expect(ledger.first.runningBalance, equals(160000.0));
+      // Latest entry (T5) running balance should be exactly -1,80,000
+      expect(ledger.first.runningBalance, equals(-180000.0));
 
-      // Total Credit = 2,00,000 + 10,000 + 50,000 = 2,60,000
-      // Total Debit = 80,000 + 20,000 = 1,00,000
-      // Net Balance = 2,60,000 - 1,00,000 = 1,60,000
+      // Total Credit = 80,000 + 10,000 = 90,000
+      // Total Debit = 2,00,000 + 20,000 + 50,000 = 2,70,000
+      // Net Balance = 90,000 - 2,70,000 = -1,80,000
       final metrics = await SubVendorAccountLedgerService.fetchDashboardMetrics();
-      expect(metrics.totalCredit, equals(260000.0));
-      expect(metrics.totalDebit, equals(100000.0));
-      expect(metrics.netBalance, equals(160000.0));
+      expect(metrics.totalCredit, equals(90000.0));
+      expect(metrics.totalDebit, equals(270000.0));
+      expect(metrics.netBalance, equals(-180000.0));
     });
 
     // -------------------------------------------------------------------------
-    // Scenario 6: Separate Material Receivable vs Advance Payable classification
+    // Scenario 6: Separate Material vs Advance classification under Passbook
     // -------------------------------------------------------------------------
-    test('Scenario 6: Maintains separate Material Receivable and Advance Payable balances', () async {
-      // Material Outward ₹2,50,000 (Cr)
+    test('Scenario 6: Maintains separate Material and Advance category totals consistently', () async {
+      // Material Outward ₹2,50,000 (Dr)
       await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-001',
         vendorName: 'Vendor A',
@@ -250,7 +253,7 @@ void main() {
         particulars: 'Material Outward',
       );
 
-      // Material Payment ₹1,80,000 (Dr)
+      // Material Payment ₹1,80,000 (Cr)
       await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-001',
         vendorName: 'Vendor A',
@@ -295,16 +298,16 @@ void main() {
       expect(metrics.totalAdvanceRefund, equals(10000.0));
       expect(metrics.netAdvanceBalance, equals(20000.0)); // 30,000 - 10,000 = 20,000
 
-      // Total Credit = 2,50,000 + 10,000 = 2,60,000
-      // Total Debit = 1,80,000 + 30,000 = 2,10,000
-      // Net Balance = 2,60,000 - 2,10,000 = 50,000
-      expect(metrics.totalCredit, equals(260000.0));
-      expect(metrics.totalDebit, equals(210000.0));
-      expect(metrics.netBalance, equals(50000.0));
+      // Total Credit = 1,80,000 + 10,000 = 1,90,000
+      // Total Debit = 2,50,000 + 30,000 = 2,80,000
+      // Net Balance = 1,90,000 - 2,80,000 = -90,000 (Dr = 70k material + 20k advance recoverable)
+      expect(metrics.totalCredit, equals(190000.0));
+      expect(metrics.totalDebit, equals(280000.0));
+      expect(metrics.netBalance, equals(-90000.0));
     });
 
     // -------------------------------------------------------------------------
-    // Scenario 7: Outward Cancellation removes Credit effect from ledger
+    // Scenario 7: Outward Cancellation removes Debit effect from ledger
     // -------------------------------------------------------------------------
     test('Scenario 7: Outward cancellation marks ledger entry as Cancelled and reverses effect', () async {
       final materials = await SubVendorMaterialOutwardService.fetchMaterialMaster();
@@ -330,9 +333,10 @@ void main() {
         ],
       );
 
-      // Verify ledger has active 50,000 Cr
+      // Verify ledger has active 50,000 Dr
       var ledger = await SubVendorAccountLedgerService.fetchLedger(vendorId: 'vnd-001');
-      expect(ledger.first.creditAmount, equals(50000.0));
+      expect(ledger.first.debitAmount, equals(50000.0));
+      expect(ledger.first.creditAmount, equals(0.0));
       expect(ledger.first.status, equals('Active'));
 
       // 2. Cancel the Outward
@@ -348,71 +352,71 @@ void main() {
 
       final metrics = await SubVendorAccountLedgerService.fetchDashboardMetrics();
       expect(metrics.totalMaterialOutward, equals(0.0));
-      expect(metrics.totalCredit, equals(0.0));
+      expect(metrics.totalDebit, equals(0.0));
       expect(metrics.netBalance, equals(0.0));
     });
 
     // -------------------------------------------------------------------------
-    // Scenario 8: Dashboard Metrics match exact figures from prompt specification
+    // Scenario 8: Live Dhanshree-style Passbook Metrics (Cr 3.4L, Dr 2,05,559.74 -> +1,34,440.26 Cr Payable)
     // -------------------------------------------------------------------------
-    test('Scenario 8: Dashboard metrics match prompt example (Total Cr: 2.5L, Dr: 1.8L, Net: 70k)', () async {
-      // Credit: Material Outward ₹2,50,000
+    test('Scenario 8: Dashboard metrics match Passbook convention (Cr 3.4L, Dr 2,05,559.74 -> +1,34,440.26 Cr Payable)', () async {
+      // Credit: Loans & Vendor Payments ₹3,40,000
       await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-001',
-        vendorName: 'Vendor Test',
-        transactionDate: DateTime(2026, 11, 1),
-        transactionType: 'MATERIAL_OUTWARD',
-        amount: 250000.0,
-        referenceNumber: 'OUT-SAMPLE-1',
-        particulars: 'Prompt sample outward',
+        vendorName: 'Dhanshree solar',
+        transactionDate: DateTime(2026, 11, 20),
+        transactionType: 'MATERIAL_PAYMENT',
+        amount: 340000.0,
+        referenceNumber: 'LOAN-PAY-1',
+        particulars: 'Bank Loan & Direct Payments Received',
       );
 
-      // Debit: Material Payment ₹1,80,000
+      // Debit: Material Outwards ₹2,05,559.74
       await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-001',
-        vendorName: 'Vendor Test',
-        transactionDate: DateTime(2026, 11, 15),
-        transactionType: 'MATERIAL_PAYMENT',
-        amount: 180000.0,
-        referenceNumber: 'PAY-SAMPLE-1',
-        particulars: 'Prompt sample payment',
+        vendorName: 'Dhanshree solar',
+        transactionDate: DateTime(2026, 11, 22),
+        transactionType: 'MATERIAL_OUTWARD',
+        amount: 205559.74,
+        referenceNumber: 'OUT-20261126-0001',
+        particulars: 'Material Outward Dispatch',
       );
 
       final metrics = await SubVendorAccountLedgerService.fetchDashboardMetrics();
 
-      expect(metrics.totalCredit, equals(250000.0));
-      expect(metrics.totalDebit, equals(180000.0));
-      expect(metrics.netBalance, equals(70000.0));
-      expect(metrics.netMaterialReceivable, equals(70000.0));
-      expect(metrics.isReceivable, isTrue);
-      expect(metrics.isPayable, isFalse);
+      expect(metrics.totalCredit, equals(340000.0));
+      expect(metrics.totalDebit, closeTo(205559.74, 0.01));
+      expect(metrics.netBalance, closeTo(134440.26, 0.01));
+      expect(metrics.netMaterialReceivable, closeTo(-134440.26, 0.01));
+      expect(metrics.isPayable, isTrue);
+      expect(metrics.isReceivable, isFalse);
     });
 
     // -------------------------------------------------------------------------
-    // Scenario 9: Sub-Vendor-wise balance summary produces correct breakdown
+    // Scenario 9: Sub-Vendor-wise balance summary produces correct Payable vs Receivable flags
     // -------------------------------------------------------------------------
-    test('Scenario 9: Sub-Vendor-wise balance summary produces correct breakdown', () async {
-      // Vendor 1: Net receivable ₹60,000
+    test('Scenario 9: Sub-Vendor-wise balance summary classifies Payable (Cr) and Receivable (Dr)', () async {
+      // Vendor 1: Credits ₹1,00,000 > Debits ₹40,000 -> +₹60,000 Cr Payable
       await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-001',
         vendorName: 'Vendor 1',
         transactionDate: DateTime(2026, 11, 1),
-        transactionType: 'MATERIAL_OUTWARD',
+        transactionType: 'MATERIAL_PAYMENT',
         amount: 100000.0,
-        referenceNumber: 'OUT-V1',
-        particulars: 'V1 Outward',
+        referenceNumber: 'PAY-V1',
+        particulars: 'V1 Receipts',
       );
       await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-001',
         vendorName: 'Vendor 1',
         transactionDate: DateTime(2026, 11, 5),
-        transactionType: 'MATERIAL_PAYMENT',
+        transactionType: 'MATERIAL_OUTWARD',
         amount: 40000.0,
-        referenceNumber: 'PAY-V1',
-        particulars: 'V1 Payment',
+        referenceNumber: 'OUT-V1',
+        particulars: 'V1 Outward',
       );
 
-      // Vendor 2: Net advance payable ₹20,000 (Dr > Cr)
+      // Vendor 2: Advance paid out ₹20,000 Dr -> -₹20,000 Dr Receivable
       await SubVendorAccountLedgerService.recordTransaction(
         vendorId: 'vnd-002',
         vendorName: 'Vendor 2',
@@ -429,14 +433,16 @@ void main() {
       final v1 = summaries.firstWhere((s) => s.vendorId == 'vnd-001');
       expect(v1.totalCredit, equals(100000.0));
       expect(v1.totalDebit, equals(40000.0));
-      expect(v1.netBalance, equals(60000.0)); // Receivable
-      expect(v1.isReceivable, isTrue);
+      expect(v1.netBalance, equals(60000.0));
+      expect(v1.isPayable, isTrue);
+      expect(v1.isReceivable, isFalse);
 
       final v2 = summaries.firstWhere((s) => s.vendorId == 'vnd-002');
       expect(v2.totalCredit, equals(0.0));
       expect(v2.totalDebit, equals(20000.0));
-      expect(v2.netBalance, equals(-20000.0)); // Payable
-      expect(v2.isPayable, isTrue);
+      expect(v2.netBalance, equals(-20000.0));
+      expect(v2.isReceivable, isTrue);
+      expect(v2.isPayable, isFalse);
     });
 
     // -------------------------------------------------------------------------
@@ -511,8 +517,8 @@ void main() {
           transactionDate: DateTime(2026, 11, 24),
           transactionType: 'MATERIAL_PAYMENT',
           category: 'MATERIAL',
-          creditAmount: 0.0,
-          debitAmount: 50000.0,
+          creditAmount: 50000.0,
+          debitAmount: 0.0,
           referenceNumber: '9319',
           paymentMode: 'Bank Transfer',
           particulars: 'Payments Received',
@@ -524,8 +530,8 @@ void main() {
           transactionDate: DateTime(2026, 11, 25),
           transactionType: 'MATERIAL_PAYMENT',
           category: 'MATERIAL',
-          creditAmount: 0.0,
-          debitAmount: 50000.0,
+          creditAmount: 50000.0,
+          debitAmount: 0.0,
           referenceNumber: '3793',
           paymentMode: 'Bank Transfer',
           particulars: 'Payments Received',
@@ -684,8 +690,19 @@ void main() {
 
       final double totCr = merged.fold(0.0, (s, e) => s + e.creditAmount);
       final double totDr = merged.fold(0.0, (s, e) => s + e.debitAmount);
-      expect(totCr, closeTo(294011.74, 0.01)); // 63,809.74 + 2,30,202.00
-      expect(totDr, closeTo(721111.0, 0.01)); // 1,00,000 + 2,40,000 + 3,71,111 + 10,000
+      // Passbook Option A:
+      // Credits (+ Cr): 1,00,000 manual + 2,40,000 bank loan + 3,71,111 CRM cash = 7,11,111.00
+      // Debits  (- Dr): 63,809.74 outward + 2,30,202.00 site material + 10,000 payout = 3,04,011.74
+      expect(totCr, closeTo(711111.0, 0.01));
+      expect(totDr, closeTo(304011.74, 0.01));
+
+      // Verify clear semantic typeLabel badges
+      expect(merged.firstWhere((e) => e.id == 'mo_out-uuid-1').typeLabel, equals('Material Outward'));
+      expect(merged.firstWhere((e) => e.id == 'vmt_vmt-uuid-1').typeLabel, equals('Site Material Given'));
+      expect(merged.firstWhere((e) => e.id == 'cp_cp-uuid-loan').typeLabel, equals('Bank Loan Credited'));
+      expect(merged.firstWhere((e) => e.id.startsWith('cpt_cpt-cash-1_')).typeLabel, equals('Customer Payment'));
+      expect(merged.firstWhere((e) => e.id == 'vp_vp-uuid-1').typeLabel, equals('Vendor Payout'));
+      expect(merged.firstWhere((e) => e.id == 'man-9319').typeLabel, equals('Payment Received'));
     });
   });
 }

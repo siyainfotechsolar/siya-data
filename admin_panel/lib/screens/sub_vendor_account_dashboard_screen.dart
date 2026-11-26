@@ -239,40 +239,42 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row 1: Primary Account Dashboard Cards (Matching User Spec Exactly)
+          // Row 1: Primary Account Dashboard Cards (Standard Party Passbook Convention)
           Row(
             children: [
-              // Total Credit (Sub Vendor कडून येणे)
+              // Total Credit (मिळालेले पैसे / जमा)
               Expanded(
                 child: _buildBigMetricCard(
                   title: 'Total Credit',
-                  subtitle: 'Sub Vendor कडून येणे (Receivable)',
+                  subtitle: 'मिळालेले पैसे / जमा (Loans, Cash, Payments)',
                   amount: _currency.format(_metrics.totalCredit),
-                  icon: Icons.trending_up_rounded,
+                  icon: Icons.arrow_downward_rounded,
                   color: greenColor,
                   bgColor: const Color(0xFFECFDF5),
                   borderColor: const Color(0xFFA7F3D0),
                 ),
               ),
               const SizedBox(width: 16),
-              // Total Debit (Sub Vendor ला देणे / जमा झालेले)
+              // Total Debit (दिलेला माल व Payouts)
               Expanded(
                 child: _buildBigMetricCard(
                   title: 'Total Debit',
-                  subtitle: 'Sub Vendor ला देणे / मिळालेले',
+                  subtitle: 'दिलेला माल व Payouts (Materials + Advances)',
                   amount: _currency.format(_metrics.totalDebit),
-                  icon: Icons.trending_down_rounded,
+                  icon: Icons.arrow_upward_rounded,
                   color: amberColor,
                   bgColor: const Color(0xFFFFFBEB),
                   borderColor: const Color(0xFFFDE68A),
                 ),
               ),
               const SizedBox(width: 16),
-              // Net Outstanding Balance
+              // Net Passbook Balance (+ Cr = Payable to Vendor, - Dr = Recoverable)
               Expanded(
                 child: _buildBigMetricCard(
                   title: 'Net Balance',
-                  subtitle: _metrics.netBalance >= 0 ? 'आपल्याला Sub Vendor कडून येणे' : 'आपल्याला Sub Vendor ला देणे',
+                  subtitle: _metrics.netBalance >= 0
+                      ? 'आपल्याला Sub Vendor ला देणे (Payable)'
+                      : 'आपल्याला Sub Vendor कडून येणे (Recoverable)',
                   amount: '${_currency.format(_metrics.netBalance.abs())} ${_metrics.netBalance >= 0 ? "Cr" : "Dr"}',
                   icon: Icons.account_balance_wallet_rounded,
                   color: _metrics.netBalance >= 0 ? greenColor : redColor,
@@ -285,10 +287,10 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
 
           const SizedBox(height: 18),
 
-          // Row 2: Secondary Category Breakdowns (Material vs Advance)
+          // Row 2: Secondary Category Breakdowns (Material/Collections vs Payouts/Advance)
           Row(
             children: [
-              // Material Account Summary Card
+              // Material & Collections Summary Card
               Expanded(
                 child: Card(
                   elevation: 0,
@@ -302,22 +304,30 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                           children: [
                             Icon(Icons.inventory_2_outlined, color: navyColor, size: 18),
                             SizedBox(width: 8),
-                            Text('A. Material Account Summary', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: navyColor)),
+                            Text('A. Collections, Loans & Material Summary', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: navyColor)),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        _buildSummarySubRow('Material Outward Value (Credit):', _currency.format(_metrics.totalMaterialOutwardValue), greenColor),
+                        _buildSummarySubRow('Loans, Collections & Payments (Credit):', _currency.format(_metrics.totalMaterialPaymentsReceived), greenColor),
                         const SizedBox(height: 6),
-                        _buildSummarySubRow('Material Payments Received (Debit):', _currency.format(_metrics.totalMaterialPaymentsReceived), amberColor),
+                        _buildSummarySubRow('Material Outward & Site Material (Debit):', _currency.format(_metrics.totalMaterialOutwardValue), amberColor),
                         const Divider(height: 16),
-                        _buildSummarySubRow('Net Material Receivable:', _currency.format(_metrics.netMaterialReceivable), navyColor, isBold: true),
+                        () {
+                          final matDiff = _metrics.totalMaterialPaymentsReceived - _metrics.totalMaterialOutwardValue;
+                          return _buildSummarySubRow(
+                            matDiff >= 0 ? 'Net Category Cr (Payable):' : 'Net Material Recoverable (Dr):',
+                            '${_currency.format(matDiff.abs())} ${matDiff >= 0 ? "Cr" : "Dr"}',
+                            navyColor,
+                            isBold: true,
+                          );
+                        }(),
                       ],
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 16),
-              // Advance Account Summary Card
+              // Payout & Advance Summary Card
               Expanded(
                 child: Card(
                   elevation: 0,
@@ -331,15 +341,20 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                           children: [
                             Icon(Icons.payments_outlined, color: amberColor, size: 18),
                             SizedBox(width: 8),
-                            Text('B. Advance & Deposit Summary', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: amberColor)),
+                            Text('B. Payout & Advance Summary', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: amberColor)),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        _buildSummarySubRow('Total Advance Given (Debit):', _currency.format(_metrics.totalAdvanceGiven), amberColor),
+                        _buildSummarySubRow('Payouts & Advances Given (Debit):', _currency.format(_metrics.totalAdvanceGiven), amberColor),
                         const SizedBox(height: 6),
                         _buildSummarySubRow('Advance Refunds Received (Credit):', _currency.format(_metrics.totalAdvanceRefundReceived), greenColor),
                         const Divider(height: 16),
-                        _buildSummarySubRow('Net Advance Balance:', _currency.format(_metrics.netAdvanceBalance), navyColor, isBold: true),
+                        _buildSummarySubRow(
+                          'Net Payouts / Advances Paid:',
+                          '${_currency.format(_metrics.netAdvanceBalance.abs())} ${_metrics.netAdvanceBalance >= 0 ? "Dr" : "Cr"}',
+                          navyColor,
+                          isBold: true,
+                        ),
                       ],
                     ),
                   ),
@@ -375,11 +390,11 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                 columns: const [
                   DataColumn(label: Text('Code', style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(label: Text('Sub Vendor Name', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Total Credit (येणे)', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Total Debit (देणे)', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Total Credit (जमा)', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Total Debit (नावे)', style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(label: Text('Net Balance', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Material Receivable', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Advance Balance', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Net Material (Cr-Dr)', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Net Payout / Advance', style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
                 ],
                 rows: _metrics.vendorBalances.map((v) {
@@ -397,7 +412,7 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            '${_currency.format(v.netBalance.abs())} ${v.netBalance >= 0 ? "Cr (येणे)" : "Dr (देणे)"}',
+                            '${_currency.format(v.netBalance.abs())} ${v.netBalance >= 0 ? "Cr (देणे)" : "Dr (येणे)"}',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
@@ -406,8 +421,8 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                           ),
                         ),
                       ),
-                      DataCell(Text(_currency.format(v.materialReceivable), style: const TextStyle(fontSize: 12))),
-                      DataCell(Text(_currency.format(v.advanceBalance), style: const TextStyle(fontSize: 12))),
+                      DataCell(Text('${_currency.format(v.materialReceivable.abs())} ${v.materialReceivable <= 0 ? "Cr" : "Dr"}', style: const TextStyle(fontSize: 12))),
+                      DataCell(Text('${_currency.format(v.advanceBalance.abs())} ${v.advanceBalance >= 0 ? "Dr" : "Cr"}', style: const TextStyle(fontSize: 12))),
                       DataCell(
                         Row(
                           mainAxisSize: MainAxisSize.min,
@@ -613,9 +628,9 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                     ),
                     _buildLedgerTotalPill(
                       'Net Balance',
-                      '${_currency.format(filteredNet.abs())} ${filteredNet >= 0 ? "Cr" : "Dr"}',
+                      '${_currency.format(filteredNet.abs())} ${filteredNet >= 0 ? "Cr (देणे)" : "Dr (येणे)"}',
                       Icons.account_balance_wallet_rounded,
-                      navyColor,
+                      filteredNet >= 0 ? greenColor : redColor,
                     ),
                   ],
                 );
@@ -649,7 +664,13 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                         ),
                         title: Row(
                           children: [
-                            Text(e.particulars, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Flexible(
+                              child: Text(
+                                e.particulars,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

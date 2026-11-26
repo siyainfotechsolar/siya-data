@@ -54,13 +54,13 @@ class SubVendorAccountLedgerPdfService {
             // Financial KPI Cards
             pw.Row(
               children: [
-                _buildKpiCard('Total Credit (येणे)', _currency.format(totalCredit), greenColor),
+                _buildKpiCard('Total Credit (जमा)', _currency.format(totalCredit), greenColor),
                 pw.SizedBox(width: 8),
-                _buildKpiCard('Total Debit (देणे)', _currency.format(totalDebit), amberColor),
+                _buildKpiCard('Total Debit (नावे)', _currency.format(totalDebit), amberColor),
                 pw.SizedBox(width: 8),
                 _buildKpiCard(
                   'Closing Balance',
-                  '${_currency.format(closingBalance.abs())} ${closingBalance >= 0 ? "Cr (येणे)" : "Dr (देणे)"}',
+                  '${_currency.format(closingBalance.abs())} ${closingBalance >= 0 ? "Cr (देणे)" : "Dr (येणे)"}',
                   closingBalance >= 0 ? greenColor : redColor,
                 ),
               ],
@@ -129,7 +129,7 @@ class SubVendorAccountLedgerPdfService {
                     _buildCell(''),
                     _buildCell(_currency.format(totalCredit), isHeader: true, align: pw.TextAlign.right, color: greenColor),
                     _buildCell(_currency.format(totalDebit), isHeader: true, align: pw.TextAlign.right, color: amberColor),
-                    _buildCell(_currency.format(closingBalance), isHeader: true, align: pw.TextAlign.right, color: navyColor),
+                    _buildCell('${_currency.format(closingBalance.abs())} ${closingBalance >= 0 ? "Cr" : "Dr"}', isHeader: true, align: pw.TextAlign.right, color: navyColor),
                   ],
                 ),
               ],
@@ -157,7 +157,7 @@ class SubVendorAccountLedgerPdfService {
       ['Sub Vendor Name', vendor.name],
       ['Vendor Code', vendor.vendorCode],
       ['Mobile', vendor.mobile],
-      ['Date', 'Reference / Entry No', 'Particulars', 'Category', 'Payment Mode', 'Credit (Receivable)', 'Debit (Payable)', 'Running Balance', 'Status', 'Remarks'],
+      ['Date', 'Reference / Entry No', 'Particulars', 'Category', 'Payment Mode', 'Credit (Received / Deposited)', 'Debit (Material / Payout)', 'Running Balance', 'Status', 'Remarks'],
     ];
 
     for (final e in entries) {
@@ -188,15 +188,15 @@ class SubVendorAccountLedgerPdfService {
   static Future<void> exportDashboardSummaryCsv(SubVendorDashboardMetrics metrics) async {
     final rows = <List<dynamic>>[
       ['SIYA INFOTECH - SUB VENDOR ACCOUNT DASHBOARD SUMMARY'],
-      ['Total Credit (Receivable)', metrics.totalCredit],
-      ['Total Debit (Payable)', metrics.totalDebit],
-      ['Net Outstanding Balance', metrics.netBalance],
-      ['Total Material Outward Value', metrics.totalMaterialOutwardValue],
-      ['Total Material Payments Received', metrics.totalMaterialPaymentsReceived],
-      ['Net Material Receivable', metrics.netMaterialReceivable],
-      ['Total Advance Given', metrics.totalAdvanceGiven],
-      ['Total Advance Refund Received', metrics.totalAdvanceRefundReceived],
-      ['Net Advance Balance', metrics.netAdvanceBalance],
+      ['Total Credit (Received / Deposited)', metrics.totalCredit],
+      ['Total Debit (Materials / Payouts)', metrics.totalDebit],
+      ['Net Balance (+ Cr Payable / - Dr Recoverable)', metrics.netBalance],
+      ['Total Material Outward Value (Dr)', metrics.totalMaterialOutwardValue],
+      ['Total Loans, Collections & Payments (Cr)', metrics.totalMaterialPaymentsReceived],
+      ['Net Material Difference (Outward - Receipts)', metrics.netMaterialReceivable],
+      ['Total Payouts & Advances Given (Dr)', metrics.totalAdvanceGiven],
+      ['Total Advance Refund Received (Cr)', metrics.totalAdvanceRefundReceived],
+      ['Net Advance Balance (Given - Refund)', metrics.netAdvanceBalance],
       [],
       ['Vendor Code', 'Sub Vendor Name', 'Total Credit', 'Total Debit', 'Net Balance', 'Material Receivable', 'Advance Balance', 'Transactions Count', 'Last Activity Date'],
     ];

@@ -1,11 +1,15 @@
 import 'dart:convert';
 
-/// Represents a double-entry accounting ledger entry for a Sub-Vendor.
-/// Credit / Debit Rules:
-/// - MATERIAL_OUTWARD: Credit (Receivable increases - आपल्याला पैसे येणे)
-/// - MATERIAL_PAYMENT: Debit (Receivable decreases - येणे कमी)
-/// - ADVANCE_GIVEN: Debit (Advance payable increases - आपले पैसे बाहेर)
-/// - ADVANCE_REFUND: Credit (Advance balance decreases - आपले पैसे परत)
+/// Represents a double-entry Standard Party Passbook ledger entry for a Sub-Vendor.
+/// Credit / Debit Rules (Standard Party Ledger):
+/// - MATERIAL_PAYMENT (Collections / Bank Loans / Direct Vendor Payments / Returns):
+///     Credit (+ Cr / जमा — Payable to Sub-Vendor increases)
+/// - MATERIAL_OUTWARD (Materials Dispatched / Issued to Sub-Vendor):
+///     Debit (- Dr / नावे — Payable decreases / Recoverable increases)
+/// - ADVANCE_GIVEN (Payouts / Advances Paid to Sub-Vendor):
+///     Debit (- Dr / नावे — Payable decreases)
+/// - ADVANCE_REFUND (Advance / Deposit Refunds Received back):
+///     Credit (+ Cr / जमा — Advance recovery credit)
 class SubVendorAccountLedgerEntry {
   final String id;
   final String vendorId;
@@ -57,13 +61,29 @@ class SubVendorAccountLedgerEntry {
   bool get isCancelled => status.toUpperCase() == 'CANCELLED';
 
   String get typeLabel {
-    switch (transactionType.toUpperCase()) {
+    final tType = transactionType.toUpperCase();
+    final lowerPart = particulars.toLowerCase();
+
+    if (id.startsWith('cp_') || id.startsWith('cpt_')) {
+      return lowerPart.contains('loan') ? 'Bank Loan Credited' : 'Customer Payment';
+    }
+    if (id.startsWith('a_coll_')) {
+      return lowerPart.contains('loan') ? 'Site Loan & Collection' : 'Site Collection';
+    }
+    if (id.startsWith('vmt_')) {
+      return tType == 'MATERIAL_PAYMENT' ? 'Site Material Return' : 'Site Material Given';
+    }
+    if (id.startsWith('vp_')) {
+      return 'Vendor Payout';
+    }
+
+    switch (tType) {
       case 'MATERIAL_OUTWARD':
         return 'Material Outward';
       case 'MATERIAL_PAYMENT':
-        return 'Material Payment Received';
+        return 'Payment Received';
       case 'ADVANCE_GIVEN':
-        return 'Advance / Deposit Given';
+        return 'Payout / Advance Given';
       case 'ADVANCE_REFUND':
         return 'Advance / Deposit Refund';
       default:
@@ -170,9 +190,9 @@ class SubVendorAccountLedgerEntry {
 
 /// Aggregated financial metrics for the high-level Sub Vendor Account Dashboard.
 class SubVendorDashboardMetrics {
-  final double totalCredit; // Sub Vendor कडून येणे (Material Outward Value + Advance Refund)
-  final double totalDebit; // Sub Vendor ला देणे / जमा झालेले (Material Payment Received + Advance Given)
-  final double netBalance; // Total Credit - Total Debit (आपल्याला Sub Vendor कडून येणे)
+  final double totalCredit; // Passbook Credit (+ Cr / जमा: Bank Loans, Cash Collections, Direct Payments, Returns)
+  final double totalDebit; // Passbook Debit (- Dr / नावे: Material Outwards, Site Materials, Payouts / Advances)
+  final double netBalance; // Total Credit - Total Debit (+ Cr = Payable to Vendor, - Dr = Recoverable from Vendor)
   final double totalMaterialOutwardValue;
   final double totalMaterialPaymentsReceived;
   final double netMaterialReceivable;
@@ -194,8 +214,8 @@ class SubVendorDashboardMetrics {
     required this.vendorBalances,
   });
 
-  bool get isReceivable => netBalance > 0.001;
-  bool get isPayable => netBalance < -0.001;
+  bool get isPayable => netBalance > 0.001;
+  bool get isReceivable => netBalance < -0.001;
   double get totalMaterialOutward => totalMaterialOutwardValue;
   double get totalMaterialPayment => totalMaterialPaymentsReceived;
   double get totalAdvanceRefund => totalAdvanceRefundReceived;
@@ -229,8 +249,8 @@ class SubVendorAccountBalanceSummary {
   final int totalTransactions;
   final DateTime? lastTransactionDate;
 
-  bool get isReceivable => netBalance > 0.001;
-  bool get isPayable => netBalance < -0.001;
+  bool get isPayable => netBalance > 0.001;
+  bool get isReceivable => netBalance < -0.001;
 
   const SubVendorAccountBalanceSummary({
     required this.vendorId,
