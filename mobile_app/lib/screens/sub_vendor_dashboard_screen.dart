@@ -26,6 +26,7 @@ class _SubVendorMobileDashboardScreenState extends State<SubVendorMobileDashboar
   VendorFinancialSummary? _summary;
   List<VendorSiteAssignment> _assignments = [];
   List<VendorMaterialTransaction> _materials = [];
+  List<SubVendorMaterialOutward> _outwards = [];
   List<VendorPayout> _payouts = [];
 
   bool _isLoading = true;
@@ -65,21 +66,15 @@ class _SubVendorMobileDashboardScreenState extends State<SubVendorMobileDashboar
       _vendor = v;
       final assignments = await SubVendorService.fetchAssignments(vendorId: v.id);
       final materials = await SubVendorService.fetchVendorMaterials(v.id);
+      final outwards = await SubVendorService.fetchVendorMaterialOutwards(v.id);
       final payouts = await SubVendorService.fetchVendorPayouts(v.id);
-
-      final summary = VendorFinancialSummary.compute(
-        vendorId: v.id,
-        vendorCode: v.vendorCode,
-        vendorName: v.name,
-        assignments: assignments,
-        allMaterials: materials,
-        allPayouts: payouts,
-      );
+      final summary = await SubVendorService.fetchVendorSummary(v.id);
 
       if (mounted) {
         setState(() {
           _assignments = assignments;
           _materials = materials;
+          _outwards = outwards;
           _payouts = payouts;
           _summary = summary;
           _isLoading = false;
@@ -377,7 +372,7 @@ class _SubVendorMobileDashboardScreenState extends State<SubVendorMobileDashboar
             children: [
               _metricFinancial('SIYA Charges', _currency.format(s.totalVendorCharges), const Color(0xFF0D2B6F), 'kW × ₹1,000'),
               const SizedBox(width: 4),
-              _metricFinancial('Material Cost', _currency.format(s.totalMaterialCost), const Color(0xFFDC2626), 'Net Issued'),
+              _metricFinancial('Material Cost', _currency.format(s.combinedMaterialCost), const Color(0xFFDC2626), 'Site + Outward'),
               const SizedBox(width: 4),
               _metricFinancial('Outstanding', _currency.format(s.outstandingSettlement), const Color(0xFF047857), 'Receivable'),
             ],
@@ -849,11 +844,22 @@ class _SubVendorMobileDashboardScreenState extends State<SubVendorMobileDashboar
   }
 
   // ============================================================================
-  // TAB 2: DYNAMIC MATERIAL TRANSACTIONS
+  // TAB 2: DYNAMIC MATERIAL TRANSACTIONS (SITE ISSUES + OUTWARD DISPATCHES)
   // ============================================================================
 
   Widget _buildMaterialsTab(ColorScheme cs) {
-    if (_materials.isEmpty) {
+    final customerNameByAssign = {
+      for (final a in _assignments) a.id: a.customerName ?? 'Site',
+    };
+    final unified = UnifiedSubVendorMaterialBuilder.build(
+      siteMaterials: _materials,
+      materialOutwards: _outwards,
+      vendorNameById: {_vendor?.id ?? '': _vendor?.name ?? 'Sub-Vendor'},
+      customerNameByAssignmentId: customerNameByAssign,
+      vendorIdFilter: _vendor?.id,
+    );
+
+    if (unified.entries.isEmpty) {
       return RefreshIndicator(
         onRefresh: _loadDashboardData,
         child: ListView(
@@ -869,18 +875,23 @@ class _SubVendorMobileDashboardScreenState extends State<SubVendorMobileDashboar
       onRefresh: _loadDashboardData,
       child: ListView.builder(
         padding: const EdgeInsets.all(12),
-        itemCount: _materials.length,
+        itemCount: unified.entries.length,
         itemBuilder: (ctx, i) {
-          final m = _materials[i];
-          final isReturn = m.isReturn;
-          final isBos = m.itemCategory == 'BOS';
+          final e = unified.entries[i];
+          final isReturn = e.isReturn;
+          final isOutward = e.isOutward;
+          final isBos = e.itemCategory == 'BOS';
 
           return Card(
             elevation: 1,
             margin: const EdgeInsets.only(bottom: 8),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
-              side: BorderSide(color: isReturn ? Colors.red.shade200 : const Color(0xFFE2E8F0)),
+              side: BorderSide(
+                color: isReturn
+                    ? Colors.red.shade200
+                    : (isOutward ? Colors.amber.shade200 : const Color(0xFFE2E8F0)),
+              ),
             ),
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -890,35 +901,52 @@ class _SubVendorMobileDashboardScreenState extends State<SubVendorMobileDashboar
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isReturn ? Colors.red : Colors.blue.shade800,
-                              borderRadius: BorderRadius.circular(4),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: isReturn
+                                    ? Colors.red
+                                    : (isOutward ? Colors.amber.shade800 : Colors.blue.shade800),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                isReturn ? 'RETURN' : (isOutward ? 'OUTWARD' : 'ISSUE'),
+                                style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                              ),
                             ),
-                            child: Text(
-                              isReturn ? 'RETURN' : 'ISSUE',
-                              style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                e.itemName,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(m.itemName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        ],
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: isBos ? const Color(0xFFFEF3C7) : const Color(0xFFE0F2FE),
+                          color: isOutward
+                              ? const Color(0xFFFFFBEB)
+                              : (isBos ? const Color(0xFFFEF3C7) : const Color(0xFFE0F2FE)),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          '${m.gstRate.toStringAsFixed(0)}% GST (${isBos ? "Solar BOS" : "Panels/Inverters"})',
+                          isOutward
+                              ? 'Outward (${e.gstRate.toStringAsFixed(0)}% GST)'
+                              : '${e.gstRate.toStringAsFixed(0)}% GST (${isBos ? "Solar BOS" : "Panels/Inverters"})',
                           style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.bold,
-                            color: isBos ? const Color(0xFF92400E) : const Color(0xFF0369A1),
+                            color: isOutward
+                                ? const Color(0xFFB45309)
+                                : (isBos ? const Color(0xFF92400E) : const Color(0xFF0369A1)),
                           ),
                         ),
                       ),
@@ -926,20 +954,20 @@ class _SubVendorMobileDashboardScreenState extends State<SubVendorMobileDashboar
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Transaction Date: ${_dateFormat.format(m.transactionDate)}',
+                    'Transaction Date: ${_dateFormat.format(e.transactionDate)}${e.customerName != null ? " | Site: ${e.customerName}" : ""}',
                     style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                   ),
-                  if (m.challanNumber != null && m.challanNumber!.isNotEmpty)
-                    Text('Challan No: ${m.challanNumber}', style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+                  if (e.referenceNo != null && e.referenceNo!.isNotEmpty)
+                    Text('Ref / Challan No: ${e.referenceNo}', style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
                   const Divider(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Qty: ${m.quantity} ${m.unit} @ ₹${m.unitRate.toStringAsFixed(0)}', style: const TextStyle(fontSize: 11)),
-                      Text('Taxable: ₹${m.taxableAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
-                      Text('GST: ₹${m.gstAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                      Text('Qty: ${e.quantity} ${e.unit} @ ₹${e.unitRate.toStringAsFixed(0)}', style: const TextStyle(fontSize: 11)),
+                      Text('Taxable: ₹${e.taxableAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                      Text('GST: ₹${e.gstAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
                       Text(
-                        '${isReturn ? "- " : "+ "}${_currency.format(m.totalAmount)}',
+                        '${isReturn ? "- " : "+ "}${_currency.format(e.totalAmount)}',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
@@ -983,7 +1011,7 @@ class _SubVendorMobileDashboardScreenState extends State<SubVendorMobileDashboar
                   const Text('SETTLEMENT CALCULATION SUMMARY', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   _whiteRow('+ Total SIYA Vendor Charges', _currency.format(s.totalVendorCharges)),
-                  _whiteRow('- Dynamic Material Cost Deductions', _currency.format(s.totalMaterialCost), isRed: true),
+                  _whiteRow('- Dynamic Material Cost Deductions', _currency.format(s.combinedMaterialCost), isRed: true),
                   if (s.totalOtherExpenses > 0)
                     _whiteRow('+ Approved Other Expenses', _currency.format(s.totalOtherExpenses)),
                   const Divider(color: Colors.white24, height: 16),

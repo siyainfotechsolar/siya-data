@@ -424,5 +424,49 @@ void main() {
       expect(summary.totalCustomerCollection, equals(150000.0));
       expect(summary.totalCustomerOutstanding, equals(50000.0));
     });
+
+    test('7. UnifiedSubVendorMaterialBuilder combines Site Materials and Outward Dispatches for Mobile view', () {
+      const vid = 'vnd-mob-1';
+      final siteMat = VendorMaterialTransaction(
+        id: 'vmt-1',
+        assignmentId: 'asg-1',
+        vendorId: vid,
+        customerId: 'cust-1',
+        transactionType: 'ISSUE',
+        itemName: 'tata 3.5kw kit',
+        itemCategory: 'SOLAR_PANEL',
+        gstRate: 5.0,
+        quantity: 1,
+        unit: 'NOS',
+        unitRate: 135000.0,
+        taxableAmount: 135000.0,
+        gstAmount: 6750.0,
+        totalAmount: 141750.0,
+        transactionDate: DateTime(2026, 11, 26),
+      );
+      final headerOnlyOutward = SubVendorMaterialOutward(
+        id: 'out-mob-1',
+        outwardNumber: 'OUT-20261126-0001',
+        vendorId: vid,
+        vendorName: 'Dhanshree solar',
+        outwardDate: DateTime(2026, 11, 22),
+        totalItems: 1,
+        totalQuantity: 618.0,
+        totalValue: 63809.74,
+        status: 'Active',
+        items: const [],
+      );
+
+      final res = UnifiedSubVendorMaterialBuilder.build(
+        siteMaterials: [siteMat],
+        materialOutwards: [headerOnlyOutward],
+        vendorNameById: {vid: 'Dhanshree solar'},
+        customerNameByAssignmentId: {'asg-1': 'Customer A'},
+        vendorIdFilter: vid,
+      );
+
+      expect(res.entries.length, equals(2));
+      expect(res.combinedMaterialTotal, closeTo(205559.74, 0.01));
+    });
   });
 }

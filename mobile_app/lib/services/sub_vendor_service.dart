@@ -155,6 +155,28 @@ class SubVendorService {
     }
   }
 
+  /// Fetch active Material Outward Dispatches (with line items) for this sub-vendor
+  static Future<List<SubVendorMaterialOutward>> fetchVendorMaterialOutwards(String vendorId) async {
+    final client = _client;
+    if (client == null) return [];
+    try {
+      final response = await client
+          .from('sub_vendor_material_outwards')
+          .select('*, sub_vendor_material_outward_items(*)')
+          .eq('vendor_id', vendorId)
+          .eq('status', 'Active')
+          .order('outward_date', ascending: false);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data
+          .map((json) => SubVendorMaterialOutward.fromJson(Map<String, dynamic>.from(json as Map)))
+          .toList();
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.fetchVendorMaterialOutwards: $e\n$stack');
+      return [];
+    }
+  }
+
   // ============================================================================
   // 4. VENDOR PAYOUTS
   // ============================================================================

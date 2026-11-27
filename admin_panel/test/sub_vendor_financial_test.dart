@@ -1840,6 +1840,89 @@ void main() {
       expect(summary.combinedMaterialCost, closeTo(294011.74, 0.01));
       expect(summary.netSettlementPayable, closeTo(ledger.closingBalance, 0.01));
     });
+
+    test('UnifiedSubVendorMaterialBuilder combines Site Materials, Outward Dispatches & deduplicates mirrored ledger rows', () {
+      const vid = 'vnd-dhanshree';
+      final siteMat = VendorMaterialTransaction(
+        id: 'vmt-tata-1',
+        assignmentId: 'asg-1',
+        vendorId: vid,
+        customerId: 'cust-1',
+        transactionType: 'ISSUE',
+        itemName: 'tata 3.5kw kit',
+        itemCategory: 'SOLAR_PANEL',
+        gstRate: 5.0,
+        quantity: 1,
+        unit: 'NOS',
+        unitRate: 135000.0,
+        taxableAmount: 135000.0,
+        gstAmount: 6750.0,
+        totalAmount: 141750.0,
+        transactionDate: DateTime(2026, 11, 26),
+      );
+
+      final outwardWithItems = SubVendorMaterialOutward(
+        id: 'out-1',
+        outwardNumber: 'OUT-20261126-0001',
+        vendorId: vid,
+        vendorName: 'Dhanshree solar',
+        outwardDate: DateTime(2026, 11, 22),
+        totalItems: 1,
+        totalQuantity: 618.0,
+        subtotal: 60771.18,
+        totalGst: 3038.56,
+        totalValue: 63809.74,
+        status: 'Active',
+        items: const [
+          SubVendorMaterialOutwardItem(
+            id: 'item-1',
+            outwardId: 'out-1',
+            materialName: 'Solar Cable & BOS Lot',
+            unit: 'MTR',
+            quantity: 618.0,
+            unitRate: 98.3352,
+            baseAmount: 60771.18,
+            gstPercentage: 5.0,
+            gstAmount: 3038.56,
+            totalPrice: 63809.74,
+          ),
+        ],
+      );
+
+      // Mirrored ledger entries referencing out-1 & OUT-20261126-0001 must NOT be double counted
+      final mirroredLedger = [
+        SubVendorAccountLedgerEntry(
+          id: 'mirrored-row-1',
+          vendorId: vid,
+          vendorName: 'Dhanshree solar',
+          transactionDate: DateTime(2026, 11, 22),
+          transactionType: 'MATERIAL_OUTWARD',
+          category: 'MATERIAL',
+          creditAmount: 0.0,
+          debitAmount: 63809.74,
+          referenceNumber: 'OUT-20261126-0001',
+          referenceId: 'out-1',
+          particulars: 'Material Outward Dispatch',
+        ),
+      ];
+
+      final res = UnifiedSubVendorMaterialBuilder.build(
+        siteMaterials: [siteMat],
+        materialOutwards: [outwardWithItems],
+        accountLedgerEntries: mirroredLedger,
+        vendorNameById: {vid: 'Dhanshree solar'},
+        customerNameByAssignmentId: {'asg-1': 'Pandurang Kshirsagar'},
+      );
+
+      expect(res.entries.length, equals(2));
+      expect(res.netSiteMaterialTotal, closeTo(141750.0, 0.01));
+      expect(res.outwardTotal, closeTo(63809.74, 0.01));
+      expect(res.combinedMaterialTotal, closeTo(205559.74, 0.01));
+      expect(res.entries.first.itemName, equals('tata 3.5kw kit'));
+      expect(res.entries.first.customerName, equals('Pandurang Kshirsagar'));
+      expect(res.entries.last.itemName, equals('Solar Cable & BOS Lot'));
+      expect(res.entries.last.referenceNo, equals('OUT-20261126-0001'));
+    });
   });
 }
 

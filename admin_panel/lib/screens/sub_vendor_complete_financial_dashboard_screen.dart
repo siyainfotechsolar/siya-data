@@ -253,15 +253,27 @@ class _SubVendorCompleteFinancialDashboardScreenState
   }
 
   void _exportMaterialPurchaseGstCsv() {
+    final customerNameByAssign = {
+      for (final a in _assignments) a.id: a.customerName ?? 'Site',
+    };
+    final unified = UnifiedSubVendorMaterialBuilder.build(
+      siteMaterials: _materials,
+      materialOutwards: _materialOutwards,
+      accountLedgerEntries: _accountLedgerEntries,
+      vendorNameById: {widget.vendor.id: widget.vendor.name},
+      customerNameByAssignmentId: customerNameByAssign,
+      vendorIdFilter: widget.vendor.id,
+    );
+
     final rows = <List<dynamic>>[
       [
         'Date',
         'Item Name',
-        'Category',
+        'Source / Category',
         'Remarks / Serial',
         'Site / Customer',
         'Supplier Name',
-        'Invoice / Challan No',
+        'Invoice / Outward / Challan No',
         'Tx Type',
         'Quantity',
         'Unit',
@@ -272,33 +284,25 @@ class _SubVendorCompleteFinancialDashboardScreenState
         'ITC Eligible?',
         'Total Material Cost (₹)',
       ],
-      for (final m in _materials) ...[
-        () {
-          final assignment = _assignments.firstWhere(
-            (a) => a.id == m.assignmentId,
-            orElse: () => _assignments.isNotEmpty ? _assignments.first : _assignments.first,
-          );
-          final sign = m.isReturn ? -1.0 : 1.0;
-          return [
-            _dateFormat.format(m.transactionDate),
-            m.itemName,
-            m.itemCategory,
-            m.remarks ?? m.serialNumbers ?? '',
-            assignment.customerName ?? 'Site',
-            m.supplierName ?? 'Warehouse Supplier',
-            m.invoiceNumber ?? m.challanNumber ?? '',
-            m.isReturn ? 'RETURN' : 'ISSUE',
-            m.isReturn ? -m.quantity : m.quantity,
-            m.unit,
-            m.unitRate,
-            m.gstRate,
-            sign * m.taxableAmount,
-            sign * m.gstAmount,
-            m.isItcEligible ? 'YES' : 'NO',
-            sign * m.totalAmount,
-          ];
-        }(),
-      ],
+      for (final e in unified.entries)
+        [
+          _dateFormat.format(e.transactionDate),
+          e.itemName,
+          e.isOutward ? e.sourceLabel : e.itemCategory,
+          e.remarks ?? '',
+          e.customerName ?? (e.isOutward ? 'Warehouse Outward' : 'Site'),
+          e.originalSiteMaterial?.supplierName ?? 'SIYA Warehouse',
+          e.referenceNo ?? '',
+          e.isReturn ? 'RETURN' : (e.isOutward ? 'OUTWARD' : 'ISSUE'),
+          e.isReturn ? -e.quantity : e.quantity,
+          e.unit,
+          e.unitRate,
+          e.gstRate,
+          e.signedTaxable,
+          e.signedGst,
+          e.originalSiteMaterial != null ? (e.originalSiteMaterial!.isItcEligible ? 'YES' : 'NO') : 'YES',
+          e.signedTotal,
+        ],
     ];
     _exportCsv(
       fileName: 'material_purchase_gst_report_${widget.vendor.vendorCode}_${DateTime.now().millisecondsSinceEpoch}',
@@ -1626,6 +1630,18 @@ class _SubVendorCompleteFinancialDashboardScreenState
     final totalMaterialCost = calc.combinedMaterialCost;
     final totalInputGst = s?.totalEligibleInputGst ?? 0.0;
 
+    final customerNameByAssign = {
+      for (final a in _assignments) a.id: a.customerName ?? 'Site',
+    };
+    final unifiedMaterials = UnifiedSubVendorMaterialBuilder.build(
+      siteMaterials: _materials,
+      materialOutwards: _materialOutwards,
+      accountLedgerEntries: _accountLedgerEntries,
+      vendorNameById: {widget.vendor.id: widget.vendor.name},
+      customerNameByAssignmentId: customerNameByAssign,
+      vendorIdFilter: widget.vendor.id,
+    );
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -1696,7 +1712,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
           ),
           const SizedBox(height: 12),
 
-          if (_materials.isEmpty)
+          if (unifiedMaterials.entries.isEmpty)
             Card(
               elevation: 0,
               child: Padding(
@@ -1707,7 +1723,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
                       Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey),
                       SizedBox(height: 8),
                       const Text('No Material Transactions Recorded Yet', style: TextStyle(fontWeight: FontWeight.bold)),
-                      const Text('Materials issued from warehouse will appear here item-by-item.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      const Text('Materials issued from warehouse or outwards will appear here item-by-item.', style: TextStyle(color: Colors.grey, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -1729,8 +1745,8 @@ class _SubVendorCompleteFinancialDashboardScreenState
                   columns: const [
                     DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Item Name', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Category', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Remarks / Serial', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Source / Category', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('Ref / Remarks', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Site / Customer', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Type', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Qty', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -1740,49 +1756,48 @@ class _SubVendorCompleteFinancialDashboardScreenState
                     DataColumn(label: Text('GST (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Net Total (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
                   ],
-                  rows: _materials.map((m) {
-                    final sign = m.isReturn ? -1.0 : 1.0;
-                    final assignment = _assignments.firstWhere(
-                      (a) => a.id == m.assignmentId,
-                      orElse: () => _assignments.isNotEmpty ? _assignments.first : _assignments.first,
-                    );
+                  rows: unifiedMaterials.entries.map((e) {
+                    final sign = e.isReturn ? -1.0 : 1.0;
+                    final badgeColor = e.isReturn
+                        ? Colors.orange
+                        : (e.isOutward ? Colors.amber : Colors.blue);
 
                     return DataRow(
                       cells: [
-                        DataCell(Text(_dateFormat.format(m.transactionDate), style: const TextStyle(fontSize: 12))),
-                        DataCell(Text(m.itemName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                        DataCell(Text(m.itemCategory, style: const TextStyle(fontSize: 11, color: Colors.grey))),
-                        DataCell(Text(m.remarks ?? m.serialNumbers ?? '-', style: const TextStyle(fontSize: 11))),
-                        DataCell(Text(assignment.customerName ?? 'Site', style: const TextStyle(fontSize: 12))),
+                        DataCell(Text(_dateFormat.format(e.transactionDate), style: const TextStyle(fontSize: 12))),
+                        DataCell(Text(e.itemName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataCell(Text(e.isOutward ? e.sourceLabel : e.itemCategory, style: const TextStyle(fontSize: 11, color: Colors.grey))),
+                        DataCell(Text(e.referenceNo ?? e.remarks ?? '-', style: const TextStyle(fontSize: 11))),
+                        DataCell(Text(e.customerName ?? (e.isOutward ? 'Outward Dispatch' : 'Site'), style: const TextStyle(fontSize: 12))),
                         DataCell(
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: m.isReturn ? Colors.orange.shade50 : Colors.blue.shade50,
+                              color: badgeColor.shade50,
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              m.isReturn ? 'RETURN' : 'ISSUE',
+                              e.isReturn ? 'RETURN' : (e.isOutward ? 'OUTWARD' : 'ISSUE'),
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
-                                color: m.isReturn ? Colors.orange.shade800 : Colors.blue.shade800,
+                                color: badgeColor.shade800,
                               ),
                             ),
                           ),
                         ),
-                        DataCell(Text('${m.isReturn ? "-" : ""}${m.quantity} ${m.unit}', style: const TextStyle(fontSize: 12))),
-                        DataCell(Text(_currency.format(m.unitRate), style: const TextStyle(fontSize: 12))),
-                        DataCell(Text('${m.gstRate}%', style: const TextStyle(fontSize: 12))),
-                        DataCell(Text(_currency.format(sign * m.taxableAmount), style: const TextStyle(fontSize: 12))),
-                        DataCell(Text(_currency.format(sign * m.gstAmount), style: const TextStyle(fontSize: 12, color: Color(0xFF047857)))),
+                        DataCell(Text('${e.isReturn ? "-" : ""}${e.quantity} ${e.unit}', style: const TextStyle(fontSize: 12))),
+                        DataCell(Text(_currency.format(e.unitRate), style: const TextStyle(fontSize: 12))),
+                        DataCell(Text('${e.gstRate.toStringAsFixed(0)}%', style: const TextStyle(fontSize: 12))),
+                        DataCell(Text(_currency.format(sign * e.taxableAmount), style: const TextStyle(fontSize: 12))),
+                        DataCell(Text(_currency.format(sign * e.gstAmount), style: const TextStyle(fontSize: 12, color: Color(0xFF047857)))),
                         DataCell(
                           Text(
-                            _currency.format(sign * m.totalAmount),
+                            _currency.format(sign * e.totalAmount),
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: m.isReturn ? Colors.orange.shade800 : Colors.red.shade800,
+                              color: e.isReturn ? Colors.orange.shade800 : Colors.red.shade800,
                             ),
                           ),
                         ),

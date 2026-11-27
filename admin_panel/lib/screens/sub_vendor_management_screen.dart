@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:csv/csv.dart';
 import 'package:siya_shared/siya_shared.dart';
 import '../services/sub_vendor_service.dart';
+import '../services/sub_vendor_account_ledger_service.dart';
+import '../services/sub_vendor_material_outward_service.dart';
 import '../services/sub_vendor_pdf_service.dart';
 import '../widgets/sub_vendor_dialogs.dart';
 import 'sub_vendor_account_dashboard_screen.dart';
@@ -32,6 +34,8 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   List<SubVendor> _vendors = [];
   List<VendorSiteAssignment> _assignments = [];
   List<VendorMaterialTransaction> _allMaterials = [];
+  List<SubVendorMaterialOutward> _allOutwards = [];
+  List<SubVendorAccountLedgerEntry> _allLedgerEntries = [];
   List<VendorPayout> _allPayouts = [];
   List<VendorCustomerPayment> _allCustomerPayments = [];
   Map<String, Map<String, double>> _vendorCentralExtras = {};
@@ -43,6 +47,8 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   String _vendorSearchQuery = '';
   String _customerPaymentCategoryFilter = 'All';
   String _customerPaymentSearchQuery = '';
+  String _materialSourceFilter = 'All';
+  String _materialSearchQuery = '';
 
   @override
   void initState() {
@@ -87,6 +93,20 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
         debugPrint('Customer payments fetch: $e');
       }
 
+      List<SubVendorMaterialOutward> outwards = [];
+      try {
+        outwards = await SubVendorMaterialOutwardService.fetchOutwards();
+      } catch (e) {
+        debugPrint('All material outwards fetch: $e');
+      }
+
+      List<SubVendorAccountLedgerEntry> ledgerEntries = [];
+      try {
+        ledgerEntries = await SubVendorAccountLedgerService.fetchLedgerEntries(statusFilter: 'Active');
+      } catch (e) {
+        debugPrint('All account ledger fetch: $e');
+      }
+
       Map<String, Map<String, double>> centralExtras = {};
       try {
         centralExtras = await SubVendorService.fetchAllVendorCentralLedgerExtras(
@@ -106,6 +126,8 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
           _vendors = vendors;
           _assignments = assignments;
           _allMaterials = materials;
+          _allOutwards = outwards;
+          _allLedgerEntries = ledgerEntries;
           _allPayouts = payouts;
           _allCustomerPayments = customerPayments;
           _vendorCentralExtras = centralExtras;
@@ -1006,10 +1028,37 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   }
 
   // ============================================================================
-  // TAB 3: MATERIAL TRACKING
+  // TAB 3: MATERIAL TRACKING (UNIFIED SITE ISSUES + OUTWARDS + LEDGER)
   // ============================================================================
 
   Widget _buildMaterialTrackingTab() {
+    final vendorNameById = {for (final v in _vendors) v.id: v.name};
+    final customerNameByAssignmentId = {
+      for (final a in _assignments)
+        a.id: '${a.customerName ?? "Site"}${a.consumerNo != null && a.consumerNo!.isNotEmpty ? " (${a.consumerNo})" : ""}',
+    };
+
+    final unified = UnifiedSubVendorMaterialBuilder.build(
+      siteMaterials: _allMaterials,
+      materialOutwards: _allOutwards,
+      accountLedgerEntries: _allLedgerEntries,
+      vendorNameById: vendorNameById,
+      customerNameByAssignmentId: customerNameByAssignmentId,
+      vendorIdFilter: _selectedVendorFilter,
+    );
+
+    final q = _materialSearchQuery.trim().toLowerCase();
+    final filteredEntries = unified.entries.where((e) {
+      if (_materialSourceFilter == 'SITE' && !e.isSiteMaterial) return false;
+      if (_materialSourceFilter == 'OUTWARD' && !e.isOutward) return false;
+      if (q.isEmpty) return true;
+      return e.itemName.toLowerCase().contains(q) ||
+          e.vendorName.toLowerCase().contains(q) ||
+          (e.customerName ?? '').toLowerCase().contains(q) ||
+          (e.referenceNo ?? '').toLowerCase().contains(q) ||
+          (e.remarks ?? '').toLowerCase().contains(q);
+    }).toList();
+
     return Column(
       children: [
         Container(
@@ -1021,7 +1070,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
-                  'Dynamic Material Tracking: Material costs update live when items are issued or returned. Solar Panels & Inverters: 5% GST | BOS: 18% GST.',
+                  'Unified Material Tracking: Combines Site Material Issues/Returns AND Material Outward Dispatches (OUT-...). Solar Panels & Inverters: 5% GST | BOS: 18% GST.',
                   style: TextStyle(fontSize: 12, color: Color(0xFF1E3A8A)),
                 ),
               ),
@@ -1050,63 +1099,207 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
             ],
           ),
         ),
+        // KPI Summary Strip + Filters
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          color: Colors.white,
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  _metricSummaryCard(
+                    'Combined Material Value',
+                    _currency.format(unified.combinedMaterialTotal),
+                    const Color(0xFF0D2B6F),
+                    icon: Icons.inventory_2_outlined,
+                    subtitle: '${unified.entries.length} Total Entries',
+                  ),
+                  _metricSummaryCard(
+                    'Site Material Issues (Net)',
+                    _currency.format(unified.netSiteMaterialTotal),
+                    const Color(0xFF047857),
+                    icon: Icons.home_repair_service_outlined,
+                    subtitle: '${unified.siteEntryCount} Site Entries',
+                  ),
+                  _metricSummaryCard(
+                    'Material Outward Dispatches',
+                    _currency.format(unified.outwardTotal),
+                    const Color(0xFFD97706),
+                    icon: Icons.local_shipping_outlined,
+                    subtitle: '${unified.outwardDispatchCount} Outward Dispatches',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Search Material Name, Outward No (OUT-...), Sub-Vendor, or Site...',
+                        prefixIcon: const Icon(Icons.search, size: 18),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onChanged: (v) => setState(() => _materialSearchQuery = v),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: DropdownButtonFormField<String?>(
+                      value: _selectedVendorFilter,
+                      decoration: InputDecoration(
+                        labelText: 'Sub-Vendor',
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      items: [
+                        const DropdownMenuItem(value: null, child: Text('All Sub-Vendors')),
+                        ..._vendors.map((v) => DropdownMenuItem(value: v.id, child: Text('${v.name} (${v.vendorCode})'))),
+                      ],
+                      onChanged: (v) => setState(() => _selectedVendorFilter = v),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: DropdownButtonFormField<String>(
+                      value: _materialSourceFilter,
+                      decoration: InputDecoration(
+                        labelText: 'Material Source',
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'All', child: Text('All Sources (Site + Outward)')),
+                        DropdownMenuItem(value: 'SITE', child: Text('Site Issues & Returns')),
+                        DropdownMenuItem(value: 'OUTWARD', child: Text('Material Outwards (OUT-...)')),
+                      ],
+                      onChanged: (v) => setState(() => _materialSourceFilter = v ?? 'All'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
         Expanded(
-          child: _allMaterials.isEmpty
+          child: filteredEntries.isEmpty
               ? const Center(child: Text('No material transactions recorded yet.'))
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: _allMaterials.length,
+                  itemCount: filteredEntries.length,
                   itemBuilder: (context, i) {
-                    final m = _allMaterials[i];
-                    final isRet = m.isReturn;
+                    final e = filteredEntries[i];
+                    final isRet = e.isReturn;
+                    final isOut = e.isOutward;
+
+                    final Color iconBg = isRet
+                        ? Colors.red.shade100
+                        : (isOut ? Colors.amber.shade100 : Colors.green.shade100);
+                    final Color iconFg = isRet
+                        ? Colors.red
+                        : (isOut ? Colors.amber.shade800 : Colors.green.shade700);
+                    final IconData iconData = isRet
+                        ? Icons.arrow_downward
+                        : (isOut ? Icons.local_shipping_outlined : Icons.arrow_upward);
+
                     return Card(
                       elevation: 0,
                       margin: const EdgeInsets.only(bottom: 8),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(color: Colors.grey.shade300),
+                        side: BorderSide(color: isOut ? Colors.amber.shade200 : Colors.grey.shade300),
                       ),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: isRet ? Colors.red.shade100 : Colors.green.shade100,
-                          child: Icon(isRet ? Icons.arrow_downward : Icons.arrow_upward, color: isRet ? Colors.red : Colors.green),
+                          backgroundColor: iconBg,
+                          child: Icon(iconData, color: iconFg),
                         ),
-                        title: Text(m.itemName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        title: Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(e.itemName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: iconBg.withOpacity(0.75),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                e.sourceLabel,
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: iconFg),
+                              ),
+                            ),
+                            if (e.referenceNo != null && e.referenceNo!.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                                ),
+                                child: Text(
+                                  'Ref: ${e.referenceNo}',
+                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF0D2B6F)),
+                                ),
+                              ),
+                          ],
+                        ),
                         subtitle: Text(
-                          '${m.quantity} ${m.unit} @ ${_currency.format(m.unitRate)} | GST ${m.gstRate.toStringAsFixed(0)}% (Taxable: ${_currency.format(m.taxableAmount)}) | Date: ${_dateFormat.format(m.transactionDate)}',
+                          '${e.quantity} ${e.unit} @ ${_currency.format(e.unitRate)} | GST ${e.gstRate.toStringAsFixed(0)}% (Taxable: ${_currency.format(e.taxableAmount)}) | Date: ${_dateFormat.format(e.transactionDate)}\nSub-Vendor: ${e.vendorName}${e.customerName != null ? " | Site: ${e.customerName}" : ""}${e.remarks != null && e.remarks!.isNotEmpty ? " | Note: ${e.remarks}" : ""}',
                           style: const TextStyle(fontSize: 11.5),
                         ),
+                        isThreeLine: true,
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              '${isRet ? "-" : ""}${_currency.format(m.totalAmount)}',
+                              '${isRet ? "-" : ""}${_currency.format(e.totalAmount)}',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: isRet ? Colors.red.shade700 : const Color(0xFF0D2B6F),
+                                color: isRet
+                                    ? Colors.red.shade700
+                                    : (isOut ? Colors.amber.shade900 : const Color(0xFF0D2B6F)),
                                 fontSize: 14,
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                              onPressed: () async {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (_) => AlertDialog(
-                                    title: const Text('Delete Material Entry?'),
-                                    content: const Text('This will dynamically adjust the site material cost.'),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-                                      ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
-                                    ],
-                                  ),
-                                );
-                                if (confirm == true) {
-                                  await SubVendorService.deleteMaterialTransaction(m.id);
-                                  _loadAllData();
-                                }
-                              },
-                            ),
+                            if (e.originalSiteMaterial != null)
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                                tooltip: 'Delete Site Material Entry',
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      title: const Text('Delete Material Entry?'),
+                                      content: const Text('This will dynamically adjust the site material cost.'),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+                                        ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    await SubVendorService.deleteMaterialTransaction(e.originalSiteMaterial!.id);
+                                    _loadAllData();
+                                  }
+                                },
+                              )
+                            else if (e.originalOutward != null)
+                              IconButton(
+                                icon: const Icon(Icons.open_in_new, size: 18, color: Color(0xFF0D2B6F)),
+                                tooltip: 'Open in Material Outward Tab',
+                                onPressed: () => _tabController.animateTo(4),
+                              ),
                           ],
                         ),
                       ),

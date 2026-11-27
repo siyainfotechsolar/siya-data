@@ -33,6 +33,7 @@ export 'models/sub_vendor_ledger_entry.dart';
 export 'models/solar_site_cost_models.dart';
 export 'models/sub_vendor_account_ledger.dart';
 export 'models/sub_vendor_material_outward.dart';
+export 'models/unified_sub_vendor_material.dart';
 export 'models/work_completion_report_data.dart';
 
 // Services
