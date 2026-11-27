@@ -977,7 +977,14 @@ class _SubVendorCompleteFinancialDashboardScreenState
     final goodsGst5 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.gst5);
     final servicesGst18 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.gst18);
 
-    final totalMaterialGst = _materials.fold<double>(0.0, (acc, m) => acc + m.signedGst);
+    final unifiedForGst = UnifiedSubVendorMaterialBuilder.build(
+      siteMaterials: _materials,
+      materialOutwards: _materialOutwards,
+      accountLedgerEntries: _accountLedgerEntries,
+      vendorNameById: {widget.vendor.id: widget.vendor.name},
+      vendorIdFilter: widget.vendor.id,
+    );
+    final totalMaterialGst = unifiedForGst.totalInputGst;
     final totalEligibleItc = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcEligible);
     final totalIneligibleGst = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcIneligible);
     final estimatedGstDiff = totalCustomerOutputGst - totalEligibleItc;
@@ -1177,8 +1184,8 @@ class _SubVendorCompleteFinancialDashboardScreenState
             runSpacing: 12,
             children: [
               _buildMetricCard('Customer Output GST', _currency.format(totalCustomerOutputGst), Icons.receipt_long, const Color(0xFF7C3AED)),
-              _buildMetricCard('Material Input GST', _currency.format(totalMaterialGst), Icons.input, const Color(0xFF0284C7)),
-              _buildMetricCard('Eligible Material ITC', _currency.format(totalEligibleItc), Icons.assignment_turned_in, const Color(0xFF047857)),
+              _buildMetricCard('Material Input GST', _currency.format(totalMaterialGst), Icons.input, const Color(0xFF0284C7), subtitle: 'Site: ${_currency.format(unifiedForGst.siteGstTotal)} | Outward: ${_currency.format(unifiedForGst.outwardGstTotal)}'),
+              _buildMetricCard('Site Allocated ITC', _currency.format(totalEligibleItc), Icons.assignment_turned_in, const Color(0xFF047857)),
               _buildMetricCard('Ineligible Input GST', _currency.format(totalIneligibleGst), Icons.block, const Color(0xFF64748B)),
               _buildMetricCard('Estimated GST Difference', _currency.format(estimatedGstDiff), Icons.compare_arrows, const Color(0xFFB45309)),
               _buildMetricCard('Approved Sub-Vendor Recovery', _currency.format(approvedGstRecovery), Icons.gavel, const Color(0xFF4C1D95)),
@@ -1195,10 +1202,14 @@ class _SubVendorCompleteFinancialDashboardScreenState
             runSpacing: 12,
             children: [
               _buildMetricCard('Combined Material Cost', _currency.format(totalMaterialCost), Icons.inventory_2, const Color(0xFFDC2626)),
+              _buildMetricCard('5% Modules & Inverters', _currency.format(unifiedForGst.material5Total), Icons.solar_power, const Color(0xFF0284C7), subtitle: 'Site + Outward (GST: ${_currency.format(unifiedForGst.material5Gst)})'),
+              _buildMetricCard('18% BOS & Structures', _currency.format(unifiedForGst.material18Total), Icons.construction, const Color(0xFF7C3AED), subtitle: 'Site + Outward (GST: ${_currency.format(unifiedForGst.material18Gst)})'),
+              if (unifiedForGst.otherAndZeroGstTotal.abs() > 0.01)
+                _buildMetricCard('0% / Other GST Items', _currency.format(unifiedForGst.otherAndZeroGstTotal), Icons.category_outlined, const Color(0xFF9333EA)),
               _buildMetricCard('Site Materials (Net)', _currency.format(calc.siteMaterialCost), Icons.home_repair_service, const Color(0xFFB91C1C)),
               if (calc.outwardMaterialCost > 0)
                 _buildMetricCard('Material Outward (OUT)', _currency.format(calc.outwardMaterialCost), Icons.local_shipping_outlined, const Color(0xFF9333EA)),
-              _buildMetricCard('Purchase Invoice GST', _currency.format(totalMaterialGst), Icons.receipt, const Color(0xFFEA580C)),
+              _buildMetricCard('Purchase Invoice GST', _currency.format(totalMaterialGst), Icons.receipt, const Color(0xFFEA580C), subtitle: 'Site: ${_currency.format(unifiedForGst.siteGstTotal)} | Outward: ${_currency.format(unifiedForGst.outwardGstTotal)}'),
               _buildMetricCard('Issued Material Value', _currency.format(materialIssuedValue), Icons.upload_outlined, const Color(0xFF0F172A)),
               _buildMetricCard('Material Return Value', _currency.format(materialReturnedValue), Icons.assignment_return, const Color(0xFF059669)),
             ],
@@ -1355,7 +1366,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
     );
   }
 
-  Widget _buildMetricCard(String title, String value, IconData icon, Color color) {
+  Widget _buildMetricCard(String title, String value, IconData icon, Color color, {String? subtitle}) {
     return Container(
       width: 220,
       padding: const EdgeInsets.all(14),
@@ -1399,6 +1410,15 @@ class _SubVendorCompleteFinancialDashboardScreenState
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
+          if (subtitle != null && subtitle.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ],
       ),
     );
@@ -1623,12 +1643,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
   // ============================================================================
 
   Widget _buildMaterialAccountTab() {
-    final s = _summary;
     final calc = _computeCentralSettlement();
-    final m5Total = s?.material5Total ?? 0.0;
-    final m18Total = s?.material18Total ?? 0.0;
-    final totalMaterialCost = calc.combinedMaterialCost;
-    final totalInputGst = s?.totalEligibleInputGst ?? 0.0;
 
     final customerNameByAssign = {
       for (final a in _assignments) a.id: a.customerName ?? 'Site',
@@ -1642,25 +1657,71 @@ class _SubVendorCompleteFinancialDashboardScreenState
       vendorIdFilter: widget.vendor.id,
     );
 
+    final m5Total = unifiedMaterials.material5Total;
+    final m18Total = unifiedMaterials.material18Total;
+    final otherGstTotal = unifiedMaterials.otherAndZeroGstTotal;
+    final totalInputGst = unifiedMaterials.totalInputGst;
+    final totalMaterialCost = calc.combinedMaterialCost;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // SUMMARY CARDS
+          // SUMMARY CARDS (Includes BOTH Site Materials + Material Outward Dispatches by GST %)
           Row(
             children: [
-              Expanded(child: _buildMetricCard('5% Solar Modules & Inverters', _currency.format(m5Total), Icons.solar_power, const Color(0xFF0284C7))),
+              Expanded(
+                child: _buildMetricCard(
+                  '5% Solar Modules & Inverters',
+                  _currency.format(m5Total),
+                  Icons.solar_power,
+                  const Color(0xFF0284C7),
+                  subtitle: '5% GST: ${_currency.format(unifiedMaterials.material5Gst)}',
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _buildMetricCard('18% Solar BOS & Structures', _currency.format(m18Total), Icons.construction, const Color(0xFF7C3AED))),
+              Expanded(
+                child: _buildMetricCard(
+                  '18% Solar BOS & Structures',
+                  _currency.format(m18Total),
+                  Icons.construction,
+                  const Color(0xFF7C3AED),
+                  subtitle: '18% GST: ${_currency.format(unifiedMaterials.material18Gst)}',
+                ),
+              ),
               const SizedBox(width: 12),
-              if (calc.outwardMaterialCost > 0) ...[
-                Expanded(child: _buildMetricCard('Unallocated Outwards', _currency.format(calc.outwardMaterialCost), Icons.local_shipping_outlined, const Color(0xFF9333EA))),
+              if (otherGstTotal.abs() > 0.01) ...[
+                Expanded(
+                  child: _buildMetricCard(
+                    '0% / Other GST Items',
+                    _currency.format(otherGstTotal),
+                    Icons.category_outlined,
+                    const Color(0xFF9333EA),
+                    subtitle: 'Non-5%/18% & Unitemized',
+                  ),
+                ),
                 const SizedBox(width: 12),
               ],
-              Expanded(child: _buildMetricCard('Eligible Input GST Credit', _currency.format(totalInputGst), Icons.receipt_long, const Color(0xFF059669))),
+              Expanded(
+                child: _buildMetricCard(
+                  'Total Material Input GST',
+                  _currency.format(totalInputGst),
+                  Icons.receipt_long,
+                  const Color(0xFF059669),
+                  subtitle: 'Site: ${_currency.format(unifiedMaterials.siteGstTotal)} | Outward: ${_currency.format(unifiedMaterials.outwardGstTotal)}',
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _buildMetricCard('Combined Material Deducted', _currency.format(totalMaterialCost), Icons.inventory_2, const Color(0xFFDC2626))),
+              Expanded(
+                child: _buildMetricCard(
+                  'Combined Material Deducted',
+                  _currency.format(totalMaterialCost),
+                  Icons.inventory_2,
+                  const Color(0xFFDC2626),
+                  subtitle: 'Site: ${_currency.format(calc.siteMaterialCost)} | Outward: ${_currency.format(calc.outwardMaterialCost)}',
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -1824,8 +1885,15 @@ class _SubVendorCompleteFinancialDashboardScreenState
     final totalServicesGst18 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.gst18);
     final totalServicesTaxable30 = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.taxable30);
 
-    // Material Input GST & ITC
-    final totalMaterialGst = _materials.fold<double>(0.0, (acc, m) => acc + m.signedGst);
+    // Material Input GST & ITC (Site Allocated + Material Outwards)
+    final unifiedForGst = UnifiedSubVendorMaterialBuilder.build(
+      siteMaterials: _materials,
+      materialOutwards: _materialOutwards,
+      accountLedgerEntries: _accountLedgerEntries,
+      vendorNameById: {widget.vendor.id: widget.vendor.name},
+      vendorIdFilter: widget.vendor.id,
+    );
+    final totalMaterialGst = unifiedForGst.totalInputGst;
     final totalEligibleItc = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcEligible);
     final totalIneligibleGst = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcIneligible);
     final estimatedGstDiff = totalCustomerOutputGst - totalEligibleItc;
@@ -1872,8 +1940,8 @@ class _SubVendorCompleteFinancialDashboardScreenState
             runSpacing: 12,
             children: [
               _buildMetricCard('Customer Output GST (70:30)', _currency.format(totalCustomerOutputGst), Icons.receipt_long, const Color(0xFF7C3AED)),
-              _buildMetricCard('Material Input GST', _currency.format(totalMaterialGst), Icons.input, const Color(0xFF0284C7)),
-              _buildMetricCard('Eligible Material ITC', _currency.format(totalEligibleItc), Icons.assignment_turned_in, const Color(0xFF047857)),
+              _buildMetricCard('Material Input GST', _currency.format(totalMaterialGst), Icons.input, const Color(0xFF0284C7), subtitle: 'Site: ${_currency.format(unifiedForGst.siteGstTotal)} | Outward: ${_currency.format(unifiedForGst.outwardGstTotal)}'),
+              _buildMetricCard('Site Allocated ITC', _currency.format(totalEligibleItc), Icons.assignment_turned_in, const Color(0xFF047857)),
               _buildMetricCard('Ineligible Input GST', _currency.format(totalIneligibleGst), Icons.block, const Color(0xFF64748B)),
               _buildMetricCard('Estimated GST Difference', _currency.format(estimatedGstDiff), Icons.compare_arrows, const Color(0xFFB45309)),
               _buildMetricCard('Approved Contractual Recovery', _currency.format(approvedGstRecovery), Icons.gavel, const Color(0xFF4C1D95)),

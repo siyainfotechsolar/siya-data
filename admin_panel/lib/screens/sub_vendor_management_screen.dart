@@ -1112,7 +1112,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                     _currency.format(unified.combinedMaterialTotal),
                     const Color(0xFF0D2B6F),
                     icon: Icons.inventory_2_outlined,
-                    subtitle: '${unified.entries.length} Total Entries',
+                    subtitle: '5%: ${_currency.format(unified.material5Total)} | 18%: ${_currency.format(unified.material18Total)}',
                   ),
                   _metricSummaryCard(
                     'Site Material Issues (Net)',

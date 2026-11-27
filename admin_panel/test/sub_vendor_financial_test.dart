@@ -1923,6 +1923,94 @@ void main() {
       expect(res.entries.last.itemName, equals('Solar Cable & BOS Lot'));
       expect(res.entries.last.referenceNo, equals('OUT-20261126-0001'));
     });
+
+    test('UnifiedSubVendorMaterialBuilder aggregates 5%, 18%, 0% buckets and GST across Site & Outward items', () {
+      const vid = 'vnd-gst-buckets';
+      final siteMat5 = VendorMaterialTransaction(
+        id: 'vmt-5',
+        assignmentId: 'asg-1',
+        vendorId: vid,
+        customerId: 'cust-1',
+        transactionType: 'ISSUE',
+        itemName: 'tata 3.5kw kit',
+        itemCategory: 'SOLAR_PANEL',
+        gstRate: 5.0,
+        quantity: 1,
+        unit: 'NOS',
+        unitRate: 135000.0,
+        taxableAmount: 135000.0,
+        gstAmount: 6750.0,
+        totalAmount: 141750.0,
+        transactionDate: DateTime(2026, 11, 26),
+      );
+
+      final outwardMixed = SubVendorMaterialOutward(
+        id: 'out-mixed',
+        outwardNumber: 'OUT-20261127-0001',
+        vendorId: vid,
+        vendorName: 'Dhanshree solar',
+        outwardDate: DateTime(2026, 11, 27),
+        totalItems: 3,
+        totalQuantity: 10,
+        subtotal: 49900.0,
+        totalGst: 3770.0,
+        totalValue: 53670.0,
+        status: 'Active',
+        items: const [
+          SubVendorMaterialOutwardItem(
+            id: 'i-5',
+            outwardId: 'out-mixed',
+            materialName: 'waree 585w panel',
+            unit: 'NOS',
+            quantity: 2,
+            unitRate: 15000.0,
+            baseAmount: 30000.0,
+            gstPercentage: 5.0,
+            gstAmount: 1500.0,
+            totalPrice: 31500.0,
+          ),
+          SubVendorMaterialOutwardItem(
+            id: 'i-18',
+            outwardId: 'out-mixed',
+            materialName: 'earthing rod + acdc + la-kit',
+            unit: 'NOS',
+            quantity: 6,
+            unitRate: 2100.0,
+            baseAmount: 12600.0,
+            gstPercentage: 18.0,
+            gstAmount: 2268.0,
+            totalPrice: 14868.0,
+          ),
+          SubVendorMaterialOutwardItem(
+            id: 'i-0',
+            outwardId: 'out-mixed',
+            materialName: 'Chemical Earthing Kit',
+            unit: 'SET',
+            quantity: 2,
+            unitRate: 100.0,
+            baseAmount: 200.0,
+            gstPercentage: 0.0,
+            gstAmount: 0.0,
+            totalPrice: 200.0,
+          ),
+        ],
+      );
+
+      final res = UnifiedSubVendorMaterialBuilder.build(
+        siteMaterials: [siteMat5],
+        materialOutwards: [outwardMixed],
+        vendorNameById: {vid: 'Dhanshree solar'},
+      );
+
+      expect(res.material5Total, closeTo(141750.0 + 31500.0, 0.01));
+      expect(res.material5Gst, closeTo(6750.0 + 1500.0, 0.01));
+      expect(res.material18Total, closeTo(14868.0, 0.01));
+      expect(res.material18Gst, closeTo(2268.0, 0.01));
+      expect(res.otherAndZeroGstTotal, closeTo(200.0, 0.01));
+      expect(res.siteGstTotal, closeTo(6750.0, 0.01));
+      expect(res.outwardGstTotal, closeTo(1500.0 + 2268.0, 0.01));
+      expect(res.totalInputGst, closeTo(6750.0 + 1500.0 + 2268.0, 0.01));
+    });
   });
 }
 

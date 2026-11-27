@@ -84,6 +84,14 @@ class UnifiedSubVendorMaterialResult {
   final double siteIssueTotal;
   final double siteReturnTotal;
   final double outwardTotal;
+  final double material5Total;
+  final double material5Gst;
+  final double material18Total;
+  final double material18Gst;
+  final double otherAndZeroGstTotal;
+  final double otherAndZeroGstTax;
+  final double siteGstTotal;
+  final double outwardGstTotal;
   final int siteEntryCount;
   final int outwardDispatchCount;
 
@@ -92,6 +100,14 @@ class UnifiedSubVendorMaterialResult {
     required this.siteIssueTotal,
     required this.siteReturnTotal,
     required this.outwardTotal,
+    this.material5Total = 0.0,
+    this.material5Gst = 0.0,
+    this.material18Total = 0.0,
+    this.material18Gst = 0.0,
+    this.otherAndZeroGstTotal = 0.0,
+    this.otherAndZeroGstTax = 0.0,
+    this.siteGstTotal = 0.0,
+    this.outwardGstTotal = 0.0,
     required this.siteEntryCount,
     required this.outwardDispatchCount,
   });
@@ -101,6 +117,9 @@ class UnifiedSubVendorMaterialResult {
 
   double get combinedMaterialTotal =>
       double.parse((netSiteMaterialTotal + outwardTotal).toStringAsFixed(2));
+
+  double get totalInputGst =>
+      double.parse((siteGstTotal + outwardGstTotal).toStringAsFixed(2));
 }
 
 class UnifiedSubVendorMaterialBuilder {
@@ -279,11 +298,51 @@ class UnifiedSubVendorMaterialBuilder {
       return a.id.compareTo(b.id);
     });
 
+    double material5Total = 0.0;
+    double material5Gst = 0.0;
+    double material18Total = 0.0;
+    double material18Gst = 0.0;
+    double otherAndZeroGstTotal = 0.0;
+    double otherAndZeroGstTax = 0.0;
+    double siteGstTotal = 0.0;
+    double outwardGstTotal = 0.0;
+
+    for (final entry in items) {
+      final signedTot = entry.signedTotal;
+      final signedGst = entry.signedGst;
+      final rate = entry.gstRate;
+
+      if (entry.isSiteMaterial) {
+        siteGstTotal += signedGst;
+      } else {
+        outwardGstTotal += signedGst;
+      }
+
+      if ((rate - 5.0).abs() < 0.01) {
+        material5Total += signedTot;
+        material5Gst += signedGst;
+      } else if ((rate - 18.0).abs() < 0.01) {
+        material18Total += signedTot;
+        material18Gst += signedGst;
+      } else {
+        otherAndZeroGstTotal += signedTot;
+        otherAndZeroGstTax += signedGst;
+      }
+    }
+
     return UnifiedSubVendorMaterialResult(
       entries: items,
       siteIssueTotal: double.parse(siteIssueTotal.toStringAsFixed(2)),
       siteReturnTotal: double.parse(siteReturnTotal.toStringAsFixed(2)),
       outwardTotal: double.parse(outwardTotal.toStringAsFixed(2)),
+      material5Total: double.parse(material5Total.toStringAsFixed(2)),
+      material5Gst: double.parse(material5Gst.toStringAsFixed(2)),
+      material18Total: double.parse(material18Total.toStringAsFixed(2)),
+      material18Gst: double.parse(material18Gst.toStringAsFixed(2)),
+      otherAndZeroGstTotal: double.parse(otherAndZeroGstTotal.toStringAsFixed(2)),
+      otherAndZeroGstTax: double.parse(otherAndZeroGstTax.toStringAsFixed(2)),
+      siteGstTotal: double.parse(siteGstTotal.toStringAsFixed(2)),
+      outwardGstTotal: double.parse(outwardGstTotal.toStringAsFixed(2)),
       siteEntryCount: siteEntryCount,
       outwardDispatchCount: outwardDispatchCount,
     );
