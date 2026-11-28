@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:siya_shared/siya_shared.dart';
 import 'package:mobile_app/screens/sub_vendor_dashboard_screen.dart';
+import 'package:mobile_app/services/supabase_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -10,20 +11,12 @@ void main() {
     // -------------------------------------------------------------------------
     // 1. LOGIN IDENTIFIER RESOLUTION & VENDOR ACCOUNT CREATION
     // -------------------------------------------------------------------------
-    test('1. Sub-Vendor login identifier resolves mobile number & vendor code correctly', () {
-      // 10-digit mobile number
-      String resolveLogin(String input) {
-        if (!input.contains('@')) {
-          final clean = input.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').toLowerCase();
-          return '$clean@vendor.siyasolar.com';
-        }
-        return input.trim().toLowerCase();
-      }
-
-      expect(resolveLogin('9822334455'), equals('9822334455@vendor.siyasolar.com'));
-      expect(resolveLogin('SIYA-VND-001'), equals('siyavnd001@vendor.siyasolar.com'));
-      expect(resolveLogin('staff@siyasolar.com'), equals('staff@siyasolar.com'));
-      expect(resolveLogin('  9876543210  '), equals('9876543210@vendor.siyasolar.com'));
+    test('1. Sub-Vendor login identifier resolves mobile number, +91 mobile, email & vendor code correctly', () async {
+      expect(await SupabaseService.resolveLoginEmail('9822334455'), equals('9822334455@vendor.siyasolar.com'));
+      expect(await SupabaseService.resolveLoginEmail('+91 98223 34455'), equals('9822334455@vendor.siyasolar.com'));
+      expect(await SupabaseService.resolveLoginEmail('SIYA-VND-001'), equals('siyavnd001@vendor.siyasolar.com'));
+      expect(await SupabaseService.resolveLoginEmail('Staff@SiyaSolar.com'), equals('staff@siyasolar.com'));
+      expect(await SupabaseService.resolveLoginEmail('  9876543210  '), equals('9876543210@vendor.siyasolar.com'));
     });
 
     test('2. Sub-Vendor Account model handles Active, Inactive, and Blocked status', () {

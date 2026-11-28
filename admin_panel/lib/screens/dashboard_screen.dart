@@ -25,6 +25,7 @@ import 'quotations_screen.dart';
 import 'margin_receipts_screen.dart';
 import 'commission_screen.dart';
 import 'sub_vendor_management_screen.dart';
+import 'sub_vendor_dashboard_screen.dart';
 import 'document_enhancer_screen.dart';
 import 'solar_quotation_generator_screen.dart';
 import 'solar_site_cost_calculator_screen.dart';
@@ -125,6 +126,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _userEmail = user.email ?? '';
     try {
       final profile = await SupabaseService.fetchProfile(user.id);
+      final resolvedRole = (profile?['role'] ?? user.userMetadata?['role'] ?? 'staff')
+          .toString()
+          .toLowerCase();
+      if ((resolvedRole == 'sub_vendor' || resolvedRole == 'vendor') && mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const SubVendorDashboardScreen()),
+        );
+        return;
+      }
       if (profile != null && mounted) {
         setState(() {
           _userProfile = profile;

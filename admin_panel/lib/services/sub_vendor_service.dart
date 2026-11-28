@@ -225,6 +225,41 @@ class SubVendorService {
     }
   }
 
+  /// Reset password OR create/link auth login account for an existing Sub-Vendor
+  static Future<Map<String, dynamic>?> resetOrLinkVendorLogin({
+    required String vendorId,
+    String? authUserId,
+    required String newPassword,
+  }) async {
+    try {
+      try {
+        final rpcRes = await _client.rpc('admin_reset_or_link_sub_vendor_login', params: {
+          'p_vendor_id': vendorId,
+          'p_new_password': newPassword.trim(),
+        });
+        if (rpcRes is Map) {
+          return Map<String, dynamic>.from(rpcRes);
+        }
+        return null;
+      } catch (rpcError) {
+        final errStr = rpcError.toString();
+        if (errStr.contains('Unauthorized') ||
+            errStr.contains('Password must be') ||
+            errStr.contains('not found')) {
+          rethrow;
+        }
+        if (authUserId != null && authUserId.isNotEmpty) {
+          await resetVendorPassword(authUserId: authUserId, newPassword: newPassword);
+          return null;
+        }
+        rethrow;
+      }
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.resetOrLinkVendorLogin: $e\n$stack');
+      rethrow;
+    }
+  }
+
   /// Reset vendor password via Admin RPC
   static Future<void> resetVendorPassword({
     required String authUserId,

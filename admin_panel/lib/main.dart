@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/login_screen.dart';
-import 'screens/dashboard_screen.dart';
 import 'services/supabase_service.dart';
 
 import 'services/settings_service.dart';
@@ -88,9 +87,9 @@ class SiyaAdminApp extends StatelessWidget {
         ),
       ),
       themeMode: ThemeMode.system,
-      home: SupabaseService.isAuthenticated
-          ? const AdminDashboardScreen()
-          : const AdminLoginScreen(),
+      // Always route via AdminLoginScreen so persisted sessions validate role
+      // (sub_vendor -> Partner Portal, admin/staff -> AdminDashboardScreen).
+      home: const AdminLoginScreen(),
     );
   }
 }

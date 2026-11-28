@@ -83,17 +83,24 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
       final input = _emailController.text.trim();
       final password = _passwordController.text;
 
-      // Automatically support 10-digit mobile number or Vendor ID username login
-      String email = input;
-      if (!email.contains('@')) {
-        final clean = email.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').toLowerCase();
-        email = '$clean@vendor.siyasolar.com';
-      }
+      // Resolve Mobile Number, Vendor Code, or Email to Auth Email
+      final email = await SupabaseService.resolveLoginEmail(input);
 
       await SupabaseService.signInWithEmailPassword(
         email: email,
         password: password,
       );
+
+      final user = SupabaseService.currentUser;
+      final profile = user != null ? await MobileRecordService.getCurrentStaffProfile() : null;
+      if (profile != null) {
+        final status = (profile['status'] as String? ?? 'Active').toLowerCase();
+        final isActive = profile['is_active'] as bool? ?? true;
+        if (status == 'inactive' || status == 'suspended' || status == 'blocked' || !isActive) {
+          await SupabaseService.signOut();
+          throw Exception('Your account is inactive or blocked. Please contact Admin.');
+        }
+      }
 
       // Persist or clear credentials
       try {
@@ -114,10 +121,10 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
       TextInput.finishAutofillContext();
 
       // Check role & navigate to appropriate screen
-      final user = SupabaseService.currentUser;
       if (user != null) {
-        final profile = await MobileRecordService.getCurrentStaffProfile();
-        final role = profile?['role']?.toString().toLowerCase();
+        final role = (profile?['role'] ?? user.userMetadata?['role'])
+            ?.toString()
+            .toLowerCase();
         if (role == 'sub_vendor' || role == 'vendor') {
           if (mounted) {
             Navigator.of(context).pushReplacement(
@@ -134,8 +141,11 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
         );
       }
     } catch (e) {
+      final rawErr = e.toString().replaceAll('Exception: ', '').replaceAll('AuthException: ', '');
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = rawErr.toLowerCase().contains('invalid login credentials')
+            ? 'Invalid login ID or password.'
+            : rawErr;
       });
     } finally {
       if (mounted) {

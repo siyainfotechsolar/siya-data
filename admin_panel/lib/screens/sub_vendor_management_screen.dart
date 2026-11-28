@@ -537,6 +537,8 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                                             spacing: 12,
                                             children: [
                                               Text('📱 ${v.mobile}', style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
+                                              if (v.email.trim().isNotEmpty)
+                                                Text('✉️ ${v.email}', style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
                                               Text('⚡ Rate: ${_currency.format(v.defaultRatePerKw)}/kW', style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
                                               if (v.bankName != null)
                                                 Text('🏦 ${v.bankName}', style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
@@ -575,13 +577,20 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                                           },
                                         ),
                                         IconButton(
-                                          icon: const Icon(Icons.lock_reset, color: Colors.orange, size: 20),
-                                          tooltip: 'Reset Password',
-                                          onPressed: () {
-                                            showDialog(
+                                          icon: Icon(
+                                            Icons.lock_reset,
+                                            color: (v.authUserId == null || v.authUserId!.isEmpty) ? Colors.deepOrange : Colors.orange,
+                                            size: 20,
+                                          ),
+                                          tooltip: (v.authUserId == null || v.authUserId!.isEmpty)
+                                              ? 'Activate Login & Set Password'
+                                              : 'Reset Password',
+                                          onPressed: () async {
+                                            final updated = await showDialog<bool>(
                                               context: context,
                                               builder: (_) => ResetVendorPasswordDialog(vendor: v),
                                             );
+                                            if (updated == true) _loadAllData();
                                           },
                                         ),
                                         Switch(

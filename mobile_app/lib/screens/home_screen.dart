@@ -22,6 +22,7 @@ import '../widgets/sync_status_indicator.dart';
 import '../services/connectivity_service.dart';
 import '../services/app_intelligence_service.dart';
 import 'action_center_screen.dart';
+import 'sub_vendor_dashboard_screen.dart';
 
 class MobileHomeScreen extends StatefulWidget {
   const MobileHomeScreen({super.key});
@@ -86,6 +87,15 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
 
   Future<void> _loadUserProfile() async {
     final profile = await MobileRecordService.getCurrentStaffProfile();
+    final role = (profile?['role'] ?? SupabaseService.currentUser?.userMetadata?['role'])
+        ?.toString()
+        .toLowerCase();
+    if ((role == 'sub_vendor' || role == 'vendor') && mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const SubVendorMobileDashboardScreen()),
+      );
+      return;
+    }
     if (mounted) setState(() => _userProfile = profile);
   }
 

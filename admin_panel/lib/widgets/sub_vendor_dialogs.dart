@@ -1595,24 +1595,28 @@ class _ResetVendorPasswordDialogState extends State<ResetVendorPasswordDialog> {
 
   Future<void> _handleReset() async {
     if (!_formKey.currentState!.validate()) return;
-    if (widget.vendor.authUserId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('This vendor does not have an active login account linked.')),
-      );
-      return;
-    }
 
     setState(() => _isLoading = true);
     try {
-      await SubVendorService.resetVendorPassword(
-        authUserId: widget.vendor.authUserId!,
+      final result = await SubVendorService.resetOrLinkVendorLogin(
+        vendorId: widget.vendor.id,
+        authUserId: widget.vendor.authUserId,
         newPassword: _passwordCtrl.text.trim(),
       );
+
+      final loginEmail = (result?['login_email'] as String?) ??
+          (widget.vendor.email.trim().isNotEmpty
+              ? widget.vendor.email.trim()
+              : '${widget.vendor.mobile.trim()}@vendor.siyasolar.com');
 
       if (mounted) {
         Navigator.of(context).pop(true);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password reset successfully!'), backgroundColor: Colors.green),
+          SnackBar(
+            content: Text('Login ready! Email: $loginEmail | Mobile: ${widget.vendor.mobile} | Code: ${widget.vendor.vendorCode}'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 6),
+          ),
         );
       }
     } catch (e) {
@@ -1628,15 +1632,47 @@ class _ResetVendorPasswordDialogState extends State<ResetVendorPasswordDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isUnlinked = widget.vendor.authUserId == null || widget.vendor.authUserId!.isEmpty;
+    final resolvedEmail = widget.vendor.email.trim().isNotEmpty
+        ? widget.vendor.email.trim()
+        : '${widget.vendor.mobile.trim()}@vendor.siyasolar.com';
+
     return AlertDialog(
-      title: Text('Reset Password for ${widget.vendor.name}'),
+      title: Text(
+        isUnlinked
+            ? 'Activate Login & Set Password — ${widget.vendor.name}'
+            : 'Reset Password — ${widget.vendor.name}',
+      ),
       content: Form(
         key: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Mobile / Login Username: ${widget.vendor.mobile}'),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Mobile Number: ${widget.vendor.mobile}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                  Text('Vendor Code: ${widget.vendor.vendorCode}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                  Text('Login Email: $resolvedEmail', style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
+                  if (isUnlinked)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: Text(
+                        'No auth account linked yet — clicking Save will create & link login credentials automatically.',
+                        style: TextStyle(fontSize: 11, color: Color(0xFFB45309)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _passwordCtrl,
@@ -1661,7 +1697,7 @@ class _ResetVendorPasswordDialogState extends State<ResetVendorPasswordDialog> {
           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D2B6F), foregroundColor: Colors.white),
           child: _isLoading
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Reset Password'),
+              : Text(isUnlinked ? 'Activate & Save Password' : 'Reset Password'),
         ),
       ],
     );

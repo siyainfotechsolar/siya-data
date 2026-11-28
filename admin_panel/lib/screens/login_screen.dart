@@ -87,12 +87,12 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           final status = (profile['status'] as String? ?? 'Active').toLowerCase();
           final isActive = profile['is_active'] as bool? ?? true;
 
-          if (status == 'inactive' || status == 'suspended' || !isActive) {
+          if (status == 'inactive' || status == 'suspended' || status == 'blocked' || !isActive) {
             await SupabaseService.signOut();
             if (mounted) {
               setState(() {
                 _isLoading = false;
-                _errorMessage = 'Your account is inactive. Please contact Admin.';
+                _errorMessage = 'Your account is inactive or blocked. Please contact Admin.';
               });
             }
             return;
@@ -100,8 +100,11 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         }
 
         if (mounted) {
-          final role = (profile?['role'] as String? ?? 'staff').toLowerCase();
-          if (role == 'sub_vendor') {
+          final user = SupabaseService.currentUser;
+          final role = (profile?['role'] ?? user?.userMetadata?['role'] ?? 'staff')
+              .toString()
+              .toLowerCase();
+          if (role == 'sub_vendor' || role == 'vendor') {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const SubVendorDashboardScreen()),
             );
@@ -132,8 +135,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
     final str = error.toString().toLowerCase();
 
-    if (str.contains('inactive') || str.contains('suspended') || str.contains('account is inactive')) {
-      return 'Your account is inactive. Please contact Admin.';
+    if (str.contains('inactive') || str.contains('suspended') || str.contains('blocked') || str.contains('account is inactive')) {
+      return 'Your account is inactive or blocked. Please contact Admin.';
     }
 
     if (str.contains('invalid login credentials') ||
@@ -142,7 +145,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         str.contains('invalid email or password') ||
         str.contains('wrong password') ||
         str.contains('user not found')) {
-      return 'Invalid email or password.';
+      return 'Invalid login ID or password.';
     }
 
     if (str.contains('socketexception') ||
@@ -164,19 +167,14 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   }
 
   /// Production Login Behavior:
-  /// Email + Password -> Supabase Auth -> Validate Session -> Load Profile ->
-  /// Check Account Status -> Load Role & Permissions -> Admin Dashboard
+  /// Email / Mobile / Vendor Code -> Resolve Auth Email -> Supabase Auth ->
+  /// Validate Session -> Load Profile -> Check Status -> Route by Role
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
     final rawInput = _emailController.text.trim();
     final password = _passwordController.text;
-
-    // Support Mobile Number or Vendor ID / Username login by resolving to email
     String email = rawInput;
-    if (!rawInput.contains('@')) {
-      email = '${rawInput.toLowerCase()}@vendor.siyasolar.com';
-    }
 
     setState(() {
       _isLoading = true;
@@ -185,6 +183,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     });
 
     try {
+      // 0. Resolve Mobile Number / Vendor Code / Email to Auth Email
+      email = await SupabaseService.resolveLoginEmail(rawInput);
+
       // 1. Supabase Authentication
       final authResponse = await SupabaseService.signInWithEmailPassword(
         email: email,
@@ -216,7 +217,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         final status = (profile['status'] as String? ?? 'Active').toLowerCase();
         final isActive = profile['is_active'] as bool? ?? true;
 
-        if (status == 'inactive' || status == 'suspended' || !isActive) {
+        if (status == 'inactive' || status == 'suspended' || status == 'blocked' || !isActive) {
           await SupabaseService.signOut();
           await SupabaseService.logAuthAudit(
             action: 'LOGIN_BLOCKED_INACTIVE',
@@ -224,7 +225,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             userId: user.id,
             details: 'Account status: $status, is_active: $isActive',
           );
-          throw Exception('Your account is inactive. Please contact Admin.');
+          throw Exception('Your account is inactive or blocked. Please contact Admin.');
         }
       }
 
@@ -240,7 +241,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         action: 'LOGIN_SUCCESS',
         email: email,
         userId: user.id,
-        details: 'Admin web portal login successful',
+        details: 'Web portal login successful',
       );
 
       // Save or clear credentials based on Remember Password preference
@@ -248,7 +249,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         final prefs = await SharedPreferences.getInstance();
         if (_rememberPassword) {
           await prefs.setBool(_prefKeyRememberPassword, true);
-          await prefs.setString(_prefKeySavedEmail, email);
+          await prefs.setString(_prefKeySavedEmail, rawInput);
           await prefs.setString(_prefKeySavedPassword, password);
         } else {
           await prefs.setBool(_prefKeyRememberPassword, false);
@@ -263,8 +264,10 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
       // 6. Navigate based on Role (Sub-Vendor -> SubVendorDashboardScreen, Admin -> AdminDashboardScreen)
       if (mounted) {
-        final role = (profile?['role'] as String? ?? 'staff').toLowerCase();
-        if (role == 'sub_vendor') {
+        final role = (profile?['role'] ?? user.userMetadata?['role'] ?? 'staff')
+            .toString()
+            .toLowerCase();
+        if (role == 'sub_vendor' || role == 'vendor') {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const SubVendorDashboardScreen()),
           );
@@ -512,7 +515,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Field 1: Email Address
+                            // Field 1: Email Address, Mobile Number, or Vendor Code
                             TextFormField(
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
@@ -520,19 +523,23 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                               autofillHints: const [AutofillHints.email, AutofillHints.username],
                               enabled: !_isLoading,
                               decoration: InputDecoration(
-                                labelText: 'Email Address',
-                                hintText: 'admin@siyasolar.com',
-                                prefixIcon: const Icon(Icons.email_outlined),
+                                labelText: 'Email / Mobile Number / Vendor Code',
+                                hintText: 'admin@siyasolar.com, 9822334455, or SIYA-VND-101',
+                                prefixIcon: const Icon(Icons.person_outline),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
                               validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Please enter your email';
+                                final v = value?.trim() ?? '';
+                                if (v.isEmpty) {
+                                  return 'Please enter your email, mobile number, or vendor code';
                                 }
-                                if (!value.contains('@') || !value.contains('.')) {
+                                if (v.contains('@') && !v.contains('.')) {
                                   return 'Please enter a valid email address';
+                                }
+                                if (!v.contains('@') && v.length < 3) {
+                                  return 'Enter a valid mobile number or vendor code';
                                 }
                                 return null;
                               },
