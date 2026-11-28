@@ -1,3 +1,4 @@
+import '../services/sub_vendor_financial_engine.dart';
 import 'sub_vendor_account_ledger.dart';
 import 'sub_vendor_material_outward.dart';
 import 'vendor_material_transaction.dart';
@@ -247,7 +248,8 @@ class UnifiedSubVendorMaterialBuilder {
     }
 
     // 3. Unlinked manual MATERIAL_OUTWARD entries in sub_vendor_account_ledger
-    for (final le in accountLedgerEntries) {
+    for (final rawLe in accountLedgerEntries) {
+      final le = SubVendorFinancialEngine.normalizeLedgerEntryPolarity(rawLe);
       if (!le.isActive) continue;
       if (vendorIdFilter != null && le.vendorId != vendorIdFilter) continue;
       if (le.transactionType.toUpperCase() != 'MATERIAL_OUTWARD') continue;
@@ -262,7 +264,8 @@ class UnifiedSubVendorMaterialBuilder {
         continue;
       }
 
-      final amt = le.debitAmount > 0 ? le.debitAmount : le.creditAmount;
+      final amt = SubVendorFinancialEngine.round2(
+          le.debitAmount > 0 ? le.debitAmount : le.creditAmount);
       if (amt <= 0) continue;
 
       outwardDispatchCount++;

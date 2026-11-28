@@ -140,14 +140,15 @@ class SubVendorMaterialOutwardPdfService {
               pw.Table(
                 border: pw.TableBorder.all(color: borderGray, width: 0.6),
                 columnWidths: {
-                  0: const pw.FixedColumnWidth(24),
-                  1: const pw.FlexColumnWidth(3.2),
-                  2: const pw.FlexColumnWidth(0.9),
-                  3: const pw.FlexColumnWidth(0.8),
-                  4: const pw.FlexColumnWidth(1.2),
-                  5: const pw.FlexColumnWidth(0.8),
-                  6: const pw.FlexColumnWidth(1.1),
-                  7: const pw.FlexColumnWidth(1.3),
+                  0: const pw.FixedColumnWidth(22),
+                  1: const pw.FlexColumnWidth(2.8),
+                  2: const pw.FlexColumnWidth(0.8),
+                  3: const pw.FlexColumnWidth(0.7),
+                  4: const pw.FlexColumnWidth(1.0),
+                  5: const pw.FlexColumnWidth(1.1),
+                  6: const pw.FlexColumnWidth(0.7),
+                  7: const pw.FlexColumnWidth(1.0),
+                  8: const pw.FlexColumnWidth(1.2),
                 },
                 children: [
                   pw.TableRow(
@@ -158,6 +159,7 @@ class SubVendorMaterialOutwardPdfService {
                       _buildTableCell('Qty', isHeader: true, align: pw.TextAlign.right),
                       _buildTableCell('Unit', isHeader: true, align: pw.TextAlign.center),
                       _buildTableCell('Rate', isHeader: true, align: pw.TextAlign.right),
+                      _buildTableCell('Base Amt', isHeader: true, align: pw.TextAlign.right),
                       _buildTableCell('GST %', isHeader: true, align: pw.TextAlign.center),
                       _buildTableCell('GST Amt', isHeader: true, align: pw.TextAlign.right),
                       _buildTableCell('Final Price', isHeader: true, align: pw.TextAlign.right),
@@ -166,6 +168,11 @@ class SubVendorMaterialOutwardPdfService {
                   ...outward.items.asMap().entries.map((entry) {
                     final idx = entry.key + 1;
                     final item = entry.value;
+                    final rowCalc = SubVendorFinancialEngine.calculateOutwardRow(
+                      quantity: item.quantity,
+                      ratePerUnit: item.unitRate,
+                      gstPercentage: item.gstPercentage,
+                    );
                     return pw.TableRow(
                       decoration: pw.BoxDecoration(color: idx.isEven ? slateLight : PdfColors.white),
                       children: [
@@ -173,14 +180,15 @@ class SubVendorMaterialOutwardPdfService {
                         _buildTableCell(item.materialName),
                         _buildTableCell(item.quantity.toStringAsFixed(2), align: pw.TextAlign.right),
                         _buildTableCell(item.unit, align: pw.TextAlign.center),
-                        _buildTableCell(item.unitRate.toStringAsFixed(2), align: pw.TextAlign.right),
-                        _buildTableCell('${item.gstPercentage.toStringAsFixed(0)}%', align: pw.TextAlign.center),
-                        _buildTableCell(item.gstAmount.toStringAsFixed(2), align: pw.TextAlign.right),
-                        _buildTableCell(item.totalPrice.toStringAsFixed(2), align: pw.TextAlign.right),
+                        _buildTableCell(rowCalc.ratePerUnit.toStringAsFixed(2), align: pw.TextAlign.right),
+                        _buildTableCell(rowCalc.baseAmount.toStringAsFixed(2), align: pw.TextAlign.right),
+                        _buildTableCell('${rowCalc.gstPercentage.toStringAsFixed(0)}%', align: pw.TextAlign.center),
+                        _buildTableCell(rowCalc.gstAmount.toStringAsFixed(2), align: pw.TextAlign.right),
+                        _buildTableCell(rowCalc.finalAmount.toStringAsFixed(2), align: pw.TextAlign.right),
                       ],
                     );
                   }),
-                  // Total Row
+                  // Total Row (aligned directly under Base Amt, GST Amt & Final Price columns)
                   pw.TableRow(
                     decoration: const pw.BoxDecoration(color: PdfColors.grey100),
                     children: [
@@ -188,8 +196,9 @@ class SubVendorMaterialOutwardPdfService {
                       _buildTableCell('TOTAL (${outward.totalItems} Items)', isHeader: true),
                       _buildTableCell(outward.totalQuantity.toStringAsFixed(2), isHeader: true, align: pw.TextAlign.right),
                       _buildTableCell(''),
-                      _buildTableCell('Subtotal:', isHeader: true, align: pw.TextAlign.right),
+                      _buildTableCell('Totals:', isHeader: true, align: pw.TextAlign.right),
                       _buildTableCell(outward.subtotal.toStringAsFixed(2), isHeader: true, align: pw.TextAlign.right),
+                      _buildTableCell(''),
                       _buildTableCell(outward.totalGst.toStringAsFixed(2), isHeader: true, align: pw.TextAlign.right),
                       _buildTableCell(outward.totalValue.toStringAsFixed(2), isHeader: true, align: pw.TextAlign.right),
                     ],
@@ -275,39 +284,47 @@ class SubVendorMaterialOutwardPdfService {
   }
 
   // ============================================================================
-  // 2. REPORT A: DATE-WISE MATERIAL OUTWARD REPORT PDF
+  // 2. REPORT A: DATE-WISE MATERIAL OUTWARD REPORT PDF (WITH FULL MONETARY AMOUNTS)
   // ============================================================================
   static Future<Uint8List> generateDateWiseReportPdfBytes(List<SubVendorMaterialOutward> entries) async {
     final pdfTheme = await SolarQuotationFontHelper.loadPdfTheme();
     final pdf = pw.Document(theme: pdfTheme);
     final activeEntries = entries.where((e) => e.isActive).toList();
-    final totalQty = activeEntries.fold(0.0, (sum, e) => sum + e.totalQuantity);
+    final totalQty = SubVendorFinancialEngine.sumPaise(activeEntries, (e) => e.totalQuantity);
+    final totalSub = SubVendorFinancialEngine.sumPaise(activeEntries, (e) => e.subtotal);
+    final totalGst = SubVendorFinancialEngine.sumPaise(activeEntries, (e) => e.totalGst);
+    final totalVal = SubVendorFinancialEngine.sumPaise(activeEntries, (e) => e.totalValue);
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        header: (context) => _buildReportHeader('DATE-WISE MATERIAL OUTWARD REPORT', 'Chronological log of materials issued to Sub-Vendors'),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        header: (context) => _buildReportHeader('DATE-WISE MATERIAL OUTWARD REPORT', 'Chronological dispatch log with Base Amount, GST, and Final Value'),
         footer: (context) => _buildReportFooter(context),
         build: (context) {
           return [
             pw.SizedBox(height: 10),
             _buildReportKpis([
               {'label': 'Total Entries', 'value': activeEntries.length.toString()},
-              {'label': 'Total Qty Issued', 'value': totalQty.toStringAsFixed(1)},
-              {'label': 'Report Generated', 'value': _dateFormat.format(DateTime.now())},
+              {'label': 'Total Qty', 'value': totalQty.toStringAsFixed(2)},
+              {'label': 'Subtotal (Base)', 'value': 'Rs. ${totalSub.toStringAsFixed(2)}'},
+              {'label': 'Total GST', 'value': 'Rs. ${totalGst.toStringAsFixed(2)}'},
+              {'label': 'Grand Total', 'value': 'Rs. ${totalVal.toStringAsFixed(2)}'},
             ]),
-            pw.SizedBox(height: 14),
+            pw.SizedBox(height: 12),
             pw.Table(
               border: pw.TableBorder.all(color: borderGray, width: 0.5),
               columnWidths: {
-                0: const pw.FixedColumnWidth(24),
-                1: const pw.FlexColumnWidth(1.4),
-                2: const pw.FlexColumnWidth(1.2),
-                3: const pw.FlexColumnWidth(2.2),
-                4: const pw.FlexColumnWidth(2.6),
-                5: const pw.FlexColumnWidth(1.0),
-                6: const pw.FlexColumnWidth(1.0),
+                0: const pw.FixedColumnWidth(20),
+                1: const pw.FlexColumnWidth(1.3),
+                2: const pw.FlexColumnWidth(1.0),
+                3: const pw.FlexColumnWidth(1.7),
+                4: const pw.FlexColumnWidth(2.0),
+                5: const pw.FlexColumnWidth(0.8),
+                6: const pw.FlexColumnWidth(0.9),
+                7: const pw.FlexColumnWidth(1.0),
+                8: const pw.FlexColumnWidth(0.9),
+                9: const pw.FlexColumnWidth(1.1),
               },
               children: [
                 pw.TableRow(
@@ -318,18 +335,31 @@ class SubVendorMaterialOutwardPdfService {
                     _buildTableCell('Date', isHeader: true, color: PdfColors.white, align: pw.TextAlign.center),
                     _buildTableCell('Sub Vendor', isHeader: true, color: PdfColors.white),
                     _buildTableCell('Material Name', isHeader: true, color: PdfColors.white),
-                    _buildTableCell('Unit', isHeader: true, color: PdfColors.white, align: pw.TextAlign.center),
                     _buildTableCell('Qty', isHeader: true, color: PdfColors.white, align: pw.TextAlign.right),
+                    _buildTableCell('Base (Rs.)', isHeader: true, color: PdfColors.white, align: pw.TextAlign.right),
+                    _buildTableCell('GST %', isHeader: true, color: PdfColors.white, align: pw.TextAlign.center),
+                    _buildTableCell('GST (Rs.)', isHeader: true, color: PdfColors.white, align: pw.TextAlign.right),
+                    _buildTableCell('Total (Rs.)', isHeader: true, color: PdfColors.white, align: pw.TextAlign.right),
                   ],
                 ),
                 ...activeEntries.expand((e) {
-                  return e.items.map((item) => {
-                    'outward_number': e.outwardNumber,
-                    'date': _dateFormat.format(e.outwardDate),
-                    'vendor': e.vendorName,
-                    'material': item.materialName,
-                    'unit': item.unit,
-                    'qty': item.quantity.toStringAsFixed(1),
+                  return e.items.map((item) {
+                    final calc = SubVendorFinancialEngine.calculateOutwardRow(
+                      quantity: item.quantity,
+                      ratePerUnit: item.unitRate,
+                      gstPercentage: item.gstPercentage,
+                    );
+                    return {
+                      'outward_number': e.outwardNumber,
+                      'date': _dateFormat.format(e.outwardDate),
+                      'vendor': e.vendorName,
+                      'material': '${item.materialName} (${item.unit})',
+                      'qty': item.quantity.toStringAsFixed(2),
+                      'base': calc.baseAmount.toStringAsFixed(2),
+                      'gst_pct': '${calc.gstPercentage.toStringAsFixed(0)}%',
+                      'gst_amt': calc.gstAmount.toStringAsFixed(2),
+                      'total': calc.finalAmount.toStringAsFixed(2),
+                    };
                   });
                 }).toList().asMap().entries.map((entry) {
                   final idx = entry.key + 1;
@@ -342,8 +372,11 @@ class SubVendorMaterialOutwardPdfService {
                       _buildTableCell(r['date']!, align: pw.TextAlign.center),
                       _buildTableCell(r['vendor']!),
                       _buildTableCell(r['material']!),
-                      _buildTableCell(r['unit']!, align: pw.TextAlign.center),
                       _buildTableCell(r['qty']!, align: pw.TextAlign.right),
+                      _buildTableCell(r['base']!, align: pw.TextAlign.right),
+                      _buildTableCell(r['gst_pct']!, align: pw.TextAlign.center),
+                      _buildTableCell(r['gst_amt']!, align: pw.TextAlign.right),
+                      _buildTableCell(r['total']!, align: pw.TextAlign.right),
                     ],
                   );
                 }),
@@ -368,7 +401,7 @@ class SubVendorMaterialOutwardPdfService {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        header: (context) => _buildReportHeader('SUB VENDOR-WISE MATERIAL ISSUE REPORT', 'Summary & material breakdown of all materials dispatched per Sub-Vendor'),
+        header: (context) => _buildReportHeader('SUB VENDOR-WISE MATERIAL ISSUE REPORT', 'Summary & financial breakdown of materials dispatched per Sub-Vendor'),
         footer: (context) => _buildReportFooter(context),
         build: (context) {
           return [
@@ -377,7 +410,11 @@ class SubVendorMaterialOutwardPdfService {
               final vendorName = v['vendor_name'] as String;
               final totalOutwards = v['total_outwards'] as int;
               final totalQty = (v['total_quantity'] as num).toDouble();
+              final totalSub = (v['total_subtotal'] as num?)?.toDouble() ?? 0.0;
+              final totalGst = (v['total_gst'] as num?)?.toDouble() ?? 0.0;
+              final totalVal = (v['total_value'] as num?)?.toDouble() ?? 0.0;
               final matSummary = v['materials_summary'] as Map<String, double>;
+              final matValSummary = (v['materials_value_summary'] as Map<String, double>?) ?? const {};
 
               return pw.Container(
                 margin: const pw.EdgeInsets.only(bottom: 14),
@@ -388,7 +425,6 @@ class SubVendorMaterialOutwardPdfService {
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    // Vendor Banner
                     pw.Container(
                       padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: const pw.BoxDecoration(
@@ -399,16 +435,19 @@ class SubVendorMaterialOutwardPdfService {
                         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                         children: [
                           pw.Text(vendorName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11, color: navyColor)),
-                          pw.Text('Outwards: $totalOutwards | Total Qty: ${totalQty.toStringAsFixed(1)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: greenColor)),
+                          pw.Text(
+                            'Outwards: $totalOutwards | Qty: ${totalQty.toStringAsFixed(2)} | Sub: Rs. ${totalSub.toStringAsFixed(2)} | GST: Rs. ${totalGst.toStringAsFixed(2)} | Total: Rs. ${totalVal.toStringAsFixed(2)}',
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: greenColor),
+                          ),
                         ],
                       ),
                     ),
-                    // Material Breakdown Table
                     pw.Table(
                       border: pw.TableBorder.all(color: borderGray, width: 0.4),
                       columnWidths: {
-                        0: const pw.FlexColumnWidth(4),
-                        1: const pw.FlexColumnWidth(2),
+                        0: const pw.FlexColumnWidth(3.5),
+                        1: const pw.FlexColumnWidth(1.5),
+                        2: const pw.FlexColumnWidth(2.0),
                       },
                       children: [
                         pw.TableRow(
@@ -416,13 +455,16 @@ class SubVendorMaterialOutwardPdfService {
                           children: [
                             _buildTableCell('Material Issued', isHeader: true),
                             _buildTableCell('Total Quantity', isHeader: true, align: pw.TextAlign.right),
+                            _buildTableCell('Total Value (Rs.)', isHeader: true, align: pw.TextAlign.right),
                           ],
                         ),
                         ...matSummary.entries.map((m) {
+                          final val = matValSummary[m.key] ?? 0.0;
                           return pw.TableRow(
                             children: [
                               _buildTableCell(m.key),
-                              _buildTableCell(m.value.toStringAsFixed(1), align: pw.TextAlign.right),
+                              _buildTableCell(m.value.toStringAsFixed(2), align: pw.TextAlign.right),
+                              _buildTableCell(val.toStringAsFixed(2), align: pw.TextAlign.right),
                             ],
                           );
                         }),
@@ -451,7 +493,7 @@ class SubVendorMaterialOutwardPdfService {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        header: (context) => _buildReportHeader('MATERIAL-WISE OUTWARD DISTRIBUTION REPORT', 'Total quantity issued per material with Sub-Vendor breakdown'),
+        header: (context) => _buildReportHeader('MATERIAL-WISE OUTWARD DISTRIBUTION REPORT', 'Total quantity and rupee value issued per material'),
         footer: (context) => _buildReportFooter(context),
         build: (context) {
           return [
@@ -460,7 +502,9 @@ class SubVendorMaterialOutwardPdfService {
               final matName = m['material_name'] as String;
               final unit = m['unit'] as String;
               final totalQty = (m['total_quantity'] as num).toDouble();
+              final totalVal = (m['total_value'] as num?)?.toDouble() ?? 0.0;
               final vBreakdown = m['vendor_breakdown'] as Map<String, double>;
+              final vValBreakdown = (m['vendor_value_breakdown'] as Map<String, double>?) ?? const {};
 
               return pw.Container(
                 margin: const pw.EdgeInsets.only(bottom: 12),
@@ -481,15 +525,16 @@ class SubVendorMaterialOutwardPdfService {
                         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                         children: [
                           pw.Text(matName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11, color: navyColor)),
-                          pw.Text('Total Issued: ${totalQty.toStringAsFixed(1)} $unit', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: amberColor)),
+                          pw.Text('Issued: ${totalQty.toStringAsFixed(2)} $unit | Value: Rs. ${totalVal.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9.5, color: amberColor)),
                         ],
                       ),
                     ),
                     pw.Table(
                       border: pw.TableBorder.all(color: borderGray, width: 0.4),
                       columnWidths: {
-                        0: const pw.FlexColumnWidth(4),
-                        1: const pw.FlexColumnWidth(2),
+                        0: const pw.FlexColumnWidth(3.5),
+                        1: const pw.FlexColumnWidth(1.5),
+                        2: const pw.FlexColumnWidth(2.0),
                       },
                       children: [
                         pw.TableRow(
@@ -497,13 +542,16 @@ class SubVendorMaterialOutwardPdfService {
                           children: [
                             _buildTableCell('Sub Vendor Receiver', isHeader: true),
                             _buildTableCell('Quantity ($unit)', isHeader: true, align: pw.TextAlign.right),
+                            _buildTableCell('Value (Rs.)', isHeader: true, align: pw.TextAlign.right),
                           ],
                         ),
                         ...vBreakdown.entries.map((v) {
+                          final val = vValBreakdown[v.key] ?? 0.0;
                           return pw.TableRow(
                             children: [
                               _buildTableCell(v.key),
-                              _buildTableCell(v.value.toStringAsFixed(1), align: pw.TextAlign.right),
+                              _buildTableCell(v.value.toStringAsFixed(2), align: pw.TextAlign.right),
+                              _buildTableCell(val.toStringAsFixed(2), align: pw.TextAlign.right),
                             ],
                           );
                         }),
@@ -521,18 +569,79 @@ class SubVendorMaterialOutwardPdfService {
     return pdf.save();
   }
 
+  /// REPORT D: DAILY / MONTHLY / FINANCIAL YEAR RECONCILIATION PDF
+  static Future<Uint8List> generatePeriodReportPdfBytes(
+    List<PeriodReconciliationSummary> periods, {
+    required String grouping,
+  }) async {
+    final pdfTheme = await SolarQuotationFontHelper.loadPdfTheme();
+    final pdf = pw.Document(theme: pdfTheme);
+    final totalSub = SubVendorFinancialEngine.sumPaise(periods, (p) => p.subtotal);
+    final totalGst = SubVendorFinancialEngine.sumPaise(periods, (p) => p.totalGst);
+    final totalGrand = SubVendorFinancialEngine.sumPaise(periods, (p) => p.grandTotal);
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        header: (context) => _buildReportHeader('PERIOD MATERIAL OUTWARD SUMMARY ($grouping)', 'Reconciled Subtotal, GST & Grand Total breakdown'),
+        footer: (context) => _buildReportFooter(context),
+        build: (context) => [
+          pw.SizedBox(height: 10),
+          _buildReportKpis([
+            {'label': 'Periods', 'value': periods.length.toString()},
+            {'label': 'Subtotal', 'value': 'Rs. ${totalSub.toStringAsFixed(2)}'},
+            {'label': 'Total GST', 'value': 'Rs. ${totalGst.toStringAsFixed(2)}'},
+            {'label': 'Grand Total', 'value': 'Rs. ${totalGrand.toStringAsFixed(2)}'},
+          ]),
+          pw.SizedBox(height: 12),
+          pw.Table(
+            border: pw.TableBorder.all(color: borderGray, width: 0.5),
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: navyColor),
+                children: [
+                  _buildTableCell('Period', isHeader: true, color: PdfColors.white),
+                  _buildTableCell('Entries', isHeader: true, color: PdfColors.white, align: pw.TextAlign.right),
+                  _buildTableCell('Qty', isHeader: true, color: PdfColors.white, align: pw.TextAlign.right),
+                  _buildTableCell('Subtotal (Rs.)', isHeader: true, color: PdfColors.white, align: pw.TextAlign.right),
+                  _buildTableCell('GST (Rs.)', isHeader: true, color: PdfColors.white, align: pw.TextAlign.right),
+                  _buildTableCell('Grand Total (Rs.)', isHeader: true, color: PdfColors.white, align: pw.TextAlign.right),
+                ],
+              ),
+              ...periods.map((p) => pw.TableRow(children: [
+                    _buildTableCell(p.periodLabel),
+                    _buildTableCell('${p.entryCount}', align: pw.TextAlign.right),
+                    _buildTableCell(p.totalQuantity.toStringAsFixed(2), align: pw.TextAlign.right),
+                    _buildTableCell(p.subtotal.toStringAsFixed(2), align: pw.TextAlign.right),
+                    _buildTableCell(p.totalGst.toStringAsFixed(2), align: pw.TextAlign.right),
+                    _buildTableCell(p.grandTotal.toStringAsFixed(2), align: pw.TextAlign.right, isHeader: true),
+                  ])),
+            ],
+          ),
+        ],
+      ),
+    );
+    return pdf.save();
+  }
+
   // ============================================================================
-  // 5. EXCEL / CSV EXPORT UTILITIES
+  // 5. EXCEL / CSV EXPORT UTILITIES (WITH MONETARY FIELDS)
   // ============================================================================
 
-  /// Exports Date-wise Report to CSV and downloads file.
+  /// Exports Date-wise Report to CSV with complete monetary columns.
   static Future<void> exportDateWiseReportCsv(List<SubVendorMaterialOutward> entries) async {
     final rows = <List<dynamic>>[
-      ['Outward Number', 'Date', 'Sub Vendor Name', 'Material Name', 'Unit', 'Quantity', 'Remarks'],
+      ['Outward Number', 'Date', 'Sub Vendor Name', 'Material Name', 'Unit', 'Quantity', 'Rate (INR)', 'Base Amount (INR)', 'GST %', 'GST Amount (INR)', 'Final Amount (INR)', 'Remarks'],
     ];
 
     for (final e in entries.where((e) => e.isActive)) {
       for (final item in e.items) {
+        final calc = SubVendorFinancialEngine.calculateOutwardRow(
+          quantity: item.quantity,
+          ratePerUnit: item.unitRate,
+          gstPercentage: item.gstPercentage,
+        );
         rows.add([
           e.outwardNumber,
           _dateFormat.format(e.outwardDate),
@@ -540,6 +649,11 @@ class SubVendorMaterialOutwardPdfService {
           item.materialName,
           item.unit,
           item.quantity,
+          calc.ratePerUnit,
+          calc.baseAmount,
+          calc.gstPercentage,
+          calc.gstAmount,
+          calc.finalAmount,
           e.remarks ?? '',
         ]);
       }
@@ -550,10 +664,10 @@ class SubVendorMaterialOutwardPdfService {
     await saveFileUniversal(bytes: Uint8List.fromList(utf8.encode(csvString)), fileName: fileName);
   }
 
-  /// Exports Sub Vendor-wise Summary to CSV.
+  /// Exports Sub Vendor-wise Summary to CSV with Subtotal, GST, Grand Total.
   static Future<void> exportSubVendorWiseReportCsv(List<Map<String, dynamic>> summaries) async {
     final rows = <List<dynamic>>[
-      ['Sub Vendor Name', 'Total Outward Entries', 'Total Quantity Issued', 'Material Details Summary'],
+      ['Sub Vendor Name', 'Total Outward Entries', 'Total Quantity Issued', 'Subtotal (INR)', 'Total GST (INR)', 'Grand Total (INR)', 'Material Details Summary'],
     ];
 
     for (final v in summaries) {
@@ -566,6 +680,9 @@ class SubVendorMaterialOutwardPdfService {
         v['vendor_name'],
         v['total_outwards'],
         v['total_quantity'],
+        (v['total_subtotal'] as num?)?.toDouble() ?? 0.0,
+        (v['total_gst'] as num?)?.toDouble() ?? 0.0,
+        (v['total_value'] as num?)?.toDouble() ?? 0.0,
         matSummary,
       ]);
     }
@@ -575,10 +692,10 @@ class SubVendorMaterialOutwardPdfService {
     await saveFileUniversal(bytes: Uint8List.fromList(utf8.encode(csvString)), fileName: fileName);
   }
 
-  /// Exports Material-wise Summary to CSV.
+  /// Exports Material-wise Summary to CSV with Taxable, GST & Grand Total.
   static Future<void> exportMaterialWiseReportCsv(List<Map<String, dynamic>> summaries) async {
     final rows = <List<dynamic>>[
-      ['Material Name', 'Unit', 'Total Quantity Issued', 'Sub Vendor Breakdown'],
+      ['Material Name', 'Unit', 'Total Quantity Issued', 'Taxable Value (INR)', 'Total GST (INR)', 'Grand Total (INR)', 'Sub Vendor Breakdown'],
     ];
 
     for (final m in summaries) {
@@ -591,12 +708,28 @@ class SubVendorMaterialOutwardPdfService {
         m['material_name'],
         m['unit'],
         m['total_quantity'],
+        (m['total_taxable'] as num?)?.toDouble() ?? 0.0,
+        (m['total_gst'] as num?)?.toDouble() ?? 0.0,
+        (m['total_value'] as num?)?.toDouble() ?? 0.0,
         vBreakdown,
       ]);
     }
 
     final csvString = const ListToCsvConverter().convert(rows);
     final fileName = 'Material_Wise_Outward_Report_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv';
+    await saveFileUniversal(bytes: Uint8List.fromList(utf8.encode(csvString)), fileName: fileName);
+  }
+
+  static Future<void> exportPeriodReportCsv(
+    List<PeriodReconciliationSummary> periods, {
+    required String grouping,
+  }) async {
+    final rows = <List<dynamic>>[
+      ['Period ($grouping)', 'Outward Entries', 'Total Quantity', 'Subtotal (INR)', 'Total GST (INR)', 'Grand Total (INR)'],
+      ...periods.map((p) => [p.periodLabel, p.entryCount, p.totalQuantity, p.subtotal, p.totalGst, p.grandTotal]),
+    ];
+    final csvString = const ListToCsvConverter().convert(rows);
+    final fileName = 'Period_Material_Outward_${grouping}_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv';
     await saveFileUniversal(bytes: Uint8List.fromList(utf8.encode(csvString)), fileName: fileName);
   }
 

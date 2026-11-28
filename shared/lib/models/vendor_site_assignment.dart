@@ -1,4 +1,6 @@
+import 'dart:math' as math;
 import 'solar_quotation.dart';
+import '../services/sub_vendor_financial_engine.dart';
 
 /// Represents a Site Assignment linking a Customer Site to a Sub-Vendor.
 class VendorSiteAssignment {
@@ -138,15 +140,17 @@ class VendorSiteAssignment {
           ? quotationTotalAmount!
           : (totalCustomerSiteAmount > 0 ? totalCustomerSiteAmount : customerTotalAmount);
 
-  /// Effective Received from Customer
-  double get effectiveReceivedAmount =>
-      totalCustomerReceived > 0 ? totalCustomerReceived : customerPaidAmount;
+  /// Effective Received from Customer (consistent with SQL GREATEST rule)
+  double get effectiveReceivedAmount => SubVendorFinancialEngine.round2(
+      math.max(totalCustomerReceived, customerPaidAmount));
 
   /// Effective Outstanding Due from Customer
   double get effectiveCustomerOutstanding {
-    if (customerOutstanding > 0) return customerOutstanding;
-    final diff = effectiveSiteAmount - effectiveReceivedAmount;
-    return diff > 0 ? diff : 0.0;
+    if (effectiveSiteAmount > 0) {
+      final diff = effectiveSiteAmount - effectiveReceivedAmount;
+      return diff > 0 ? SubVendorFinancialEngine.round2(diff) : 0.0;
+    }
+    return customerOutstanding > 0 ? SubVendorFinancialEngine.round2(customerOutstanding) : 0.0;
   }
 
   /// Expected Loan (90% of Total Quotation or Site Amount)

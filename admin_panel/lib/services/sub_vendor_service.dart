@@ -587,10 +587,40 @@ class SubVendorService {
     }
   }
 
-  /// Record a payout disbursement to a sub-vendor
+  /// Record a payout disbursement to a sub-vendor (with duplicate UTR guard & paise rounding)
   static Future<VendorPayout> recordVendorPayout(VendorPayout payout) async {
     try {
+      final cleanRef = payout.referenceNumber?.trim();
+      if (cleanRef != null && cleanRef.isNotEmpty) {
+        final dupPayouts = await _client
+            .from('vendor_payouts')
+            .select('id, reference_number, status')
+            .eq('vendor_id', payout.vendorId)
+            .ilike('reference_number', cleanRef)
+            .not('status', 'in', '("Cancelled","Rejected")');
+        if ((dupPayouts as List<dynamic>).isNotEmpty) {
+          throw Exception(
+            'Duplicate Transaction/UTR Reference "$cleanRef" already exists in Vendor Payouts.',
+          );
+        }
+        final dupLedger = await _client
+            .from('sub_vendor_account_ledger')
+            .select('id, reference_number')
+            .eq('vendor_id', payout.vendorId)
+            .eq('status', 'Active')
+            .ilike('reference_number', cleanRef);
+        if ((dupLedger as List<dynamic>).isNotEmpty) {
+          throw Exception(
+            'Duplicate Transaction/UTR Reference "$cleanRef" already exists in Sub-Vendor Account Ledger.',
+          );
+        }
+      }
+
       final insertData = payout.toJson()..remove('id');
+      insertData['amount'] = SubVendorFinancialEngine.round2(payout.amount);
+      if (cleanRef != null) {
+        insertData['reference_number'] = cleanRef;
+      }
       insertData['created_by'] = SupabaseService.currentUser?.id;
 
       final response = await _client
@@ -670,12 +700,26 @@ class SubVendorService {
     VendorSiteAssignment assignment,
   ) async {
     try {
-      final materials = await fetchSiteMaterials(assignment.id);
-      final payouts = await fetchVendorPayouts(assignment.vendorId);
+      final results = await Future.wait([
+        fetchSiteMaterials(assignment.id),
+        fetchVendorPayouts(assignment.vendorId),
+        fetchCustomerPayments(assignmentId: assignment.id),
+        fetchVendorGstRecoveries(assignment.vendorId),
+      ]);
+      final materials = results[0] as List<VendorMaterialTransaction>;
+      final payouts = results[1] as List<VendorPayout>;
+      final customerPayments = results[2] as List<VendorCustomerPayment>;
+      final gstRecoveries = results[3] as List<VendorGstRecovery>;
       return SiteFinancialDetail.compute(
         assignment: assignment,
         materials: materials,
-        payouts: payouts.where((p) => p.assignmentId == assignment.id).toList(),
+        payouts: payouts
+            .where((p) =>
+                p.assignmentId == assignment.id &&
+                SubVendorFinancialEngine.isDisbursedPayout(p))
+            .toList(),
+        customerPayments: customerPayments,
+        gstRecoveries: gstRecoveries,
       );
     } catch (e, stack) {
       debugPrint('Error in SubVendorService.getSiteFinancialDetail: $e\n$stack');
@@ -843,12 +887,14 @@ class SubVendorService {
         fetchVendorMaterials(vendorId),
         fetchVendorPayouts(vendorId),
         fetchCustomerPayments(vendorId: vendorId),
+        fetchVendorGstRecoveries(vendorId),
       ]);
       final vendor = results[0] as SubVendor?;
       final assignments = results[1] as List<VendorSiteAssignment>;
       final materials = results[2] as List<VendorMaterialTransaction>;
       final payouts = results[3] as List<VendorPayout>;
       final customerPayments = results[4] as List<VendorCustomerPayment>;
+      final gstRecoveries = results[5] as List<VendorGstRecovery>;
 
       final extras = await fetchVendorCentralLedgerExtras(
         vendorId: vendorId,
@@ -867,6 +913,8 @@ class SubVendorService {
         assignments: assignments,
         allMaterials: materials,
         allPayouts: payouts,
+        customerPayments: customerPayments,
+        gstRecoveries: gstRecoveries,
         extraMaterialOutwardCost: extras['materialOutwardCost'] ?? 0.0,
         extraDirectVendorPayments: extras['directVendorPayments'] ?? 0.0,
         extraDirectAdvancesGiven: extras['directAdvancesGiven'] ?? 0.0,
@@ -1061,15 +1109,27 @@ class SubVendorService {
     String? adjustmentRemarks,
   }) async {
     try {
-      final materials = await fetchSiteMaterials(assignment.id);
-      final payouts = await fetchVendorPayouts(assignment.vendorId);
-      final payments = await fetchCustomerPayments(assignmentId: assignment.id);
+      final results = await Future.wait([
+        fetchSiteMaterials(assignment.id),
+        fetchVendorPayouts(assignment.vendorId),
+        fetchCustomerPayments(assignmentId: assignment.id),
+        fetchVendorGstRecoveries(assignment.vendorId),
+      ]);
+      final materials = results[0] as List<VendorMaterialTransaction>;
+      final payouts = results[1] as List<VendorPayout>;
+      final payments = results[2] as List<VendorCustomerPayment>;
+      final gstRecoveries = results[3] as List<VendorGstRecovery>;
 
       return SubVendorSettlement.compute(
         assignment: assignment,
         materials: materials,
-        previousPayouts: payouts.where((p) => p.assignmentId == assignment.id).toList(),
+        previousPayouts: payouts
+            .where((p) =>
+                p.assignmentId == assignment.id &&
+                SubVendorFinancialEngine.isDisbursedPayout(p))
+            .toList(),
         customerPayments: payments,
+        gstRecoveries: gstRecoveries,
         settlementMode: settlementMode,
         expectedLoanPercent: expectedLoanPercent,
         use7030GstRule: use7030GstRule,
@@ -1142,6 +1202,36 @@ class SubVendorService {
   // ============================================================================
   // 6. CONTRACTUAL SUB-VENDOR GST RECOVERIES (ADMIN CONTROLLED)
   // ============================================================================
+
+  /// Fetch all contractual GST recoveries across all sub-vendors
+  static Future<List<VendorGstRecovery>> fetchAllVendorGstRecoveries() async {
+    try {
+      final response = await _client
+          .from('vendor_gst_recoveries')
+          .select('''
+            *,
+            vendor_site_assignments (
+              id,
+              consumer_records (id, name, consumer_no)
+            ),
+            sub_vendors (id, name, vendor_code)
+          ''')
+          .order('recovery_date', ascending: false);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data.map((json) {
+        final m = Map<String, dynamic>.from(json as Map);
+        final vsa = m['vendor_site_assignments'] as Map<String, dynamic>?;
+        if (vsa != null && vsa['consumer_records'] != null) {
+          m['consumer_records'] = vsa['consumer_records'];
+        }
+        return VendorGstRecovery.fromJson(m);
+      }).toList();
+    } catch (e, stack) {
+      debugPrint('Error in SubVendorService.fetchAllVendorGstRecoveries: $e\n$stack');
+      return [];
+    }
+  }
 
   /// Fetch all contractual GST recoveries for a vendor
   static Future<List<VendorGstRecovery>> fetchVendorGstRecoveries(String vendorId) async {

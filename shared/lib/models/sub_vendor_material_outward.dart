@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../services/sub_vendor_financial_engine.dart';
 
 /// Represents an item in the Material Master with available inventory stock.
 class MaterialMasterItem {
@@ -108,10 +109,21 @@ class SubVendorMaterialOutwardItem {
   factory SubVendorMaterialOutwardItem.fromJson(Map<String, dynamic> json) {
     final qty = (json['quantity'] as num?)?.toDouble() ?? 0.0;
     final rate = (json['unit_rate'] as num?)?.toDouble() ?? 0.0;
-    final base = (json['base_amount'] as num?)?.toDouble() ?? (qty * rate);
     final gstPct = (json['gst_percentage'] as num?)?.toDouble() ?? 0.0;
-    final gstAmt = (json['gst_amount'] as num?)?.toDouble() ?? (base * gstPct / 100.0);
-    final price = (json['total_price'] as num?)?.toDouble() ?? (base + gstAmt);
+    final rowCalc = SubVendorFinancialEngine.calculateOutwardRow(
+      quantity: qty,
+      ratePerUnit: rate,
+      gstPercentage: gstPct,
+    );
+    final base = json['base_amount'] != null
+        ? SubVendorFinancialEngine.round2((json['base_amount'] as num).toDouble())
+        : rowCalc.baseAmount;
+    final gstAmt = json['gst_amount'] != null
+        ? SubVendorFinancialEngine.round2((json['gst_amount'] as num).toDouble())
+        : rowCalc.gstAmount;
+    final price = json['total_price'] != null
+        ? SubVendorFinancialEngine.round2((json['total_price'] as num).toDouble())
+        : rowCalc.finalAmount;
 
     return SubVendorMaterialOutwardItem(
       id: json['id']?.toString() ?? '',
@@ -234,24 +246,27 @@ class SubVendorMaterialOutward {
           .toList();
     }
 
+    final totals = SubVendorFinancialEngine.calculateOutwardTotals(parsedItems);
     final totalItems = (json['total_items'] as num?)?.toInt() ?? parsedItems.length;
-    final double totalQuantity = (json['total_quantity'] as num?)?.toDouble() ??
-        parsedItems.fold<double>(0.0, (double sum, i) => sum + i.quantity);
-    final double subtotal = (json['subtotal'] as num?)?.toDouble() ??
-        parsedItems.fold<double>(0.0, (double sum, i) => sum + i.baseAmount);
-    final double totalGst = (json['total_gst'] as num?)?.toDouble() ??
-        parsedItems.fold<double>(0.0, (double sum, i) => sum + i.gstAmount);
-    final double totalValue = (json['total_value'] as num?)?.toDouble() ??
-        parsedItems.fold<double>(0.0, (double sum, i) => sum + i.totalPrice);
+    final double totalQuantity = json['total_quantity'] != null
+        ? SubVendorFinancialEngine.round2((json['total_quantity'] as num).toDouble())
+        : totals.totalQuantity;
+    final double subtotal = json['subtotal'] != null
+        ? SubVendorFinancialEngine.round2((json['subtotal'] as num).toDouble())
+        : totals.subtotal;
+    final double totalGst = json['total_gst'] != null
+        ? SubVendorFinancialEngine.round2((json['total_gst'] as num).toDouble())
+        : totals.totalGst;
+    final double totalValue = json['total_value'] != null
+        ? SubVendorFinancialEngine.round2((json['total_value'] as num).toDouble())
+        : totals.grandTotal;
 
     return SubVendorMaterialOutward(
       id: json['id']?.toString() ?? '',
       outwardNumber: json['outward_number']?.toString() ?? '',
       vendorId: json['vendor_id']?.toString() ?? '',
       vendorName: json['vendor_name']?.toString() ?? '',
-      outwardDate: json['outward_date'] != null
-          ? DateTime.tryParse(json['outward_date'].toString()) ?? DateTime.now()
-          : DateTime.now(),
+      outwardDate: SubVendorFinancialEngine.parseCalendarDate(json['outward_date']),
       totalItems: totalItems,
       totalQuantity: totalQuantity,
       subtotal: subtotal,
@@ -313,11 +328,12 @@ class SubVendorMaterialOutward {
     String? createdBy,
   }) {
     final effectiveItems = items ?? this.items;
+    final totals = SubVendorFinancialEngine.calculateOutwardTotals(effectiveItems);
     final effTotalItems = totalItems ?? effectiveItems.length;
-    final double effTotalQty = totalQuantity ?? effectiveItems.fold<double>(0.0, (double sum, i) => sum + i.quantity);
-    final double effSubtotal = subtotal ?? effectiveItems.fold<double>(0.0, (double sum, i) => sum + i.baseAmount);
-    final double effTotalGst = totalGst ?? effectiveItems.fold<double>(0.0, (double sum, i) => sum + i.gstAmount);
-    final double effTotalVal = totalValue ?? effectiveItems.fold<double>(0.0, (double sum, i) => sum + i.totalPrice);
+    final double effTotalQty = totalQuantity ?? totals.totalQuantity;
+    final double effSubtotal = subtotal ?? totals.subtotal;
+    final double effTotalGst = totalGst ?? totals.totalGst;
+    final double effTotalVal = totalValue ?? totals.grandTotal;
 
     return SubVendorMaterialOutward(
       id: id ?? this.id,

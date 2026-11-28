@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import '../services/sub_vendor_financial_engine.dart';
 import 'vendor_site_assignment.dart';
 import 'vendor_material_transaction.dart';
 import 'vendor_payout.dart';
@@ -162,63 +163,76 @@ class SubVendorLedgerBuilder {
   }) {
     final List<SubVendorLedgerEntry> rawEntries = [];
 
-    // Filter assignments if specific site requested
-    final targetAssignments = filterAssignmentId != null
-        ? assignments.where((a) => a.id == filterAssignmentId).toList()
-        : assignments;
+    // Filter assignments if specific site requested (exclude Cancelled)
+    final targetAssignments = (filterAssignmentId != null
+            ? assignments.where((a) => a.id == filterAssignmentId)
+            : assignments)
+        .where((a) => a.status.trim().toLowerCase() != 'cancelled')
+        .toList();
 
     final targetAssignmentIds = targetAssignments.map((a) => a.id).toSet();
 
     // 1. Customer Payments (Bank Loan & Cash Realized Collections -> CREDITS)
+    //    Emit itemized approved payments AND reconcile any residual un-itemized Cash/Loan on assignment.
     final filteredPayments = customerPayments.where((cp) {
       if (filterAssignmentId != null && cp.assignmentId != filterAssignmentId) return false;
       return targetAssignmentIds.contains(cp.assignmentId);
     }).toList();
 
-    if (filteredPayments.isNotEmpty) {
-      for (final cp in filteredPayments) {
-        if (!cp.isApproved) continue;
+    final Map<String, int> capturedSumPaiseByAssign = {};
+
+    for (final cp in filteredPayments) {
+      if (!cp.isApproved) continue;
+      capturedSumPaiseByAssign[cp.assignmentId] =
+          (capturedSumPaiseByAssign[cp.assignmentId] ?? 0) +
+              SubVendorFinancialEngine.toPaise(cp.amount);
+
+      rawEntries.add(
+        SubVendorLedgerEntry(
+          id: 'cp_${cp.id}',
+          date: SubVendorFinancialEngine.normalizeDate(cp.paymentDate),
+          voucherType: cp.isLoan ? 'Bank Loan Credit' : 'Customer Cash Credit',
+          particulars: cp.isLoan
+              ? 'Bank Loan Credited - ${cp.customerName ?? "Customer"} (CA: ${cp.consumerNo ?? "N/A"})'
+              : 'Customer Advance/Cash - ${cp.customerName ?? "Customer"} (CA: ${cp.consumerNo ?? "N/A"})',
+          siteName: cp.customerName,
+          consumerNo: cp.consumerNo,
+          assignmentId: cp.assignmentId,
+          referenceNo: cp.referenceNumber ?? cp.loanApplicationId ?? '-',
+          paymentMode: cp.paymentMode,
+          credit: SubVendorFinancialEngine.round2(cp.amount),
+          debit: 0.0,
+          remarks: cp.remarks,
+        ),
+      );
+    }
+
+    for (final a in targetAssignments) {
+      final totalRecvP = SubVendorFinancialEngine.toPaise(a.effectiveReceivedAmount);
+      final alreadyP = capturedSumPaiseByAssign[a.id] ?? 0;
+      final residualP = totalRecvP - alreadyP;
+      if (residualP > 1) {
+        final residual = SubVendorFinancialEngine.fromPaise(residualP);
         rawEntries.add(
           SubVendorLedgerEntry(
-            id: 'cp_${cp.id}',
-            date: cp.paymentDate,
-            voucherType: cp.isLoan ? 'Bank Loan Credit' : 'Customer Cash Credit',
-            particulars: cp.isLoan
-                ? 'Bank Loan Credited - ${cp.customerName ?? "Customer"} (CA: ${cp.consumerNo ?? "N/A"})'
-                : 'Customer Advance/Cash - ${cp.customerName ?? "Customer"} (CA: ${cp.consumerNo ?? "N/A"})',
-            siteName: cp.customerName,
-            consumerNo: cp.consumerNo,
-            assignmentId: cp.assignmentId,
-            referenceNo: cp.referenceNumber ?? cp.loanApplicationId ?? '-',
-            paymentMode: cp.paymentMode,
-            credit: cp.amount,
+            id: 'a_coll_${a.id}',
+            date: SubVendorFinancialEngine.normalizeDate(a.assignedDate),
+            voucherType: alreadyP > 0
+                ? 'Customer Cash Credit'
+                : (a.isBankLoan ? 'Bank Loan Credit' : 'Customer Collection'),
+            particulars: alreadyP > 0
+                ? 'Additional Customer Collection Credited to SIYA - ${a.customerName ?? "Site"} (CA: ${a.consumerNo ?? "N/A"})'
+                : 'Realized Collections Credited to SIYA - ${a.customerName ?? "Site"} (CA: ${a.consumerNo ?? "N/A"})',
+            siteName: a.customerName,
+            consumerNo: a.consumerNo,
+            assignmentId: a.id,
+            referenceNo: a.loanApplicationId ?? a.consumerNo ?? '-',
+            paymentMode: alreadyP > 0 ? 'Cash / Other' : a.paymentType,
+            credit: residual,
             debit: 0.0,
-            remarks: cp.remarks,
+            remarks: 'Site Realized Collection',
           ),
         );
-      }
-    } else {
-      // Fallback: If individual customer payments haven't been recorded in table, use assignment credited totals
-      for (final a in targetAssignments) {
-        final collection = a.totalCustomerReceived > 0 ? a.totalCustomerReceived : a.customerPaidAmount;
-        if (collection > 0) {
-          rawEntries.add(
-            SubVendorLedgerEntry(
-              id: 'a_coll_${a.id}',
-              date: a.assignedDate,
-              voucherType: a.isBankLoan ? 'Bank Loan Credit' : 'Customer Collection',
-              particulars: 'Realized Collections Credited to SIYA - ${a.customerName ?? "Site"} (CA: ${a.consumerNo ?? "N/A"})',
-              siteName: a.customerName,
-              consumerNo: a.consumerNo,
-              assignmentId: a.id,
-              referenceNo: a.loanApplicationId ?? '-',
-              paymentMode: a.paymentType,
-              credit: collection,
-              debit: 0.0,
-              remarks: 'Site Realized Collection',
-            ),
-          );
-        }
       }
     }
 
@@ -340,11 +354,12 @@ class SubVendorLedgerBuilder {
       );
     }
 
-    // 6. Sub-Vendor Payouts / Advances Paid (DEBITS)
+    // 6. Sub-Vendor Payouts / Advances Paid (DEBITS — Approved / Paid ONLY)
     final filteredPayouts = payouts.where((p) {
-      if (p.status.toLowerCase() == 'rejected') return false;
+      if (!SubVendorFinancialEngine.isDisbursedPayout(p)) return false;
       if (filterAssignmentId != null) {
-        return p.assignmentId == filterAssignmentId || p.assignmentId == null;
+        return p.assignmentId == filterAssignmentId ||
+            (p.assignmentId == null && targetAssignments.length == 1);
       }
       return true;
     }).toList();
@@ -353,14 +368,14 @@ class SubVendorLedgerBuilder {
       rawEntries.add(
         SubVendorLedgerEntry(
           id: 'payout_${p.id}',
-          date: p.payoutDate,
+          date: SubVendorFinancialEngine.normalizeDate(p.payoutDate),
           voucherType: 'Vendor Payout / Advance',
           particulars: 'Payout / Advance Disbursed to Vendor via ${p.paymentMode}${p.bankName != null ? " (${p.bankName})" : ""}${p.remarks != null ? " - " + p.remarks! : ""}',
           assignmentId: p.assignmentId,
           referenceNo: p.referenceNumber ?? '-',
           paymentMode: p.paymentMode,
           credit: 0.0,
-          debit: p.amount,
+          debit: SubVendorFinancialEngine.round2(p.amount),
           remarks: p.remarks,
         ),
       );
@@ -368,18 +383,21 @@ class SubVendorLedgerBuilder {
 
     // 6B. Material Outward Entries (DEBITS - Maal Dila) & Manual Account Ledger Payments (CREDITS/DEBITS)
     if (filterAssignmentId == null) {
+      final Set<String> rawOutwardKeys = {};
       for (final out in materialOutwards) {
         if (!out.isActive) continue;
+        final outKey = '${out.vendorId}::${out.outwardNumber.trim().toUpperCase()}';
+        if (out.outwardNumber.trim().isNotEmpty) rawOutwardKeys.add(outKey);
         rawEntries.add(
           SubVendorLedgerEntry(
             id: 'outward_${out.id}',
-            date: out.outwardDate,
+            date: SubVendorFinancialEngine.normalizeDate(out.outwardDate),
             voucherType: 'Material Outward',
             particulars: 'Material Outward (${out.totalItems} items, Qty: ${out.totalQuantity.toStringAsFixed(1)}) - ${out.outwardNumber}',
             referenceNo: out.outwardNumber,
             paymentMode: 'Outward',
             credit: 0.0,
-            debit: out.totalValue,
+            debit: SubVendorFinancialEngine.round2(out.totalValue),
             remarks: out.remarks,
           ),
         );
@@ -391,12 +409,12 @@ class SubVendorLedgerBuilder {
       final Set<String> rawPayoutIds = payouts.map((p) => p.id).toSet();
       final Set<String> rawAssignmentIds = assignments.map((a) => a.id).toSet();
 
-      for (final le in accountLedgerEntries) {
+      for (final rawLe in accountLedgerEntries) {
+        final le = SubVendorFinancialEngine.normalizeLedgerEntryPolarity(rawLe);
         if (!le.isActive) continue;
         final tType = le.transactionType.toUpperCase();
-        // Skip synthesized / mirrored rows already sourced from dedicated tables above
-        if (tType == 'MATERIAL_OUTWARD' ||
-            le.id.startsWith('cp_') ||
+        // Skip synthesized rows already sourced directly from dedicated tables above
+        if (le.id.startsWith('cp_') ||
             le.id.startsWith('a_coll_') ||
             le.id.startsWith('vp_') ||
             le.id.startsWith('vmt_') ||
@@ -413,33 +431,44 @@ class SubVendorLedgerBuilder {
                 rawAssignmentIds.contains(refId))) {
           continue;
         }
+        final refKey = '${le.vendorId}::${le.referenceNumber.trim().toUpperCase()}';
+        if (tType == 'MATERIAL_OUTWARD' &&
+            le.referenceNumber.trim().isNotEmpty &&
+            rawOutwardKeys.contains(refKey)) {
+          continue;
+        }
 
         if (tType == 'MATERIAL_PAYMENT' || tType == 'ADVANCE_REFUND') {
-          final amt = le.debitAmount > 0 ? le.debitAmount : le.creditAmount;
           rawEntries.add(
             SubVendorLedgerEntry(
               id: 'acct_pay_${le.id}',
-              date: le.transactionDate,
-              voucherType: 'Sub-Vendor Payment Credit',
+              date: SubVendorFinancialEngine.normalizeDate(le.transactionDate),
+              voucherType: tType == 'ADVANCE_REFUND'
+                  ? 'Advance / Deposit Refund'
+                  : 'Sub-Vendor Payment Credit',
               particulars: '${le.particulars}${le.remarks != null && le.remarks!.isNotEmpty ? " - ${le.remarks}" : ""}',
               referenceNo: le.referenceNumber,
               paymentMode: le.paymentMode,
-              credit: amt,
+              credit: SubVendorFinancialEngine.round2(le.creditAmount),
               debit: 0.0,
               remarks: le.remarks,
             ),
           );
-        } else if (tType == 'ADVANCE_GIVEN') {
+        } else if (tType == 'ADVANCE_GIVEN' || tType == 'MATERIAL_OUTWARD') {
           rawEntries.add(
             SubVendorLedgerEntry(
-              id: 'acct_adv_${le.id}',
-              date: le.transactionDate,
-              voucherType: 'Vendor Payout / Advance',
+              id: tType == 'MATERIAL_OUTWARD'
+                  ? 'acct_out_${le.id}'
+                  : 'acct_adv_${le.id}',
+              date: SubVendorFinancialEngine.normalizeDate(le.transactionDate),
+              voucherType: tType == 'MATERIAL_OUTWARD'
+                  ? 'Material Outward'
+                  : 'Vendor Payout / Advance',
               particulars: '${le.particulars}${le.remarks != null && le.remarks!.isNotEmpty ? " - ${le.remarks}" : ""}',
               referenceNo: le.referenceNumber,
               paymentMode: le.paymentMode,
               credit: 0.0,
-              debit: le.debitAmount,
+              debit: SubVendorFinancialEngine.round2(le.debitAmount),
               remarks: le.remarks,
             ),
           );
@@ -447,46 +476,63 @@ class SubVendorLedgerBuilder {
       }
     }
 
-    // 7. Sort Chronologically (by Date ASC)
+    // 7. Sort Chronologically (by normalized calendar Date ASC)
     rawEntries.sort((a, b) {
-      final cmp = a.date.compareTo(b.date);
+      final cmp = SubVendorFinancialEngine.normalizeDate(a.date)
+          .compareTo(SubVendorFinancialEngine.normalizeDate(b.date));
       if (cmp != 0) return cmp;
-      // In case of same date, credits come first, then debits
       if (a.isCredit && !b.isCredit) return -1;
       if (!a.isCredit && b.isCredit) return 1;
       return a.id.compareTo(b.id);
     });
 
-    // 8. Filter by Date Range (if supplied) and calculate running balance
-    double currentBalance = 0.0;
-    double totalCredit = 0.0;
-    double totalDebit = 0.0;
+    // 8. Compute true Opening Balance (prior to fromDate), period totals, and Closing Balance
+    final DateTime? normFrom =
+        fromDate != null ? SubVendorFinancialEngine.normalizeDate(fromDate) : null;
+    final DateTime? normTo =
+        toDate != null ? SubVendorFinancialEngine.normalizeDate(toDate) : null;
+
+    int currentBalancePaise = 0;
+    int openingBalancePaise = 0;
+    int periodCreditPaise = 0;
+    int periodDebitPaise = 0;
     final List<SubVendorLedgerEntry> finalEntries = [];
 
     for (final entry in rawEntries) {
-      currentBalance += (entry.credit - entry.debit);
-      final withBal = entry.copyWithRunningBalance(double.parse(currentBalance.toStringAsFixed(2)));
+      final entryDate = SubVendorFinancialEngine.normalizeDate(entry.date);
+      final crP = SubVendorFinancialEngine.toPaise(entry.credit);
+      final drP = SubVendorFinancialEngine.toPaise(entry.debit);
 
-      final bool afterStart = fromDate == null || !entry.date.isBefore(fromDate);
-      final bool beforeEnd = toDate == null || !entry.date.isAfter(toDate);
+      currentBalancePaise += (crP - drP);
+      final withBal = entry.copyWithRunningBalance(
+          SubVendorFinancialEngine.fromPaise(currentBalancePaise));
 
-      if (afterStart && beforeEnd) {
-        totalCredit += entry.credit;
-        totalDebit += entry.debit;
-        finalEntries.add(withBal);
+      if (normFrom != null && entryDate.isBefore(normFrom)) {
+        openingBalancePaise += (crP - drP);
+        continue;
       }
+      if (normTo != null && entryDate.isAfter(normTo)) {
+        continue;
+      }
+
+      periodCreditPaise += crP;
+      periodDebitPaise += drP;
+      finalEntries.add(withBal);
     }
+
+    final closingPaise = openingBalancePaise + periodCreditPaise - periodDebitPaise;
 
     return SubVendorLedgerSummary(
       vendorId: vendorId,
       vendorName: vendorName,
       vendorCode: vendorCode,
-      totalCredit: double.parse(totalCredit.toStringAsFixed(2)),
-      totalDebit: double.parse(totalDebit.toStringAsFixed(2)),
-      closingBalance: double.parse(currentBalance.toStringAsFixed(2)),
+      openingBalance: SubVendorFinancialEngine.fromPaise(openingBalancePaise),
+      totalCredit: SubVendorFinancialEngine.fromPaise(periodCreditPaise),
+      totalDebit: SubVendorFinancialEngine.fromPaise(periodDebitPaise),
+      closingBalance: SubVendorFinancialEngine.fromPaise(closingPaise),
       entries: finalEntries,
-      fromDate: fromDate,
-      toDate: toDate,
+      fromDate: normFrom,
+      toDate: normTo,
     );
   }
 }

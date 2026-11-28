@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import '../services/sub_vendor_financial_engine.dart';
+import 'vendor_gst_recovery.dart';
 import 'vendor_site_assignment.dart';
 import 'vendor_material_transaction.dart';
 import 'vendor_payout.dart';
@@ -200,6 +202,8 @@ class SubVendorSettlement {
     required List<VendorMaterialTransaction> materials,
     required List<VendorPayout> previousPayouts,
     List<VendorCustomerPayment> customerPayments = const [],
+    List<VendorGstRecovery> gstRecoveries = const [],
+    bool includeUnlinkedPayouts = false,
     SubVendorSettlementMode settlementMode = SubVendorSettlementMode.netBalance,
     double expectedLoanPercent = 90.0,
     bool isMarginReceiptOnly = true, // Default true: 10% Margin is paper receipt only for bank compliance; not counted in cash calculation
@@ -216,79 +220,67 @@ class SubVendorSettlement {
     String? notes,
   }) {
     final double totalQuotation = assignment.effectiveSiteAmount > 0
-        ? assignment.effectiveSiteAmount
-        : (assignment.customerTotalAmount > 0 ? assignment.customerTotalAmount : 200000.0);
+        ? _round(assignment.effectiveSiteAmount)
+        : (assignment.customerTotalAmount > 0 ? _round(assignment.customerTotalAmount) : 0.0);
 
     final double loanDiffPercent = (100.0 - expectedLoanPercent).clamp(0.0, 100.0);
-    final double expectedLoanAmt = (totalQuotation * expectedLoanPercent) / 100.0;
-    final double loanDiffAmt = (totalQuotation * loanDiffPercent) / 100.0;
+    final double expectedLoanAmt = _round((totalQuotation * expectedLoanPercent) / 100.0);
+    final double loanDiffAmt = _round((totalQuotation * loanDiffPercent) / 100.0);
 
-    // Actual Collections from approved customer payments or assignment totals
+    // Actual Collections from approved customer payments + reconciled assignment residual cash
     double actualLoan = assignment.totalLoanCredited;
     double actualCash = assignment.totalCashReceived;
 
     if (customerPayments.isNotEmpty) {
-      double pLoan = 0.0;
-      double pCash = 0.0;
+      int pLoanP = 0;
+      int pCashP = 0;
       for (final p in customerPayments) {
+        if (p.assignmentId != assignment.id) continue;
         if (p.isApproved) {
           if (p.isLoan) {
-            pLoan += p.amount;
+            pLoanP += SubVendorFinancialEngine.toPaise(p.amount);
           } else {
-            pCash += p.amount;
+            pCashP += SubVendorFinancialEngine.toPaise(p.amount);
           }
         }
       }
+      final double pLoan = SubVendorFinancialEngine.fromPaise(pLoanP);
+      final double pCash = SubVendorFinancialEngine.fromPaise(pCashP);
       if (pLoan > 0 || pCash > 0) {
+        final double reconciledTotal = SubVendorFinancialEngine.reconcileSiteReceivedAmount(
+          assignment,
+          siteCustomerPayments: customerPayments,
+        );
+        final double residualCash = _round(reconciledTotal - (pLoan + pCash));
         actualLoan = pLoan;
-        actualCash = pCash;
+        actualCash = residualCash > 0.01 ? _round(pCash + residualCash) : pCash;
       }
     }
 
     final double totalCollected = actualLoan + actualCash > 0
-        ? (actualLoan + actualCash)
-        : assignment.effectiveReceivedAmount;
+        ? _round(actualLoan + actualCash)
+        : _round(assignment.effectiveReceivedAmount);
 
     final double pendingLoan = (expectedLoanAmt - actualLoan) > 0
-        ? (expectedLoanAmt - actualLoan)
+        ? _round(expectedLoanAmt - actualLoan)
         : 0.0;
 
     // 10% Margin Money is only a paper receipt for the bank; do NOT count as real pending cash if isMarginReceiptOnly is true
     final double pendingCash = isMarginReceiptOnly
         ? 0.0
-        : ((loanDiffAmt - actualCash) > 0 ? (loanDiffAmt - actualCash) : 0.0);
+        : ((loanDiffAmt - actualCash) > 0 ? _round(loanDiffAmt - actualCash) : 0.0);
 
     final double pendingReceivable = isMarginReceiptOnly
         ? pendingLoan
-        : ((totalQuotation - totalCollected) > 0 ? (totalQuotation - totalCollected) : 0.0);
+        : ((totalQuotation - totalCollected) > 0 ? _round(totalQuotation - totalCollected) : 0.0);
 
-    // Dynamic Material Costs & GST Breakdown
-    double m5Taxable = 0.0;
-    double m5Gst = 0.0;
-    double m18Taxable = 0.0;
-    double m18Gst = 0.0;
+    // Unified Dynamic Material Costs & GST Breakdown (respects 0% GST & isItcEligible)
+    final matBreakdown = SubVendorFinancialEngine.classifySiteMaterialsGst(materials);
+    final double matTaxable = matBreakdown.totalTaxable;
+    final double eligibleInputGst = matBreakdown.totalEligibleInputGst;
+    final double totalMaterialCost = matBreakdown.totalMaterialCost;
 
-    for (final item in materials) {
-      final sign = item.isReturn ? -1.0 : 1.0;
-      final is5Pct = (item.gstRate - 5.0).abs() < 0.5 ||
-          item.itemCategory == 'SOLAR_PANEL' ||
-          item.itemCategory == 'INVERTER';
-
-      if (is5Pct) {
-        m5Taxable += sign * item.taxableAmount;
-        m5Gst += sign * item.gstAmount;
-      } else {
-        m18Taxable += sign * item.taxableAmount;
-        m18Gst += sign * item.gstAmount;
-      }
-    }
-
-    final double matTaxable = m5Taxable + m18Taxable;
-    final double eligibleInputGst = m5Gst + m18Gst;
-    final double totalMaterialCost = matTaxable + eligibleInputGst;
-
-    // Output GST Liability calculated on Total Quotation Amount (even if collection is partial e.g. ₹2,00,000 on ₹2,22,222 quotation)
-    // As per user specification: Quotation amount is the statutory invoice basis for Output GST.
+    // Output GST Liability calculated on Total Quotation Amount (or collected if unquoted)
     final double gstBasisAmount = totalQuotation > 0 ? totalQuotation : totalCollected;
 
     double taxableRev;
@@ -308,57 +300,66 @@ class SubVendorSettlement {
       sTaxable30 = gst7030.taxable30;
       sGst18 = gst7030.gst18;
       effectiveGstRate = gstBasisAmount > 0 && taxableRev > 0
-          ? double.parse(((outputGst / taxableRev) * 100.0).toStringAsFixed(2))
+          ? _round((outputGst / taxableRev) * 100.0)
           : 8.59;
     } else {
-      taxableRev = gstBasisAmount / (1.0 + (outputGstRate / 100.0));
-      outputGst = gstBasisAmount - taxableRev;
-      gTaxable70 = gstBasisAmount * 0.70;
-      sTaxable30 = gstBasisAmount * 0.30;
+      taxableRev = _round(gstBasisAmount / (1.0 + (outputGstRate / 100.0)));
+      outputGst = _round(gstBasisAmount - taxableRev);
+      gTaxable70 = _round(gstBasisAmount * 0.70);
+      sTaxable30 = _round(gstBasisAmount * 0.30);
     }
 
-    // Net GST Liability = Output GST minus Input GST Credit (No Double Deduction!)
+    // Net GST Liability = Output GST minus Eligible Input GST Credit
     final double netGst = (outputGst - eligibleInputGst) > 0
-        ? (outputGst - eligibleInputGst)
+        ? _round(outputGst - eligibleInputGst)
         : 0.0;
 
-    // SIYA Vendor Charges (Installed Capacity × Rate per kW, default ₹1,000/kW)
-    final double charges = assignment.siteCapacityKw * assignment.ratePerKw;
-    final double otherExpenses = assignment.otherExpenses;
+    // Approved Contractual GST Recovery for this site (if supplied)
+    final double siteGstRecovery = gstRecoveries.isNotEmpty
+        ? SubVendorFinancialEngine.sumPaise(
+            gstRecoveries.where(
+                (r) => r.assignmentId == assignment.id && (r.isApproved || r.isCollected)),
+            (r) => r.totalRecovery,
+          )
+        : _round(assignment.approvedGstRecoveryAmount);
 
-    final double totalDeductions = totalMaterialCost + netGst + charges + otherExpenses;
-    final double grossMargin = totalCollected - totalMaterialCost;
-    final double netProfit = totalCollected - totalDeductions;
+    // SIYA Vendor Charges (Installed Capacity × Rate per kW, default ₹1,000/kW)
+    final double charges = _round(assignment.siteCapacityKw * assignment.ratePerKw);
+    final double otherExpenses = _round(assignment.otherExpenses + siteGstRecovery);
+
+    final double totalDeductions = _round(totalMaterialCost + netGst + charges + otherExpenses);
+    final double grossMargin = _round(totalCollected - totalMaterialCost);
+    final double netProfit = _round(totalCollected - totalDeductions);
 
     // Sub-Vendor Entitlement Calculation based on chosen mode
     double entitlement = 0.0;
     switch (settlementMode) {
       case SubVendorSettlementMode.netBalance:
-        // Option A: Net Balance = Total Collected minus (Material Cost + Net GST + SIYA Charges + Expenses)
-        entitlement = totalCollected - totalDeductions;
+        entitlement = _round(totalCollected - totalDeductions);
         break;
 
       case SubVendorSettlementMode.fixedFee:
-        // Option B: Fixed Agreed Fee + approved expenses
-        entitlement = (fixedAgreedFee > 0 ? fixedAgreedFee : charges) + otherExpenses;
+        entitlement = _round((fixedAgreedFee > 0 ? fixedAgreedFee : charges) + otherExpenses);
         break;
 
       case SubVendorSettlementMode.profitShare:
-        // Option C: Profit Share %
         final share = (vendorProfitSharePercent / 100.0).clamp(0.0, 1.0);
-        entitlement = _round(netProfit) * share;
+        entitlement = _round(netProfit * share);
         break;
     }
 
-    // Previous payouts disbursed to Sub-Vendor for this site
-    double paidToVendor = 0.0;
+    // Previous disbursed payouts to Sub-Vendor for this site (Approved / Paid only)
+    int paidPaise = 0;
     for (final p in previousPayouts) {
-      if (p.assignmentId == assignment.id || p.assignmentId == null) {
-        paidToVendor += p.amount;
+      if (!SubVendorFinancialEngine.isDisbursedPayout(p)) continue;
+      if (p.assignmentId == assignment.id ||
+          (includeUnlinkedPayouts && p.assignmentId == null)) {
+        paidPaise += SubVendorFinancialEngine.toPaise(p.amount);
       }
     }
+    final double paidToVendor = SubVendorFinancialEngine.fromPaise(paidPaise);
 
-    final double finalPayable = entitlement - paidToVendor + approvedAdjustments;
+    final double finalPayable = _round(entitlement - paidToVendor + approvedAdjustments);
     final bool isRecov = finalPayable < -0.01;
     final double amtPayable = isRecov ? 0.0 : finalPayable;
     final double amtRecoverable = isRecov ? finalPayable.abs() : 0.0;
@@ -371,22 +372,24 @@ class SubVendorSettlement {
       fullOutputGst = fullGst7030.totalGstIncluded;
       fullTaxableRev = fullGst7030.totalTaxableValue;
     } else {
-      fullTaxableRev = totalQuotation / (1.0 + (outputGstRate / 100.0));
-      fullOutputGst = totalQuotation - fullTaxableRev;
+      fullTaxableRev = _round(totalQuotation / (1.0 + (outputGstRate / 100.0)));
+      fullOutputGst = _round(totalQuotation - fullTaxableRev);
     }
-    final double fullNetGst = (fullOutputGst - eligibleInputGst) > 0 ? (fullOutputGst - eligibleInputGst) : 0.0;
-    final double fullDeductions = totalMaterialCost + fullNetGst + charges + otherExpenses;
+    final double fullNetGst = (fullOutputGst - eligibleInputGst) > 0
+        ? _round(fullOutputGst - eligibleInputGst)
+        : 0.0;
+    final double fullDeductions = _round(totalMaterialCost + fullNetGst + charges + otherExpenses);
     double fullEntitlement = 0.0;
     if (settlementMode == SubVendorSettlementMode.netBalance) {
-      fullEntitlement = totalQuotation - fullDeductions;
+      fullEntitlement = _round(totalQuotation - fullDeductions);
     } else if (settlementMode == SubVendorSettlementMode.fixedFee) {
-      fullEntitlement = (fixedAgreedFee > 0 ? fixedAgreedFee : charges) + otherExpenses;
+      fullEntitlement = _round((fixedAgreedFee > 0 ? fixedAgreedFee : charges) + otherExpenses);
     } else {
-      fullEntitlement = (totalQuotation - fullDeductions) * (vendorProfitSharePercent / 100.0);
+      fullEntitlement = _round((totalQuotation - fullDeductions) * (vendorProfitSharePercent / 100.0));
     }
     final double potentialFuturePayout = isMarginReceiptOnly && pendingLoan <= 0.01
         ? finalPayable
-        : (fullEntitlement - paidToVendor + approvedAdjustments);
+        : _round(fullEntitlement - paidToVendor + approvedAdjustments);
 
     return SubVendorSettlement(
       id: '',
@@ -448,7 +451,7 @@ class SubVendorSettlement {
     );
   }
 
-  static double _round(double val) => double.parse(val.toStringAsFixed(2));
+  static double _round(double val) => SubVendorFinancialEngine.round2(val);
 
   factory SubVendorSettlement.fromJson(Map<String, dynamic> json) {
     return SubVendorSettlement(

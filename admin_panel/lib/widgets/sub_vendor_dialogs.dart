@@ -3082,6 +3082,7 @@ class _SubVendorFinalSettlementCalculatorDialogState
   List<VendorMaterialTransaction> _materials = [];
   List<VendorPayout> _previousPayouts = [];
   List<VendorCustomerPayment> _customerPayments = [];
+  List<VendorGstRecovery> _gstRecoveries = [];
 
   SubVendorSettlementMode _mode = SubVendorSettlementMode.netBalance;
   double _expectedLoanPercent = 90.0;
@@ -3125,12 +3126,24 @@ class _SubVendorFinalSettlementCalculatorDialogState
   Future<void> _loadDataAndCalculate() async {
     setState(() => _isLoading = true);
     try {
-      final materials = await SubVendorService.fetchSiteMaterials(_assignment.id);
-      final allPayouts = await SubVendorService.fetchVendorPayouts(_assignment.vendorId);
-      final payments = await SubVendorService.fetchCustomerPayments(assignmentId: _assignment.id);
-      final saved = await SubVendorService.fetchSavedSettlement(_assignment.id);
+      final results = await Future.wait([
+        SubVendorService.fetchSiteMaterials(_assignment.id),
+        SubVendorService.fetchVendorPayouts(_assignment.vendorId),
+        SubVendorService.fetchCustomerPayments(assignmentId: _assignment.id),
+        SubVendorService.fetchVendorGstRecoveries(_assignment.vendorId),
+        SubVendorService.fetchSavedSettlement(_assignment.id),
+      ]);
+      final materials = results[0] as List<VendorMaterialTransaction>;
+      final allPayouts = results[1] as List<VendorPayout>;
+      final payments = results[2] as List<VendorCustomerPayment>;
+      final gstRecoveries = results[3] as List<VendorGstRecovery>;
+      final saved = results[4] as SubVendorSettlement?;
 
-      final sitePayouts = allPayouts.where((p) => p.assignmentId == _assignment.id || p.assignmentId == null).toList();
+      final sitePayouts = allPayouts
+          .where((p) =>
+              p.assignmentId == _assignment.id &&
+              SubVendorFinancialEngine.isDisbursedPayout(p))
+          .toList();
 
       if (saved != null) {
         _mode = saved.settlementMode;
@@ -3148,6 +3161,7 @@ class _SubVendorFinalSettlementCalculatorDialogState
       _materials = materials;
       _previousPayouts = sitePayouts;
       _customerPayments = payments;
+      _gstRecoveries = gstRecoveries;
 
       _recalculate();
 
@@ -3171,6 +3185,7 @@ class _SubVendorFinalSettlementCalculatorDialogState
       materials: _materials,
       previousPayouts: _previousPayouts,
       customerPayments: _customerPayments,
+      gstRecoveries: _gstRecoveries,
       settlementMode: _mode,
       expectedLoanPercent: _expectedLoanPercent,
       isMarginReceiptOnly: _isMarginReceiptOnly,

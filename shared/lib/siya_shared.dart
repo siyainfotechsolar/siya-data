@@ -38,6 +38,7 @@ export 'models/work_completion_report_data.dart';
 
 // Services
 export 'services/master_data_hub.dart';
+export 'services/sub_vendor_financial_engine.dart';
 export 'services/workflow_engine.dart';
 
 // Utils

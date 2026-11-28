@@ -52,7 +52,8 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
   String _filterStatus = 'All'; // 'All', 'Active', 'Cancelled'
 
   // Reports State
-  int _selectedReportType = 0; // 0: Date-wise, 1: Sub Vendor-wise, 2: Material-wise
+  int _selectedReportType = 0; // 0: Date-wise, 1: Sub Vendor-wise, 2: Material-wise, 3: Period Summary
+  String _periodGrouping = 'MONTHLY'; // 'DAILY', 'MONTHLY', 'FINANCIAL_YEAR'
   DateTime? _reportFromDate;
   DateTime? _reportToDate;
   String _reportVendorId = 'All';
@@ -151,10 +152,14 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
     });
   }
 
-  double get _currentTotalQty => _entryRows.fold<double>(0.0, (sum, r) => sum + r.quantity);
-  double get _currentSubtotal => _entryRows.fold<double>(0.0, (sum, r) => sum + r.baseAmount);
-  double get _currentTotalGst => _entryRows.fold<double>(0.0, (sum, r) => sum + r.gstAmount);
-  double get _currentGrandTotal => _entryRows.fold<double>(0.0, (sum, r) => sum + r.finalPrice);
+  double get _currentTotalQty =>
+      SubVendorFinancialEngine.sumPaise(_entryRows, (r) => r.quantity);
+  double get _currentSubtotal =>
+      SubVendorFinancialEngine.sumPaise(_entryRows, (r) => r.baseAmount);
+  double get _currentTotalGst =>
+      SubVendorFinancialEngine.sumPaise(_entryRows, (r) => r.gstAmount);
+  double get _currentGrandTotal =>
+      SubVendorFinancialEngine.sumPaise(_entryRows, (r) => r.finalPrice);
 
   @override
   Widget build(BuildContext context) {
@@ -1147,7 +1152,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                                 if (outward.isActive)
                                   IconButton(
                                     icon: const Icon(Icons.cancel_outlined, color: redColor, size: 20),
-                                    tooltip: 'Cancel Outward & Restore Stock',
+                                    tooltip: 'Cancel Outward Entry',
                                     onPressed: () => _showCancelOutwardDialog(outward),
                                   ),
                               ],
@@ -1189,6 +1194,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                   ButtonSegment(value: 0, label: Text('A. Date-wise Report', style: TextStyle(fontSize: 12))),
                   ButtonSegment(value: 1, label: Text('B. Sub Vendor-wise', style: TextStyle(fontSize: 12))),
                   ButtonSegment(value: 2, label: Text('C. Material-wise', style: TextStyle(fontSize: 12))),
+                  ButtonSegment(value: 3, label: Text('D. Daily / Monthly / FY', style: TextStyle(fontSize: 12))),
                 ],
                 selected: {_selectedReportType},
                 onSelectionChanged: (set) {
@@ -1223,17 +1229,22 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                 ? _buildDateWiseReportView(activeOutwards)
                 : _selectedReportType == 1
                     ? _buildSubVendorWiseReportView(activeOutwards)
-                    : _buildMaterialWiseReportView(activeOutwards),
+                    : _selectedReportType == 2
+                        ? _buildMaterialWiseReportView(activeOutwards)
+                        : _buildPeriodSummaryReportView(activeOutwards),
           ),
         ),
       ],
     );
   }
 
-  // Report A View: Date-wise List
+  // Report A View: Date-wise List (with Full Monetary Subtotal, GST, Grand Total)
   Widget _buildDateWiseReportView(List<SubVendorMaterialOutward> outwards) {
     final rows = SubVendorMaterialOutwardService.generateDateWiseReportRows(outwards);
-    final totalQty = rows.fold(0.0, (sum, r) => sum + (r['quantity'] as double));
+    final totalQty = SubVendorFinancialEngine.sumPaise(rows, (r) => r['quantity'] as double);
+    final totalSub = SubVendorFinancialEngine.sumPaise(rows, (r) => r['base_amount'] as double);
+    final totalGst = SubVendorFinancialEngine.sumPaise(rows, (r) => r['gst_amount'] as double);
+    final totalVal = SubVendorFinancialEngine.sumPaise(rows, (r) => r['total_price'] as double);
 
     return Card(
       elevation: 0,
@@ -1246,7 +1257,10 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Date-wise Material Outward Report', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: navyColor)),
-                Text('Total Issued Items: ${rows.length} | Net Quantity: ${totalQty.toStringAsFixed(1)}', style: const TextStyle(fontWeight: FontWeight.bold, color: greenColor)),
+                Text(
+                  'Items: ${rows.length} | Qty: ${totalQty.toStringAsFixed(2)} | Subtotal: ${_currencyFormat.format(totalSub)} | GST: ${_currencyFormat.format(totalGst)} | Grand Total: ${_currencyFormat.format(totalVal)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: greenColor, fontSize: 12.5),
+                ),
               ],
             ),
           ),
@@ -1255,28 +1269,41 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
             child: rows.isEmpty
                 ? const Center(child: Text('No active outward records for the selected period.'))
                 : SingleChildScrollView(
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
-                      columns: const [
-                        DataColumn(label: Text('Outward No', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Sub Vendor', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Material Name', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Unit', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Quantity', style: TextStyle(fontWeight: FontWeight.bold))),
-                      ],
-                      rows: rows.map((r) {
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(r['outward_number'].toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                            DataCell(Text(_dateFormat.format(r['outward_date'] as DateTime), style: const TextStyle(fontSize: 12))),
-                            DataCell(Text(r['vendor_name'].toString(), style: const TextStyle(fontSize: 12))),
-                            DataCell(Text(r['material_name'].toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
-                            DataCell(Text(r['unit'].toString(), style: const TextStyle(fontSize: 12))),
-                            DataCell(Text((r['quantity'] as double).toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold, color: amberColor))),
-                          ],
-                        );
-                      }).toList(),
+                    scrollDirection: Axis.horizontal,
+                    child: SingleChildScrollView(
+                      child: DataTable(
+                        headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+                        columns: const [
+                          DataColumn(label: Text('Outward No', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Sub Vendor', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Material Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Unit', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Qty', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+                          DataColumn(label: Text('Rate (₹)', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+                          DataColumn(label: Text('Base Amt (₹)', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+                          DataColumn(label: Text('GST %', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+                          DataColumn(label: Text('GST Amt (₹)', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+                          DataColumn(label: Text('Final Total (₹)', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+                        ],
+                        rows: rows.map((r) {
+                          return DataRow(
+                            cells: [
+                              DataCell(Text(r['outward_number'].toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                              DataCell(Text(_dateFormat.format(r['outward_date'] as DateTime), style: const TextStyle(fontSize: 12))),
+                              DataCell(Text(r['vendor_name'].toString(), style: const TextStyle(fontSize: 12))),
+                              DataCell(Text(r['material_name'].toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+                              DataCell(Text(r['unit'].toString(), style: const TextStyle(fontSize: 12))),
+                              DataCell(Text((r['quantity'] as double).toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold))),
+                              DataCell(Text(_currencyFormat.format(r['unit_rate'] as double), style: const TextStyle(fontSize: 12))),
+                              DataCell(Text(_currencyFormat.format(r['base_amount'] as double), style: const TextStyle(fontSize: 12))),
+                              DataCell(Text('${(r['gst_percentage'] as double).toStringAsFixed(0)}%', style: const TextStyle(fontSize: 12))),
+                              DataCell(Text(_currencyFormat.format(r['gst_amount'] as double), style: const TextStyle(fontSize: 12))),
+                              DataCell(Text(_currencyFormat.format(r['total_price'] as double), style: const TextStyle(fontWeight: FontWeight.bold, color: greenColor))),
+                            ],
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
           ),
@@ -1285,7 +1312,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
     );
   }
 
-  // Report B View: Sub Vendor-wise Summary
+  // Report B View: Sub Vendor-wise Summary (with exact Subtotal, GST & Total Value)
   Widget _buildSubVendorWiseReportView(List<SubVendorMaterialOutward> outwards) {
     final summaries = SubVendorMaterialOutwardService.generateSubVendorWiseSummary(outwards);
 
@@ -1294,6 +1321,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
       itemBuilder: (context, i) {
         final v = summaries[i];
         final matSummary = v['materials_summary'] as Map<String, double>;
+        final matValSummary = (v['materials_value_summary'] as Map<String, double>?) ?? const {};
 
         return Card(
           margin: const EdgeInsets.only(bottom: 14),
@@ -1309,8 +1337,8 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                   children: [
                     Text(v['vendor_name'].toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: navyColor)),
                     Text(
-                      'Outward Transactions: ${v['total_outwards']} | Total Qty: ${(v['total_quantity'] as double).toStringAsFixed(1)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: greenColor, fontSize: 13),
+                      'Entries: ${v['total_outwards']} | Qty: ${(v['total_quantity'] as double).toStringAsFixed(2)} | Subtotal: ${_currencyFormat.format((v['total_subtotal'] as num?)?.toDouble() ?? 0)} | GST: ${_currencyFormat.format((v['total_gst'] as num?)?.toDouble() ?? 0)} | Grand Total: ${_currencyFormat.format((v['total_value'] as num?)?.toDouble() ?? 0)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: greenColor, fontSize: 12.5),
                     ),
                   ],
                 ),
@@ -1321,9 +1349,10 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                   spacing: 8,
                   runSpacing: 8,
                   children: matSummary.entries.map((m) {
+                    final val = matValSummary[m.key] ?? 0.0;
                     return Chip(
                       backgroundColor: const Color(0xFFF1F5F9),
-                      label: Text('${m.key}: ${m.value.toStringAsFixed(1)}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                      label: Text('${m.key}: ${m.value.toStringAsFixed(2)} (${_currencyFormat.format(val)})', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                     );
                   }).toList(),
                 ),
@@ -1335,7 +1364,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
     );
   }
 
-  // Report C View: Material-wise Summary
+  // Report C View: Material-wise Summary (with Taxable, GST & Grand Total ₹)
   Widget _buildMaterialWiseReportView(List<SubVendorMaterialOutward> outwards) {
     final summaries = SubVendorMaterialOutwardService.generateMaterialWiseSummary(outwards);
 
@@ -1344,6 +1373,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
       itemBuilder: (context, i) {
         final m = summaries[i];
         final vBreakdown = m['vendor_breakdown'] as Map<String, double>;
+        final vValBreakdown = (m['vendor_value_breakdown'] as Map<String, double>?) ?? const {};
 
         return Card(
           margin: const EdgeInsets.only(bottom: 14),
@@ -1359,8 +1389,8 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                   children: [
                     Text(m['material_name'].toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: navyColor)),
                     Text(
-                      'Total Issued: ${(m['total_quantity'] as double).toStringAsFixed(1)} ${m['unit']}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: amberColor, fontSize: 13),
+                      'Qty: ${(m['total_quantity'] as double).toStringAsFixed(2)} ${m['unit']} | Taxable: ${_currencyFormat.format((m['total_taxable'] as num?)?.toDouble() ?? 0)} | GST: ${_currencyFormat.format((m['total_gst'] as num?)?.toDouble() ?? 0)} | Total: ${_currencyFormat.format((m['total_value'] as num?)?.toDouble() ?? 0)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: amberColor, fontSize: 12.5),
                     ),
                   ],
                 ),
@@ -1371,10 +1401,11 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
                   spacing: 8,
                   runSpacing: 8,
                   children: vBreakdown.entries.map((v) {
+                    final val = vValBreakdown[v.key] ?? 0.0;
                     return Chip(
                       avatar: const Icon(Icons.person, size: 14, color: navyColor),
                       backgroundColor: navyColor.withOpacity(0.06),
-                      label: Text('${v.key}: ${v.value.toStringAsFixed(1)} ${m['unit']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                      label: Text('${v.key}: ${v.value.toStringAsFixed(2)} ${m['unit']} (${_currencyFormat.format(val)})', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                     );
                   }).toList(),
                 ),
@@ -1386,6 +1417,81 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
     );
   }
 
+  // Report D View: Daily / Monthly / Financial Year Reconciliation
+  Widget _buildPeriodSummaryReportView(List<SubVendorMaterialOutward> outwards) {
+    final periods = SubVendorMaterialOutwardService.generatePeriodSummary(
+      outwards,
+      grouping: _periodGrouping,
+    );
+    final totalSub = SubVendorFinancialEngine.sumPaise(periods, (p) => p.subtotal);
+    final totalGst = SubVendorFinancialEngine.sumPaise(periods, (p) => p.totalGst);
+    final totalGrand = SubVendorFinancialEngine.sumPaise(periods, (p) => p.grandTotal);
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: Color(0xFFE2E8F0))),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Text('Period Reconciliation:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: navyColor)),
+                    const SizedBox(width: 12),
+                    SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(value: 'DAILY', label: Text('Daily', style: TextStyle(fontSize: 11))),
+                        ButtonSegment(value: 'MONTHLY', label: Text('Monthly', style: TextStyle(fontSize: 11))),
+                        ButtonSegment(value: 'FINANCIAL_YEAR', label: Text('Financial Year', style: TextStyle(fontSize: 11))),
+                      ],
+                      selected: {_periodGrouping},
+                      onSelectionChanged: (s) => setState(() => _periodGrouping = s.first),
+                    ),
+                  ],
+                ),
+                Text(
+                  'Subtotal: ${_currencyFormat.format(totalSub)} | GST: ${_currencyFormat.format(totalGst)} | Combined Outwards: ${_currencyFormat.format(totalGrand)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: greenColor, fontSize: 12.5),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: periods.isEmpty
+                ? const Center(child: Text('No active outward entries in selected range.'))
+                : SingleChildScrollView(
+                    child: DataTable(
+                      headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+                      columns: const [
+                        DataColumn(label: Text('Period', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('Outwards', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+                        DataColumn(label: Text('Total Qty', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+                        DataColumn(label: Text('Subtotal (₹)', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+                        DataColumn(label: Text('Total GST (₹)', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+                        DataColumn(label: Text('Grand Total (₹)', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
+                      ],
+                      rows: periods.map((p) {
+                        return DataRow(cells: [
+                          DataCell(Text(p.periodLabel, style: const TextStyle(fontWeight: FontWeight.bold))),
+                          DataCell(Text('${p.entryCount}')),
+                          DataCell(Text(p.totalQuantity.toStringAsFixed(2))),
+                          DataCell(Text(_currencyFormat.format(p.subtotal))),
+                          DataCell(Text(_currencyFormat.format(p.totalGst))),
+                          DataCell(Text(_currencyFormat.format(p.grandTotal), style: const TextStyle(fontWeight: FontWeight.bold, color: greenColor))),
+                        ]);
+                      }).toList(),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Handle Export CSV
   Future<void> _handleExportReportCsv(List<SubVendorMaterialOutward> outwards) async {
     try {
@@ -1394,9 +1500,12 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
       } else if (_selectedReportType == 1) {
         final summaries = SubVendorMaterialOutwardService.generateSubVendorWiseSummary(outwards);
         await SubVendorMaterialOutwardPdfService.exportSubVendorWiseReportCsv(summaries);
-      } else {
+      } else if (_selectedReportType == 2) {
         final summaries = SubVendorMaterialOutwardService.generateMaterialWiseSummary(outwards);
         await SubVendorMaterialOutwardPdfService.exportMaterialWiseReportCsv(summaries);
+      } else {
+        final periods = SubVendorMaterialOutwardService.generatePeriodSummary(outwards, grouping: _periodGrouping);
+        await SubVendorMaterialOutwardPdfService.exportPeriodReportCsv(periods, grouping: _periodGrouping);
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1422,10 +1531,14 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
         final summaries = SubVendorMaterialOutwardService.generateSubVendorWiseSummary(outwards);
         bytes = await SubVendorMaterialOutwardPdfService.generateSubVendorWiseReportPdfBytes(summaries);
         docName = 'Sub_Vendor_Wise_Material_Report.pdf';
-      } else {
+      } else if (_selectedReportType == 2) {
         final summaries = SubVendorMaterialOutwardService.generateMaterialWiseSummary(outwards);
         bytes = await SubVendorMaterialOutwardPdfService.generateMaterialWiseReportPdfBytes(summaries);
         docName = 'Material_Wise_Distribution_Report.pdf';
+      } else {
+        final periods = SubVendorMaterialOutwardService.generatePeriodSummary(outwards, grouping: _periodGrouping);
+        bytes = await SubVendorMaterialOutwardPdfService.generatePeriodReportPdfBytes(periods, grouping: _periodGrouping);
+        docName = 'Period_Material_Outward_Report_$_periodGrouping.pdf';
       }
 
       await Printing.layoutPdf(onLayout: (_) => bytes, name: docName);
@@ -1558,7 +1671,7 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Cancelling entry "${outward.outwardNumber}" will exclude it from active outward totals and reverse its ledger credit.',
+                'Cancelling entry "${outward.outwardNumber}" will exclude it from active outward totals and reverse its ledger debit effect.',
                 style: const TextStyle(fontSize: 13),
               ),
               const SizedBox(height: 14),
@@ -1622,10 +1735,10 @@ class _SubVendorMaterialOutwardScreenState extends State<SubVendorMaterialOutwar
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
-            final editQty = editRows.fold<double>(0.0, (s, r) => s + r.quantity);
-            final editSub = editRows.fold<double>(0.0, (s, r) => s + r.baseAmount);
-            final editGst = editRows.fold<double>(0.0, (s, r) => s + r.gstAmount);
-            final editGrand = editRows.fold<double>(0.0, (s, r) => s + r.finalPrice);
+            final editQty = SubVendorFinancialEngine.sumPaise(editRows, (r) => r.quantity);
+            final editSub = SubVendorFinancialEngine.sumPaise(editRows, (r) => r.baseAmount);
+            final editGst = SubVendorFinancialEngine.sumPaise(editRows, (r) => r.gstAmount);
+            final editGrand = SubVendorFinancialEngine.sumPaise(editRows, (r) => r.finalPrice);
 
             return AlertDialog(
               title: Row(
@@ -1830,9 +1943,12 @@ class _OutwardRowState {
 
   double get quantity => double.tryParse(quantityCtrl.text.trim()) ?? 0.0;
   double get rate => double.tryParse(rateCtrl.text.trim()) ?? 0.0;
-  double get baseAmount => double.parse((quantity * rate).toStringAsFixed(2));
-  double get gstAmount => double.parse((baseAmount * (gstPercentage / 100.0)).toStringAsFixed(2));
-  double get finalPrice => double.parse((baseAmount + gstAmount).toStringAsFixed(2));
+  double get baseAmount => SubVendorFinancialEngine.calculateOutwardRow(
+      quantity: quantity, ratePerUnit: rate, gstPercentage: gstPercentage).baseAmount;
+  double get gstAmount => SubVendorFinancialEngine.calculateOutwardRow(
+      quantity: quantity, ratePerUnit: rate, gstPercentage: gstPercentage).gstAmount;
+  double get finalPrice => SubVendorFinancialEngine.calculateOutwardRow(
+      quantity: quantity, ratePerUnit: rate, gstPercentage: gstPercentage).finalAmount;
 
   void dispose() {
     quantityCtrl.dispose();

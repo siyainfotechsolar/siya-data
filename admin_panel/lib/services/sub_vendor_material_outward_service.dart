@@ -130,28 +130,21 @@ class SubVendorMaterialOutwardService {
     return localNew;
   }
 
-  /// Helper to compute normalized pricing fields for outward items.
+  /// Helper to compute normalized pricing fields for outward items via central engine.
   static List<SubVendorMaterialOutwardItem> _normalizeItemsPricing(
     List<SubVendorMaterialOutwardItem> items,
     String outwardId,
     Map<String, MaterialMasterItem> masterMap,
   ) {
-    return items.map((i) {
+    final prepared = items.map((i) {
       final rate = i.unitRate >= 0 ? i.unitRate : (masterMap[i.materialId]?.defaultRate ?? 0.0);
-      final base = double.parse((i.quantity * rate).toStringAsFixed(2));
-      final gstPct = i.gstPercentage;
-      final gstAmt = double.parse((base * gstPct / 100.0).toStringAsFixed(2));
-      final finalPrice = double.parse((base + gstAmt).toStringAsFixed(2));
       return i.copyWith(
         outwardId: outwardId,
         id: i.id.isNotEmpty ? i.id : 'item-${DateTime.now().microsecondsSinceEpoch}',
         unitRate: rate,
-        baseAmount: base,
-        gstPercentage: gstPct,
-        gstAmount: gstAmt,
-        totalPrice: finalPrice,
       );
     }).toList();
+    return SubVendorFinancialEngine.normalizeOutwardItems(prepared, outwardId: outwardId);
   }
 
   // ---------------------------------------------------------------------------
@@ -184,12 +177,13 @@ class SubVendorMaterialOutwardService {
     final masterMap = {for (var m in masterList) m.id: m};
     final normalizedItems = _normalizeItemsPricing(items, '', masterMap);
 
-    final double totalQty = normalizedItems.fold<double>(0.0, (sum, i) => sum + i.quantity);
-    final double subtotal = normalizedItems.fold<double>(0.0, (sum, i) => sum + i.baseAmount);
-    final double totalGst = normalizedItems.fold<double>(0.0, (sum, i) => sum + i.gstAmount);
-    final double grandTotal = normalizedItems.fold<double>(0.0, (sum, i) => sum + i.totalPrice);
+    final totals = SubVendorFinancialEngine.calculateOutwardTotals(normalizedItems);
+    final double totalQty = totals.totalQuantity;
+    final double subtotal = totals.subtotal;
+    final double totalGst = totals.totalGst;
+    final double grandTotal = totals.grandTotal;
 
-    // 2. Try Supabase Atomic RPC (NO inventory stock deduction)
+    // 2. Try Supabase Atomic RPC (NO inventory stock deduction, NO duplicate ledger write)
     try {
       final client = SupabaseService.client;
       final currentUser = SupabaseService.currentUser;
@@ -223,7 +217,7 @@ class SubVendorMaterialOutwardService {
           outwardNumber: outwardNumber,
           vendorId: vendorId,
           vendorName: vendorName,
-          outwardDate: outwardDate,
+          outwardDate: SubVendorFinancialEngine.normalizeDate(outwardDate),
           totalItems: normalizedItems.length,
           totalQuantity: totalQty,
           subtotal: subtotal,
@@ -237,22 +231,8 @@ class SubVendorMaterialOutwardService {
 
         _inMemoryOutwards.insert(0, createdOutward);
         await _saveOutwardsToCache(_inMemoryOutwards);
-
-        // Auto-sync with Credit/Debit Ledger
-        if (grandTotal > 0) {
-          await SubVendorAccountLedgerService.syncFromMaterialOutward(
-            outwardId: outwardId,
-            outwardNumber: outwardNumber,
-            vendorId: vendorId,
-            vendorName: vendorName,
-            outwardDate: outwardDate,
-            totalOutwardValue: grandTotal,
-            totalItems: normalizedItems.length,
-            totalQuantity: totalQty,
-            remarks: remarks,
-          );
-        }
-
+        // NOTE: v_sub_vendor_unified_ledger reads Active rows directly from
+        // sub_vendor_material_outwards (mo_ branch) — do NOT insert a duplicate row into sub_vendor_account_ledger.
         return createdOutward;
       }
     } catch (e) {
@@ -272,7 +252,7 @@ class SubVendorMaterialOutwardService {
       outwardNumber: outwardNumber,
       vendorId: vendorId,
       vendorName: vendorName,
-      outwardDate: outwardDate,
+      outwardDate: SubVendorFinancialEngine.normalizeDate(outwardDate),
       totalItems: processedItems.length,
       totalQuantity: totalQty,
       subtotal: subtotal,
@@ -296,7 +276,7 @@ class SubVendorMaterialOutwardService {
 
     await _saveOutwardsToCache(_inMemoryOutwards);
 
-    // Auto-sync with Credit/Debit Ledger
+    // Auto-sync local fallback ledger
     if (grandTotal > 0) {
       await SubVendorAccountLedgerService.syncFromMaterialOutward(
         outwardId: outwardId,
@@ -315,7 +295,7 @@ class SubVendorMaterialOutwardService {
   }
 
   // ---------------------------------------------------------------------------
-  // 4. UPDATE OUTWARD ENTRY (WITH RATE & GST, NO STOCK MODIFICATION)
+  // 4. UPDATE OUTWARD ENTRY (WITH RATE & GST, ATOMIC LEDGER SYNC)
   // ---------------------------------------------------------------------------
   static Future<SubVendorMaterialOutward> updateOutward({
     required String outwardId,
@@ -340,7 +320,13 @@ class SubVendorMaterialOutwardService {
       }
     }
 
-    final existingIndex = _inMemoryOutwards.indexWhere((o) => o.id == outwardId);
+    int existingIndex = _inMemoryOutwards.indexWhere((o) => o.id == outwardId);
+    if (existingIndex < 0) {
+      try {
+        final fetched = await fetchOutwards();
+        existingIndex = fetched.indexWhere((o) => o.id == outwardId);
+      } catch (_) {}
+    }
     if (existingIndex < 0) {
       throw StateError('Material Outward entry "$outwardId" not found.');
     }
@@ -354,10 +340,11 @@ class SubVendorMaterialOutwardService {
     final masterMap = {for (var m in masterList) m.id: m};
     final processedItems = _normalizeItemsPricing(items, outwardId, masterMap);
 
-    final double totalQty = processedItems.fold<double>(0.0, (sum, i) => sum + i.quantity);
-    final double subtotal = processedItems.fold<double>(0.0, (sum, i) => sum + i.baseAmount);
-    final double totalGst = processedItems.fold<double>(0.0, (sum, i) => sum + i.gstAmount);
-    final double grandTotal = processedItems.fold<double>(0.0, (sum, i) => sum + i.totalPrice);
+    final totals = SubVendorFinancialEngine.calculateOutwardTotals(processedItems);
+    final double totalQty = totals.totalQuantity;
+    final double subtotal = totals.subtotal;
+    final double totalGst = totals.totalGst;
+    final double grandTotal = totals.grandTotal;
 
     // Try Supabase RPC first
     try {
@@ -389,7 +376,7 @@ class SubVendorMaterialOutwardService {
         final updated = existing.copyWith(
           vendorId: vendorId,
           vendorName: vendorName,
-          outwardDate: outwardDate,
+          outwardDate: SubVendorFinancialEngine.normalizeDate(outwardDate),
           remarks: remarks,
           items: processedItems,
           totalItems: processedItems.length,
@@ -423,7 +410,7 @@ class SubVendorMaterialOutwardService {
     final updated = existing.copyWith(
       vendorId: vendorId,
       vendorName: vendorName,
-      outwardDate: outwardDate,
+      outwardDate: SubVendorFinancialEngine.normalizeDate(outwardDate),
       remarks: remarks,
       items: processedItems,
       totalItems: processedItems.length,
@@ -445,7 +432,6 @@ class SubVendorMaterialOutwardService {
 
     await _saveOutwardsToCache(_inMemoryOutwards);
 
-    // Auto-sync ledger update
     await SubVendorAccountLedgerService.syncFromMaterialOutward(
       outwardId: outwardId,
       outwardNumber: updated.outwardNumber,
@@ -463,7 +449,7 @@ class SubVendorMaterialOutwardService {
   }
 
   // ---------------------------------------------------------------------------
-  // 5. CANCEL OUTWARD ENTRY (NO STOCK MODIFICATION)
+  // 5. CANCEL OUTWARD ENTRY (NO STOCK MODIFICATION, ATOMIC LEDGER CANCELLATION)
   // ---------------------------------------------------------------------------
   static Future<SubVendorMaterialOutward> cancelOutward(
     String outwardId, {
@@ -471,7 +457,13 @@ class SubVendorMaterialOutwardService {
   }) async {
     await _ensureLocalInitialized();
 
-    final existingIndex = _inMemoryOutwards.indexWhere((o) => o.id == outwardId);
+    int existingIndex = _inMemoryOutwards.indexWhere((o) => o.id == outwardId);
+    if (existingIndex < 0) {
+      try {
+        final fetched = await fetchOutwards();
+        existingIndex = fetched.indexWhere((o) => o.id == outwardId);
+      } catch (_) {}
+    }
     if (existingIndex < 0) {
       throw StateError('Material Outward entry "$outwardId" not found.');
     }
@@ -501,7 +493,11 @@ class SubVendorMaterialOutwardService {
         );
         _inMemoryOutwards[existingIndex] = cancelled;
         await _saveOutwardsToCache(_inMemoryOutwards);
-        await SubVendorAccountLedgerService.cancelLedgerEntryByReferenceId(outwardId, reason: reason);
+        await SubVendorAccountLedgerService.cancelLedgerEntryByReferenceId(
+          outwardId,
+          outwardNumber: existing.outwardNumber,
+          reason: reason,
+        );
         return cancelled;
       }
     } catch (e) {
@@ -526,8 +522,11 @@ class SubVendorMaterialOutwardService {
 
     await _saveOutwardsToCache(_inMemoryOutwards);
 
-    // Auto-sync ledger cancellation
-    await SubVendorAccountLedgerService.cancelLedgerEntryByReferenceId(outwardId, reason: reason);
+    await SubVendorAccountLedgerService.cancelLedgerEntryByReferenceId(
+      outwardId,
+      outwardNumber: existing.outwardNumber,
+      reason: reason,
+    );
 
     return cancelled;
   }
@@ -671,16 +670,12 @@ class SubVendorMaterialOutwardService {
     return entries.where((entry) {
       if (!includeCancelled && entry.isCancelled) return false;
 
-      if (fromDate != null) {
-        final d = DateTime(entry.outwardDate.year, entry.outwardDate.month, entry.outwardDate.day);
-        final f = DateTime(fromDate.year, fromDate.month, fromDate.day);
-        if (d.isBefore(f)) return false;
-      }
-
-      if (toDate != null) {
-        final d = DateTime(entry.outwardDate.year, entry.outwardDate.month, entry.outwardDate.day);
-        final t = DateTime(toDate.year, toDate.month, toDate.day);
-        if (d.isAfter(t)) return false;
+      if (!SubVendorFinancialEngine.isWithinDateRange(
+        entry.outwardDate,
+        fromDate: fromDate,
+        toDate: toDate,
+      )) {
+        return false;
       }
 
       if (vendorId != null && vendorId.isNotEmpty && vendorId != 'All') {
@@ -702,21 +697,33 @@ class SubVendorMaterialOutwardService {
     }).toList();
   }
 
-  /// A. Date-wise Material Outward Report Rows
+  /// A. Date-wise Material Outward Report Rows (with exact financial ₹ breakdown)
   static List<Map<String, dynamic>> generateDateWiseReportRows(List<SubVendorMaterialOutward> entries) {
     final List<Map<String, dynamic>> rows = [];
     final activeEntries = entries.where((e) => e.isActive).toList()
-      ..sort((a, b) => b.outwardDate.compareTo(a.outwardDate));
+      ..sort((a, b) => SubVendorFinancialEngine.normalizeDate(b.outwardDate)
+          .compareTo(SubVendorFinancialEngine.normalizeDate(a.outwardDate)));
 
     for (final entry in activeEntries) {
       for (final item in entry.items) {
+        final calc = SubVendorFinancialEngine.calculateOutwardRow(
+          quantity: item.quantity,
+          ratePerUnit: item.unitRate,
+          gstPercentage: item.gstPercentage,
+        );
         rows.add({
           'outward_number': entry.outwardNumber,
-          'outward_date': entry.outwardDate,
+          'outward_date': SubVendorFinancialEngine.normalizeDate(entry.outwardDate),
+          'vendor_id': entry.vendorId,
           'vendor_name': entry.vendorName,
           'material_name': item.materialName,
           'unit': item.unit,
           'quantity': item.quantity,
+          'unit_rate': calc.ratePerUnit,
+          'base_amount': calc.baseAmount,
+          'gst_percentage': calc.gstPercentage,
+          'gst_amount': calc.gstAmount,
+          'total_price': calc.finalAmount,
           'remarks': entry.remarks ?? '',
         });
       }
@@ -724,7 +731,7 @@ class SubVendorMaterialOutwardService {
     return rows;
   }
 
-  /// B. Sub Vendor-wise Report Summary & Breakdown
+  /// B. Sub Vendor-wise Report Summary & Financial Breakdown
   static List<Map<String, dynamic>> generateSubVendorWiseSummary(List<SubVendorMaterialOutward> entries) {
     final activeEntries = entries.where((e) => e.isActive).toList();
     final Map<String, Map<String, dynamic>> vendorMap = {};
@@ -736,96 +743,123 @@ class SubVendorMaterialOutwardService {
           'vendor_name': entry.vendorName,
           'total_outwards': 0,
           'total_quantity': 0.0,
+          'total_subtotal': 0.0,
+          'total_gst': 0.0,
+          'total_value': 0.0,
           'materials_summary': <String, double>{},
+          'materials_value_summary': <String, double>{},
           'transactions': <Map<String, dynamic>>[],
         };
       }
 
       final v = vendorMap[entry.vendorId]!;
       v['total_outwards'] = (v['total_outwards'] as int) + 1;
-      v['total_quantity'] = (v['total_quantity'] as double) + entry.totalQuantity;
+      v['total_quantity'] = SubVendorFinancialEngine.round2(
+          (v['total_quantity'] as double) + entry.totalQuantity);
+      v['total_subtotal'] = SubVendorFinancialEngine.round2(
+          (v['total_subtotal'] as double) + entry.subtotal);
+      v['total_gst'] = SubVendorFinancialEngine.round2(
+          (v['total_gst'] as double) + entry.totalGst);
+      v['total_value'] = SubVendorFinancialEngine.round2(
+          (v['total_value'] as double) + entry.totalValue);
 
       final matSummary = v['materials_summary'] as Map<String, double>;
+      final matValSummary = v['materials_value_summary'] as Map<String, double>;
       for (final item in entry.items) {
-        matSummary[item.materialName] = (matSummary[item.materialName] ?? 0.0) + item.quantity;
+        final calc = SubVendorFinancialEngine.calculateOutwardRow(
+          quantity: item.quantity,
+          ratePerUnit: item.unitRate,
+          gstPercentage: item.gstPercentage,
+        );
+        matSummary[item.materialName] =
+            SubVendorFinancialEngine.round2((matSummary[item.materialName] ?? 0.0) + item.quantity);
+        matValSummary[item.materialName] =
+            SubVendorFinancialEngine.round2((matValSummary[item.materialName] ?? 0.0) + calc.finalAmount);
       }
 
       (v['transactions'] as List<Map<String, dynamic>>).add({
         'outward_number': entry.outwardNumber,
-        'outward_date': entry.outwardDate,
+        'outward_date': SubVendorFinancialEngine.normalizeDate(entry.outwardDate),
         'total_items': entry.totalItems,
         'total_quantity': entry.totalQuantity,
+        'subtotal': entry.subtotal,
+        'total_gst': entry.totalGst,
+        'total_value': entry.totalValue,
         'items': entry.items.map((i) => i.toJson()).toList(),
       });
     }
 
     return vendorMap.values.toList()
-      ..sort((a, b) => (b['total_quantity'] as double).compareTo(a['total_quantity'] as double));
+      ..sort((a, b) => (b['total_value'] as double).compareTo(a['total_value'] as double));
   }
 
-  /// C. Material-wise Report Summary & Breakdown
+  /// C. Material-wise Report Summary & Financial Breakdown
   static List<Map<String, dynamic>> generateMaterialWiseSummary(List<SubVendorMaterialOutward> entries) {
     final activeEntries = entries.where((e) => e.isActive).toList();
     final Map<String, Map<String, dynamic>> matMap = {};
 
     for (final entry in activeEntries) {
       for (final item in entry.items) {
+        final calc = SubVendorFinancialEngine.calculateOutwardRow(
+          quantity: item.quantity,
+          ratePerUnit: item.unitRate,
+          gstPercentage: item.gstPercentage,
+        );
         final key = item.materialName.trim();
         if (!matMap.containsKey(key)) {
           matMap[key] = {
             'material_name': item.materialName,
             'unit': item.unit,
             'total_quantity': 0.0,
+            'total_taxable': 0.0,
+            'total_gst': 0.0,
+            'total_value': 0.0,
             'total_outwards': 0,
             'vendor_breakdown': <String, double>{},
+            'vendor_value_breakdown': <String, double>{},
             'date_details': <Map<String, dynamic>>[],
           };
         }
 
         final m = matMap[key]!;
-        m['total_quantity'] = (m['total_quantity'] as double) + item.quantity;
+        m['total_quantity'] = SubVendorFinancialEngine.round2((m['total_quantity'] as double) + item.quantity);
+        m['total_taxable'] = SubVendorFinancialEngine.round2((m['total_taxable'] as double) + calc.baseAmount);
+        m['total_gst'] = SubVendorFinancialEngine.round2((m['total_gst'] as double) + calc.gstAmount);
+        m['total_value'] = SubVendorFinancialEngine.round2((m['total_value'] as double) + calc.finalAmount);
         m['total_outwards'] = (m['total_outwards'] as int) + 1;
 
         final vBreakdown = m['vendor_breakdown'] as Map<String, double>;
-        vBreakdown[entry.vendorName] = (vBreakdown[entry.vendorName] ?? 0.0) + item.quantity;
+        final vValBreakdown = m['vendor_value_breakdown'] as Map<String, double>;
+        vBreakdown[entry.vendorName] =
+            SubVendorFinancialEngine.round2((vBreakdown[entry.vendorName] ?? 0.0) + item.quantity);
+        vValBreakdown[entry.vendorName] =
+            SubVendorFinancialEngine.round2((vValBreakdown[entry.vendorName] ?? 0.0) + calc.finalAmount);
 
         (m['date_details'] as List<Map<String, dynamic>>).add({
           'outward_number': entry.outwardNumber,
-          'outward_date': entry.outwardDate,
+          'outward_date': SubVendorFinancialEngine.normalizeDate(entry.outwardDate),
           'vendor_name': entry.vendorName,
           'quantity': item.quantity,
           'unit': item.unit,
+          'unit_rate': calc.ratePerUnit,
+          'base_amount': calc.baseAmount,
+          'gst_percentage': calc.gstPercentage,
+          'gst_amount': calc.gstAmount,
+          'total_price': calc.finalAmount,
         });
       }
     }
 
     return matMap.values.toList()
-      ..sort((a, b) => (b['total_quantity'] as double).compareTo(a['total_quantity'] as double));
+      ..sort((a, b) => (b['total_value'] as double).compareTo(a['total_value'] as double));
   }
 
-  // ---------------------------------------------------------------------------
-  // HELPER METHODS: LOCAL STOCK EFFECTS & CACHING
-  // ---------------------------------------------------------------------------
-  static void _applyLocalStockDeduction(List<SubVendorMaterialOutwardItem> items) {
-    for (final item in items) {
-      final idx = _inMemoryMaterials.indexWhere((m) => m.id == item.materialId || m.itemName.toLowerCase() == item.materialName.toLowerCase());
-      if (idx >= 0) {
-        final current = _inMemoryMaterials[idx];
-        final newStock = (current.availableStock - item.quantity).clamp(0.0, 999999.0);
-        _inMemoryMaterials[idx] = current.copyWith(availableStock: double.parse(newStock.toStringAsFixed(2)));
-      }
-    }
-  }
-
-  static void _applyLocalStockRestoration(List<SubVendorMaterialOutwardItem> items) {
-    for (final item in items) {
-      final idx = _inMemoryMaterials.indexWhere((m) => m.id == item.materialId || m.itemName.toLowerCase() == item.materialName.toLowerCase());
-      if (idx >= 0) {
-        final current = _inMemoryMaterials[idx];
-        final newStock = current.availableStock + item.quantity;
-        _inMemoryMaterials[idx] = current.copyWith(availableStock: double.parse(newStock.toStringAsFixed(2)));
-      }
-    }
+  /// D. Daily / Monthly / Financial-Year Reconciliation Summary
+  static List<PeriodReconciliationSummary> generatePeriodSummary(
+    List<SubVendorMaterialOutward> entries, {
+    required String grouping, // 'DAILY', 'MONTHLY', 'FINANCIAL_YEAR'
+  }) {
+    return SubVendorFinancialEngine.buildOutwardPeriodSummary(entries, grouping: grouping);
   }
 
   static Future<void> _ensureLocalInitialized() async {

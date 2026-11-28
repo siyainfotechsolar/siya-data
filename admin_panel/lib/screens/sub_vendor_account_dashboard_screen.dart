@@ -596,11 +596,23 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
           ),
         ),
 
-        // Dynamic Total Credit / Total Debit / Net Balance Bar
+        // Dynamic Opening Balance / Total Credit / Total Debit / Closing Balance Bar
         () {
-          final double filteredCredit = _ledgerEntries.where((e) => e.isActive).fold<double>(0.0, (s, e) => s + e.creditAmount);
-          final double filteredDebit = _ledgerEntries.where((e) => e.isActive).fold<double>(0.0, (s, e) => s + e.debitAmount);
-          final double filteredNet = filteredCredit - filteredDebit;
+          final double openingBalance = SubVendorAccountLedgerService.calculateOpeningBalance(
+            vendorId: _selectedVendorId == 'All' ? null : _selectedVendorId,
+            fromDate: _filterFromDate,
+          );
+          final double filteredCredit = SubVendorFinancialEngine.sumPaise(
+            _ledgerEntries.where((e) => e.isActive),
+            (e) => e.creditAmount,
+          );
+          final double filteredDebit = SubVendorFinancialEngine.sumPaise(
+            _ledgerEntries.where((e) => e.isActive),
+            (e) => e.debitAmount,
+          );
+          final double filteredNet = SubVendorFinancialEngine.round2(
+            openingBalance + filteredCredit - filteredDebit,
+          );
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: const BoxDecoration(
@@ -614,6 +626,13 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                   runSpacing: 10,
                   alignment: WrapAlignment.spaceBetween,
                   children: [
+                    if (_filterFromDate != null || openingBalance != 0)
+                      _buildLedgerTotalPill(
+                        'Opening Balance',
+                        '${_currency.format(openingBalance.abs())} ${openingBalance >= 0 ? "Cr" : "Dr"}',
+                        Icons.history_rounded,
+                        openingBalance >= 0 ? navyColor : redColor,
+                      ),
                     _buildLedgerTotalPill(
                       'Total Credit',
                       _currency.format(filteredCredit),
@@ -627,7 +646,7 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
                       amberColor,
                     ),
                     _buildLedgerTotalPill(
-                      'Net Balance',
+                      _filterFromDate != null ? 'Closing Balance' : 'Net Balance',
                       '${_currency.format(filteredNet.abs())} ${filteredNet >= 0 ? "Cr (देणे)" : "Dr (येणे)"}',
                       Icons.account_balance_wallet_rounded,
                       filteredNet >= 0 ? greenColor : redColor,
@@ -763,37 +782,40 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
       builder: (ctx) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.delete_outline, color: redColor),
+            Icon(Icons.cancel_outlined, color: redColor),
             SizedBox(width: 8),
-            Text('Remove Ledger Entry?'),
+            Text('Cancel Ledger Entry?'),
           ],
         ),
         content: Text(
-          'Are you sure you want to remove "${entry.particulars}" (${_currency.format(amt)}) dated ${_dateFormat.format(entry.transactionDate)}?\n\nRunning balances will be recalculated automatically.',
+          'Are you sure you want to cancel "${entry.particulars}" (${_currency.format(amt)}) dated ${_dateFormat.format(entry.transactionDate)}?\n\nIts financial impact will be reversed while preserving audit history, and running balances will be recalculated automatically.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep Active')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: redColor, foregroundColor: Colors.white),
             onPressed: () async {
               Navigator.pop(ctx);
               try {
-                await SubVendorAccountLedgerService.deleteTransaction(entry.id);
+                await SubVendorAccountLedgerService.cancelTransaction(
+                  entry.id,
+                  reason: 'Cancelled by Admin from Ledger',
+                );
                 await _loadAllData();
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Entry removed & balances recalculated!'), backgroundColor: greenColor),
+                    const SnackBar(content: Text('Entry cancelled & balances recalculated!'), backgroundColor: greenColor),
                   );
                 }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Remove failed: $e'), backgroundColor: redColor),
+                    SnackBar(content: Text('Cancel failed: $e'), backgroundColor: redColor),
                   );
                 }
               }
             },
-            child: const Text('Yes, Remove'),
+            child: const Text('Yes, Cancel Entry'),
           ),
         ],
       ),
@@ -1023,19 +1045,29 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
         toDate: _filterToDate,
       );
 
+      final double openingBalance = SubVendorAccountLedgerService.calculateOpeningBalance(
+        vendorId: vendorId,
+        fromDate: _filterFromDate,
+      );
       double totalCredit = 0.0;
       double totalDebit = 0.0;
       for (final e in entries) {
         totalCredit += e.creditAmount;
         totalDebit += e.debitAmount;
       }
+      totalCredit = SubVendorFinancialEngine.round2(totalCredit);
+      totalDebit = SubVendorFinancialEngine.round2(totalDebit);
+      final double closingBalance = SubVendorFinancialEngine.round2(
+        openingBalance + totalCredit - totalDebit,
+      );
 
       final bytes = await SubVendorAccountLedgerPdfService.generateAccountStatementPdfBytes(
         vendor: vendor,
         entries: entries,
+        openingBalance: openingBalance,
         totalCredit: totalCredit,
         totalDebit: totalDebit,
-        closingBalance: totalCredit - totalDebit,
+        closingBalance: closingBalance,
         fromDate: _filterFromDate,
         toDate: _filterToDate,
       );
@@ -1056,6 +1088,10 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
       } else {
         final vendor = _vendors.firstWhere((v) => v.id == _selectedVendorId);
         final entries = _ledgerEntries.where((e) => e.vendorId == _selectedVendorId).toList();
+        final double openingBalance = SubVendorAccountLedgerService.calculateOpeningBalance(
+          vendorId: _selectedVendorId,
+          fromDate: _filterFromDate,
+        );
         double totalCredit = 0.0;
         double totalDebit = 0.0;
         for (final e in entries) {
@@ -1064,12 +1100,18 @@ class _SubVendorAccountDashboardScreenState extends State<SubVendorAccountDashbo
             totalDebit += e.debitAmount;
           }
         }
+        totalCredit = SubVendorFinancialEngine.round2(totalCredit);
+        totalDebit = SubVendorFinancialEngine.round2(totalDebit);
+        final double closingBalance = SubVendorFinancialEngine.round2(
+          openingBalance + totalCredit - totalDebit,
+        );
         await SubVendorAccountLedgerPdfService.exportVendorLedgerCsv(
           vendor: vendor,
           entries: entries,
+          openingBalance: openingBalance,
           totalCredit: totalCredit,
           totalDebit: totalDebit,
-          closingBalance: totalCredit - totalDebit,
+          closingBalance: closingBalance,
         );
       }
       if (mounted) {

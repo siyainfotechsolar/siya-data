@@ -1,3 +1,8 @@
+import '../services/sub_vendor_financial_engine.dart';
+import 'sub_vendor_account_ledger.dart';
+import 'sub_vendor_material_outward.dart';
+import 'vendor_customer_payment.dart';
+import 'vendor_gst_recovery.dart';
 import 'vendor_site_assignment.dart';
 import 'vendor_material_transaction.dart';
 import 'vendor_payout.dart';
@@ -18,6 +23,9 @@ class SiteFinancialDetail {
   final double material18Gst;
   final double material18Total;
 
+  // 0% / Other GST Category
+  final double materialOtherTotal;
+
   // Total Material Cost (Actual Issues minus Returns)
   final double totalMaterialTaxable;
   final double totalEligibleInputGst;
@@ -25,6 +33,7 @@ class SiteFinancialDetail {
 
   // Statutory Net GST Liability (70:30 Output GST on quotation - Eligible Input GST)
   final double netGstLiability;
+  final double approvedGstRecovery;
 
   // Vendor Charges & Expenses
   final double vendorCharges; // Capacity × ₹1,000/kW
@@ -52,9 +61,17 @@ class SiteFinancialDetail {
   double get effectiveCollection => amountReceivedBySiya;
 
   /// Net balance payable to Sub-Vendor under Net Balance model:
-  /// (Collection - Material Cost - SIYA Charges - Expenses - Net GST Liability - Paid to Vendor)
+  /// (Collection - Material Cost - SIYA Charges - Expenses - Net GST Liability - Contractual GST Recovery - Paid to Vendor)
   double get netSubVendorBalance {
-    return double.parse((effectiveCollection - totalMaterialCost - vendorCharges - otherExpenses - netGstLiability - totalPaidToVendor).toStringAsFixed(2));
+    return SubVendorFinancialEngine.round2(
+      effectiveCollection -
+          totalMaterialCost -
+          vendorCharges -
+          otherExpenses -
+          netGstLiability -
+          approvedGstRecovery -
+          totalPaidToVendor,
+    );
   }
 
   const SiteFinancialDetail({
@@ -67,10 +84,12 @@ class SiteFinancialDetail {
     required this.material18Taxable,
     required this.material18Gst,
     required this.material18Total,
+    this.materialOtherTotal = 0.0,
     required this.totalMaterialTaxable,
     required this.totalEligibleInputGst,
     required this.totalMaterialCost,
     this.netGstLiability = 0.0,
+    this.approvedGstRecovery = 0.0,
     required this.vendorCharges,
     required this.otherExpenses,
     required this.totalVendorPayable,
@@ -94,93 +113,91 @@ class SiteFinancialDetail {
     required VendorSiteAssignment assignment,
     required List<VendorMaterialTransaction> materials,
     required List<VendorPayout> payouts,
+    List<VendorGstRecovery> gstRecoveries = const [],
+    List<VendorCustomerPayment> customerPayments = const [],
+    bool includeUnlinkedPayouts = true,
   }) {
-    double m5Taxable = 0.0;
-    double m5Gst = 0.0;
-    double m18Taxable = 0.0;
-    double m18Gst = 0.0;
-
-    for (final item in materials) {
-      final sign = item.isReturn ? -1.0 : 1.0;
-      final is5Pct = (item.gstRate - 5.0).abs() < 0.5 ||
-          item.itemCategory == 'SOLAR_PANEL' ||
-          item.itemCategory == 'INVERTER';
-
-      if (is5Pct) {
-        m5Taxable += sign * item.taxableAmount;
-        m5Gst += sign * item.gstAmount;
-      } else {
-        m18Taxable += sign * item.taxableAmount;
-        m18Gst += sign * item.gstAmount;
-      }
-    }
-
-    final m5Total = m5Taxable + m5Gst;
-    final m18Total = m18Taxable + m18Gst;
-    final totMaterialTaxable = m5Taxable + m18Taxable;
-    final totEligibleInputGst = m5Gst + m18Gst;
-    final totMaterialCost = m5Total + m18Total;
+    final matBreakdown = SubVendorFinancialEngine.classifySiteMaterialsGst(materials);
 
     // Statutory Net GST Liability = Output GST on quotation (70:30 rule) - Eligible Material Input GST Credit
     final outputGstOnQuotation = assignment.gstBreakdown.totalGstIncluded;
-    final netGst = (outputGstOnQuotation - totEligibleInputGst) > 0
-        ? (outputGstOnQuotation - totEligibleInputGst)
-        : 0.0;
+    final rawNetGst = outputGstOnQuotation - matBreakdown.totalEligibleInputGst;
+    final netGst = rawNetGst > 0 ? SubVendorFinancialEngine.round2(rawNetGst) : 0.0;
+
+    final double siteGstRecovery = gstRecoveries.isNotEmpty
+        ? SubVendorFinancialEngine.sumPaise(
+            gstRecoveries.where(
+                (r) => r.assignmentId == assignment.id && (r.isApproved || r.isCollected)),
+            (r) => r.totalRecovery,
+          )
+        : SubVendorFinancialEngine.round2(assignment.approvedGstRecoveryAmount);
 
     // Vendor charges: Installed Capacity × ₹1,000/kW (or assigned rate)
-    final charges = assignment.siteCapacityKw * assignment.ratePerKw;
-    final expenses = assignment.otherExpenses;
-    final totVendorPayable = charges + expenses;
+    final charges = SubVendorFinancialEngine.round2(
+        assignment.siteCapacityKw * assignment.ratePerKw);
+    final expenses = SubVendorFinancialEngine.round2(assignment.otherExpenses);
+    final totVendorPayable = SubVendorFinancialEngine.round2(charges + expenses);
 
     // Site Amount & Received from Customer
-    final siteAmt = assignment.effectiveSiteAmount;
-    final cashRecv = assignment.totalCashReceived;
-    final loanSanc = assignment.loanSanctionedAmount;
-    final loanCred = assignment.totalLoanCredited;
-    final loanPend = assignment.loanPendingCredit;
-    final custRecv = assignment.effectiveReceivedAmount;
-    final custOut = assignment.effectiveCustomerOutstanding;
+    final siteAmt = SubVendorFinancialEngine.round2(assignment.effectiveSiteAmount);
+    final cashRecv = SubVendorFinancialEngine.round2(assignment.totalCashReceived);
+    final loanSanc = SubVendorFinancialEngine.round2(assignment.loanSanctionedAmount);
+    final loanCred = SubVendorFinancialEngine.round2(assignment.totalLoanCredited);
+    final loanPend = SubVendorFinancialEngine.round2(assignment.loanPendingCredit);
+    final custRecv = customerPayments.isNotEmpty
+        ? SubVendorFinancialEngine.reconcileSiteReceivedAmount(
+            assignment,
+            siteCustomerPayments: customerPayments,
+          )
+        : SubVendorFinancialEngine.round2(assignment.effectiveReceivedAmount);
+    final custOut = siteAmt > 0
+        ? (siteAmt - custRecv > 0 ? SubVendorFinancialEngine.round2(siteAmt - custRecv) : 0.0)
+        : SubVendorFinancialEngine.round2(assignment.effectiveCustomerOutstanding);
 
-    // Payouts made to sub-vendor for this site
-    double paidToVendor = 0.0;
+    // Disbursed payouts made to sub-vendor for this site (excludes Rejected/Cancelled/Pending)
+    int paidPaise = 0;
     for (final p in payouts) {
-      if (p.assignmentId == assignment.id || p.assignmentId == null) {
-        paidToVendor += p.amount;
+      if (!SubVendorFinancialEngine.isDisbursedPayout(p)) continue;
+      if (p.assignmentId == assignment.id ||
+          (includeUnlinkedPayouts && p.assignmentId == null)) {
+        paidPaise += SubVendorFinancialEngine.toPaise(p.amount);
       }
     }
-
-    final outstanding = totVendorPayable - paidToVendor;
+    final paidToVendor = SubVendorFinancialEngine.fromPaise(paidPaise);
+    final outstanding = SubVendorFinancialEngine.round2(totVendorPayable - paidToVendor);
 
     return SiteFinancialDetail(
       assignment: assignment,
       materials: materials,
       payouts: payouts,
-      material5Taxable: double.parse(m5Taxable.toStringAsFixed(2)),
-      material5Gst: double.parse(m5Gst.toStringAsFixed(2)),
-      material5Total: double.parse(m5Total.toStringAsFixed(2)),
-      material18Taxable: double.parse(m18Taxable.toStringAsFixed(2)),
-      material18Gst: double.parse(m18Gst.toStringAsFixed(2)),
-      material18Total: double.parse(m18Total.toStringAsFixed(2)),
-      totalMaterialTaxable: double.parse(totMaterialTaxable.toStringAsFixed(2)),
-      totalEligibleInputGst: double.parse(totEligibleInputGst.toStringAsFixed(2)),
-      totalMaterialCost: double.parse(totMaterialCost.toStringAsFixed(2)),
-      netGstLiability: double.parse(netGst.toStringAsFixed(2)),
-      vendorCharges: double.parse(charges.toStringAsFixed(2)),
-      otherExpenses: double.parse(expenses.toStringAsFixed(2)),
-      totalVendorPayable: double.parse(totVendorPayable.toStringAsFixed(2)),
-      totalSiteAmount: double.parse(siteAmt.toStringAsFixed(2)),
-      amountReceivedBySiya: double.parse(custRecv.toStringAsFixed(2)),
+      material5Taxable: matBreakdown.material5Taxable,
+      material5Gst: matBreakdown.material5Gst,
+      material5Total: matBreakdown.material5Total,
+      material18Taxable: matBreakdown.material18Taxable,
+      material18Gst: matBreakdown.material18Gst,
+      material18Total: matBreakdown.material18Total,
+      materialOtherTotal: matBreakdown.otherAndZeroTotal,
+      totalMaterialTaxable: matBreakdown.totalTaxable,
+      totalEligibleInputGst: matBreakdown.totalEligibleInputGst,
+      totalMaterialCost: matBreakdown.totalMaterialCost,
+      netGstLiability: netGst,
+      approvedGstRecovery: siteGstRecovery,
+      vendorCharges: charges,
+      otherExpenses: expenses,
+      totalVendorPayable: totVendorPayable,
+      totalSiteAmount: siteAmt,
+      amountReceivedBySiya: custRecv,
       paymentType: assignment.paymentType,
-      cashReceived: double.parse(cashRecv.toStringAsFixed(2)),
-      loanSanctioned: double.parse(loanSanc.toStringAsFixed(2)),
-      loanCredited: double.parse(loanCred.toStringAsFixed(2)),
-      loanPendingCredit: double.parse(loanPend.toStringAsFixed(2)),
-      totalCustomerReceived: double.parse(custRecv.toStringAsFixed(2)),
-      customerOutstanding: double.parse(custOut.toStringAsFixed(2)),
+      cashReceived: cashRecv,
+      loanSanctioned: loanSanc,
+      loanCredited: loanCred,
+      loanPendingCredit: loanPend,
+      totalCustomerReceived: custRecv,
+      customerOutstanding: custOut,
       loanStatus: assignment.loanStatus,
       customerPaymentStatus: assignment.customerPaymentStatus,
-      totalPaidToVendor: double.parse(paidToVendor.toStringAsFixed(2)),
-      outstandingVendorPayable: double.parse(outstanding.toStringAsFixed(2)),
+      totalPaidToVendor: paidToVendor,
+      outstandingVendorPayable: outstanding,
     );
   }
 }
@@ -218,12 +235,15 @@ class VendorFinancialSummary {
   final double material18Gst;
   final double material18Total;
 
+  final double materialOtherTotal;
+
   final double totalMaterialTaxable;
   final double totalEligibleInputGst;
   final double totalMaterialCost;
 
   // Statutory Net GST Liability (70:30 Output GST on quotation - Eligible Input GST)
   final double totalNetGstLiability;
+  final double totalApprovedGstRecovery;
 
   // SIYA Vendor Charges (Installed Capacity × ₹1,000/kW)
   final double totalVendorCharges;
@@ -232,13 +252,12 @@ class VendorFinancialSummary {
 
   // Payments & Balance to Vendor
   final double totalPaidAmount;
+  final double totalUnlinkedPayouts;
   final double outstandingSettlement; // totalSettlementAmount - totalPaidAmount
 
   /// Total customer collection realized (never inflated with unpaid quotations)
   double get effectiveTotalCollection => totalCustomerCollection;
 
-  /// Net Sub-Vendor settlement balance after deducting Material Cost, SIYA Charges, and Net GST from Collections:
-  /// (Total Collections - Total Material Cost - Total SIYA Charges - Expenses - Net GST - Total Paid)
   // Centralized Ledger / Unallocated Outward Additions
   final double totalMaterialOutwardCost;
   final double totalDirectVendorPayments;
@@ -246,23 +265,48 @@ class VendorFinancialSummary {
   final double totalDirectAdvanceRefunds;
 
   double get combinedMaterialCost =>
-      double.parse((totalMaterialCost + totalMaterialOutwardCost).toStringAsFixed(2));
+      SubVendorFinancialEngine.round2(totalMaterialCost + totalMaterialOutwardCost);
 
   double get combinedPaidAndAdvances =>
-      double.parse((totalPaidAmount + totalDirectAdvancesGiven).toStringAsFixed(2));
+      SubVendorFinancialEngine.round2(totalPaidAmount + totalDirectAdvancesGiven);
+
+  /// Separate Material Account Balance: Material Outward minus Direct Material Payments
+  double get materialReceivableBalance =>
+      SubVendorFinancialEngine.round2(totalMaterialOutwardCost - totalDirectVendorPayments);
+
+  /// Separate Advance Account Balance: Advances/Payouts Given minus Advance Refunds
+  double get advanceBalance =>
+      SubVendorFinancialEngine.round2(combinedPaidAndAdvances - totalDirectAdvanceRefunds);
 
   double get netSettlementPayable {
-    return double.parse((effectiveTotalCollection +
-            totalDirectVendorPayments +
-            totalDirectAdvanceRefunds -
-            totalMaterialCost -
-            totalMaterialOutwardCost -
-            totalVendorCharges -
-            totalOtherExpenses -
-            totalNetGstLiability -
-            totalPaidAmount -
-            totalDirectAdvancesGiven)
-        .toStringAsFixed(2));
+    return SubVendorFinancialEngine.round2(
+      effectiveTotalCollection +
+          totalDirectVendorPayments +
+          totalDirectAdvanceRefunds -
+          totalMaterialCost -
+          totalMaterialOutwardCost -
+          totalVendorCharges -
+          totalOtherExpenses -
+          totalNetGstLiability -
+          totalApprovedGstRecovery -
+          totalPaidAmount -
+          totalDirectAdvancesGiven,
+    );
+  }
+
+  /// Gross Entitlement before deducting Paid Advances/Payouts
+  double get netVendorEntitlement {
+    return SubVendorFinancialEngine.round2(
+      effectiveTotalCollection +
+          totalDirectVendorPayments +
+          totalDirectAdvanceRefunds -
+          totalMaterialCost -
+          totalMaterialOutwardCost -
+          totalVendorCharges -
+          totalOtherExpenses -
+          totalNetGstLiability -
+          totalApprovedGstRecovery,
+    );
   }
 
   // Site-by-site breakdown
@@ -290,14 +334,17 @@ class VendorFinancialSummary {
     required this.material18Taxable,
     required this.material18Gst,
     required this.material18Total,
+    this.materialOtherTotal = 0.0,
     required this.totalMaterialTaxable,
     required this.totalEligibleInputGst,
     required this.totalMaterialCost,
     this.totalNetGstLiability = 0.0,
+    this.totalApprovedGstRecovery = 0.0,
     required this.totalVendorCharges,
     required this.totalOtherExpenses,
     required this.totalSettlementAmount,
     required this.totalPaidAmount,
+    this.totalUnlinkedPayouts = 0.0,
     required this.outstandingSettlement,
     this.totalMaterialOutwardCost = 0.0,
     this.totalDirectVendorPayments = 0.0,
@@ -306,7 +353,9 @@ class VendorFinancialSummary {
     required this.siteDetails,
   });
 
-  /// Factory calculator that computes dynamic summary from site assignments, materials, and payouts
+  /// Factory calculator that computes dynamic summary from site assignments,
+  /// materials, payouts, customer payments, material outwards, GST recoveries,
+  /// and direct account ledger entries through one central standard engine.
   factory VendorFinancialSummary.compute({
     required String vendorId,
     required String vendorCode,
@@ -314,121 +363,181 @@ class VendorFinancialSummary {
     required List<VendorSiteAssignment> assignments,
     required List<VendorMaterialTransaction> allMaterials,
     required List<VendorPayout> allPayouts,
+    List<VendorCustomerPayment> customerPayments = const [],
+    List<VendorGstRecovery> gstRecoveries = const [],
+    List<SubVendorMaterialOutward> materialOutwards = const [],
+    List<SubVendorAccountLedgerEntry> accountLedgerEntries = const [],
     double extraMaterialOutwardCost = 0.0,
     double extraDirectVendorPayments = 0.0,
     double extraDirectAdvancesGiven = 0.0,
     double extraDirectAdvanceRefunds = 0.0,
   }) {
+    final activeAssignments = assignments
+        .where((a) => a.status.trim().toLowerCase() != 'cancelled')
+        .toList();
+    final activeAssignmentIds = activeAssignments.map((a) => a.id).toSet();
+
+    // Derive central extras via unified engine if raw lists were passed directly
+    final bool hasPrecomputedExtras = extraMaterialOutwardCost > 0 ||
+        extraDirectVendorPayments > 0 ||
+        extraDirectAdvancesGiven > 0 ||
+        extraDirectAdvanceRefunds > 0;
+    double resolvedOutwardCost = extraMaterialOutwardCost;
+    double resolvedDirectPay = extraDirectVendorPayments;
+    double resolvedDirectAdv = extraDirectAdvancesGiven;
+    double resolvedDirectRef = extraDirectAdvanceRefunds;
+
+    if (!hasPrecomputedExtras &&
+        (materialOutwards.isNotEmpty || accountLedgerEntries.isNotEmpty)) {
+      final central = SubVendorFinancialEngine.extractCentralExtras(
+        vendorIdFilter: vendorId,
+        materialOutwards: materialOutwards,
+        accountLedgerEntries: accountLedgerEntries,
+        knownRawIds: {
+          ...assignments.map((a) => a.id),
+          ...allMaterials.map((m) => m.id),
+          ...allPayouts.map((p) => p.id),
+          ...customerPayments.map((c) => c.id),
+        },
+      );
+      resolvedOutwardCost = central.totalOutwardCost;
+      resolvedDirectPay = central.directVendorPayments;
+      resolvedDirectAdv = central.directAdvancesGiven;
+      resolvedDirectRef = central.directAdvanceRefunds;
+    }
+
+    final validPayouts = allPayouts
+        .where((p) =>
+            p.vendorId == vendorId && SubVendorFinancialEngine.isDisbursedPayout(p))
+        .toList();
+
     int completed = 0;
     int pending = 0;
-    double totKw = 0.0;
-    double totSiteAmt = 0.0;
-    double totRecvSiya = 0.0;
-    double totCash = 0.0;
-    double totLoanSanc = 0.0;
-    double totLoanCred = 0.0;
-    double totLoanPend = 0.0;
-    double totCustOut = 0.0;
-    double m5Tax = 0.0;
-    double m5Gst = 0.0;
-    double m18Tax = 0.0;
-    double m18Gst = 0.0;
-    double charges = 0.0;
-    double expenses = 0.0;
+    int kwP = 0, siteAmtP = 0, recvSiyaP = 0, cashP = 0, loanSancP = 0;
+    int loanCredP = 0, loanPendP = 0, custOutP = 0;
+    int m5TaxP = 0, m5GstP = 0, m18TaxP = 0, m18GstP = 0, mOtherTotP = 0;
+    int mEligibleItcP = 0, mTotalMatP = 0, mTaxableTotP = 0;
+    int chargesP = 0, expensesP = 0, netGstP = 0, gstRecovP = 0;
 
     final siteDetails = <SiteFinancialDetail>[];
 
-    for (final assignment in assignments) {
+    for (final assignment in activeAssignments) {
       if (assignment.isCompleted) {
         completed++;
       } else {
         pending++;
       }
 
-      totKw += assignment.siteCapacityKw;
-      totSiteAmt += assignment.effectiveSiteAmount;
-      totRecvSiya += assignment.effectiveReceivedAmount;
-      totCash += assignment.totalCashReceived;
-      totLoanSanc += assignment.loanSanctionedAmount;
-      totLoanCred += assignment.totalLoanCredited;
-      totLoanPend += assignment.loanPendingCredit;
-      totCustOut += assignment.effectiveCustomerOutstanding;
-
-      final siteMaterials = allMaterials.where((m) => m.assignmentId == assignment.id).toList();
-      final sitePayouts = allPayouts.where((p) {
+      final siteMaterials =
+          allMaterials.where((m) => m.assignmentId == assignment.id).toList();
+      final sitePayouts = validPayouts.where((p) {
         if (p.assignmentId == assignment.id) return true;
-        if (p.assignmentId == null && assignments.length == 1) return true;
+        if (p.assignmentId == null && activeAssignments.length == 1) return true;
         return false;
       }).toList();
+      final siteCp =
+          customerPayments.where((c) => c.assignmentId == assignment.id).toList();
+      final siteRecoveries =
+          gstRecoveries.where((r) => r.assignmentId == assignment.id).toList();
 
       final detail = SiteFinancialDetail.compute(
         assignment: assignment,
         materials: siteMaterials,
         payouts: sitePayouts,
+        gstRecoveries: siteRecoveries,
+        customerPayments: siteCp,
+        includeUnlinkedPayouts: activeAssignments.length == 1,
       );
 
-      m5Tax += detail.material5Taxable;
-      m5Gst += detail.material5Gst;
-      m18Tax += detail.material18Taxable;
-      m18Gst += detail.material18Gst;
-      charges += detail.vendorCharges;
-      expenses += detail.otherExpenses;
+      kwP += SubVendorFinancialEngine.toPaise(assignment.siteCapacityKw);
+      siteAmtP += SubVendorFinancialEngine.toPaise(detail.totalSiteAmount);
+      recvSiyaP += SubVendorFinancialEngine.toPaise(detail.effectiveCollection);
+      cashP += SubVendorFinancialEngine.toPaise(detail.cashReceived);
+      loanSancP += SubVendorFinancialEngine.toPaise(detail.loanSanctioned);
+      loanCredP += SubVendorFinancialEngine.toPaise(detail.loanCredited);
+      loanPendP += SubVendorFinancialEngine.toPaise(detail.loanPendingCredit);
+      custOutP += SubVendorFinancialEngine.toPaise(detail.customerOutstanding);
+
+      m5TaxP += SubVendorFinancialEngine.toPaise(detail.material5Taxable);
+      m5GstP += SubVendorFinancialEngine.toPaise(detail.material5Gst);
+      m18TaxP += SubVendorFinancialEngine.toPaise(detail.material18Taxable);
+      m18GstP += SubVendorFinancialEngine.toPaise(detail.material18Gst);
+      mOtherTotP += SubVendorFinancialEngine.toPaise(detail.materialOtherTotal);
+      mTaxableTotP += SubVendorFinancialEngine.toPaise(detail.totalMaterialTaxable);
+      mEligibleItcP += SubVendorFinancialEngine.toPaise(detail.totalEligibleInputGst);
+      mTotalMatP += SubVendorFinancialEngine.toPaise(detail.totalMaterialCost);
+
+      chargesP += SubVendorFinancialEngine.toPaise(detail.vendorCharges);
+      expensesP += SubVendorFinancialEngine.toPaise(detail.otherExpenses);
+      netGstP += SubVendorFinancialEngine.toPaise(detail.netGstLiability);
+      gstRecovP += SubVendorFinancialEngine.toPaise(detail.approvedGstRecovery);
 
       siteDetails.add(detail);
     }
 
-    final m5Tot = m5Tax + m5Gst;
-    final m18Tot = m18Tax + m18Gst;
-    final totMatTaxable = m5Tax + m18Tax;
-    final totInputGst = m5Gst + m18Gst;
-    final totMatCost = m5Tot + m18Tot;
-    final totNetGst = siteDetails.fold<double>(0.0, (acc, d) => acc + d.netGstLiability);
-
-    final settlement = charges + expenses;
-
-    // Total payouts across all sites for this vendor
-    double totalPaid = 0.0;
-    for (final p in allPayouts) {
-      totalPaid += p.amount;
+    // Include any vendor-level GST recoveries referencing cancelled/other sites if approved
+    for (final r in gstRecoveries) {
+      if (r.vendorId == vendorId &&
+          (r.isApproved || r.isCollected) &&
+          !activeAssignmentIds.contains(r.assignmentId)) {
+        gstRecovP += SubVendorFinancialEngine.toPaise(r.totalRecovery);
+      }
     }
 
-    final outstanding = settlement - totalPaid;
+    int totalPaidP = 0;
+    int unlinkedPaidP = 0;
+    for (final p in validPayouts) {
+      final pPaise = SubVendorFinancialEngine.toPaise(p.amount);
+      totalPaidP += pPaise;
+      if (p.assignmentId == null ||
+          (activeAssignments.length > 1 && !activeAssignmentIds.contains(p.assignmentId))) {
+        unlinkedPaidP += pPaise;
+      } else if (activeAssignments.isEmpty) {
+        unlinkedPaidP += pPaise;
+      }
+    }
+
+    final settlementP = chargesP + expensesP;
+    final outstandingP = settlementP - totalPaidP;
 
     return VendorFinancialSummary(
       vendorId: vendorId,
       vendorCode: vendorCode,
       vendorName: vendorName,
-      totalAssignedSites: assignments.length,
+      totalAssignedSites: activeAssignments.length,
       completedSites: completed,
       pendingSites: pending,
-      totalCapacityKw: double.parse(totKw.toStringAsFixed(2)),
-      totalSiteAmount: double.parse(totSiteAmt.toStringAsFixed(2)),
-      totalReceivedBySiya: double.parse(totRecvSiya.toStringAsFixed(2)),
-      totalCashReceived: double.parse(totCash.toStringAsFixed(2)),
-      totalLoanSanctioned: double.parse(totLoanSanc.toStringAsFixed(2)),
-      totalLoanCredited: double.parse(totLoanCred.toStringAsFixed(2)),
-      totalLoanPendingCredit: double.parse(totLoanPend.toStringAsFixed(2)),
-      totalCustomerCollection: double.parse(totRecvSiya.toStringAsFixed(2)),
-      totalCustomerOutstanding: double.parse(totCustOut.toStringAsFixed(2)),
-      material5Taxable: double.parse(m5Tax.toStringAsFixed(2)),
-      material5Gst: double.parse(m5Gst.toStringAsFixed(2)),
-      material5Total: double.parse(m5Tot.toStringAsFixed(2)),
-      material18Taxable: double.parse(m18Tax.toStringAsFixed(2)),
-      material18Gst: double.parse(m18Gst.toStringAsFixed(2)),
-      material18Total: double.parse(m18Tot.toStringAsFixed(2)),
-      totalMaterialTaxable: double.parse(totMatTaxable.toStringAsFixed(2)),
-      totalEligibleInputGst: double.parse(totInputGst.toStringAsFixed(2)),
-      totalMaterialCost: double.parse(totMatCost.toStringAsFixed(2)),
-      totalNetGstLiability: double.parse(totNetGst.toStringAsFixed(2)),
-      totalVendorCharges: double.parse(charges.toStringAsFixed(2)),
-      totalOtherExpenses: double.parse(expenses.toStringAsFixed(2)),
-      totalSettlementAmount: double.parse(settlement.toStringAsFixed(2)),
-      totalPaidAmount: double.parse(totalPaid.toStringAsFixed(2)),
-      outstandingSettlement: double.parse(outstanding.toStringAsFixed(2)),
-      totalMaterialOutwardCost: double.parse(extraMaterialOutwardCost.toStringAsFixed(2)),
-      totalDirectVendorPayments: double.parse(extraDirectVendorPayments.toStringAsFixed(2)),
-      totalDirectAdvancesGiven: double.parse(extraDirectAdvancesGiven.toStringAsFixed(2)),
-      totalDirectAdvanceRefunds: double.parse(extraDirectAdvanceRefunds.toStringAsFixed(2)),
+      totalCapacityKw: SubVendorFinancialEngine.fromPaise(kwP),
+      totalSiteAmount: SubVendorFinancialEngine.fromPaise(siteAmtP),
+      totalReceivedBySiya: SubVendorFinancialEngine.fromPaise(recvSiyaP),
+      totalCashReceived: SubVendorFinancialEngine.fromPaise(cashP),
+      totalLoanSanctioned: SubVendorFinancialEngine.fromPaise(loanSancP),
+      totalLoanCredited: SubVendorFinancialEngine.fromPaise(loanCredP),
+      totalLoanPendingCredit: SubVendorFinancialEngine.fromPaise(loanPendP),
+      totalCustomerCollection: SubVendorFinancialEngine.fromPaise(recvSiyaP),
+      totalCustomerOutstanding: SubVendorFinancialEngine.fromPaise(custOutP),
+      material5Taxable: SubVendorFinancialEngine.fromPaise(m5TaxP),
+      material5Gst: SubVendorFinancialEngine.fromPaise(m5GstP),
+      material5Total: SubVendorFinancialEngine.fromPaise(m5TaxP + m5GstP),
+      material18Taxable: SubVendorFinancialEngine.fromPaise(m18TaxP),
+      material18Gst: SubVendorFinancialEngine.fromPaise(m18GstP),
+      material18Total: SubVendorFinancialEngine.fromPaise(m18TaxP + m18GstP),
+      materialOtherTotal: SubVendorFinancialEngine.fromPaise(mOtherTotP),
+      totalMaterialTaxable: SubVendorFinancialEngine.fromPaise(mTaxableTotP),
+      totalEligibleInputGst: SubVendorFinancialEngine.fromPaise(mEligibleItcP),
+      totalMaterialCost: SubVendorFinancialEngine.fromPaise(mTotalMatP),
+      totalNetGstLiability: SubVendorFinancialEngine.fromPaise(netGstP),
+      totalApprovedGstRecovery: SubVendorFinancialEngine.fromPaise(gstRecovP),
+      totalVendorCharges: SubVendorFinancialEngine.fromPaise(chargesP),
+      totalOtherExpenses: SubVendorFinancialEngine.fromPaise(expensesP),
+      totalSettlementAmount: SubVendorFinancialEngine.fromPaise(settlementP),
+      totalPaidAmount: SubVendorFinancialEngine.fromPaise(totalPaidP),
+      totalUnlinkedPayouts: SubVendorFinancialEngine.fromPaise(unlinkedPaidP),
+      outstandingSettlement: SubVendorFinancialEngine.fromPaise(outstandingP),
+      totalMaterialOutwardCost: SubVendorFinancialEngine.round2(resolvedOutwardCost),
+      totalDirectVendorPayments: SubVendorFinancialEngine.round2(resolvedDirectPay),
+      totalDirectAdvancesGiven: SubVendorFinancialEngine.round2(resolvedDirectAdv),
+      totalDirectAdvanceRefunds: SubVendorFinancialEngine.round2(resolvedDirectRef),
       siteDetails: siteDetails,
     );
   }

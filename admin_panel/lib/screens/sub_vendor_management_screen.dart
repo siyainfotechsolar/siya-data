@@ -38,6 +38,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   List<SubVendorAccountLedgerEntry> _allLedgerEntries = [];
   List<VendorPayout> _allPayouts = [];
   List<VendorCustomerPayment> _allCustomerPayments = [];
+  List<VendorGstRecovery> _allGstRecoveries = [];
   Map<String, Map<String, double>> _vendorCentralExtras = {};
 
   bool _isLoading = true;
@@ -107,6 +108,13 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
         debugPrint('All account ledger fetch: $e');
       }
 
+      List<VendorGstRecovery> gstRecoveries = [];
+      try {
+        gstRecoveries = await SubVendorService.fetchAllVendorGstRecoveries();
+      } catch (e) {
+        debugPrint('All vendor GST recoveries fetch: $e');
+      }
+
       Map<String, Map<String, double>> centralExtras = {};
       try {
         centralExtras = await SubVendorService.fetchAllVendorCentralLedgerExtras(
@@ -130,6 +138,7 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
           _allLedgerEntries = ledgerEntries;
           _allPayouts = payouts;
           _allCustomerPayments = customerPayments;
+          _allGstRecoveries = gstRecoveries;
           _vendorCentralExtras = centralExtras;
           _errorMessage = null;
           _isLoading = false;
@@ -590,24 +599,58 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                                 ),
                                 const Divider(height: 20),
 
-                                // 6 Aggregated Metrics Row (Live Aggregation)
-                                Wrap(
-                                  spacing: 16,
-                                  runSpacing: 8,
-                                  children: [
-                                    _buildVendorCardKpi('Total Sites', '$totalSites Sites', Icons.layers, const Color(0xFF0D2B6F)),
-                                    _buildVendorCardKpi('Installed Capacity', '${totalKw.toStringAsFixed(1)} kW', Icons.solar_power, const Color(0xFF0284C7)),
-                                    _buildVendorCardKpi('Total Quotation', _currency.format(totalQuotation), Icons.receipt, const Color(0xFF1E3A8A)),
-                                    _buildVendorCardKpi('Total Received', _currency.format(totalReceivable), Icons.payments, const Color(0xFF0D9488)),
-                                    _buildVendorCardKpi('Loan Credited', _currency.format(totalLoanCredited), Icons.account_balance, const Color(0xFF047857)),
-                                    _buildVendorCardKpi(
-                                      'Pending Amount',
-                                      _currency.format(totalPending),
-                                      Icons.hourglass_bottom,
-                                      totalPending > 0 ? const Color(0xFFD97706) : Colors.grey,
-                                    ),
-                                  ],
-                                ),
+                                // 6+ Aggregated Metrics Row (Canonical Live Aggregation)
+                                () {
+                                  final vendorMaterials = _allMaterials.where((m) => m.vendorId == v.id).toList();
+                                  final vendorPayouts = _allPayouts.where((p) => p.vendorId == v.id).toList();
+                                  final vendorPayments = _allCustomerPayments.where((c) => c.vendorId == v.id).toList();
+                                  final vendorRecoveries = _allGstRecoveries.where((g) => g.vendorId == v.id).toList();
+                                  final extras = _vendorCentralExtras[v.id] ?? const <String, double>{};
+                                  final cardSummary = VendorFinancialSummary.compute(
+                                    vendorId: v.id,
+                                    vendorCode: v.vendorCode,
+                                    vendorName: v.name,
+                                    assignments: vendorAssignments,
+                                    allMaterials: vendorMaterials,
+                                    allPayouts: vendorPayouts,
+                                    customerPayments: vendorPayments,
+                                    gstRecoveries: vendorRecoveries,
+                                    extraMaterialOutwardCost: extras['materialOutwardCost'] ?? 0.0,
+                                    extraDirectVendorPayments: extras['directVendorPayments'] ?? 0.0,
+                                    extraDirectAdvancesGiven: extras['directAdvancesGiven'] ?? 0.0,
+                                    extraDirectAdvanceRefunds: extras['directAdvanceRefunds'] ?? 0.0,
+                                  );
+                                  final isPayable = cardSummary.netSettlementPayable >= 0;
+                                  return Wrap(
+                                    spacing: 16,
+                                    runSpacing: 8,
+                                    children: [
+                                      _buildVendorCardKpi('Total Sites', '$totalSites Sites', Icons.layers, const Color(0xFF0D2B6F)),
+                                      _buildVendorCardKpi('Installed Capacity', '${totalKw.toStringAsFixed(1)} kW', Icons.solar_power, const Color(0xFF0284C7)),
+                                      _buildVendorCardKpi('Total Quotation', _currency.format(totalQuotation), Icons.receipt, const Color(0xFF1E3A8A)),
+                                      _buildVendorCardKpi('Total Received', _currency.format(totalReceivable), Icons.payments, const Color(0xFF0D9488)),
+                                      _buildVendorCardKpi('Loan Credited', _currency.format(totalLoanCredited), Icons.account_balance, const Color(0xFF047857)),
+                                      _buildVendorCardKpi(
+                                        'Combined Material',
+                                        _currency.format(cardSummary.combinedMaterialCost),
+                                        Icons.inventory_2,
+                                        const Color(0xFF7C3AED),
+                                      ),
+                                      _buildVendorCardKpi(
+                                        'Pending Amount',
+                                        _currency.format(totalPending),
+                                        Icons.hourglass_bottom,
+                                        totalPending > 0 ? const Color(0xFFD97706) : Colors.grey,
+                                      ),
+                                      _buildVendorCardKpi(
+                                        isPayable ? 'Net Due (Cr)' : 'Recoverable (Dr)',
+                                        _currency.format(cardSummary.netSettlementPayable.abs()),
+                                        Icons.account_balance_wallet,
+                                        isPayable ? const Color(0xFF047857) : const Color(0xFFDC2626),
+                                      ),
+                                    ],
+                                  );
+                                }(),
                                 const SizedBox(height: 12),
 
                                 // Click to Open Complete Dashboard Banner Button
@@ -1871,6 +1914,8 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
         final vendorAssignments = _assignments.where((a) => a.vendorId == v.id).toList();
         final vendorMaterials = _allMaterials.where((m) => m.vendorId == v.id).toList();
         final vendorPayouts = _allPayouts.where((p) => p.vendorId == v.id).toList();
+        final vendorPayments = _allCustomerPayments.where((c) => c.vendorId == v.id).toList();
+        final vendorGstRecoveries = _allGstRecoveries.where((g) => g.vendorId == v.id).toList();
         final extras = _vendorCentralExtras[v.id] ?? const <String, double>{};
 
         final summary = VendorFinancialSummary.compute(
@@ -1880,6 +1925,8 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
           assignments: vendorAssignments,
           allMaterials: vendorMaterials,
           allPayouts: vendorPayouts,
+          customerPayments: vendorPayments,
+          gstRecoveries: vendorGstRecoveries,
           extraMaterialOutwardCost: extras['materialOutwardCost'] ?? 0.0,
           extraDirectVendorPayments: extras['directVendorPayments'] ?? 0.0,
           extraDirectAdvancesGiven: extras['directAdvancesGiven'] ?? 0.0,
@@ -1969,7 +2016,9 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                   ],
                 ),
                 const Divider(height: 16),
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     _sumBox('Sites', '${summary.totalAssignedSites} (${summary.completedSites} Done)'),
                     _sumBox('Capacity', '${summary.totalCapacityKw} kW'),
@@ -1977,9 +2026,21 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                     _sumBox('Material Cost', '- ${_currency.format(summary.combinedMaterialCost)}'),
                     if (summary.totalDirectVendorPayments > 0)
                       _sumBox('Direct Paid', '+ ${_currency.format(summary.totalDirectVendorPayments)}'),
+                    if (summary.totalDirectAdvanceRefunds > 0)
+                      _sumBox('Adv. Refund', '+ ${_currency.format(summary.totalDirectAdvanceRefunds)}'),
                     _sumBox('SIYA Fee', '- ${_currency.format(summary.totalVendorCharges)}'),
+                    if (summary.totalOtherExpenses > 0)
+                      _sumBox('Expenses', '- ${_currency.format(summary.totalOtherExpenses)}'),
                     _sumBox('Net GST', '- ${_currency.format(summary.totalNetGstLiability)}'),
-                    _sumBox('Net Due', _currency.format(summary.netSettlementPayable), isHighlight: true),
+                    if (summary.totalApprovedGstRecovery > 0)
+                      _sumBox('GST Recov', '- ${_currency.format(summary.totalApprovedGstRecovery)}'),
+                    if (summary.combinedPaidAndAdvances > 0)
+                      _sumBox('Paid / Adv', '- ${_currency.format(summary.combinedPaidAndAdvances)}'),
+                    _sumBox(
+                      summary.netSettlementPayable >= 0 ? 'Net Due (Cr)' : 'Recoverable (Dr)',
+                      _currency.format(summary.netSettlementPayable.abs()),
+                      isHighlight: true,
+                    ),
                   ],
                 ),
               ],

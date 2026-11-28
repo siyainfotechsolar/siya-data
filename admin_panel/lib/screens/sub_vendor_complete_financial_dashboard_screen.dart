@@ -434,99 +434,43 @@ class _SubVendorCompleteFinancialDashboardScreenState
     double netEntitlement,
     double finalBalance,
   }) _computeCentralSettlement() {
-    final s = _summary;
-    final effectiveCollection = _assignments.fold<double>(0.0, (acc, a) => acc + a.effectiveReceivedAmount);
-    final siteMaterialCost = _materials.fold<double>(0.0, (acc, m) => acc + m.signedTotal);
+    final s = _summary ??
+        VendorFinancialSummary.compute(
+          vendorId: widget.vendor.id,
+          vendorCode: widget.vendor.vendorCode,
+          vendorName: widget.vendor.name,
+          assignments: _assignments,
+          allMaterials: _materials,
+          allPayouts: _payouts,
+          customerPayments: _customerPayments,
+          gstRecoveries: _gstRecoveries,
+          materialOutwards: _materialOutwards,
+          accountLedgerEntries: _accountLedgerEntries,
+        );
 
-    double outwardMaterialCost = _materialOutwards
-        .where((o) => o.status == 'Active')
-        .fold<double>(0.0, (acc, o) => acc + o.totalValue);
-
-    final knownRawIds = <String>{
-      ..._assignments.map((a) => a.id),
-      ..._materials.map((m) => m.id),
-      ..._payouts.map((p) => p.id),
-      ..._customerPayments.map((c) => c.id),
-      ..._materialOutwards.map((o) => o.id),
-    };
-    final knownOutwardNumbers = _materialOutwards
-        .where((o) => o.status == 'Active')
-        .map((o) => o.outwardNumber.trim().toUpperCase())
-        .toSet();
-
-    double directVendorPayments = 0.0;
-    double directAdvancesGiven = 0.0;
-    double directAdvanceRefunds = 0.0;
-
-    for (final le in _accountLedgerEntries) {
-      if (!le.isActive) continue;
-      if (le.id.startsWith('mo_') ||
-          le.id.startsWith('vmt_') ||
-          le.id.startsWith('cp_') ||
-          le.id.startsWith('cpt_') ||
-          le.id.startsWith('a_coll_') ||
-          le.id.startsWith('vp_')) {
-        continue;
-      }
-      if (le.referenceId != null && knownRawIds.contains(le.referenceId)) continue;
-      final tType = le.transactionType.toUpperCase();
-      if (tType == 'MATERIAL_OUTWARD' &&
-          knownOutwardNumbers.contains(le.referenceNumber.trim().toUpperCase())) {
-        continue;
-      }
-      if (tType == 'MATERIAL_PAYMENT') {
-        directVendorPayments += le.debitAmount > 0 ? le.debitAmount : le.creditAmount;
-      } else if (tType == 'ADVANCE_GIVEN') {
-        directAdvancesGiven += le.debitAmount > 0 ? le.debitAmount : le.creditAmount;
-      } else if (tType == 'ADVANCE_REFUND') {
-        directAdvanceRefunds += le.creditAmount > 0 ? le.creditAmount : le.debitAmount;
-      } else if (tType == 'MATERIAL_OUTWARD') {
-        outwardMaterialCost += le.creditAmount > 0 ? le.creditAmount : le.debitAmount;
-      }
-    }
-
-    final combinedMaterialCost = siteMaterialCost + outwardMaterialCost;
-    final vendorCharges = _assignments.fold<double>(0.0, (acc, a) => acc + a.vendorCharges);
-    final otherExpenses = _assignments.fold<double>(0.0, (acc, a) => acc + a.otherExpenses);
-    final totalCustomerOutputGst = _assignments.fold<double>(0.0, (acc, a) => acc + a.gstBreakdown.totalGstIncluded);
-    final totalEligibleItc = _materials.fold<double>(0.0, (acc, m) => acc + m.signedItcEligible);
-    final netGstLiability = (totalCustomerOutputGst - totalEligibleItc) > 0
-        ? (totalCustomerOutputGst - totalEligibleItc)
-        : 0.0;
-    final approvedGstRecovery = _gstRecoveries
-        .where((r) => r.isApproved || r.isCollected)
-        .fold<double>(0.0, (acc, r) => acc + r.totalRecovery);
-    final previousPayouts = s?.totalPaidAmount ?? _payouts.fold<double>(0.0, (acc, p) => acc + p.amount);
-    final totalAdvancesPaid = previousPayouts + directAdvancesGiven;
-
-    final netEntitlement = effectiveCollection +
-        directVendorPayments +
-        directAdvanceRefunds -
-        combinedMaterialCost -
-        vendorCharges -
-        otherExpenses -
-        netGstLiability -
-        approvedGstRecovery;
-    final finalBalance = netEntitlement - totalAdvancesPaid;
+    final double totalCustomerOutputGst = SubVendorFinancialEngine.sumPaise(
+      _assignments.where((a) => a.status.trim().toLowerCase() != 'cancelled'),
+      (a) => a.gstBreakdown.totalGstIncluded,
+    );
 
     return (
-      effectiveCollection: effectiveCollection,
-      siteMaterialCost: siteMaterialCost,
-      outwardMaterialCost: outwardMaterialCost,
-      combinedMaterialCost: combinedMaterialCost,
-      directVendorPayments: directVendorPayments,
-      directAdvancesGiven: directAdvancesGiven,
-      directAdvanceRefunds: directAdvanceRefunds,
-      vendorCharges: vendorCharges,
-      otherExpenses: otherExpenses,
+      effectiveCollection: s.effectiveTotalCollection,
+      siteMaterialCost: s.totalMaterialCost,
+      outwardMaterialCost: s.totalMaterialOutwardCost,
+      combinedMaterialCost: s.combinedMaterialCost,
+      directVendorPayments: s.totalDirectVendorPayments,
+      directAdvancesGiven: s.totalDirectAdvancesGiven,
+      directAdvanceRefunds: s.totalDirectAdvanceRefunds,
+      vendorCharges: s.totalVendorCharges,
+      otherExpenses: s.totalOtherExpenses,
       totalCustomerOutputGst: totalCustomerOutputGst,
-      totalEligibleItc: totalEligibleItc,
-      netGstLiability: netGstLiability,
-      approvedGstRecovery: approvedGstRecovery,
-      previousPayouts: previousPayouts,
-      totalAdvancesPaid: totalAdvancesPaid,
-      netEntitlement: netEntitlement,
-      finalBalance: finalBalance,
+      totalEligibleItc: s.totalEligibleInputGst,
+      netGstLiability: s.totalNetGstLiability,
+      approvedGstRecovery: s.totalApprovedGstRecovery,
+      previousPayouts: s.totalPaidAmount,
+      totalAdvancesPaid: s.combinedPaidAndAdvances,
+      netEntitlement: s.netVendorEntitlement,
+      finalBalance: s.netSettlementPayable,
     );
   }
 
@@ -577,25 +521,36 @@ class _SubVendorCompleteFinancialDashboardScreenState
         'Material Cost (₹)',
         'Vendor Charges (₹)',
         'Other Expenses (₹)',
+        'Statutory Net GST (₹)',
+        'Approved GST Recovery (₹)',
+        'Site Payouts Paid (₹)',
         'Net Site Balance (₹)',
       ],
-      for (final a in _assignments) ...[
+      for (final a in _assignments.where((x) => x.status.trim().toLowerCase() != 'cancelled')) ...[
         () {
-          final siteMats = _materials.where((m) => m.assignmentId == a.id).toList();
-          final mCost = siteMats.fold<double>(0.0, (sum, m) => sum + m.signedTotal);
-          final charges = a.vendorCharges;
-          final expenses = a.otherExpenses;
-          final siteRecv = a.totalCustomerReceived;
-          final netSite = siteRecv - mCost - charges - expenses;
+          final match = _summary?.siteDetails.where((d) => d.assignment.id == a.id);
+          final detail = (match != null && match.isNotEmpty)
+              ? match.first
+              : SiteFinancialDetail.compute(
+                  assignment: a,
+                  materials: _materials.where((m) => m.assignmentId == a.id).toList(),
+                  payouts: _payouts.where((p) => p.assignmentId == a.id && SubVendorFinancialEngine.isDisbursedPayout(p)).toList(),
+                  customerPayments: _customerPayments.where((c) => c.assignmentId == a.id).toList(),
+                  gstRecoveries: _gstRecoveries.where((g) => g.assignmentId == a.id).toList(),
+                  includeUnlinkedPayouts: _assignments.where((x) => x.status.trim().toLowerCase() != 'cancelled').length == 1,
+                );
           return [
             a.consumerNo ?? 'N/A',
             a.customerName ?? 'Site',
             a.siteCapacityKw,
-            siteRecv,
-            mCost,
-            charges,
-            expenses,
-            netSite,
+            detail.effectiveCollection,
+            detail.totalMaterialCost,
+            detail.vendorCharges,
+            detail.otherExpenses,
+            detail.netGstLiability,
+            detail.approvedGstRecovery,
+            detail.totalPaidToVendor,
+            detail.netSubVendorBalance,
           ];
         }(),
       ],
@@ -2833,11 +2788,14 @@ class _SubVendorCompleteFinancialDashboardScreenState
       ['SIYA INFOTECH & SOLAR ENERGY - SUB-VENDOR ACCOUNT LEDGER'],
       ['Vendor Name', widget.vendor.name, 'Vendor Code', widget.vendor.vendorCode],
       ['Statement Generated On', _dateFormat.format(DateTime.now())],
+      ['Opening Balance Brought Forward', ledger.openingBalance, ledger.openingBalance >= 0 ? 'Cr' : 'Dr'],
       ['Total Credits (Collections + Returns)', ledger.totalCredit],
       ['Total Debits (Materials + Fee + GST + Advances)', ledger.totalDebit],
       ['Closing Net Balance', ledger.closingBalance, ledger.isPayable ? 'Payable' : 'Recoverable'],
       [],
       ['#', 'Date', 'Voucher Type', 'Particulars', 'Site / CA No', 'Ref / UTR', 'Payment Mode', 'Debit (INR)', 'Credit (INR)', 'Running Balance (INR)'],
+      if (ledger.openingBalance != 0)
+        [0, '-', 'Opening Balance', 'Opening Balance Brought Forward', '-', 'OP-BAL', '-', 0.0, 0.0, ledger.openingBalance],
       for (int i = 0; i < ledger.entries.length; i++)
         [
           i + 1,
@@ -2860,6 +2818,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
 
   void _shareLedgerViaWhatsApp(SubVendorLedgerSummary ledger) async {
     final cleanMob = (widget.vendor.mobile ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+    final openInd = ledger.openingBalance >= 0 ? 'Cr' : 'Dr';
     final msg = '''🏛️ *SIYA SOLAR — VENDOR MASTER BANK PASSBOOK*
 ━━━━━━━━━━━━━━━━━━━━━━
 👤 *Account Holder:* ${widget.vendor.name} (${widget.vendor.vendorCode})
@@ -2868,7 +2827,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
 📅 *Statement Date:* ${_dateFormat.format(DateTime.now())}
 ━━━━━━━━━━━━━━━━━━━━━━
 💰 *BANK PASSBOOK ACCOUNT SUMMARY:*
-• Opening Balance: ₹0.00 Cr
+• Opening Balance: ${_currency.format(ledger.openingBalance.abs())} $openInd
 🟢 Total Deposits (जमा): ${_currency.format(ledger.totalCredit)} Cr
 🔴 Total Withdrawals (नावे): - ${_currency.format(ledger.totalDebit)} Dr
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -2876,7 +2835,7 @@ class _SubVendorCompleteFinancialDashboardScreenState
 👉 *${_currency.format(ledger.closingBalance.abs())} ${ledger.closingBalanceIndicator}*
 ${ledger.isPayable ? "(Final Payment Payable to Sub-Vendor)" : "(Amount Recoverable)"}
 ━━━━━━━━━━━━━━━━━━━━━━
-✅ _Statutory Solar 70:30 GST (₹7,339.88) & Bank Margin Exemption reconciled._
+✅ _Statutory Solar 70:30 Net GST (${_currency.format(_summary?.totalNetGstLiability ?? 0.0)}) & Bank Margin Exemption reconciled._
 📄 _Official Bank Statement generated by Siya Data Management Software._''';
 
     final uri = Uri.parse(cleanMob.isNotEmpty
@@ -3018,7 +2977,11 @@ ${ledger.isPayable ? "(Final Payment Payable to Sub-Vendor)" : "(Amount Recovera
               alignment: WrapAlignment.spaceBetween,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                _buildPassbookBalTile('OPENING BALANCE', '₹0.00 Cr', Colors.grey.shade700),
+                _buildPassbookBalTile(
+                  'OPENING BALANCE',
+                  '${_currency.format(ledger.openingBalance.abs())} ${ledger.openingBalance >= 0 ? "Cr" : "Dr"}',
+                  ledger.openingBalance >= 0 ? Colors.grey.shade700 : Colors.red.shade700,
+                ),
                 _buildPassbookBalTile('TOTAL DEPOSITS (CR - जमा)', _currency.format(ledger.totalCredit), const Color(0xFF047857)),
                 _buildPassbookBalTile('TOTAL WITHDRAWALS (DR - नावे)', '- ${_currency.format(ledger.totalDebit)}', const Color(0xFFDC2626)),
                 Container(

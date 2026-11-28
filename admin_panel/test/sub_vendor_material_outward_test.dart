@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:siya_shared/siya_shared.dart';
+import 'package:admin_panel/services/sub_vendor_account_ledger_service.dart';
 import 'package:admin_panel/services/sub_vendor_material_outward_service.dart';
 
 void main() {
@@ -9,6 +10,7 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     SubVendorMaterialOutwardService.resetInMemoryDataForTesting();
+    SubVendorAccountLedgerService.resetInMemoryDataForTesting();
   });
 
   group('SUB VENDOR MATERIAL OUTWARD TRACKING - 10 SCENARIO TEST SUITE', () {

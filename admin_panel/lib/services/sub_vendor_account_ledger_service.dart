@@ -30,14 +30,49 @@ class SubVendorAccountLedgerService {
   }) async {
     await _ensureLocalInitialized();
 
-    if (amount <= 0) {
+    final normalizedAmt = SubVendorFinancialEngine.round2(amount);
+    if (normalizedAmt <= 0) {
       throw ArgumentError('Transaction amount must be greater than zero.');
     }
 
     final String type = transactionType.toUpperCase();
     final String category = (type == 'MATERIAL_OUTWARD' || type == 'MATERIAL_PAYMENT') ? 'MATERIAL' : 'ADVANCE';
-    final double credit = (type == 'MATERIAL_PAYMENT' || type == 'ADVANCE_REFUND') ? amount : 0.0;
-    final double debit = (type == 'MATERIAL_OUTWARD' || type == 'ADVANCE_GIVEN') ? amount : 0.0;
+    final double credit = (type == 'MATERIAL_PAYMENT' || type == 'ADVANCE_REFUND') ? normalizedAmt : 0.0;
+    final double debit = (type == 'MATERIAL_OUTWARD' || type == 'ADVANCE_GIVEN') ? normalizedAmt : 0.0;
+    final String cleanRef = referenceNumber.trim().isEmpty ? '-' : referenceNumber.trim();
+    final DateTime normDate = SubVendorFinancialEngine.normalizeDate(transactionDate);
+
+    // Duplicate payment / reference prevention on active non-placeholder references
+    if (cleanRef != '-' && cleanRef.toUpperCase() != 'N/A') {
+      final localDup = _inMemoryLedger.any((e) =>
+          e.isActive &&
+          e.vendorId == vendorId &&
+          e.transactionType.toUpperCase() == type &&
+          e.referenceNumber.trim().toUpperCase() == cleanRef.toUpperCase() &&
+          (referenceId == null || e.referenceId != referenceId));
+      if (localDup) {
+        throw Exception('Duplicate reference / UTR "$cleanRef" already exists in active ledger for this Sub-Vendor.');
+      }
+
+      try {
+        final client = SupabaseService.client;
+        final existingRemote = await client
+            .from(_ledgerTable)
+            .select('id, reference_id')
+            .eq('vendor_id', vendorId)
+            .eq('transaction_type', type)
+            .eq('status', 'Active')
+            .ilike('reference_number', cleanRef);
+        final list = existingRemote as List<dynamic>;
+        if (list.isNotEmpty) {
+          throw Exception('Duplicate reference / UTR "$cleanRef" already exists in active ledger for this Sub-Vendor.');
+        }
+      } catch (dupCheckErr) {
+        if (dupCheckErr.toString().contains('Duplicate reference')) {
+          rethrow;
+        }
+      }
+    }
 
     // Try Supabase RPC first
     try {
@@ -46,10 +81,10 @@ class SubVendorAccountLedgerService {
 
       final rpcRes = await client.rpc('record_sub_vendor_ledger_entry', params: {
         'p_vendor_id': vendorId,
-        'p_transaction_date': transactionDate.toIso8601String().split('T').first,
+        'p_transaction_date': normDate.toIso8601String().split('T').first,
         'p_transaction_type': type,
-        'p_amount': amount,
-        'p_reference_number': referenceNumber,
+        'p_amount': normalizedAmt,
+        'p_reference_number': cleanRef,
         'p_payment_mode': paymentMode,
         'p_particulars': particulars,
         'p_remarks': remarks,
@@ -63,13 +98,13 @@ class SubVendorAccountLedgerService {
           id: entryId,
           vendorId: vendorId,
           vendorName: vendorName,
-          transactionDate: transactionDate,
+          transactionDate: normDate,
           transactionType: type,
           category: category,
           creditAmount: credit,
           debitAmount: debit,
           runningBalance: 0.0,
-          referenceNumber: referenceNumber,
+          referenceNumber: cleanRef,
           referenceId: referenceId,
           paymentMode: paymentMode,
           particulars: particulars,
@@ -93,13 +128,13 @@ class SubVendorAccountLedgerService {
       id: entryId,
       vendorId: vendorId,
       vendorName: vendorName,
-      transactionDate: transactionDate,
+      transactionDate: normDate,
       transactionType: type,
       category: category,
       creditAmount: credit,
       debitAmount: debit,
       runningBalance: 0.0,
-      referenceNumber: referenceNumber,
+      referenceNumber: cleanRef,
       referenceId: referenceId,
       paymentMode: paymentMode,
       particulars: particulars,
@@ -134,60 +169,161 @@ class SubVendorAccountLedgerService {
 
     if (totalOutwardValue <= 0) return;
 
+    final normalizedAmt = SubVendorFinancialEngine.round2(totalOutwardValue);
+    final normDate = SubVendorFinancialEngine.normalizeDate(outwardDate);
     final particulars = 'Material Outward Dispatch ($totalItems items, Qty: ${totalQuantity.toStringAsFixed(1)})';
 
-    // If update, check existing ledger entry for this outward
-    final existingIdx = _inMemoryLedger.indexWhere((e) => e.referenceId == outwardId || e.referenceNumber == outwardNumber);
+    if (isUpdate) {
+      // Update any existing mirrored rows in Supabase sub_vendor_account_ledger
+      try {
+        final client = SupabaseService.client;
+        final uuidRegex = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+        final updatePayload = {
+          'vendor_id': vendorId,
+          'vendor_name': vendorName,
+          'transaction_date': normDate.toIso8601String().split('T').first,
+          'category': 'MATERIAL',
+          'credit_amount': 0.0,
+          'debit_amount': normalizedAmt,
+          'particulars': particulars,
+          if (remarks != null) 'remarks': remarks,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        };
+        if (uuidRegex.hasMatch(outwardId)) {
+          await client
+              .from(_ledgerTable)
+              .update(updatePayload)
+              .eq('reference_id', outwardId);
+        } else {
+          await client
+              .from(_ledgerTable)
+              .update(updatePayload)
+              .eq('transaction_type', 'MATERIAL_OUTWARD')
+              .eq('reference_number', outwardNumber);
+        }
+        await client.rpc('recalculate_sub_vendor_ledger_balances', params: {'p_vendor_id': vendorId});
+      } catch (e) {
+        debugPrint('Notice: Supabase mirrored outward update skipped/unavailable ($e).');
+      }
+    }
+
+    // Update existing local ledger cache entry if present
+    final existingIdx = _inMemoryLedger.indexWhere((e) =>
+        e.id == 'mo_$outwardId' ||
+        e.referenceId == outwardId ||
+        (e.transactionType.toUpperCase() == 'MATERIAL_OUTWARD' &&
+            e.referenceNumber.trim().toUpperCase() == outwardNumber.trim().toUpperCase()));
     if (existingIdx >= 0 && isUpdate) {
       final existing = _inMemoryLedger[existingIdx];
       _inMemoryLedger[existingIdx] = existing.copyWith(
         vendorId: vendorId,
         vendorName: vendorName,
-        transactionDate: outwardDate,
+        transactionDate: normDate,
         creditAmount: 0.0,
-        debitAmount: totalOutwardValue,
+        debitAmount: normalizedAmt,
         particulars: particulars,
         remarks: remarks,
         updatedAt: DateTime.now(),
       );
       _recalculateLocalRunningBalances(vendorId);
+      if (existing.vendorId != vendorId) {
+        _recalculateLocalRunningBalances(existing.vendorId);
+      }
       await _saveLedgerToCache(_inMemoryLedger);
       return;
     }
 
-    // Otherwise record new entry
-    await recordTransaction(
-      vendorId: vendorId,
-      vendorName: vendorName,
-      transactionDate: outwardDate,
-      transactionType: 'MATERIAL_OUTWARD',
-      amount: totalOutwardValue,
-      referenceNumber: outwardNumber,
-      referenceId: outwardId,
-      paymentMode: 'Inventory',
-      particulars: particulars,
-      remarks: remarks,
-    );
+    // In offline/test mode (or when no mirrored row existed on update without remote outward)
+    if (!isUpdate) {
+      await recordTransaction(
+        vendorId: vendorId,
+        vendorName: vendorName,
+        transactionDate: normDate,
+        transactionType: 'MATERIAL_OUTWARD',
+        amount: normalizedAmt,
+        referenceNumber: outwardNumber,
+        referenceId: outwardId,
+        paymentMode: 'Inventory',
+        particulars: particulars,
+        remarks: remarks,
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------
   // 3. CANCEL TRANSACTION OR CANCEL BY OUTWARD REFERENCE ID
   // ---------------------------------------------------------------------------
-  static Future<void> cancelLedgerEntryByReferenceId(String referenceId, {String reason = 'Outward Cancelled'}) async {
+  static Future<void> cancelLedgerEntryByReferenceId(
+    String referenceId, {
+    String? outwardNumber,
+    String reason = 'Outward Cancelled',
+  }) async {
     await _ensureLocalInitialized();
 
-    final idx = _inMemoryLedger.indexWhere((e) => e.referenceId == referenceId);
-    if (idx >= 0) {
-      final existing = _inMemoryLedger[idx];
-      _inMemoryLedger[idx] = existing.copyWith(
-        status: 'Cancelled',
-        cancelledAt: DateTime.now(),
-        cancellationReason: reason,
-        updatedAt: DateTime.now(),
-      );
-      _recalculateLocalRunningBalances(existing.vendorId);
-      await _saveLedgerToCache(_inMemoryLedger);
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final affectedVendors = <String>{};
+
+    // Update any mirrored Supabase ledger entries so cancelled outwards never remain Active
+    try {
+      final client = SupabaseService.client;
+      final uuidRegex = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+      final cancelPayload = {
+        'status': 'Cancelled',
+        'cancelled_at': nowIso,
+        'cancellation_reason': reason,
+        'updated_at': nowIso,
+      };
+      if (uuidRegex.hasMatch(referenceId)) {
+        final updatedRows = await client
+            .from(_ledgerTable)
+            .update(cancelPayload)
+            .eq('reference_id', referenceId)
+            .select('vendor_id');
+        for (final r in (updatedRows as List<dynamic>)) {
+          final vid = r['vendor_id'] as String?;
+          if (vid != null) affectedVendors.add(vid);
+        }
+      }
+      if (outwardNumber != null && outwardNumber.trim().isNotEmpty) {
+        final byRefNo = await client
+            .from(_ledgerTable)
+            .update(cancelPayload)
+            .eq('transaction_type', 'MATERIAL_OUTWARD')
+            .eq('reference_number', outwardNumber.trim())
+            .select('vendor_id');
+        for (final r in (byRefNo as List<dynamic>)) {
+          final vid = r['vendor_id'] as String?;
+          if (vid != null) affectedVendors.add(vid);
+        }
+      }
+      for (final vid in affectedVendors) {
+        await client.rpc('recalculate_sub_vendor_ledger_balances', params: {'p_vendor_id': vid});
+      }
+    } catch (e) {
+      debugPrint('Notice: Supabase mirrored outward cancellation ($e).');
     }
+
+    for (var idx = 0; idx < _inMemoryLedger.length; idx++) {
+      final existing = _inMemoryLedger[idx];
+      final matchesRefId = existing.referenceId == referenceId || existing.id == 'mo_$referenceId';
+      final matchesOutwardNo = outwardNumber != null &&
+          outwardNumber.trim().isNotEmpty &&
+          existing.transactionType.toUpperCase() == 'MATERIAL_OUTWARD' &&
+          existing.referenceNumber.trim().toUpperCase() == outwardNumber.trim().toUpperCase();
+      if (matchesRefId || matchesOutwardNo) {
+        _inMemoryLedger[idx] = existing.copyWith(
+          status: 'Cancelled',
+          cancelledAt: DateTime.now(),
+          cancellationReason: reason,
+          updatedAt: DateTime.now(),
+        );
+        affectedVendors.add(existing.vendorId);
+      }
+    }
+    for (final vid in affectedVendors) {
+      _recalculateLocalRunningBalances(vid);
+    }
+    await _saveLedgerToCache(_inMemoryLedger);
   }
 
   static Future<SubVendorAccountLedgerEntry> cancelTransaction(String entryId, {String reason = 'Cancelled by Admin'}) async {
@@ -201,6 +337,39 @@ class SubVendorAccountLedgerService {
     final existing = _inMemoryLedger[idx];
     if (existing.isCancelled) {
       throw StateError('Ledger entry is already cancelled.');
+    }
+
+    if (entryId.startsWith('mo_')) {
+      throw Exception('Material Outward entries (OUT-...) must be cancelled from the "Material Outward" tab so outward audit logs remain intact.');
+    } else if (entryId.startsWith('cpt_') || entryId.startsWith('a_coll_')) {
+      throw Exception('Auto-synced Customer / Loan entries cannot be cancelled directly from this manual ledger.');
+    }
+
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    try {
+      final client = SupabaseService.client;
+      if (entryId.startsWith('cp_')) {
+        await client.from('vendor_customer_payments').update({
+          'status': 'Rejected',
+          'remarks': '${existing.remarks ?? ""} [Cancelled: $reason]'.trim(),
+          'updated_at': nowIso,
+        }).eq('id', entryId.substring(3));
+      } else if (entryId.startsWith('vp_')) {
+        await client.from('vendor_payouts').update({
+          'status': 'Rejected',
+          'remarks': '${existing.remarks ?? ""} [Cancelled: $reason]'.trim(),
+        }).eq('id', entryId.substring(3));
+      } else if (!entryId.startsWith('vmt_')) {
+        await client.from(_ledgerTable).update({
+          'status': 'Cancelled',
+          'cancelled_at': nowIso,
+          'cancellation_reason': reason,
+          'updated_at': nowIso,
+        }).eq('id', entryId);
+        await client.rpc('recalculate_sub_vendor_ledger_balances', params: {'p_vendor_id': existing.vendorId});
+      }
+    } catch (e) {
+      debugPrint('Notice: Supabase cancel ledger entry ($e). Applying local soft cancellation.');
     }
 
     final cancelled = existing.copyWith(
@@ -900,74 +1069,41 @@ class SubVendorAccountLedgerService {
       }
     }
 
-    double totalCredit = 0.0;
-    double totalDebit = 0.0;
-    double totalMaterialOutwardValue = 0.0;
-    double totalMaterialPaymentsReceived = 0.0;
-    double totalAdvanceGiven = 0.0;
-    double totalAdvanceRefundReceived = 0.0;
+    final balances = SubVendorFinancialEngine.calculatePassbookBalances(
+      _inMemoryLedger,
+      fromDate: fromDate,
+      toDate: toDate,
+    );
 
-    for (final e in activeEntries) {
-      totalCredit += e.creditAmount;
-      totalDebit += e.debitAmount;
-
-      switch (e.transactionType.toUpperCase()) {
-        case 'MATERIAL_OUTWARD':
-          totalMaterialOutwardValue += e.debitAmount;
-          break;
-        case 'MATERIAL_PAYMENT':
-          totalMaterialPaymentsReceived += e.creditAmount;
-          break;
-        case 'ADVANCE_GIVEN':
-          totalAdvanceGiven += e.debitAmount;
-          break;
-        case 'ADVANCE_REFUND':
-          totalAdvanceRefundReceived += e.creditAmount;
-          break;
-      }
-    }
-
-    // Sub Vendor-wise Balances
+    // Sub Vendor-wise Balances (using same normalized central Passbook engine)
     final List<SubVendorAccountBalanceSummary> vendorBalances = [];
-    final Map<String, List<SubVendorAccountLedgerEntry>> vendorMap = {};
-
-    for (final e in activeEntries) {
-      vendorMap.putIfAbsent(e.vendorId, () => []).add(e);
-    }
 
     for (final v in vendors) {
-      final vEntries = vendorMap[v.id] ?? [];
-      double vCredit = 0.0;
-      double vDebit = 0.0;
-      double vMatOutward = 0.0;
-      double vMatPayment = 0.0;
-      double vAdvGiven = 0.0;
-      double vAdvRefund = 0.0;
+      final vActive = activeEntries.where((e) => e.vendorId == v.id).toList();
+      final vBal = SubVendorFinancialEngine.calculatePassbookBalances(
+        _inMemoryLedger,
+        vendorId: v.id,
+        fromDate: fromDate,
+        toDate: toDate,
+      );
       DateTime? lastDate;
-
-      for (final e in vEntries) {
-        vCredit += e.creditAmount;
-        vDebit += e.debitAmount;
-        if (lastDate == null || e.transactionDate.isAfter(lastDate)) {
-          lastDate = e.transactionDate;
+      for (final e in vActive) {
+        final d = SubVendorFinancialEngine.normalizeDate(e.transactionDate);
+        if (lastDate == null || d.isAfter(lastDate)) {
+          lastDate = d;
         }
-
-        if (e.transactionType == 'MATERIAL_OUTWARD') vMatOutward += e.debitAmount;
-        if (e.transactionType == 'MATERIAL_PAYMENT') vMatPayment += e.creditAmount;
-        if (e.transactionType == 'ADVANCE_GIVEN') vAdvGiven += e.debitAmount;
-        if (e.transactionType == 'ADVANCE_REFUND') vAdvRefund += e.creditAmount;
       }
 
       vendorBalances.add(SubVendorAccountBalanceSummary(
         vendorId: v.id,
         vendorName: v.name,
         vendorCode: v.vendorCode,
-        totalCredit: vCredit,
-        totalDebit: vDebit,
-        netBalance: vCredit - vDebit,
-        materialReceivable: vMatOutward - vMatPayment,
-        advanceBalance: vAdvGiven - vAdvRefund,
-        totalTransactions: vEntries.length,
+        totalCredit: vBal.totalCredit,
+        totalDebit: vBal.totalDebit,
+        netBalance: vBal.netBalance,
+        materialReceivable: vBal.materialReceivableBalance,
+        advanceBalance: vBal.advanceBalance,
+        totalTransactions: vActive.length,
         lastTransactionDate: lastDate,
       ));
     }
@@ -976,17 +1112,30 @@ class SubVendorAccountLedgerService {
     vendorBalances.sort((a, b) => b.netBalance.compareTo(a.netBalance));
 
     return SubVendorDashboardMetrics(
-      totalCredit: totalCredit,
-      totalDebit: totalDebit,
-      netBalance: totalCredit - totalDebit,
-      totalMaterialOutwardValue: totalMaterialOutwardValue,
-      totalMaterialPaymentsReceived: totalMaterialPaymentsReceived,
-      netMaterialReceivable: totalMaterialOutwardValue - totalMaterialPaymentsReceived,
-      totalAdvanceGiven: totalAdvanceGiven,
-      totalAdvanceRefundReceived: totalAdvanceRefundReceived,
-      netAdvanceBalance: totalAdvanceGiven - totalAdvanceRefundReceived,
+      totalCredit: balances.totalCredit,
+      totalDebit: balances.totalDebit,
+      netBalance: balances.netBalance,
+      totalMaterialOutwardValue: balances.totalMaterialOutward,
+      totalMaterialPaymentsReceived: balances.totalMaterialPaymentsReceived,
+      netMaterialReceivable: balances.materialReceivableBalance,
+      totalAdvanceGiven: balances.totalAdvanceGiven,
+      totalAdvanceRefundReceived: balances.totalAdvanceRefundReceived,
+      netAdvanceBalance: balances.advanceBalance,
       vendorBalances: vendorBalances,
     );
+  }
+
+  /// Calculates accurate Opening Balance strictly before `fromDate` for filtered statements.
+  static double calculateOpeningBalance({
+    String? vendorId,
+    DateTime? fromDate,
+  }) {
+    if (fromDate == null) return 0.0;
+    return SubVendorFinancialEngine.calculatePassbookBalances(
+      _inMemoryLedger,
+      vendorId: vendorId,
+      fromDate: fromDate,
+    ).openingBalance;
   }
 
   /// Alias for calculateDashboardMetrics
@@ -1033,21 +1182,32 @@ class SubVendorAccountLedgerService {
   // HELPER METHODS: RUNNING BALANCES & LOCAL STORAGE
   // ---------------------------------------------------------------------------
   static void _recalculateLocalRunningBalances(String vendorId) {
-    final vEntries = _inMemoryLedger.where((e) => e.vendorId == vendorId).toList()
+    final vEntries = _inMemoryLedger
+        .where((e) => e.vendorId == vendorId)
+        .map(SubVendorFinancialEngine.normalizeLedgerEntryPolarity)
+        .toList()
       ..sort((a, b) {
-        final dComp = a.transactionDate.compareTo(b.transactionDate);
+        final dComp = SubVendorFinancialEngine.normalizeDate(a.transactionDate)
+            .compareTo(SubVendorFinancialEngine.normalizeDate(b.transactionDate));
         if (dComp != 0) return dComp;
-        return (a.createdAt ?? DateTime.now()).compareTo(b.createdAt ?? DateTime.now());
+        final cA = a.createdAt ?? a.transactionDate;
+        final cB = b.createdAt ?? b.transactionDate;
+        final cComp = cA.compareTo(cB);
+        if (cComp != 0) return cComp;
+        return a.id.compareTo(b.id);
       });
 
-    double balance = 0.0;
+    int balancePaise = 0;
     for (final e in vEntries) {
       if (e.isActive) {
-        balance += (e.creditAmount - e.debitAmount);
+        balancePaise += SubVendorFinancialEngine.toPaise(e.creditAmount) -
+            SubVendorFinancialEngine.toPaise(e.debitAmount);
       }
       final globalIdx = _inMemoryLedger.indexWhere((item) => item.id == e.id);
       if (globalIdx >= 0) {
-        _inMemoryLedger[globalIdx] = _inMemoryLedger[globalIdx].copyWith(runningBalance: balance);
+        _inMemoryLedger[globalIdx] = e.copyWith(
+          runningBalance: SubVendorFinancialEngine.fromPaise(balancePaise),
+        );
       }
     }
   }
@@ -1075,15 +1235,12 @@ class SubVendorAccountLedgerService {
       if (typeFilter != null && typeFilter != 'All' && e.transactionType.toLowerCase() != typeFilter.toLowerCase()) {
         return false;
       }
-      if (fromDate != null) {
-        final d = DateTime(e.transactionDate.year, e.transactionDate.month, e.transactionDate.day);
-        final f = DateTime(fromDate.year, fromDate.month, fromDate.day);
-        if (d.isBefore(f)) return false;
-      }
-      if (toDate != null) {
-        final d = DateTime(e.transactionDate.year, e.transactionDate.month, e.transactionDate.day);
-        final t = DateTime(toDate.year, toDate.month, toDate.day);
-        if (d.isAfter(t)) return false;
+      if (!SubVendorFinancialEngine.isWithinDateRange(
+        e.transactionDate,
+        fromDate: fromDate,
+        toDate: toDate,
+      )) {
+        return false;
       }
       if (searchQuery != null && searchQuery.trim().isNotEmpty) {
         final q = searchQuery.trim().toLowerCase();
@@ -1095,9 +1252,14 @@ class SubVendorAccountLedgerService {
       return true;
     }).toList()
       ..sort((a, b) {
-        final dComp = b.transactionDate.compareTo(a.transactionDate);
+        final dComp = SubVendorFinancialEngine.normalizeDate(b.transactionDate)
+            .compareTo(SubVendorFinancialEngine.normalizeDate(a.transactionDate));
         if (dComp != 0) return dComp;
-        return (b.createdAt ?? DateTime.now()).compareTo(a.createdAt ?? DateTime.now());
+        final cA = a.createdAt ?? a.transactionDate;
+        final cB = b.createdAt ?? b.transactionDate;
+        final cComp = cB.compareTo(cA);
+        if (cComp != 0) return cComp;
+        return b.id.compareTo(a.id);
       });
   }
 

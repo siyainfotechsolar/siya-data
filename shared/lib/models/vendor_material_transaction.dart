@@ -1,3 +1,5 @@
+import '../services/sub_vendor_financial_engine.dart';
+
 /// Represents an actual material issue or return for a sub-vendor site.
 class VendorMaterialTransaction {
   final String id;
@@ -81,9 +83,9 @@ class VendorMaterialTransaction {
   }) {
     final effectiveGst = gstRate ??
         ((itemCategory == 'SOLAR_PANEL' || itemCategory == 'INVERTER') ? 5.0 : 18.0);
-    final taxable = double.parse((quantity * unitRate).toStringAsFixed(2));
-    final gst = double.parse((taxable * (effectiveGst / 100.0)).toStringAsFixed(2));
-    final total = double.parse((taxable + gst).toStringAsFixed(2));
+    final taxable = SubVendorFinancialEngine.round2(quantity * unitRate);
+    final gst = SubVendorFinancialEngine.round2(taxable * (effectiveGst / 100.0));
+    final total = SubVendorFinancialEngine.round2(taxable + gst);
 
     return VendorMaterialTransaction(
       id: '',

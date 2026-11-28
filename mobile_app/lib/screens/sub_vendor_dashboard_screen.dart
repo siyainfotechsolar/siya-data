@@ -374,7 +374,12 @@ class _SubVendorMobileDashboardScreenState extends State<SubVendorMobileDashboar
               const SizedBox(width: 4),
               _metricFinancial('Material Cost', _currency.format(s.combinedMaterialCost), const Color(0xFFDC2626), 'Site + Outward'),
               const SizedBox(width: 4),
-              _metricFinancial('Outstanding', _currency.format(s.outstandingSettlement), const Color(0xFF047857), 'Receivable'),
+              _metricFinancial(
+                s.netSettlementPayable >= 0 ? 'Net Payable' : 'Recoverable',
+                _currency.format(s.netSettlementPayable.abs()),
+                s.netSettlementPayable >= 0 ? const Color(0xFF047857) : const Color(0xFFDC2626),
+                s.netSettlementPayable >= 0 ? 'Payable' : 'Dr Due',
+              ),
             ],
           ),
         ],
@@ -1010,15 +1015,31 @@ class _SubVendorMobileDashboardScreenState extends State<SubVendorMobileDashboar
                 children: [
                   const Text('SETTLEMENT CALCULATION SUMMARY', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  _whiteRow('+ Total SIYA Vendor Charges', _currency.format(s.totalVendorCharges)),
-                  _whiteRow('- Dynamic Material Cost Deductions', _currency.format(s.combinedMaterialCost), isRed: true),
+                  _whiteRow('+ Customer Collections Realized', _currency.format(s.effectiveTotalCollection)),
+                  if (s.totalDirectVendorPayments > 0)
+                    _whiteRow('+ Direct Material Payments Paid', _currency.format(s.totalDirectVendorPayments)),
+                  if (s.totalDirectAdvanceRefunds > 0)
+                    _whiteRow('+ Advance / Deposit Refunds', _currency.format(s.totalDirectAdvanceRefunds)),
+                  _whiteRow('- Combined Material Cost (Site + Outward)', _currency.format(s.combinedMaterialCost), isRed: true),
+                  _whiteRow('- SIYA Vendor Charges (kW Basis)', _currency.format(s.totalVendorCharges), isRed: true),
                   if (s.totalOtherExpenses > 0)
-                    _whiteRow('+ Approved Other Expenses', _currency.format(s.totalOtherExpenses)),
+                    _whiteRow('- Approved Other Expenses', _currency.format(s.totalOtherExpenses), isRed: true),
+                  if (s.totalNetGstLiability > 0)
+                    _whiteRow('- Net Statutory GST Liability', _currency.format(s.totalNetGstLiability), isRed: true),
+                  if (s.totalApprovedGstRecovery > 0)
+                    _whiteRow('- Approved GST Recovery', _currency.format(s.totalApprovedGstRecovery), isRed: true),
                   const Divider(color: Colors.white24, height: 16),
-                  _whiteRow('= Net Settlement Payable', _currency.format(s.totalSettlementAmount), isBold: true),
-                  _whiteRow('- Total Paid / Disbursed', _currency.format(s.totalPaidAmount), isBold: true, isGreen: true),
+                  _whiteRow('= Net Vendor Entitlement', _currency.format(s.netVendorEntitlement), isBold: true),
+                  _whiteRow('- Disbursed Payouts & Advances Given', _currency.format(s.combinedPaidAndAdvances), isBold: true, isGreen: true),
                   const Divider(color: Colors.white24, height: 16),
-                  _whiteRow('OUTSTANDING BALANCE', _currency.format(s.outstandingSettlement), isBold: true, fontSize: 14),
+                  _whiteRow(
+                    s.netSettlementPayable >= 0
+                        ? 'NET SETTLEMENT PAYABLE'
+                        : 'RECOVERABLE FROM VENDOR',
+                    _currency.format(s.netSettlementPayable.abs()),
+                    isBold: true,
+                    fontSize: 14,
+                  ),
                 ],
               ),
             ),

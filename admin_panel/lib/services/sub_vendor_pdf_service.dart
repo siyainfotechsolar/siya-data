@@ -394,6 +394,13 @@ class SubVendorPdfService {
                       '- ${_currency.format(detail.netGstLiability)}',
                       valueColor: amberColor,
                     ),
+                    if (detail.approvedGstRecovery > 0)
+                      _settlementRow(
+                        'Less: Approved Contractual GST Recovery:',
+                        '- ${_currency.format(detail.approvedGstRecovery)}',
+                        isZebra: true,
+                        valueColor: amberColor,
+                      ),
                     if (detail.otherExpenses > 0)
                       _settlementRow(
                         'Less: Approved Other Expenses / Transportation:',
@@ -411,7 +418,14 @@ class SubVendorPdfService {
                             style: pw.TextStyle(fontSize: 8.2, fontWeight: pw.FontWeight.bold, color: navyColor),
                           ),
                           pw.Text(
-                            _currency.format(detail.effectiveCollection - detail.totalMaterialCost - detail.vendorCharges - detail.netGstLiability - detail.otherExpenses),
+                            _currency.format(
+                              detail.effectiveCollection -
+                                  detail.totalMaterialCost -
+                                  detail.vendorCharges -
+                                  detail.netGstLiability -
+                                  detail.approvedGstRecovery -
+                                  detail.otherExpenses,
+                            ),
                             style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: navyColor),
                           ),
                         ],
@@ -768,15 +782,23 @@ class SubVendorPdfService {
                       ],
                     ),
                     pw.Divider(color: borderDarkColor, thickness: 0.4, height: 6),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    pw.Wrap(
+                      spacing: 12,
+                      runSpacing: 6,
+                      alignment: pw.WrapAlignment.spaceBetween,
                       children: [
                         _subSummary('Total Realized Collections:', _currency.format(summary.effectiveTotalCollection)),
                         _subSummary('Material Cost:', '- ${_currency.format(summary.combinedMaterialCost)}'),
                         if (summary.totalDirectVendorPayments > 0)
                           _subSummary('Direct Paid:', '+ ${_currency.format(summary.totalDirectVendorPayments)}'),
+                        if (summary.totalDirectAdvanceRefunds > 0)
+                          _subSummary('Advance Refunds:', '+ ${_currency.format(summary.totalDirectAdvanceRefunds)}'),
                         _subSummary('SIYA Platform Fee:', '- ${_currency.format(summary.totalVendorCharges)}'),
+                        if (summary.totalOtherExpenses > 0)
+                          _subSummary('Other Expenses:', '- ${_currency.format(summary.totalOtherExpenses)}'),
                         _subSummary('Statutory Net GST:', '- ${_currency.format(summary.totalNetGstLiability)}'),
+                        if (summary.totalApprovedGstRecovery > 0)
+                          _subSummary('Approved GST Recovery:', '- ${_currency.format(summary.totalApprovedGstRecovery)}'),
                         _subSummary('Advances Paid:', '- ${_currency.format(summary.combinedPaidAndAdvances)}'),
                         _subSummary(
                           summary.netSettlementPayable >= 0 ? 'Net Sub-Vendor Due:' : 'Amount Recoverable:',

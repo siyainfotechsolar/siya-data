@@ -54,6 +54,14 @@ class SubVendorAccountLedgerPdfService {
             // Financial KPI Cards
             pw.Row(
               children: [
+                if (openingBalance != 0) ...[
+                  _buildKpiCard(
+                    'Opening Balance',
+                    '${_currency.format(openingBalance.abs())} ${openingBalance >= 0 ? "Cr" : "Dr"}',
+                    openingBalance >= 0 ? greenColor : redColor,
+                  ),
+                  pw.SizedBox(width: 8),
+                ],
                 _buildKpiCard('Total Credit (जमा)', _currency.format(totalCredit), greenColor),
                 pw.SizedBox(width: 8),
                 _buildKpiCard('Total Debit (नावे)', _currency.format(totalDebit), amberColor),
@@ -102,7 +110,7 @@ class SubVendorAccountLedgerPdfService {
                     _buildCell('-', align: pw.TextAlign.center),
                     _buildCell('-', align: pw.TextAlign.right),
                     _buildCell('-', align: pw.TextAlign.right),
-                    _buildCell(_currency.format(openingBalance), isHeader: true, align: pw.TextAlign.right),
+                    _buildCell('${_currency.format(openingBalance.abs())} ${openingBalance >= 0 ? "Cr" : "Dr"}', isHeader: true, align: pw.TextAlign.right),
                   ],
                 ),
                 // Transaction Rows
@@ -148,6 +156,7 @@ class SubVendorAccountLedgerPdfService {
   static Future<void> exportVendorLedgerCsv({
     required SubVendor vendor,
     required List<SubVendorAccountLedgerEntry> entries,
+    double openingBalance = 0.0,
     required double totalCredit,
     required double totalDebit,
     required double closingBalance,
@@ -157,7 +166,9 @@ class SubVendorAccountLedgerPdfService {
       ['Sub Vendor Name', vendor.name],
       ['Vendor Code', vendor.vendorCode],
       ['Mobile', vendor.mobile],
+      ['Opening Balance', '${openingBalance.abs().toStringAsFixed(2)} ${openingBalance >= 0 ? "Cr" : "Dr"}'],
       ['Date', 'Reference / Entry No', 'Particulars', 'Category', 'Payment Mode', 'Credit (Received / Deposited)', 'Debit (Material / Payout)', 'Running Balance', 'Status', 'Remarks'],
+      ['-', 'OP-BAL', 'Opening Balance Brought Forward', '-', '-', 0.0, 0.0, openingBalance, 'Active', ''],
     ];
 
     for (final e in entries) {
@@ -176,6 +187,7 @@ class SubVendorAccountLedgerPdfService {
     }
 
     rows.add([]);
+    rows.add(['OPENING BALANCE', openingBalance]);
     rows.add(['TOTAL CREDIT', totalCredit]);
     rows.add(['TOTAL DEBIT', totalDebit]);
     rows.add(['NET OUTSTANDING BALANCE', closingBalance]);

@@ -67,19 +67,17 @@ class _SubVendorDashboardScreenState extends State<SubVendorDashboardScreen>
 
       _vendor = v;
 
-      // 2. Load assignments, materials, payouts
-      final assignments = await SubVendorService.fetchAssignments(vendorId: v.id);
-      final materials = await SubVendorService.fetchVendorMaterials(v.id);
-      final payouts = await SubVendorService.fetchVendorPayouts(v.id);
-
-      final summary = VendorFinancialSummary.compute(
-        vendorId: v.id,
-        vendorCode: v.vendorCode,
-        vendorName: v.name,
-        assignments: assignments,
-        allMaterials: materials,
-        allPayouts: payouts,
-      );
+      // 2. Load assignments, materials, payouts & canonical centralized financial summary
+      final results = await Future.wait([
+        SubVendorService.fetchAssignments(vendorId: v.id),
+        SubVendorService.fetchVendorMaterials(v.id),
+        SubVendorService.fetchVendorPayouts(v.id),
+        SubVendorService.getVendorFinancialSummary(v.id),
+      ]);
+      final assignments = results[0] as List<VendorSiteAssignment>;
+      final materials = results[1] as List<VendorMaterialTransaction>;
+      final payouts = results[2] as List<VendorPayout>;
+      final summary = results[3] as VendorFinancialSummary;
 
       if (mounted) {
         setState(() {
@@ -334,9 +332,9 @@ class _SubVendorDashboardScreenState extends State<SubVendorDashboardScreen>
               _kpiCard('Total Capacity', '${s.totalCapacityKw} kW', 'Installed', Icons.bolt, const Color(0xFFF59E0B)),
               if (isWide) ...[
                 const SizedBox(width: 8),
-                _kpiCard('Net Material Cost', _currency.format(s.totalMaterialCost), 'Issues (-) Returns', Icons.inventory, Colors.blueGrey),
+                _kpiCard('Combined Material', _currency.format(s.combinedMaterialCost), 'Site + Outward', Icons.inventory, Colors.blueGrey),
                 const SizedBox(width: 8),
-                _kpiCard('Vendor Charges', _currency.format(s.totalVendorCharges), '₹1,000/kW basis', Icons.handshake, const Color(0xFF047857)),
+                _kpiCard('SIYA Charges & GST', _currency.format(s.totalVendorCharges + s.totalNetGstLiability + s.totalApprovedGstRecovery), 'Charges + Net GST', Icons.handshake, const Color(0xFF047857)),
               ],
             ],
           ),
@@ -344,13 +342,20 @@ class _SubVendorDashboardScreenState extends State<SubVendorDashboardScreen>
           Row(
             children: [
               if (!isWide) ...[
-                _kpiCard('Net Material Cost', _currency.format(s.totalMaterialCost), 'Issues (-) Returns', Icons.inventory, Colors.blueGrey),
+                _kpiCard('Combined Material', _currency.format(s.combinedMaterialCost), 'Site + Outward', Icons.inventory, Colors.blueGrey),
                 const SizedBox(width: 8),
-                _kpiCard('Vendor Charges', _currency.format(s.totalVendorCharges), '₹1,000/kW basis', Icons.handshake, const Color(0xFF047857)),
+                _kpiCard('SIYA Charges & GST', _currency.format(s.totalVendorCharges + s.totalNetGstLiability + s.totalApprovedGstRecovery), 'Charges + Net GST', Icons.handshake, const Color(0xFF047857)),
               ] else ...[
-                _kpiCard('Disbursed Payouts', _currency.format(s.totalPaidAmount), 'Paid to Vendor', Icons.check_circle, const Color(0xFF047857)),
+                _kpiCard('Paid & Advances', _currency.format(s.combinedPaidAndAdvances), 'Disbursed to Vendor', Icons.check_circle, const Color(0xFF047857)),
                 const SizedBox(width: 8),
-                _kpiCard('Outstanding Balance', _currency.format(s.outstandingSettlement), 'Remaining Due', Icons.account_balance_wallet, const Color(0xFF0D2B6F), isHighlight: true),
+                _kpiCard(
+                  s.netSettlementPayable >= 0 ? 'Net Payable Due' : 'Recoverable (Dr)',
+                  _currency.format(s.netSettlementPayable.abs()),
+                  s.netSettlementPayable >= 0 ? 'Receivable from SIYA' : 'Due to SIYA',
+                  Icons.account_balance_wallet,
+                  s.netSettlementPayable >= 0 ? const Color(0xFF0D2B6F) : Colors.red.shade700,
+                  isHighlight: true,
+                ),
               ],
             ],
           ),
@@ -358,9 +363,16 @@ class _SubVendorDashboardScreenState extends State<SubVendorDashboardScreen>
             const SizedBox(height: 8),
             Row(
               children: [
-                _kpiCard('Disbursed Payouts', _currency.format(s.totalPaidAmount), 'Paid to Vendor', Icons.check_circle, const Color(0xFF047857)),
+                _kpiCard('Paid & Advances', _currency.format(s.combinedPaidAndAdvances), 'Disbursed to Vendor', Icons.check_circle, const Color(0xFF047857)),
                 const SizedBox(width: 8),
-                _kpiCard('Outstanding Balance', _currency.format(s.outstandingSettlement), 'Remaining Due', Icons.account_balance_wallet, const Color(0xFF0D2B6F), isHighlight: true),
+                _kpiCard(
+                  s.netSettlementPayable >= 0 ? 'Net Payable Due' : 'Recoverable (Dr)',
+                  _currency.format(s.netSettlementPayable.abs()),
+                  s.netSettlementPayable >= 0 ? 'Receivable from SIYA' : 'Due to SIYA',
+                  Icons.account_balance_wallet,
+                  s.netSettlementPayable >= 0 ? const Color(0xFF0D2B6F) : Colors.red.shade700,
+                  isHighlight: true,
+                ),
               ],
             ),
           ],
@@ -540,7 +552,9 @@ class _SubVendorDashboardScreenState extends State<SubVendorDashboardScreen>
   // ============================================================================
 
   Widget _buildMaterialsTab() {
-    if (_materials.isEmpty) {
+    final s = _summary;
+    final hasOutwards = (s?.totalMaterialOutwardCost ?? 0) > 0;
+    if (_materials.isEmpty && !hasOutwards) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(40.0),
@@ -556,40 +570,83 @@ class _SubVendorDashboardScreenState extends State<SubVendorDashboardScreen>
       );
     }
 
-    return ListView.builder(
+    return ListView(
       padding: const EdgeInsets.all(16.0),
-      itemCount: _materials.length,
-      itemBuilder: (context, index) {
-        final m = _materials[index];
-        final isRet = m.isReturn;
-        return Card(
-          elevation: 0,
-          margin: const EdgeInsets.only(bottom: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: Colors.grey.shade300),
+      children: [
+        if (s != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                Text(
+                  'Site Materials: ${_currency.format(s.totalMaterialCost)}',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5, color: Color(0xFF0F172A)),
+                ),
+                Text(
+                  'Material Outwards: ${_currency.format(s.totalMaterialOutwardCost)}',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5, color: Color(0xFF7C3AED)),
+                ),
+                Text(
+                  'Combined Total: ${_currency.format(s.combinedMaterialCost)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF0D2B6F)),
+                ),
+              ],
+            ),
           ),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: isRet ? Colors.red.shade100 : Colors.green.shade100,
-              child: Icon(isRet ? Icons.arrow_downward : Icons.arrow_upward, color: isRet ? Colors.red : Colors.green, size: 18),
+        if (_materials.isEmpty && hasOutwards)
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: Colors.purple.shade200),
             ),
-            title: Text(m.itemName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            subtitle: Text(
-              '${m.quantity} ${m.unit} @ ${_currency.format(m.unitRate)} | GST: ${m.gstRate.toStringAsFixed(0)}% (Taxable: ${_currency.format(m.taxableAmount)}) | ${_dateFormat.format(m.transactionDate)}',
-              style: const TextStyle(fontSize: 11),
-            ),
-            trailing: Text(
-              '${isRet ? "-" : ""}${_currency.format(m.totalAmount)}',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: isRet ? Colors.red.shade700 : const Color(0xFF0D2B6F),
-                fontSize: 13,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'Direct warehouse Material Outwards totalling ${_currency.format(s!.totalMaterialOutwardCost)} are recorded in your account ledger. Open Complete Financial Dashboard for full itemised bills.',
+                style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155)),
               ),
             ),
           ),
-        );
-      },
+        ..._materials.map((m) {
+          final isRet = m.isReturn;
+          return Card(
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: Colors.grey.shade300),
+            ),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: isRet ? Colors.red.shade100 : Colors.green.shade100,
+                child: Icon(isRet ? Icons.arrow_downward : Icons.arrow_upward, color: isRet ? Colors.red : Colors.green, size: 18),
+              ),
+              title: Text(m.itemName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              subtitle: Text(
+                '${m.quantity} ${m.unit} @ ${_currency.format(m.unitRate)} | GST: ${m.gstRate.toStringAsFixed(0)}% (Taxable: ${_currency.format(m.taxableAmount)}) | ${_dateFormat.format(m.transactionDate)}',
+                style: const TextStyle(fontSize: 11),
+              ),
+              trailing: Text(
+                '${isRet ? "-" : ""}${_currency.format(m.totalAmount)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isRet ? Colors.red.shade700 : const Color(0xFF0D2B6F),
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 
