@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -21,7 +20,26 @@ final _dateFormat = DateFormat('dd-MM-yyyy');
 /// Sub-Vendor Management Screen — Master Admin control panel for all Sub-Vendor accounts,
 /// site assignments, dynamic material issue/return, payouts, and final settlement approvals.
 class SubVendorManagementScreen extends StatefulWidget {
-  const SubVendorManagementScreen({super.key});
+  final int initialTabIndex;
+  final List<SubVendor>? debugVendors;
+  final List<VendorSiteAssignment>? debugAssignments;
+  final List<VendorMaterialTransaction>? debugMaterials;
+  final List<VendorPayout>? debugPayouts;
+  final List<VendorCustomerPayment>? debugCustomerPayments;
+  final List<VendorGstRecovery>? debugGstRecoveries;
+  final Map<String, Map<String, double>>? debugCentralExtras;
+
+  const SubVendorManagementScreen({
+    super.key,
+    this.initialTabIndex = 0,
+    this.debugVendors,
+    this.debugAssignments,
+    this.debugMaterials,
+    this.debugPayouts,
+    this.debugCustomerPayments,
+    this.debugGstRecoveries,
+    this.debugCentralExtras,
+  });
 
   @override
   State<SubVendorManagementScreen> createState() => _SubVendorManagementScreenState();
@@ -54,8 +72,23 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 7, vsync: this);
-    _loadAllData();
+    _tabController = TabController(
+      length: 7,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 6),
+    );
+    if (widget.debugVendors != null) {
+      _vendors = widget.debugVendors!;
+      _assignments = widget.debugAssignments ?? [];
+      _allMaterials = widget.debugMaterials ?? [];
+      _allPayouts = widget.debugPayouts ?? [];
+      _allCustomerPayments = widget.debugCustomerPayments ?? [];
+      _allGstRecoveries = widget.debugGstRecoveries ?? [];
+      _vendorCentralExtras = widget.debugCentralExtras ?? {};
+      _isLoading = false;
+    } else {
+      _loadAllData();
+    }
   }
 
   @override
@@ -194,6 +227,9 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isCompactHeader = screenWidth < 960;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -202,10 +238,15 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Sub-Vendor & Financial Management', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(
+              'Sub-Vendor & Financial Management',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+            ),
             Text(
               'SIYA INFOTECH & SOLAR ENERGY — SUB-VENDOR OPERATIONS',
               style: TextStyle(fontSize: 9.5, color: Color(0xFFBAE6FD), letterSpacing: 0.5),
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -215,14 +256,14 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
             tooltip: 'Refresh All',
             onPressed: _loadAllData,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           ElevatedButton.icon(
             icon: const Icon(Icons.person_add, size: 16),
-            label: const Text('Add Sub-Vendor'),
+            label: Text(isCompactHeader ? 'Vendor' : 'Add Sub-Vendor'),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFF59E0B),
               foregroundColor: Colors.black87,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: EdgeInsets.symmetric(horizontal: isCompactHeader ? 10 : 14, vertical: 8),
             ),
             onPressed: () async {
               final created = await showDialog<bool>(
@@ -232,14 +273,14 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
               if (created == true) _loadAllData();
             },
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           ElevatedButton.icon(
             icon: const Icon(Icons.add_task, size: 16),
-            label: const Text('Assign Site'),
+            label: Text(isCompactHeader ? 'Assign' : 'Assign Site'),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF047857),
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: EdgeInsets.symmetric(horizontal: isCompactHeader ? 10 : 14, vertical: 8),
             ),
             onPressed: () async {
               final assigned = await showDialog<bool>(
@@ -249,21 +290,23 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
               if (assigned == true) _loadAllData();
             },
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           ElevatedButton.icon(
             icon: const Icon(Icons.calculate, size: 16),
-            label: const Text('Settlement Calculator'),
+            label: Text(isCompactHeader ? 'Settle' : 'Settlement Calculator'),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2563EB),
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: EdgeInsets.symmetric(horizontal: isCompactHeader ? 10 : 14, vertical: 8),
             ),
             onPressed: _openQuickSettlementCalculatorDialog,
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
         ],
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
           indicatorColor: const Color(0xFFF59E0B),
           indicatorWeight: 3,
           labelColor: Colors.white,
@@ -1954,10 +1997,14 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const CircleAvatar(
                           radius: 16,
@@ -1965,12 +2012,20 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                           child: Icon(Icons.business, size: 18, color: Colors.white),
                         ),
                         const SizedBox(width: 10),
-                        Text(v.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Flexible(
+                          child: Text(
+                            v.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         Text('(${v.vendorCode})', style: const TextStyle(color: Colors.grey)),
                       ],
                     ),
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
                         ElevatedButton.icon(
                           icon: const Icon(Icons.calculate, size: 14),
@@ -1993,7 +2048,6 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                             }
                           },
                         ),
-                        const SizedBox(width: 8),
                         ElevatedButton.icon(
                           icon: const Icon(Icons.picture_as_pdf, size: 14),
                           label: const Text('Export Statement'),
@@ -2004,7 +2058,6 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
                           ),
                           onPressed: () => SubVendorPdfService.printOrShareVendorOverallStatement(summary, vendor: v),
                         ),
-                        const SizedBox(width: 8),
                         ElevatedButton.icon(
                           icon: const Icon(Icons.account_balance, size: 14),
                           label: const Text('Bank Master Ledger'),
@@ -2061,16 +2114,17 @@ class _SubVendorManagementScreenState extends State<SubVendorManagementScreen>
   }
 
   Widget _sumBox(String label, String value, {bool isHighlight = false}) {
-    return Expanded(
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 135),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        margin: const EdgeInsets.only(right: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: isHighlight ? const Color(0xFFE0F2FE) : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(color: isHighlight ? const Color(0xFF0D2B6F) : Colors.grey.shade300),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label, style: const TextStyle(fontSize: 10.5, color: Colors.grey)),
